@@ -97,7 +97,7 @@ head(metadata)
 ```
 
 ##### **Question 1**: Looking at the [original study]("https://drive.google.com/file/d/1X3z251hebpjBVdOXsQtYzDG-SaeCa6M1/view"), method of RNA sequencing was performed? This is an unusual method of sequencing; you might need to look it up. Can you explain, approximately, how it works? (Give your best attempt)
-> Your answer here.
+> In the original study, RNA sequencing was performed using 3’ Tag-based RNA sequencing (TagSeq), which targets the 3’ ends of RNA transcripts to assess gene expression levels. This method involves isolating mRNA from the sample, fragmenting it, initiating cDNA synthesis with a specific oligo-dT primer targeting the 3’ end of mRNA molecules, amplifying the resulting cDNA fragments via PCR, and finally sequencing these fragments to focus on the 3’ ends for gene expression analysis.
 
 
 RNA-sequencing data go through MANY pre-processing steps before they get to this point. This includes:
@@ -108,7 +108,7 @@ RNA-sequencing data go through MANY pre-processing steps before they get to this
 * Counting the number of reads that __mapped__ (aligned) to the genome after ignoring any under a particular quality threshold
 
 ##### **Question 2**: Looking at the [original study]("https://drive.google.com/file/d/1X3z251hebpjBVdOXsQtYzDG-SaeCa6M1/view") by  briefly describe in 3-4 sentences how the above steps were performed. We will have discussed this some in lecture too if you need help.
-> Your answer here.
+> In the original study, the RNA-sequencing data underwent several pre-processing steps. Initially, FastQC assessed the quality of the FASTQ reads. Any ligated barcodes were then removed from the reads. Next, STAR aligned the reads to the B. impatiens genome to determine gene mapping. The number of reads meeting a quality threshold and successfully mapped to the genome was counted to quantify gene expression levels. These steps are crucial for ensuring accurate and reliable downstream gene expression analyses.
 
 
 ## Read Counts
@@ -116,8 +116,7 @@ RNA-sequencing data go through MANY pre-processing steps before they get to this
 We will be working with the __raw count__ data as __CPM (read counts per million)__ from across all 74 samples to perform a __differential gene expression__ analysis, often referred to as a 'DE' analysis in abbreviation. I will call it a 'DE' analysis going forward and I will refer to __'differentially expressed genes'__ as 'DEGs' or just 'DEG'. 
 
 ##### **Question 3**: Explain CPM for someone who might not know what that means. You may need to do a little extra reading on the subject!
-> Your answer here.
-
+> Counts Per Million (CPM) is a normalization method commonly used in RNA sequencing data analysis to quantify gene expression levels across samples. It calculates the expression of a gene as the number of reads mapped to that gene.
 Let's read in the raw counts and get a sense of these data.
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 counts <- read_csv(file = "../../I. Bioinformatics/Demo/23524047/ECK_CountData_Complete.csv") %>% as.data.frame()
@@ -125,12 +124,10 @@ head(counts[,1:6])
 ```
 
 ##### **Question 4**: Why is the `geneID` something like, 'LOC100740276'? What does that mean?
-> Your answer here.
-
+> The geneID is ‘LOC100740276' because that is a common format used to label genes in genomic databases. ‘LOC’ stands for locus which refers to a  specific location or position on a chromosome where a gene is located. ‘100740276’ is a unique identifier that distinguishes this gene from others in the database.
 
 ##### **Question 5**: For column `COOECK6` gene 'LOC100740276' has a value of 6. What does that mean?
-> Your answer here.
-
+> A value of 6 for the gene 'LOC100740276' in the column 'C00ECK6'  indicates the number of RNA-seq reads that were detected for the gene 'LOC100740276’ in the sample represented by 'C00ECK6'.
 
 # Conventional Method: Differential Expression Analysis using `DESeq2`
 
@@ -180,8 +177,7 @@ metadata$Treatment <- factor(metadata$Treatment, levels = c("Control", "Cold"))
 Once your __raw counts__ and __metadata__ matrices have been formatted correctly, you are ready to make the __design object__. The design object contains your __model formula__ for analysis, which includes both treatment effects and batch effect(s). Notably, the __design object__ controls for 'batch differences' -- these are random effects due to differences between individuals sampled, sequencing runs, and/or RNA quantities extracted before sequencing. All of these things could ultimately affect our ability to __statistically detect__ differences in gene expression, so controlling for batch effects is essential.
 
 ##### **Question 6**: Which variable is the 'batch' variable in this analysis and why? Hint: Look at the design formula in the next code chunk! 
-> Your answer here.
-
+> The 'Colony’ variable is the batch variable because it represents a potential source of variation that is unrelated to the treatment or experimental condition being studied.
 The design formula is used to estimate the dispersions and to estimate gene expression changes (measured in log-fold) per the model. For future reference, **you should put the variable of interest at the end of the formula** and make sure the control level is the first level of the factor. E.g., in our case, `Treatment` is placed at the end of the formula as it is the variable of interest. `Time` should also be included after `Treatment`; we expect there to be a difference among the durations of chill coma, potentially.
 
 ```{r, message=FALSE, warning=FALSE, results='hide'}
@@ -202,7 +198,7 @@ print(metadata)
 Notice that, at the same time that we set the __design formula__, we created the actual __design object__ upon which the work will actually be run. The `DESeqDataSet` is an object class used by `DeSeq2` to store the read counts, metadata, and design formula. 
 
 ##### **Question 7**: You may only be used to working with data frames in R, so objects could be a foreign beast. Take a moment to look at the `dsgnObject` we just made. What differences do you notice about the structure vs. a dataframe?
-> Your answer here.
+> The differences I noticed about the structure vs. a data frame are that structures are specifically designed for handling RNA-Seq count data and associated metadata in the context of differential expression analysis using DESeq2. Structures contain raw count data, sample metadata, and design formula information required for differential expression analysis. While data frames are a general-purpose data structure used for storing tabular data, suitable for various types of analysis in R. A data frame contains tabular data with columns of potentially different types, suitable for a wide range of analysis tasks.
 
 
 ## Normalization: Variance-Stabilizing Transformation
@@ -261,11 +257,9 @@ runVST(dsgnObject, blind = FALSE, fitType = "parametric", makePlot = TRUE, write
 ```
 
 ##### **Question 8**: What do you notice about the plot on the left (the `dsgnObject` without any transformation) vs. the plot on the right after the variance stabilizing transform? What do you think the VST is doing?
-> Your answer here.
-
+> The plot on the left has a y-axis up to 60,000, indicating that the original data might have had some highly expressed genes with very large counts. The plot on the after the variance stabilizing transform now had a y-axis of 3. The transformation has likely stabilized the variance, resulting in a more consistent distribution of gene expression values across different expression levels.
 ##### **Question 9**: This might seem like a lot of work. Why? Think back to other analyses where you have needed to normalize your data. What is the reason we do it, and why does it matter so much that we get it 'right' for our data?
-> Your answer here.
-
+> Normalization of gene expression data, as with any biological data, is a crucial step in analysis. Ensuring proper normalization is essential because it directly influences the validity and reliability of subsequent analyses and biological interpretations.  If normalization is not performed properly or if biases are not corrected, it can lead to incorrect conclusions, misinterpretation of results, and unreliable biological insights.
 ### Digging Deeper: Estimating Gene-Wise Dispersion
 DESeq2 uses a specific measure of dispersion ($\alpha$) related to the mean ($\mu$) and variance of the data: $\sigma^2 = \mu + \alpha * \mu^2$. This means that for genes with moderate to high counts, the square root of dispersion ($\alpha$) equals the Coefficient of Variation ($CV = \sigma^2 / \mu$). Thus, a 0.01 dispersion means there is 10% variation around the mean expected across biological replicates.
 
@@ -290,8 +284,7 @@ abline(lm(log(varCounts+0.0001) ~ log((meanCounts+0.0001))),
 The relationship between mean and variance should be linear on the log scale, and in gene expression data we predict that for higher means, we can more accurately predict the variance (i.e., it is more "fanned out" at lower means and a tighter linear relationship at higher means). We expect that for low mean counts, the variance estimates have a much larger spread, such that the dispersion estimates will differ much more between genes with small means. When this pattern holds, a variance-stabilizing transformation will help to resolve this issue. This is because the variance stabilizing transformation (VST) functions provided by `DESeq2` attempt to shrink the gene-wise dispersion. 
 
 ##### **Question 10**: Does this plot support that a VST is (1) needed, (2) not needed, or (3) likely to be ineffective?
-> Your answer here.
-
+> This plot supports that a VST is needed because of its fan-out pattern and the fact that there is not a tight linear relationship or a random/erratic relationship.
 
 ### Other VST Functions 
 Above, we set the `fitType = "parametric"` when we ran the initial VST. But is this really the best choice? The first rule in data science is **never just use the defaults.**
