@@ -47,6 +47,8 @@ pacman::p_load(tidyverse,
                ranger,
                multtest
 )
+library("DBI")
+library("DESeq2")
 ```
 
 # Introduction
@@ -118,7 +120,7 @@ We will be working with the __raw count__ data as __CPM (read counts per million
 
 Let's read in the raw counts and get a sense of these data.
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-counts <- read_csv(file = "./23524047/ECK_CountData_Complete.csv") %>% as.data.frame()
+counts <- read_csv(file = "../../I. Bioinformatics/Demo/23524047/ECK_CountData_Complete.csv") %>% as.data.frame()
 head(counts[,1:6]) 
 ```
 
@@ -189,6 +191,14 @@ dsgnObject <- DESeqDataSetFromMatrix(countData = counts,
 dim(dsgnObject)
 ```
 
+```{r}
+print(metadata)
+
+
+
+```
+
+
 Notice that, at the same time that we set the __design formula__, we created the actual __design object__ upon which the work will actually be run. The `DESeqDataSet` is an object class used by `DeSeq2` to store the read counts, metadata, and design formula. 
 
 ##### **Question 7**: You may only be used to working with data frames in R, so objects could be a foreign beast. Take a moment to look at the `dsgnObject` we just made. What differences do you notice about the structure vs. a dataframe?
@@ -247,6 +257,7 @@ runVST <- function(dsgnObject, blind, fitType, makePlot = TRUE, writeTable = FAL
 }
 
 runVST(dsgnObject, blind = FALSE, fitType = "parametric", makePlot = TRUE, writeTable = FALSE, writeRData = FALSE)
+
 ```
 
 ##### **Question 8**: What do you notice about the plot on the left (the `dsgnObject` without any transformation) vs. the plot on the right after the variance stabilizing transform? What do you think the VST is doing?
@@ -351,7 +362,7 @@ This performs a __Wald test__ of the specified contrast with a set significance 
 Here I am reading it back in so as not to give away the correct answer! Otherwise, you can just use the `runVST()` function!
 ```{r, include = TRUE}
 #runVST(dsgnObject, ...)
-load("vst_all_timepoints.Rdata")
+load("../../I. Bioinformatics/Demo/vst_all_timepoints.Rdata")
 ```
 
 #### 2. Estimate the size factors.
@@ -574,9 +585,7 @@ ggplot(pca, aes(PC1, PC2, color = Treatment, shape = Colony)) +
 ```
 
 ##### **Question 21**: What percent of the variance is attributable to PC1 and PC2? At which time point(s) do you see the most separation between the treatments? Is this consistent with what Verble et al. (2023) found?
-> Your answer here.
-
-
+> The first principal component can explain 39% of the variance and the second principal component can explain 11% of the variance. You see the most seperation at the 30 minute interval since there are no red or green outlier points on their opposign ends. I think this is not consistent with what Verble et al. (2023) found. In their article on page 7 they said that the variance was substantially different among time points unlike in our plot where they are more similiar.
 
 ##### **Question 22**: Think about what you know about Support Vector Machines (we will review this in lecture a bit too). Do you see anything in these PCA plots that make you think that SVM might do a much better job of finding the boundary between the treatments?
 > Your answer here.
