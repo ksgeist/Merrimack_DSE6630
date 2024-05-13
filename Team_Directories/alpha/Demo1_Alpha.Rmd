@@ -810,7 +810,7 @@ findOverlappingGenes <- function(cutoff) {
 
 # Next, we would like to annotate anything with greater then 2 log-fold change in expression:
 res <- res %>% 
-  mutate(locus = ifelse(abs(log2FoldChange) > 3, rownames(res), ""))
+  mutate(locus = ifelse(abs(log2FoldChange) > 2, rownames(res), ""))
 
 res %>% 
   ggplot(aes(x = log2FoldChange, y = -log10(pvalue), label=locus, color = DEG)) + 
@@ -827,7 +827,7 @@ res %>%
   geom_vline(xintercept = c(-2, 2), col="blue")        
 }
 
-findOverlappingGenes(1)
+
 ```
 
 
@@ -859,6 +859,29 @@ As with RF, be patient and let it run, if needed. Mine only takes ~ 20 seconds, 
 svmOOB <- svm(Treatment ~ ., 
   data = train,
   kernel = "linear",
+  na.action = na.omit
+)
+```
+
+```{r, echo = FALSE}
+paste0("The total number of support vectors was: ", svmOOB$tot.nSV)
+```
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+svmOOB <- svm(Treatment ~ ., 
+  data = train,
+  kernel = "radial",
+  na.action = na.omit
+)
+```
+
+```{r, echo = FALSE}
+paste0("The total number of support vectors was: ", svmOOB$tot.nSV)
+```
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+svmOOB <- svm(Treatment ~ ., 
+  data = train,
+  kernel = "sigmoid",
   na.action = na.omit
 )
 ```
@@ -929,13 +952,17 @@ importantsvm_1 %>%
 
 
 ##### **Question 29**: Try quickly repeating these analyses with `kernel = "radial"` as well as `kernel = "sigmoid"` in Step #2 above. Follow through with your predictions - which kernel yields the lowest training error and the highest test accuracy?
-> Your answer here.
+> the linear kernel had the highest accuracy of have 100% accuracy for the training and 78% accuracy for the testing. It also has the lowest training error.
 
 ##### **Question 30**: Use your function from question 28 - do you see an overlap between the `DESeq2` genes with greater than 2 log-fold expression? 
-> Your answer here.
+```{r}
+findOverlappingGenes(1)
+```
+
+> Yes there is some over lap with the greater then 2 log-fold expression 4 out of the 5 samples that are significan are shared between the two models
 
 ##### **Question 31**: At this point, which model is performing better on the gene expression data and why? 
-> Your answer here.
+> From all the analysis between the random OOB forest, the SVM and then DEseq2 model, it appears the the svm model is the most accurate. When evaulating the model with the training data both had 100% accuracy, but when looking at the testing data the SVM had an accuracy of 78% while the OOB RF had an accuracy 71%. I think the SVM does the best because of the margins it has along its regression line. Margins are good with SVM because they help make a better boundary when making classification decisons and reduce overfitting.
 
 # Final Comments
 At this stage, it should feel clear that we need to do feature selection. If not, stop and reflect on that statement. We know there is a lot of __noise__ in the data, and we have worked hard to preserve all of the observations and columns. However, we know that feature selection and tuning can both have DRASTIC effects on the performance of our models. Which one will your team choose to tune for **Project 1**?
