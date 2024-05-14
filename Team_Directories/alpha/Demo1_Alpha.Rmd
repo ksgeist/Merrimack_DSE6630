@@ -313,10 +313,17 @@ Other functions you can try:
 - `fitType = "rlog"`
 
 ##### **Question 11** (MS): Use our custom `runVST()` function, changing out the `fitType` parameter to do tuning. Heuristically, which `fitType` seems to be most appropriate here?
-> Your answer here.
+> It appears that the most appropriate fit type for the runVST would be the rlog fitType. I'm a little unsure as to why this may be, but I believe this could be the case since our data is working with the counts of the gene expression and this works well for rlog = Malek Sabri
 
 ```{r}
-# <Your code here>
+runVST(dsgnObject, blind = FALSE, fitType = "local", makePlot = TRUE, writeTable = FALSE, writeRData = FALSE)
+
+runVST(dsgnObject, blind = FALSE, fitType = "mean", makePlot = TRUE, writeTable = FALSE, writeRData = FALSE)
+
+runVST(dsgnObject, blind = FALSE, fitType = "rlog", makePlot = TRUE, writeTable = FALSE, writeRData = FALSE)
+
+#Malek Sabri
+
 ```
 
 ## Numbers of DE Genes Based on Fold-Change (Wald Tests)
@@ -416,16 +423,16 @@ summary(resultsDESeq)
 ```
 
 ##### **Question 12** (MS): You know what a p-value is but you may not be familiar with an __adjusted p-value__. What is it? Specifically, what's a __False Discovery Rate__? 
-> Your answer here.
+> An adjusted p-value is something that I had to do some research on even with my background in data science. The adjusted p-value is new to me because I've never really needed it for the types of hypothesis testing I've used. It is useful in this experiment because we are working with multiple genes in this differential gene expression experiment. When working with these multiple genes there may be an increased chance of having some false positive results. Thus, the adjusted p value comes in to hopefully correct the false discovery rate as much as possible. FDR will control the false positive rates helping the data be as accurate as possible = Malek Sabri
 
 ##### **Question 13** (MS): Why is it critical we employ a p-value adjustment here, like the FDR?
-> Your answer here.
+> So employing p-value adjustment is critical here for a number of different reasons, but most obviously to maintain the validity of the experiment. If these findings aren't adjusted later on down the road this can lead to a lot of problems including the fact that we may have some interesting discoveries, but they could be totally invalid when tested = Malek Sabri
 
 ##### **Question 14** (MS): How many differentially expressed genes did we find with the __Wald test__?
-> Your answer here.
+> 2. There are 2 low counts and 1 outlier = Malek Sabri
 
 ##### **Question 15** (MS): Looking at the Verble et al. (2023) study, how do our results differ from their `DESeq2` results and why? 
-> Your answer here.
+> This question was kind of tricky for me so I'm going to try my best at it. At first, I saw that we used the Benjamini-Hochberg method for FDR and I didn't think the original study would do that but they did as well. So the next thing I was looking for in the paper was to see the difference in "Time". My best guess is the way in which we used "design" with the code: design = ~ Colony + Treatment + Time. I believe that this code is more accurate than the one that the original study did and we are taking more into account. = Malek Sabri
 
 ##### Hint 1: What is different about our __design formula__ versus what they describe verbally? 
 ##### Hint 2: Look at what we did with `Time`!
@@ -502,16 +509,13 @@ kable(
 ```
 
 ##### **Question 16** (MS): Look at the custom function I've written for generating the summary statistics. How is __low expression__ defined? 
-> Your answer here.
-
-
+> It appears that lowExpression is defined as lowExpression <- length(totalCounts[totalCounts < 10*ncol(df)*0.9]) - The function looks like it is multiplying the columns in the data frame by .9 and 10 and if the count is then less then length totalCounts we are labeling it as lowExpression = Malek Sabri
 
 We have nearly 40% low expression by this definition. That seems high -- but it would also make sense because these bees were put into a __chill coma__ (which means their physiological processes might have shut down). In other words, the low expression might be a byproduct of the type of treatment that was applied, and could be really interesting in and of itself. Conventional methods typically __remove lowly expressed genes__, but we are doing our best at this stage to preserve all the data.
 
 
 ##### **Question 17** (MS): Given that it might be indicative of the study itself, do you think it could be **ill-advised** in this case to filter for low expression?
-> Your answer here.
-
+> Based on what I've learned so far I would say that it is likely ill-advised to do the filtering for low expression. The main reason for me believing that this is ill-advised is that there is still valuable info in what we could be potentially filtering out. Comparing the low expressed genes with high ones could also provide some valuable insight = Malek Sabri
 
 ## Heatmap of gene expression across treatments & time points
 First, we will calculate the sample distances using a Pearson's pairwise correlation coefficient as you have typically done in your EDA to date. The `cor()` function can be applied to the matrix of normalized gene expression values and then we can make a heatmap using the `pheatmap` package. Notice that we are also applying __hierarchical clustering__, which means that we are clustering the samples by correlation coefficient. Note that to get the matrix of numeric values for input, we extract them from the VST object containing our normalized values using the `assay()` function.
@@ -533,31 +537,33 @@ pheatmap(pwCorr,
 ```
 
 ##### **Question 18** (MS): What do you notice about the arrangement of the treatments and time points (or lack thereof)?
-> Your answer here.
+> The thing that I'm noticing about the heat map is that on the left hand side I'm seeing a "lack therof" in terms of the labeling of the heat map. I don't see anything there which makes it kind of hard to interpret. The next thing I notice is the way in which everything is grouped by correlation. The gene expression gets lower as it moves down and towards the right = Malek Sabri
 
 
 ##### **Question 19** (MS): Complete this code chunk to calculate the sample distances instead. You will use the `dist()`, which calculates the Euclidean distance between samples but to do it we must __transpose__ the matrix first with the `t()` function. This is actually somewhat similar to what is happening in a kMeans clustering algorithm. Does your assessment about the arrangement of the treatments and time points change any?
-> Your answer here.
+> I wouldn't say that my assessment on the arrangement of the treatments and time points change and this is because the distances don't get calculated by the control or not control. Rather, it is calculated by the correlation and how they're expressed = Malek Sabri
 
 Hint: Make sure to update your figure caption!
 ```{r, fig.width = 6, fig.height = 8.5, echo = TRUE}
 ## Calculate the sample distances; fill in the blank and take off the comment to run
-# sampleDistances <- dist(t(____)))     ## Hint: what did we do to extract a matrix from the VST object earlier?
+# sampleDistances <- dist(t(exprs(vstObject)))     ## Hint: what did we do to extract a matrix from the VST object earlier?
 
 ## Make the heatmap of the sample distances; fill in any blanks and then take the comments off to run!
 # sampleDistMatrix <- as.matrix(sampleDistances)
 
 ## Let's label by treatment and time again
-# rownames(sampleDistMatrix) <- paste(vsData$Treatment, vsData$Time, sep="-" )
+# rownames(sampleDistMatrix) <- paste(vsData$Treatment, vsData$Time, sep = "-" )
 # colnames(sampleDistMatrix) <- NULL
 
 ## Let's set a monochromatic color palette
 # colors <- colorRampPalette(rev(brewer.pal(9, "Purples")))(255)
 
-# pheatmap(___,
+# pheatmap(sampleDistMatrix,
          # clustering_distance_rows = sampleDistances,
          # clustering_distance_cols = sampleDistances,
-         # col = colors)
+         # col = colors) 
+
+#Malek Sabri^
 ```
 
 
@@ -567,7 +573,7 @@ PCA is a very commonly performed analysis in gene expression studies because it 
 Notice that we are using a `plotPCA()` function which has been designed to work with gene expression data rather than `princomp()` or `prcomp`. 
 
 ##### **Question 20** (MS): Do you think we could still use `princomp()` or `prcomp`?
-> Your answer here.
+> I do think that both of these could still be used. Obviously as noted above we are using plotPCA because of it's tailored ability to work with gene expression data. But, if needed i do believe proncomp and prcomp could provide meaningful insights = Malek Sabri
 
 #### Figure 7. The first two principal components for the difference in gene expression across all samples, conditions, and time points.
 ```{r, echo = FALSE, warning=FALSE, message=FALSE, fig.width = 8}
