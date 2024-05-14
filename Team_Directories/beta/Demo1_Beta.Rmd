@@ -120,7 +120,7 @@ We will be working with the **raw count** data as **CPM (read counts per million
 Let's read in the raw counts and get a sense of these data.
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-counts <- read_csv(file = "./23524047/ECK_CountData_Complete.csv") %>% as.data.frame()
+counts <- read_csv(file = "./23524047/Complete_sampleinfo.csv") %>% as.data.frame()
 head(counts[,1:6]) 
 ```
 
@@ -611,11 +611,11 @@ ggplot(pca, aes(PC1, PC2, color = Treatment, shape = Colony)) +
 
 ##### **Question 21**: What percent of the variance is attributable to PC1 and PC2? At which time point(s) do you see the most separation between the treatments? Is this consistent with what Verble et al. (2023) found?
 
-> Your answer here.
+39% of the variance is attributable to PC1 and 11% is attributable to PC2. I see the most separation between the treatmeants at 30 minutes. Verble et al. reported "Significant differences from control bees were only detectable within 30 minutes after the treatment, with most occurring at the 10-minute recovery time point." I don't think this graph shows that 10 minutes was the strongest, but I agree that 10 and 30 minute periods both show separation. 
 
 ##### **Question 22**: Think about what you know about Support Vector Machines (we will review this in lecture a bit too). Do you see anything in these PCA plots that make you think that SVM might do a much better job of finding the boundary between the treatments?
 
-> Your answer here.
+Since Support Vector Machines are able to produce non-linear boundaries, they would be able to create a boundary for data such as the graph shown for 30 minutes, that can separate data. They do this by using additional dimensions, which again could help create boundaries for when that data isn't linear. 
 
 ### Volcano Plots
 
@@ -652,7 +652,7 @@ res %>%
 
 ##### **Question 23**: Is there anything you notice from the volcano plot? Does anything about this support that a machine learning approach might perform better?
 
-> Your answer here.
+A volcano plot compares the fold change and significance of the genes. In this particular volcano plot, almost all the genes show no fold change, and there are only two genes that are significant and have greater than 2^2 times more expression in one condition over the other. A vast majority of the data are not significant and also don't have large fold changes. We get much less information from a graph that is clustered together in the
 
 \newpage
 
@@ -753,7 +753,14 @@ tab2 %>%
 
 ##### **Question 24**: How many features (genes) are in the train and test data sets? Do you notice anything little concerning about the train and test splits. Does adjusting the split seem to make it better, worse, or stay the same?
 
-> Your answer here.
+```{r}
+dim(test)
+dim(train)
+```
+
+There are 12927 features (genes) in each set. The test set has time periods with only one or two colonies represented. This will make it hard to determine if our model is working accurately if we only have 1 batch for each time period to work with. The test set also doesn't always have a control and a cold sample represented, so we can't compare the two. Adjusting the split to 60% does seem to help, but there is less data to train on. Adjusting to 70% is helpful, but less so, and probably a good compromise. 
+
+
 
 #### 4. Fitting an initial Random Forest model.
 
@@ -782,6 +789,8 @@ plot(rfOOB,
 ```
 
 ##### **Question 25**: Based on the plot, did the OOB manage to find complete separation between cold-exposed and control treatments?
+
+No, the error rate never reaches 0, which means there is not a complete separation. The OOB error however, is not always an accurate prediction of error on a test set. 
 
 Let's look at the results of the training set when tested against the data (called **training error**):
 
@@ -829,22 +838,26 @@ importantRF %>%
 
 ##### **Question 26**: How did the OOB model perform? Which prediction (training or testing) had the highest accuracy?
 
-> Your answer here.
+The training set had a much higher accuracy of 100% (which suggests that it was able to completely separate the cold-express and control samples). The test set had an accuracy of 65.5%. The model may have overfit the data since it performed very well on the training data, but much less well on the test data. 
 
 ##### **Question 27**: Why is it not a good idea to look at just the accuracy?
 
-> Your answer here.
+Especially in classification, there can be a different between false positive values and false negative values. Looking at only the accuracy does not tell us anything about these factors. Other measurements like precision or recall are able convey other factors about how well the model is able to predict labels for test data. 
 
 ##### **Question 28**: How many of the important features (genes) overlap with the ones from the `DESeq2` analysis with log-fold change in expression \> 1? **You must write a function to solve this.** Hint: Your function will be most flexible if it takes two parameters: (1) a log-fold change to cut off against in the `DESeq` results, and (2) a list of important genes from RF or another machine learning. Trust me, a function will make your life SO much easier!!!
 
-> Your answer here.
+179 genes overlap!
 
 ```{r, echo = FALSE}
-findOverlappingGenes <- function() {
-  print("Fill me in!")
+
+findOverlappingGenes <- function(cutoff, RFresults) {
+  FoldChangeCutoff <- row.names(resultsDESeq)[which(resultsDESeq$log2FoldChange > cutoff)]
+  rf <- row.names(RFresults)
+  importantgenes <- intersect(FoldChangeCutoff, rf)
+  print(length(importantgenes))
 }
 
-findOverlappingGenes()
+findOverlappingGenes(1, importantRF)
 ```
 
 Although the OOB accuracy isn't the worst ever, especially considering how poorly `DESeq2` performed, it still looks like we may have quite a lot of overfitting and we probably aren't getting a reliable list of important genes. We fix overfitting of a model with **cross-validation**. We are going to come back to this for **PROJECT 1**.
@@ -948,15 +961,35 @@ importantsvm_1 %>%
 
 ##### **Question 29**: Try quickly repeating these analyses with `kernel = "radial"` as well as `kernel = "sigmoid"` in Step #2 above. Follow through with your predictions - which kernel yields the lowest training error and the highest test accuracy?
 
-> Your answer here.
+Kernel = Radial
+Training accuracy: .6
+Test accuracy: .517
+
+Kernel = Sigmoid
+Training accuracy: .533
+Test accuracy: .517
+
+The training error is lowest for the linear kernel, with an accuracy of 100%. 
+The test error is lowest for linear as well with an accuracy of 65.5%. 
 
 ##### **Question 30**: Use your function from question 28 - do you see an overlap between the `DESeq2` genes with greater than 2 log-fold expression?
 
-> Your answer here.
+```{r, echo = FALSE}
+rownames(importantsvm_1) <- importantsvm_1[,1]
+findOverlappingGenes <- function(cutoff, RFresults) {
+  FoldChangeCutoff <- row.names(resultsDESeq)[which(resultsDESeq$log2FoldChange > cutoff)]
+  rf <- row.names(RFresults)
+  importantgenes <- intersect(FoldChangeCutoff, rf)
+  print(length(importantgenes))
+}
+
+findOverlappingGenes(2, importantsvm_1)
+```
+Yes! There are 28 overlapping genes.
 
 ##### **Question 31**: At this point, which model is performing better on the gene expression data and why?
 
-> Your answer here.
+There is more overlap between the DESeq results and the random forest model. The accuracy is also higher for the random forest model with 6.55% accuracy. 
 
 # Final Comments
 
