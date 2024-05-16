@@ -1,0 +1,214 @@
+---
+title: 'Project 1: Bioinformatics of Gene Expression'
+subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
+author: "Adeline Casali, Samantha Harper, Scott Eugley, Tiffany Michel Acosta"
+date: "2024-05-16"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = TRUE,
+                      cache.comments = TRUE,
+                      size = 13)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
+# Turn off scientific notation
+options(scipen=999)
+
+# Set seed; add CMRG for parallelization
+set.seed(50009, "L'Ecuyer-CMRG")
+
+# Clean, set up, and load
+pacman::p_unload(pacman::p_loaded(), character.only = TRUE)
+rm(list = ls(all = TRUE))
+
+pacman::p_load(tidyverse, 
+               ggplot2, 
+               kableExtra,
+               BiocManager,
+               DESeq2,
+               RColorBrewer,
+               gridExtra,
+               ggrepel,
+               e1071,
+               caret,
+               randomForest,
+               ranger,
+               multtest,
+               nestedcv,
+               Rfast
+)
+```
+
+# Questions
+##### **Question 1**: Look up these rules and try to explain what they are doing for yourself. 
+> Your answer here.
+
+##### **Question 2**: Take a moment to go look at the function and the documentation I have written. Also try playing with the parameters a bit - how many more or fewer genes do you get when you lower or raise the `filterCutoff`, respectively?
+> Your answer here.
+
+##### **Question 3**: Do some research on __data leakage__ and try to explain what that means in this context. Why do we care about data leakage?
+> Your answer here.
+
+##### **Question 4**: What combination of hyperparameters gives the highest accuracy in the **training model**? (Use plot above to answer.)
+> Your answer here.
+
+##### **Question 5**: Can you see an impact of the pre-processing (to remove lowly expressed genes)?
+> Your answer here.
+
+##### **Question 6**: Can you see an impact of the 10-fold cross-validation?
+> Your answer here.
+
+##### **Question 7**: How many different combinations are we going to search with this grid?
+> Your answer here. 
+
+##### **Question 8**: What combination of hyperparameters gives the highest accuracy in the **training model**? (Use plot above to answer.)
+> Your answer here.
+
+##### **Question 9**: How well did hyperparameter tuning with the grid search perform?
+> Your answer here.
+
+##### **Question 10**: Use the `modelLookup` function to help you figure out what hyperparameters are available for the `rf` vs. `ranger` methods for performing random forest algorithm with `caret`. What are the key differences you observce in the hypers you can tune?
+
+##### **Question 11**: What combination of hyperparameters gives the highest accuracy in the **training model**? (Use plot above to answer.) How does it compare to previous results?
+> Your answer here.
+
+##### **Question 12**: How well did hyperparameter tuning with the grid search perform?
+> Your answer here.
+
+##### **Question 13**: Notice that the y-axis is now **log-Loss** and not **accuracy**. You may need to do some digging, but can you figure out why? Sources can be helpful if you're not sure you're on the right track!
+> Your answer here.
+
+##### **Question 14**: The ROC and precision-recall curves are suggesting very high accuracy. Woohoo!!... Right?! What is the confusion matrix telling us? How do you know?
+> Your answer here.
+
+##### **Question 15**: Should we have any confidence in these results? Why or why not?
+> Your answer here.
+
+
+# Background and Question
+
+
+# Data Source
+
+
+# Analysis 
+
+
+# Conclusions
+
+
+# Recommendations and Next Steps
+
+
+# Appendix 1: Code
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+# Load data
+load("DESeqResults_30_min.Rdata")            ## Load the results of the DESeq 30 min file
+```
+
+```{r, echo=FALSE}
+# Load functions
+doSplits <- function(vst, algorithm, splitRatio, filterCutoff) {
+  ### @vst = vst dataset as extracted from DESeq2
+  ### @algorithm = ML algorithm used; currently set up for rf and svm
+  ### @splitRatio = the split ratio to employ (training size)
+  ### @filterCutoff = the filter cutoff for median number of VST gene counts
+  
+  ## According to the Valabas et al. (2019) paper, make sure that we are filtering in TRAINING set only! 
+
+  # Extract the VST data and transpose
+  tVST <- t(assay(vst))
+  
+  # We do have gene names, e.g., TRNAV-UAC that are malformed for ranger and randomForest. We will fix that before proceeding:
+  for (c in 1:ncol(tVST)) {
+    colName <- colnames(tVST)[c]
+    colName <- gsub("-", "_", colName)
+    colName -> colnames(tVST)[c]
+  }
+  
+  ## Add the metadata as columns & merge
+  df1 <- cbind(colData(vst)[1], colData(vst)[3], colData(vst)[2])       ## We don't need the size factors
+  tVST <- merge(tVST, df1, by = "row.names")
+
+  ## The merge turns back into a dataframe and removes the sample names from the rows; let's put them back:
+  rownames(tVST) <- tVST[,1]
+  tVST <- tVST[,-1]
+  
+  if(algorithm == "svm") {
+    ## Make the factors unordered
+    tVST <- tVST %>% 
+      mutate_if(is.ordered, factor, ordered = FALSE)
+  }
+  
+  ## Create the data partitions
+  ind <- createDataPartition(y = tVST[, c("Treatment")],     ## Treatment is evenly distributed
+                             p = splitRatio,                    ## % into training
+                             list = FALSE)                      ## don't return a list
+  train <- tVST[ind, ]
+  test <- tVST[-ind,]
+  
+  ## Now apply the filtering:
+  # Calculate row medians of VST gene counts
+  medians <- rowMedians(assay(vst))
+
+  # Filter the features out of train:
+  train <- train[, medians > filterCutoff]  
+  print(paste0("After filtering, the number of genes remaining in the dataset are: ", ncol(train)))
+
+  splits <- list(train, test)
+  return(splits)
+}
+findOverlappingGenes <- function(lfc, important) {
+  ### @lfc = the log-fold change cutoff you'd like to employ on the originall DESeq results
+  ### @important = the list, df, or matrix that contains the importance values from the ML classifier; make sure it is already filtered if needed.
+
+  res <- resultsDESeq %>% 
+    as.data.frame() %>% 
+    filter(abs(log2FoldChange) >= lfc)   # Make sure to filter by the ABSOLUTE VALUE :)
+  
+  # Move the rownames (genes) back to a column
+  res$geneID <- rownames(res)
+  # Coerce to a dataframe, if needed
+  important <- important %>% 
+    as.data.frame() %>% 
+    filter()
+  # Move the rownames (genes) back to a column, if needed
+  if (!"geneID" %in% colnames(important)) {
+      important$geneID <- rownames(important)
+  }
+  #Perform an inner join to find the overlap
+  overlap <- inner_join(res, important, by = "geneID")
+  
+  return(overlap)
+}
+compareConfusion <- function(confusionList) {
+  ## instantiate
+  finalDF <- data.frame()
+  for(i in 1:length(confusionList)) {
+    ## The first one
+    if(i == 1) {
+      confMat <- confusionList[[i]]   ## grab the first one
+      df <- confMat$overall %>% as.data.frame() 
+      finalDF <- rownames(df) %>% as.data.frame()
+      colnames(finalDF)[1] <- "Metric"
+      finalDF$`Confusion Matrix 1`  <- df[, 1]       ## grab the value
+    }
+    if(i > 1) {
+      name <- paste0('Confusion Matrix ', i)
+      confMat <- confusionList[[i]]
+      df <- confMat$overall %>% as.data.frame()
+      finalDF[, name] <- df[, 1]       ## grab the value
+    }
+  }
+  return(finalDF)
+}
+```
+
+```{r, echo=FALSE}
+
+```
+
+
+
