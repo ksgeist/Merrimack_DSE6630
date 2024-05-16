@@ -33,11 +33,16 @@ pacman::p_load(tidyverse,
                ggrepel,
                e1071,
                caret,
+               ROCR, 
+               pROC, 
                randomForest,
                ranger,
                multtest,
                nestedcv,
-               Rfast
+               Rfast, 
+               pdp, 
+               vip, 
+               kernlab
 )
 ```
 
@@ -105,8 +110,7 @@ pacman::p_load(tidyverse,
 # Appendix 1: Code
 ```{r, echo = FALSE, message=FALSE, warning=FALSE}
 # Load data
-load("DESeqResults_30_min.Rdata")            ## Load the results of the DESeq 30 min file
-load("vst_30_min.Rdata")                     ## Load the 30 min vst data
+load("vst_all_timepoints.Rdata")                     ## Load the vst data
 ```
 
 ```{r, echo=FALSE}
@@ -161,6 +165,7 @@ doSplits <- function(vst, algorithm, splitRatio, filterCutoff) {
   splits <- list(train, test)
   return(splits)
 }
+
 findOverlappingGenes <- function(lfc, important) {
   ### @lfc = the log-fold change cutoff you'd like to employ on the originall DESeq results
   ### @important = the list, df, or matrix that contains the importance values from the ML classifier; make sure it is already filtered if needed.
@@ -184,6 +189,7 @@ findOverlappingGenes <- function(lfc, important) {
   
   return(overlap)
 }
+
 compareConfusion <- function(confusionList) {
   ## instantiate
   finalDF <- data.frame()
@@ -215,12 +221,110 @@ test <- splits[[2]]
 ```
 
 ```{r}
-# Creating a basic svm model
+# Creating a basic (OOB) svm model
+svmOOB <- svm(Treatment ~ ., 
+  data = train,
+  kernel = "linear",
+  na.action = na.omit
+)
+paste0("The total number of support vectors was: ", svmOOB$tot.nSV)
+pred.test.svm <- predict(svmOOB, test, type = "response")
+confMat_OOB <- caret::confusionMatrix(pred.test.svm, test$Treatment)
+confMat_OOB
+```
+
+```{r}
+# Creating an svm model with CV k = 10 and linear kernel
+kFoldCtrl <- trainControl(method = "cv",    # for k-fold CV
+                          number = 10)      # k
+svmCV <- svm(Treatment ~ .,
+               data = train,
+             kernel = "linear", 
+             na.action = na.omit, 
+             trControl = kFoldCtrl)
+paste0("The total number of support vectors was: ", svmCV$tot.nSV)
+pred.test.svm_CV <- predict(svmCV, test, type = "response")
+confMat_CV <- caret::confusionMatrix(pred.test.svm_CV, test$Treatment)
+confMat_CV
+
+# Visualize performance
+decision_values <- attributes(predict(svmCV, test, decision.values = TRUE))$decision.values
+pred <- prediction(decision_values, test$Treatment)
+roc_curve <- performance(pred, "tpr", "fpr")
+plot(roc_curve, main = "ROC Curve for SVM with CV (Linear Kernel)", col = "blue")
 
 ```
 
 ```{r}
-# Creating an svm model with grid search
+# Creating a tuned SVM model
 
+# Create the grid
+searchGrid <- expand.grid(
+  .sigma = c(0.1, 1, 10), 
+  .C = c(0.1, 1, 10), 
+  .kernel = c("radial", "sigmoid", "linear", "polynomial")
+)
+
+start_time <- Sys.time()
+# Create the model
+svm_tune <- tune(svm, 
+                  Treatment ~ ., 
+                  data = train, 
+                  prediction = TRUE, 
+                  probability = TRUE, 
+                  ranges = searchGrid, 
+                  tunecontrol = tune.control(
+                    sampling = "fix", 
+                    fix = 1
+                    )
+                  )
+paste0("The total number of support vectors was: ", svmCV$tot.nSV)
+svm_tuned <- svm_tune$best.model
+cat("Cost:", svm_tuned$cost, "\n")
+cat("Gamma:", svm_tuned$gamma, "\n")
+key <- svm_tuned$kernel
+kernel_key <- list(
+  "0" = "Linear kernel",
+  "1" = "Polynomial kernel",
+  "2" = "Radial basis function (RBF) kernel",
+  "3" = "Sigmoid kernel"
+)
+kernel_description <- kernel_key[[as.character(key)]]
+print(kernel_description)
+
+pred.test.svm_tuned <- predict(svm_tuned, test, type = "response")
+confMat_Tuned <- caret::confusionMatrix(pred.test.svm_tuned, test$Treatment)
+confMat_Tuned
+end_time <- Sys.time()
+
+# Calculate duration to run
+duration <- end_time - start_time
+cat("Time taken:", duration, "\n")
 ```
+
+```{r}
+# Visualize performance
+decision_values <- attributes(predict(svm_tuned, test, decision.values = TRUE))$decision.values
+pred <- prediction(decision_values, test$Treatment)
+roc_curve <- performance(pred, "tpr", "fpr")
+plot(roc_curve, main = "ROC Curve for Tuned SVM", col = "blue")
+
+# Calculating AUC
+pred_prob <- predict(svm_tuned, test, probability = TRUE)
+pred_prob_pos <- attr(pred_prob, "probabilities")[, "Control"]
+auc <- roc(test$Treatment, pred_prob_pos)$auc
+print(auc)
+```
+
+
+```{r}
+# Comparing the models
+compareConfusion(confusionList = list(confMat_OOB, confMat_CV, confMat_Tuned)) %>% 
+    kable(
+    format = "html",
+    caption = "Table 1. Comparing Accuracy - Support Vector Machine Models") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F))
+```
+
+
 
