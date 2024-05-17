@@ -4,6 +4,7 @@ subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
 author: "Adeline Casali, Samantha Harper, Scott Eugley, Tiffany Michel Acosta"
 date: "2024-05-16"
 output: word_document
+always_allow_html: true
 ---
 
 ```{r setup, include=FALSE}
@@ -234,12 +235,38 @@ confMat_OOB
 ```
 
 ```{r}
-# Creating an svm model with CV k = 10 and linear kernel
+# Creating svm models with CV k = 10 and grid search for kernel: linear, sigmoid, radial, and polynomial
+# Create the grid
+searchGrid <- expand.grid(
+  .kernel = c("linear", "sigmoid", "radial", "polynomial")
+)
+# Create the model (k = 5 for computational purposes)
+svm_tune <- tune(svm, 
+                  Treatment ~ ., 
+                  data = train, 
+                  ranges = searchGrid, 
+                  tunecontrol = tune.control(
+                    sampling = "cross", 
+                    cross = 5
+                    )
+                  )
+svm_CV <- svm_tune$best.model
+key <- svm_CV$kernel
+kernel_key <- list(
+  "0" = "Linear kernel",
+  "1" = "Polynomial kernel",
+  "2" = "Radial kernel",
+  "3" = "Sigmoid kernel"
+)
+kernel_description <- kernel_key[[as.character(key)]]
+print(kernel_description)
+
+# Run chosen kernel with k = 10
 kFoldCtrl <- trainControl(method = "cv",    # for k-fold CV
                           number = 10)      # k
 svmCV <- svm(Treatment ~ .,
                data = train,
-             kernel = "linear", 
+             kernel = "radial", 
              na.action = na.omit, 
              trControl = kFoldCtrl)
 paste0("The total number of support vectors was: ", svmCV$tot.nSV)
@@ -247,59 +274,82 @@ pred.test.svm_CV <- predict(svmCV, test, type = "response")
 confMat_CV <- caret::confusionMatrix(pred.test.svm_CV, test$Treatment)
 confMat_CV
 
-# Visualize performance
+# Visualize performance of chosen model (Radial)
 decision_values <- attributes(predict(svmCV, test, decision.values = TRUE))$decision.values
 pred <- prediction(decision_values, test$Treatment)
 roc_curve <- performance(pred, "tpr", "fpr")
-plot(roc_curve, main = "ROC Curve for SVM with CV (Linear Kernel)", col = "blue")
+plot(roc_curve, main = "ROC Curve for SVM with CV (Radial Kernel)", col = "blue")
 
 ```
 
 ```{r}
-# Creating a tuned SVM model
-
-# Create the grid
-searchGrid <- expand.grid(
-  .sigma = c(0.1, 1, 10), 
-  .C = c(0.1, 1, 10), 
-  .kernel = c("radial", "sigmoid", "linear", "polynomial")
+# Creating a tuned SVM model (two separate tunes due to computational power restrictions)
+# Define the grid for gamma
+searchGrid_gamma <- expand.grid(
+  .gamma = c(0.01, 0.1, 1), 
+  .kernel = c("radial")
 )
 
-start_time <- Sys.time()
-# Create the model
-svm_tune <- tune(svm, 
-                  Treatment ~ ., 
-                  data = train, 
-                  prediction = TRUE, 
-                  probability = TRUE, 
-                  ranges = searchGrid, 
-                  tunecontrol = tune.control(
-                    sampling = "fix", 
-                    fix = 1
-                    )
-                  )
-paste0("The total number of support vectors was: ", svmCV$tot.nSV)
-svm_tuned <- svm_tune$best.model
-cat("Cost:", svm_tuned$cost, "\n")
-cat("Gamma:", svm_tuned$gamma, "\n")
-key <- svm_tuned$kernel
-kernel_key <- list(
-  "0" = "Linear kernel",
-  "1" = "Polynomial kernel",
-  "2" = "Radial basis function (RBF) kernel",
-  "3" = "Sigmoid kernel"
+# Tune the model for gamma
+svm_tune_gamma <- tune(svm, 
+                       Treatment ~ ., 
+                       data = train, 
+                       prediction = TRUE, 
+                       probability = TRUE, 
+                       ranges = searchGrid_gamma, 
+                       tunecontrol = tune.control(
+                         sampling = "fix", 
+                         fix = 1
+                       )
+                      )
+
+# Extract the best gamma
+best_gamma <- svm_tune_gamma$best.model$gamma
+cat("Best Gamma:", best_gamma, "\n")
+
+# Define the grid for cost
+searchGrid_cost <- expand.grid(
+  .C = c(0.1, 1, 10),
+  .kernel = c("radial")
 )
-kernel_description <- kernel_key[[as.character(key)]]
-print(kernel_description)
 
-pred.test.svm_tuned <- predict(svm_tuned, test, type = "response")
-confMat_Tuned <- caret::confusionMatrix(pred.test.svm_tuned, test$Treatment)
-confMat_Tuned
-end_time <- Sys.time()
+# Tune the model for cost
+svm_tune_cost <- tune(svm, 
+                      Treatment ~ ., 
+                      data = train, 
+                      prediction = TRUE, 
+                      probability = TRUE, 
+                      ranges = searchGrid_cost, 
+                      tunecontrol = tune.control(
+                        sampling = "fix", 
+                        fix = 1
+                      )
+                     )
 
-# Calculate duration to run
-duration <- end_time - start_time
-cat("Time taken:", duration, "\n")
+# Extract the best cost
+best_cost <- svm_tune_cost$best.model$cost
+cat("Best Cost:", best_cost, "\n")
+
+# Create the final model
+kFoldCtrl <- trainControl(method = "cv",    # for k-fold CV
+                          number = 10)      # k
+svm_tuned <- svm(Treatment ~ .,
+                 data = train,
+                 kernel = "radial", 
+                 C = best_cost, 
+                 gamma = best_gamma, 
+                 probability = TRUE, 
+                 trControl = kFoldCtrl)
+
+# Print the total number of support vectors
+paste0("The total number of support vectors was: ", svm_tuned$tot.nSV)
+
+# Predict on the test set
+pred.test_svm_tuned <- predict(svm_tuned, test, type = "response")
+
+# Create the confusion matrix
+confMat_tuned <- caret::confusionMatrix(pred.test_svm_tuned, test$Treatment)
+print(confMat_tuned)
 ```
 
 ```{r}
@@ -319,11 +369,9 @@ print(auc)
 
 ```{r}
 # Comparing the models
-compareConfusion(confusionList = list(confMat_OOB, confMat_CV, confMat_Tuned)) %>% 
-    kable(
-    format = "html",
-    caption = "Table 1. Comparing Accuracy - Support Vector Machine Models") %>%
-    kable_styling(bootstrap_options = c("hover", full_width = F))
+compareConfusion(confusionList = list(confMat_OOB, confMat_CV, confMat_tuned)) %>%
+  knitr::kable(format = "pandoc", caption = "Table 1. Comparing Accuracy - Support Vector Machine Models") %>%
+  kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
 ```
 
 
