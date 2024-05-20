@@ -448,5 +448,33 @@ compareConfusion(confusionList = list(confMat_OOB, confMat_CV, confMat_tuned)) %
   kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
 ```
 
+```{r}
+# Define outer and inner control
+outer_control <- trainControl(method = "cv", number = 5)
+inner_control <- trainControl(method = "cv", number = 5)
 
+# Define the tuning grid for hyperparameters
+tune_grid <- expand.grid(C = 2^(-5:2), sigma = 2^(-5:2))
+
+# Nested cross-validation function
+nested_cv_function <- function(train_data, train_control, tune_grid) {
+  train(Treatment ~ ., data = train_data, method = "svmRadial",
+        trControl = train_control, tuneGrid = tune_grid, 
+        preProcess = c("center", "scale"))
+}
+
+# Perform nested cross-validationView(nested_cv_function)
+outer_folds <- createFolds(train$Treatment, k = 5)
+outer_results <- lapply(outer_folds, function(outer_index) {
+  inner_train <- train[-outer_index, ]
+  inner_test <- train[outer_index, ]
+  
+  inner_model <- nested_cv_function(inner_train, inner_control, tune_grid)
+  
+  pred <- predict(inner_model, inner_test)
+  cm <- confusionMatrix(pred, inner_test$Treatment)
+  
+  list(model = inner_model, confusion_matrix = cm)
+})
+```
 
