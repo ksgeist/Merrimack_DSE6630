@@ -470,34 +470,69 @@ compareConfusion(confusionList = list(confMat_OOB, confMat_CV, confMat_tuned)) %
 ```
 
 ```{r}
-# Code Author: TMA
-# Define outer and inner control
-outer_control <- trainControl(method = "cv", number = 5)
-inner_control <- trainControl(method = "cv", number = 5)
+# Nested CV Model
+# Code Author: SE
 
-# Define the tuning grid for hyperparameters
-tune_grid <- expand.grid(C = 2^(-5:2), sigma = 2^(-5:2))
+# Set up grid
+searchGrid <- expand.grid(
+  .sigma = c(0.01, 0.1, 1),
+  .C = c(0.1, 1, 10)
+)
+selected_columns <- train[, !grepl("^LOC", names(train))]
+print(selected_columns)
+train$Time <- as.integer(sub("m$", "", train$Time))
+train[, -which(names(train) == "Treatment")] <- sapply(train[, -which(names(train) == "Treatment")], as.integer)
+train$Treatment <- as.factor(train$Treatment)
 
-# Nested cross-validation function
-nested_cv_function <- function(train_data, train_control, tune_grid) {
-  train(Treatment ~ ., data = train_data, method = "svmRadial",
-        trControl = train_control, tuneGrid = tune_grid, 
-        preProcess = c("center", "scale"))
-}
+# Set up training control with probability = TRUE
+train_control <- trainControl(method = "cv", number = 10, savePredictions = "final", classProbs = TRUE)
 
-# Perform nested cross-validationView(nested_cv_function)
-outer_folds <- createFolds(train$Treatment, k = 5)
-outer_results <- lapply(outer_folds, function(outer_index) {
-  inner_train <- train[-outer_index, ]
-  inner_test <- train[outer_index, ]
-  
-  inner_model <- nested_cv_function(inner_train, inner_control, tune_grid)
-  
-  pred <- predict(inner_model, inner_test)
-  cm <- confusionMatrix(pred, inner_test$Treatment)
-  
-  list(model = inner_model, confusion_matrix = cm)
-})
+# Train the model using nested cross-validation
+ncv <- nestcv.train(y = train$Treatment, x = train,
+                    method = 'svmRadial',
+                    tuneGrid = searchGrid,
+                    trControl = train_control,
+                    probability = TRUE)
+pred.test_svm_nested <- predict(svm_tuned, test, type = "response")
+
+# Create the confusion matrix
+confMat_nested <- caret::confusionMatrix(pred.test_svm_nested, test$Treatment)
+print(confMat_nested)
 ```
 
+```{r}
+# Visualize
+# Code Author: SE
+ggplot(ncv$outer_result[[1]]$fit) +
+  scale_x_log10() +
+  ggtitle("Results of Nested CV with hyperparameter tuning") +
+  theme_bw()
 
+# Plot ROC and Precision-Recall curves
+op <- par(mfrow = c(1, 2))
+
+# Outer CV ROC
+plot(ncv$roc, 
+     main = "Outer-folds ROC", 
+     col = 'blue')
+legend("bottomright", 
+       legend = paste0("AUC = ", signif(pROC::auc(ncv$roc), 3)), 
+       bty = 'n')
+
+# Inner CV ROC
+inroc <- innercv_roc(ncv)
+plot(inroc, 
+     main = "Inner-folds ROC", 
+     col = 'red')
+legend("bottomright", 
+       legend = paste0("AUC = ", signif(pROC::auc(inroc), 3)), 
+       bty = 'n')
+```
+
+```{r}
+# Code Author: SE
+# Comparing the models
+compareConfusion(confusionList = list(confMat_OOB, confMat_CV, confMat_tuned, conMat_nested)) %>%
+  knitr::kable(format = "pandoc", caption = "Table 1. Comparing Accuracy - Support Vector Machine Models") %>%
+  kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
+```
