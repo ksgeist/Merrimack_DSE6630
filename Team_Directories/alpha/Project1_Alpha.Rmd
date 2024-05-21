@@ -261,15 +261,6 @@ Also, note that [Hands-on Machine Learning in R](https://bradleyboehmke.github.i
 
 ### Complexity of each tree, aka, node split.
 Whereas the number of features at any given split ($m_{try}$) allows us to control the learning of the algorithm, the node split allows us to control the complexity of the individual trees in the forest. The default values are typically 1 and 5 for classification and regression, respectively, and while the default can work well on many datasets, noisier datasets or those that require higher values of $m_{try}$ may perform better with **increased** values of node size. Increasing values of node size **decreases** complexity and thereby tree depth. Further, larger node sizes can often speed up computation without large sacrifices to error rates.
-  
-### Splitting rule to use during tree construction.
-The main rules we will be using are the __gini__ rule and the __extratrees__ rule. We will practice tuning these rules to see what effect, if any, they can have on forest construction and overall accuracy.
-
-### Sampling scheme.
-This would allow us to alter whether we are sampling features with or without replacement at each node split. We will not be tuning this at this time.
-
-## Pre-processing and feature selection
-Two important elements of the data science life cycle that we did not have a chance to get into yet last week in Assignment 1 was __pre-processing__ (which includes transformations, encoding, splitting, and normalizing) and __feature selection__ (which includes reduction of the number of features or dimensionality of the dataset). We will spend more time on both of these topics throughout the course, but for this project it is largely hidden in the function that I wrote for us above, `doSplits()`. 
 
 #### Now, reset `filterCutoff = 5` and partition data for random forest tuning.
 ```{r}
@@ -342,6 +333,7 @@ rfCV <- train(Treatment ~.,
 pred.test.rf <- predict(rfCV, test, type = "raw")  ## type is now 'raw' 
 # Store the confusion matrix
 confMatCV <- confusionMatrix(pred.test.rf, test$Treatment)
+
 ```
 
 #### 5. Compare the two confusion matrices.
@@ -351,14 +343,13 @@ compareConfusion(confusionList = list(confMat, confMatCV)) %>%
     format = "html",
     caption = "Table 2. Comparing Accuracy - Random Forest") %>%
     kable_styling(bootstrap_options = c("hover", full_width = F))
+
 ```
 
 ## Further Tuning: Searching
 Usually, we only have a vague idea of the best hyperparameters and thus the best approach to narrow our search is to evaluate a wide range of values for each hyperparameter. We can allow packages like `caret` to automatically search for us (as above), but if the goal is to generate the most exhaustive search of hyperparameters - and in a way that is agnostic to human error - we need to do a __search__. Searches come in several flavors, but we will be executing a __grid__ search vs. a __random__ search for our study because both are quite simple to execute with the packages we already have.
 
 ### Grid Search
-As the name suggests, grid searches take a matrix of values and will iteratively and linearly search through the grid until all combinations have been tested. This is also sometimes referred to as a 'Cartesian grid' search. 
-
 ```{r, echo = FALSE}
 # Make a set of k = 10 seeds for reproducibility
 seeds <- vector(mode = "list", length = 11)
@@ -367,6 +358,7 @@ for(i in 1:10) {
 }
 # For the last model
 seeds[[11]]<-sample.int(1000, 1)
+
 ```
 
 ```{r, echo = FALSE}
@@ -384,10 +376,10 @@ searchGrid <- expand.grid(
   splitrule = c("gini", "extratrees"),
   min.node.size = c(1, 3, 5, 10) 
 )
+
 ```
 
 #### 2. Run the RF, this time adding in the search grid.
-Be patient. This may take a few minutes to run.
 ```{r}
 rfTuned <- train(Treatment ~.,  
                data = train,
@@ -395,6 +387,7 @@ rfTuned <- train(Treatment ~.,
                trControl = kFoldCtrl, 
                tuneGrid = searchGrid # Add in the search grid
 )
+
 ```
 
 ##### Figure 2. Visualize the Grid Search Performance:
@@ -402,6 +395,7 @@ rfTuned <- train(Treatment ~.,
 ggplot(rfTuned, highlight = TRUE) +
   ggtitle("Random Forest Performance Grid Search Tuning") + 
   theme_bw()
+
 ```
 
 #### 3. Take a look at the hyperparameters of the best model:
@@ -411,6 +405,7 @@ kable(
     format = "html",
     caption = "Table 3. Results of the Grid Search on Random Forest") %>%
     kable_styling(bootstrap_options = c("hover", full_width = F))
+
 ```
 
 #### 4. Refit the best model's hyperparameters to the test data set:
@@ -420,6 +415,7 @@ rfTuned <- train(Treatment ~.,
                method = "ranger",
                trControl = kFoldCtrl, 
                tuneGrid = rfTuned$bestTune)   # Add in the results of the CV and auto tuning
+
 ```
 
 #### 5. Make the new predictions to assess accuracy:
@@ -427,6 +423,7 @@ rfTuned <- train(Treatment ~.,
 pred.test.rf <- predict(rfTuned, test, type = "raw")  ## type is now 'raw' 
 # Store the confusion matrix
 confMatTuned <- confusionMatrix(pred.test.rf, test$Treatment)
+
 ```
 
 #### 6. Compare the three confusion matrices:
@@ -436,6 +433,7 @@ compareConfusion(confusionList = list(confMat, confMatCV, confMatTuned)) %>%
     format = "html",
     caption = "Table 4. Comparing Accuracy - Random Forest") %>%
     kable_styling(bootstrap_options = c("hover", full_width = F))
+
 ```
 
 ### Grid Search Using a Customized `caret` Method
@@ -468,11 +466,10 @@ makeCustomMethod <- function(paramList, methodName) {
   custom$levels <- function(x) x$classes
 return(custom)
 }
+
 ```
 
 #### 2. Run the customized method:
-**NOTE**: This takes about 12 min to run on 16gb of RAM.
-
 ```{r}
 customRF <- makeCustomMethod(paramList = c("mtry", 
                                            "num.trees", 
@@ -491,6 +488,7 @@ customTuned <- train(y = train$Treatment, x = train,
                 metric = "Accuracy", 
                 tuneGrid = searchGrid, 
                 trControl = kFoldCtrl)
+
 ```
 
 ##### Figure 3. Visualize the Customized Grid Search Performance.
@@ -498,6 +496,7 @@ customTuned <- train(y = train$Treatment, x = train,
 ggplot(customTuned, highlight = TRUE) +
   ggtitle("Customized RF Performance Grid Search Tuning") + 
   theme_bw()
+
 ```
 
 #### 3. Take a look at the hyperparameters of the best model.
@@ -507,6 +506,7 @@ kable(
     format = "html",
     caption = "Table 4. Results of the Customized Grid Search on Random Forest") %>%
     kable_styling(bootstrap_options = c("hover", full_width = F))
+
 ```
 
 #### 4. Refit the best model's hyperparameters to the test data set.
@@ -516,6 +516,7 @@ newTuned <- train(Treatment ~.,
                method = customRF,
                trControl = kFoldCtrl, 
                tuneGrid = customTuned$bestTune)
+
 ```
 
 #### 5. Make the new predictions to assess accuracy.
@@ -523,6 +524,7 @@ newTuned <- train(Treatment ~.,
 pred.test.rf <- predict(newTuned, test, type = "raw")  
 # Store the confusion matrix
 confMatTuned2 <- confusionMatrix(pred.test.rf, test$Treatment)
+
 ```
 
 #### 6. Compare the three confusion matrices.
@@ -532,16 +534,11 @@ compareConfusion(confusionList = list(confMat, confMatCV, confMatTuned, confMatT
     format = "html",
     caption = "Table 4. Comparing Accuracy - Random Forest") %>%
     kable_styling(bootstrap_options = c("hover", full_width = F))
+
 ```
 
-### Nested CV: An Overview
-
-In biological and biomedical data, the sample size is frequently limited but, as we see here, we have `r ncol(train)-3` __genes__ serving as features. This means the number of predictors are much, much larger than the observations ($P >> n$). When we did the 10-fold CV above, each fold contained 10% of the data. However, when you have only a few observations (here, $n = 74$!) that's a very small number to be withheld in each fold for validation, leading to the overfitting situation we continue to see **even with CV**. Enter **nested cross-validation (CV)**: it maximizes use of the whole dataset for testing accuracy while maintaining the split between training and testing.
-
+### Nested CV
 #### 1. Set a search grid and train the model using the `nestedcv.train()` function.
-Note that the setup looks a little reminiscent of our customized `caret` function. That's because the authors of this package are doing something similar, although they have improved the computational speed. We could do that too - if we wanted to write a package. Otherwise, we can just let ours run and take a coffee break. :)
-
-NOTE: Took 2.5-5 mins on 16gb RAM, depending on what else I was asking my computer to do at the same time.
 ```{r}
 searchGrid <- expand.grid(.mtry = floor(ncol(train) * c(0.01, 0.05, 0.10)),
                         .min.node.size = c(1, 5, 10),
@@ -552,20 +549,19 @@ ncv <- nestcv.train(y = train$Treatment, x = train,
                     method = 'ranger',
                     tuneGrid = searchGrid, 
                     savePredictions = "final")
+
 ```
 
 ##### Figure 4. Visualize the Nested CV Performace on RF while also using a Grid Search of hyperparameters.
-
 ```{r, echo = FALSE}
 ggplot(ncv$outer_result[[1]]$fit) +
   scale_x_log10() +
   ggtitle("Results of Nested CV with hyperparameter tuning") +
   theme_bw()
+
 ```
 
 #### 2. Plot the Receiver-operator curves (ROC) and precision-recall curves for both the inner- and outer- loops.
-
-You're going to see something really weird here...
 ```{r, echo=FALSE}
 # Plot ROC and Precision-Recall curves
 op <- par(mfrow = c(1, 2))
@@ -586,24 +582,25 @@ plot(inroc,
 legend("bottomright", 
        legend = paste0("AUC = ", signif(pROC::auc(inroc), 3)), 
        bty = 'n')
+
 ```
 
 #### 5. Get that final accuracy by fitting to the test data.
-Although, remember that with nested CV we have actually technically 'seen' the test data before. 
 ```{r}
 preds <- predict(ncv, 
                  newdata = test)
 confusionMatrix(preds, test$Treatment)
+
 ```
 
 #### 4. Grab the important features.
-This is just for practice and to give you code to do it.
 ```{r, echo=FALSE}
 nested_importantRF <- rf_filter(ncv, 
                                y = train$Treatment, 
                                x = train[, -ncol(train)], # drop Treatment
                                type ="full") %>% as.data.frame()
 names(nested_importantRF) <- "MeanDecreaseGini"
+
 ```
 
 ```{r, echo=FALSE}
@@ -614,20 +611,18 @@ kable(
     format = "html",
     caption = "Table 5. Important Features from the Nested CV Grid Search on Random Forest") %>%
     kable_styling(bootstrap_options = c("hover", full_width = F))
+
 ```
 
 #### 5. Compare our gene results to the ones out of `DESeq2`.
-Remember, the ultimate goal was to see which ML method was getting us close to results from `DESeq2`, the respected, conventional method.
-
 Let's filter the nested CV randfom forest importance:
 ```{r, echo = FALSE}
 importantRF_filt <- nested_importantRF %>% 
   as.data.frame() %>% 
   filter(MeanDecreaseGini > 0)
+
 ```
 
-Now let's compare that to what we got out of `DESeq2`.
-Note that I am setting a log-fold change filter to 1. In other words... any gene! Am I going to get any credible results?
 ```{r, echo = FALSE}
 findOverlappingGenes(lfc = 1, importantRF_filt) %>% 
   arrange(desc(abs(MeanDecreaseGini))) %>% 
@@ -635,34 +630,8 @@ findOverlappingGenes(lfc = 1, importantRF_filt) %>%
     format = "html",
     caption = "Table 6. Overlapping Features identified from DESeq and  Nested CV Random Forest") %>%
     kable_styling(bootstrap_options = c("hover", full_width = F))
+
 ```
-
-#### 6. Find out what our top gene from nested CV random forest does.
-Although the gene list has shuffled a bit from run to run, I did want to give you an example of one gene that I kept seeing come up again and again and _one way_ we might try to explore what these genes are and what they do. Because, at the end of the day, having a list of genes is rather dissatisfying if we want to know the underlying Biology.
-
-# Takeaways & Next Steps
-Hopefully the ROC and precision-recall curves from the nested CV clued you in to the fact that we have somewhat resolved the overfitting of our random forest, although we may still want to consider other options. One issue to consider with regard to RF is that of __OVERTRAINING__ - random forests are somewhat prone to it, despite all the great things about the algorithm. Secondly, we know this was a time-series of data, with different expression results more obvious at some time points than others (Verble et al. 2023). Thus, we would want to perform additional analyses before we feel too confident in these results. But we can see a positive impact of the nested CV.
-
-# Final Comments
-* Make sure to use the template I provide on GitHub for the project, rather than adding on to this document. It will just get too long! **If you can't upload the knitted file, just submit a note on Canvas that it wouldn't knit and that yoour RMD is on on your Team GitHub.* I expect some folks may have difficulty knitting. Be patient, too. It might take a half-hour or longer.
-
-* **Don't forget!** Answer questions scattered throughout the Random Forest CV and Tuning Sections to ensure your understanding (you may copy these answers, without code, to your project document.)
-
-**Files you need for the 30-min data are**:
-
-1. `vst_30_min.Rdata` = the 30-min equivalent of the `vsData` object with the VST normalized read counts, formatted and ready to use as in this walk-through.
-
-2. `vst_30_min.txt` = a text file version, which you likely do not need
-
-3. `DESeq_on_30min_Data.Rmd` = an RMD file that was used to generate the 30-min data, plus some exploratory analysis. For the results see #4.
-
-4. `DESeq_on_30_Data.html` = knitted file with some EDA and results to get you better acquainted to the data. Take a look! :)
-
-5. `DESeqResults_30_min.Rdata` = the 30-min equivalent of the `DESeqResults` object that you can use with this walk-through.
-
-**You will absolutely need to take a look at #4 and use #1 and #5 for analysis.**
-
-
 
 # Report done on word document 
 # Background & Questions
