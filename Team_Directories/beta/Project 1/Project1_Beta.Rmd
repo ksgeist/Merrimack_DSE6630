@@ -1,0 +1,543 @@
+---
+title: 'Project 1: Bioinformatics of Gene Expression'
+subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
+author: "Adeline Casali, Samantha Harper, Scott Eugley, Tiffany Michel Acosta"
+date: "2024-05-16"
+output: word_document
+always_allow_html: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = TRUE,
+                      cache.comments = TRUE,
+                      size = 13)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
+# Turn off scientific notation
+options(scipen=999)
+
+# Set seed; add CMRG for parallelization
+set.seed(50009, "L'Ecuyer-CMRG")
+
+# Clean, set up, and load
+pacman::p_unload(pacman::p_loaded(), character.only = TRUE)
+rm(list = ls(all = TRUE))
+
+pacman::p_load(tidyverse, 
+               ggplot2, 
+               kableExtra,
+               DESeq2,
+               RColorBrewer,
+               gridExtra,
+               ggrepel,
+               e1071,
+               caret,
+               ROCR, 
+               pROC, 
+               randomForest,
+               ranger,
+               multtest,
+               nestedcv,
+               Rfast, 
+               pdp, 
+               vip, 
+               kernlab, 
+               BiocManager
+)
+```
+
+# Questions
+##### **Question 1** (SH): Look up these rules and try to explain what they are doing for yourself. 
+> A classification tree predicts classes for observations by selecting the most common class for that node of the tree. The Gini index is a measure of the variance across the classes within a single region of the tree and is therefore a measure of ‘node purity’. The smaller the Gini index, the more of that node corresponds to a singular class. (James et al., 2021) When using Gini Impurity as a splitting rule, the algorithm will choose a split that has the largest decrease in Gini Impurity (since our ideal impurity is 0) (Lin, 2023, Ch 11.2).
+
+> The extratrees splitting rule is based on the Extra-Tree Algorithm by Geurts et al. (2005). The algorithm splits the ensemble of trees completely at random and uses the whole training sample to grow each tree. The goal is to reduce variation by using randomization when selecting cut-points and to reduce bias by using the whole training sample (Geurts et al, 2005). 
+
+##### **Question 2** (SH): Take a moment to go look at the function and the documentation I have written. Also try playing with the parameters a bit - how many more or fewer genes do you get when you lower or raise the `filterCutoff`, respectively?
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
+doSplits <- function(vst, algorithm, splitRatio, filterCutoff) {
+  ### @vst = vst dataset as extracted from DESeq2
+  ### @algorithm = ML algorithm used; currently set up for rf and svm
+  ### @splitRatio = the split ratio to employ (training size)
+  ### @filterCutoff = the filter cutoff for median number of VST gene counts
+  
+  ## According to the Valabas et al. (2019) paper, make sure that we are filtering in TRAINING set only! 
+
+  # Extract the VST data and transpose
+  tVST <- t(assay(vst))
+  
+  # We do have gene names, e.g., TRNAV-UAC that are malformed for ranger and randomForest. We will fix that before proceeding:
+  for (c in 1:ncol(tVST)) {
+    colName <- colnames(tVST)[c]
+    colName <- gsub("-", "_", colName)
+    colName -> colnames(tVST)[c]
+  }
+  
+  ## Add the metadata as columns & merge
+  df1 <- cbind(colData(vst)[1], colData(vst)[3], colData(vst)[2])       ## We don't need the size factors
+  tVST <- merge(tVST, df1, by = "row.names")
+
+  ## The merge turns back into a dataframe and removes the sample names from the rows; let's put them back:
+  rownames(tVST) <- tVST[,1]
+  tVST <- tVST[,-1]
+  
+  if(algorithm == "svm") {
+    ## Make the factors unordered
+    tVST <- tVST %>% 
+      mutate_if(is.ordered, factor, ordered = FALSE)
+  }
+  
+  ## Create the data partitions
+  ind <- createDataPartition(y = tVST[, c("Treatment")],     ## Treatment is evenly distributed
+                             p = splitRatio,                    ## % into training
+                             list = FALSE)                      ## don't return a list
+  train <- tVST[ind, ]
+  test <- tVST[-ind,]
+  
+  ## Now apply the filtering:
+  # Calculate row medians of VST gene counts
+  medians <- rowMedians(assay(vst))
+
+  # Filter the features out of train:
+  train <- train[, medians > filterCutoff]  
+  print(paste0("After filtering, the number of genes remaining in the dataset are: ", ncol(train)))
+
+  splits <- list(train, test)
+  return(splits)
+}
+load("vst_all_timepoints.Rdata")  
+```
+
+```{r}
+splits <- doSplits(vst = vsData, algorithm = "rf", splitRatio = 0.8, filterCutoff = 5)
+```
+```{r}
+splits <- doSplits(vst = vsData, algorithm = "rf", splitRatio = 0.8, filterCutoff = 3)
+```
+> When the filterCuttoff is reduced to 3 from 5 the number of genes remaining in the dataset increases to 12,927 from 7,676. 
+
+```{r}
+splits <- doSplits(vst = vsData, algorithm = "rf", splitRatio = 0.8, filterCutoff = 7)
+```
+> When the filterCutoff is increased to 7, the number of genes remaining in the dataset decreases to 4476. 
+
+##### **Question 3** (SH): Do some research on __data leakage__ and try to explain what that means in this context. Why do we care about data leakage?
+> Data leakage happens when a model is trained on data that will not be available ‘at the moment of prediction’. One type of data leakage is target leakage; any features informed by a label cannot be used for predicting that label. For example, the treatment drugs taken by a patient cannot be used for diagnosing a patient, since they are prescribed after diagnosis has taken place. Another type of data leakage occurs when any type of data processing takes place before splitting the data into training and validation sets. Train-test data leakage causes the results obtained from the validation set to become invalid, since they were part of informing the model originally (Cook). 
+
+> In this context, doing feature selection on the whole data set, instead of just the training set, will falsely increase the accuracy of the validation set. Training and test error are often very different and can help us identify when the model has been overfit. If the validation or test set is subject to data leakage, it will be much harder to identify overfitting and ultimately produce a model that hasn’t been tested and is less accurate. 
+
+
+##### **Question 4** (SH): What combination of hyperparameters gives the highest accuracy in the **training model**? (Use plot above to answer.)
+> The accuracy rises very quickly and then slowly decreases and the number of randomly chosen predictors increases. This increase is steeper for the gini splitting rule than it is for the extratrees splitting rule; the accuracy for gini rises to over 71% while the accuracy for extratrees only rises to about 67.5%. The peak for both is fairly low, at closer to 100 randomly selected predictors. The best model had a gini splitrule, mtry = 123, and a minimum node size of 1. 
+
+##### **Question 5** (SH): Can you see an impact of the pre-processing (to remove lowly expressed genes)?
+> The accuracy of the second model (after filtering for low expression) is much more accurate (from 43% to 50% accuracy). 
+
+##### **Question 6** (SE): Can you see an impact of the 10-fold cross-validation?
+> By comparing the two confusion matrices provided in table 2, it does not appear as though the 10-fold CV had any significant impact on the RF model. This is most likely due to RF's internal mechanisms providing robust performance without the need for additional CV. 
+
+##### **Question 7** (SE): How many different combinations are we going to search with this grid?
+> mtry has 5 possible values, splitrule has 2 possible values, and min.node.size has 4 possible values. 5 * 2 * 4 = 40 different combinations. 
+
+##### **Question 8** (SE): What combination of hyperparameters gives the highest accuracy in the **training model**? (Use plot above to answer.)
+> The highest accuracy is achieved with the following hyperparameter values:
+Number Randomly Selected Predictors (mtry) = ~2000
+splitrule = "extratrees"
+min.node.size = 5
+
+##### **Question 9** (SE): How well did hyperparameter tuning with the grid search perform?
+> Hyperparameter tuning with grid search actually performed worse than k-fold CV and OOB RF. Accuracy decreased from 0.571 to 0.500 and the kappa coef. dropped to 0! This potentially points to grid search hyperparameter tuning leading to overfitting. 
+
+##### **Question 10** (SE): Use the `modelLookup` function to help you figure out what hyperparameters are available for the `rf` vs. `ranger` methods for performing random forest algorithm with `caret`. What are the key differences you observce in the hypers you can tune?
+
+```{r}
+rf_info <- modelLookup("rf")
+ranger_info <- modelLookup("ranger")
+
+# Hyperparameters for rf
+print(rf_info)
+
+# Hyperparameters for ranger
+print(ranger_info)
+```
+
+> Ranger provides additional options to tune (splitting rule and minimal node size), this offers more flexibility in hyperparameter tuning. rf only offers mtry, which ranger also offers. 
+
+
+##### **Question 11** (TMA): What combination of hyperparameters gives the highest accuracy in the **training model**? (Use plot above to answer.) How does it compare to previous results?
+> gama = 0.0001302253 and cost = 1 in the training model the yield accuracy is 64.29%. This accuracy match with the cross validation svm model but it is lower than the initial SVM.The initial SVM performed better without the hyperparameter. Accuracy (71.43%) and Kappa (0.4286) this provided a more stable model by avoiding overfitting.
+
+##### **Question 12** (TMA): How well did hyperparameter tuning with the grid search perform?
+> The tuned Hyperparameter did not improve while the default did.
+
+##### **Question 13** (TMA): Notice that the y-axis is now **log-Loss** and not **accuracy**. You may need to do some digging, but can you figure out why? Sources can be helpful if you're not sure you're on the right track!
+> The switch from accuracy to log-loss on the y-axis means the plot now looks at a different aspect of the SVM model's performance. Log-loss measures how well the model predicts probabilities compared to the actual outcomes. It's important because SVMs don't directly give probabilities but instead provide decision values. The plot likely shows the ROC curve, which is about how well the model balances true positives and false positives. This change tells us the focus is now on the model's ability to estimate probabilities accurately, not just its overall correctness.(Palnt.J.C, 1999)
+
+##### **Question 14** (TMA): The ROC and precision-recall curves are suggesting very high accuracy. Woohoo!!... Right?! What is the confusion matrix telling us? How do you know?
+> It is telling us that high P- value is close to 1 and there were no diferences between performances. 
+
+##### **Question 15** (TMA): Should we have any confidence in these results? Why or why not?
+> The dataset looks large enough and balanced, so the results should be reliable. 
+
+
+
+# Background and Question (SH)
+
+As described by Verble et al. in 2024, cold temperatures can have a range of impacts on insects and their gene expressions. This study used standard statistical methods to analyze the large amounts of data resulting from the genetic material collected from the cold-exposed bees. Our aim is to conduct a benchmarking study, i.e. we wish to use the same data and apply new methods of analysis in order to learn more about the gene expression of cold-exposed bumble bees. This study will compare two machine learning models, Support Vector Machines and Random Forests. Our aim is to identify significant genes by identifying which genes have had large changes in expression in the cold-exposed samples compared to the control groups. Once these genes are identified we can compare the results with the original Verble study to compare the advantages of each model and learn more about the genetic impact of cold on bumble bees. 
+
+# Data Source (SH)
+
+The data used was collected by Verble et al. in their 2024 study "A rapid return to normal: temporal gene expression patterns following cold exposure in the bumble bee Bombus impatients." The data contain variables for the different colonies of bees, the control or chill exposure that the individual received, and the duration of the treatment. The count data recorded the 'counts per million' for each individual gene found in the samples. 
+
+The counts and other features were used to create a DESeq design object which stores the data. We then used a variance-stabilizing transformation to normalize the data. This allows us to compare samples accurately. This VST data is fed into our machine learning models. 
+
+Verble, K. M., Keaveny, E. C., Rahman, S. R., Jenny, M. J., Dillon, M. E., & Lozier, J. D. (2024). A rapid return to normal: temporal gene expression patterns following cold exposure in the bumble bee Bombus impatiens. The Journal of experimental biology, 227(9), jeb247040. https://doi.org/10.1242/jeb.247040
+
+# Analysis 
+
+
+# Conclusions
+
+
+# Recommendations and Next Steps
+
+
+# Appendix 1: Code
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+# Load data
+load("vst_all_timepoints.Rdata")                     ## Load the vst data
+```
+
+```{r, echo=FALSE}
+# Load functions
+doSplits <- function(vst, algorithm, splitRatio, filterCutoff) {
+  ### @vst = vst dataset as extracted from DESeq2
+  ### @algorithm = ML algorithm used; currently set up for rf and svm
+  ### @splitRatio = the split ratio to employ (training size)
+  ### @filterCutoff = the filter cutoff for median number of VST gene counts
+  
+  ## According to the Valabas et al. (2019) paper, make sure that we are filtering in TRAINING set only! 
+
+  # Extract the VST data and transpose
+  tVST <- t(assay(vst))
+  
+  # We do have gene names, e.g., TRNAV-UAC that are malformed for ranger and randomForest. We will fix that before proceeding:
+  for (c in 1:ncol(tVST)) {
+    colName <- colnames(tVST)[c]
+    colName <- gsub("-", "_", colName)
+    colName -> colnames(tVST)[c]
+  }
+  
+  ## Add the metadata as columns & merge
+  df1 <- cbind(colData(vst)[1], colData(vst)[3], colData(vst)[2])       ## We don't need the size factors
+  tVST <- merge(tVST, df1, by = "row.names")
+
+  ## The merge turns back into a dataframe and removes the sample names from the rows; let's put them back:
+  rownames(tVST) <- tVST[,1]
+  tVST <- tVST[,-1]
+  
+  if(algorithm == "svm") {
+    ## Make the factors unordered
+    tVST <- tVST %>% 
+      mutate_if(is.ordered, factor, ordered = FALSE)
+  }
+  
+  ## Create the data partitions
+  ind <- createDataPartition(y = tVST[, c("Treatment")],     ## Treatment is evenly distributed
+                             p = splitRatio,                    ## % into training
+                             list = FALSE)                      ## don't return a list
+  train <- tVST[ind, ]
+  test <- tVST[-ind,]
+  
+  ## Now apply the filtering:
+  # Calculate row medians of VST gene counts
+  medians <- rowMedians(assay(vst))
+
+  # Filter the features out of train:
+  train <- train[, medians > filterCutoff]  
+  print(paste0("After filtering, the number of genes remaining in the dataset are: ", ncol(train)))
+
+  splits <- list(train, test)
+  return(splits)
+}
+
+findOverlappingGenes <- function(lfc, important) {
+  ### @lfc = the log-fold change cutoff you'd like to employ on the originall DESeq results
+  ### @important = the list, df, or matrix that contains the importance values from the ML classifier; make sure it is already filtered if needed.
+
+  res <- resultsDESeq %>% 
+    as.data.frame() %>% 
+    filter(abs(log2FoldChange) >= lfc)   # Make sure to filter by the ABSOLUTE VALUE :)
+  
+  # Move the rownames (genes) back to a column
+  res$geneID <- rownames(res)
+  # Coerce to a dataframe, if needed
+  important <- important %>% 
+    as.data.frame() %>% 
+    filter()
+  # Move the rownames (genes) back to a column, if needed
+  if (!"geneID" %in% colnames(important)) {
+      important$geneID <- rownames(important)
+  }
+  #Perform an inner join to find the overlap
+  overlap <- inner_join(res, important, by = "geneID")
+  
+  return(overlap)
+}
+
+compareConfusion <- function(confusionList) {
+  ## instantiate
+  finalDF <- data.frame()
+  for(i in 1:length(confusionList)) {
+    ## The first one
+    if(i == 1) {
+      confMat <- confusionList[[i]]   ## grab the first one
+      df <- confMat$overall %>% as.data.frame() 
+      finalDF <- rownames(df) %>% as.data.frame()
+      colnames(finalDF)[1] <- "Metric"
+      finalDF$`Confusion Matrix 1`  <- df[, 1]       ## grab the value
+    }
+    if(i > 1) {
+      name <- paste0('Confusion Matrix ', i)
+      confMat <- confusionList[[i]]
+      df <- confMat$overall %>% as.data.frame()
+      finalDF[, name] <- df[, 1]       ## grab the value
+    }
+  }
+  return(finalDF)
+}
+```
+
+```{r, echo=FALSE}
+# Split data
+splits <- doSplits(vst = vsData, algorithm = "svm", splitRatio = 0.8, filterCutoff = 5)
+train <- splits[[1]]
+test <- splits[[2]]
+```
+
+```{r}
+# Code Author: AC
+# Creating a basic (OOB) svm model
+svmOOB <- svm(Treatment ~ ., 
+  data = train,
+  kernel = "linear",
+  na.action = na.omit
+)
+paste0("The total number of support vectors was: ", svmOOB$tot.nSV)
+pred.test.svm <- predict(svmOOB, test, type = "response")
+confMat_OOB <- caret::confusionMatrix(pred.test.svm, test$Treatment)
+confMat_OOB
+```
+
+```{r}
+# Code Author: AC
+# Creating svm models with CV k = 10 and grid search for kernel: linear, sigmoid, radial, and polynomial
+# Create the grid
+searchGrid <- expand.grid(
+  .kernel = c("linear", "sigmoid", "radial", "polynomial")
+)
+# Create the model (k = 5 for computational purposes)
+svm_tune <- tune(svm, 
+                  Treatment ~ ., 
+                  data = train, 
+                  ranges = searchGrid, 
+                  tunecontrol = tune.control(
+                    sampling = "cross", 
+                    cross = 5
+                    )
+                  )
+svm_CV <- svm_tune$best.model
+key <- svm_CV$kernel
+kernel_key <- list(
+  "0" = "Linear kernel",
+  "1" = "Polynomial kernel",
+  "2" = "Radial kernel",
+  "3" = "Sigmoid kernel"
+)
+kernel_description <- kernel_key[[as.character(key)]]
+print(kernel_description)
+
+# Run chosen kernel with k = 10
+kFoldCtrl <- trainControl(method = "cv",    # for k-fold CV
+                          number = 10)      # k
+svmCV <- svm(Treatment ~ .,
+               data = train,
+             kernel = "radial", 
+             na.action = na.omit, 
+             trControl = kFoldCtrl)
+paste0("The total number of support vectors was: ", svmCV$tot.nSV)
+pred.test.svm_CV <- predict(svmCV, test, type = "response")
+confMat_CV <- caret::confusionMatrix(pred.test.svm_CV, test$Treatment)
+confMat_CV
+
+# Visualize performance of chosen model (Radial)
+decision_values <- attributes(predict(svmCV, test, decision.values = TRUE))$decision.values
+pred <- prediction(decision_values, test$Treatment)
+roc_curve <- performance(pred, "tpr", "fpr")
+plot(roc_curve, main = "ROC Curve for SVM with CV (Radial Kernel)", col = "blue")
+
+```
+
+```{r}
+# Code Author: AC
+# Creating a tuned SVM model (two separate tunes due to computational power restrictions)
+# Define the grid for gamma
+searchGrid_gamma <- expand.grid(
+  .gamma = c(0.01, 0.1, 1), 
+  .kernel = c("radial")
+)
+
+# Tune the model for gamma
+svm_tune_gamma <- tune(svm, 
+                       Treatment ~ ., 
+                       data = train, 
+                       prediction = TRUE, 
+                       probability = TRUE, 
+                       ranges = searchGrid_gamma, 
+                       tunecontrol = tune.control(
+                         sampling = "fix", 
+                         fix = 1
+                       )
+                      )
+
+# Extract the best gamma
+best_gamma <- svm_tune_gamma$best.model$gamma
+cat("Best Gamma:", best_gamma, "\n")
+
+# Define the grid for cost
+searchGrid_cost <- expand.grid(
+  .C = c(0.1, 1, 10),
+  .kernel = c("radial")
+)
+
+# Tune the model for cost
+svm_tune_cost <- tune(svm, 
+                      Treatment ~ ., 
+                      data = train, 
+                      prediction = TRUE, 
+                      probability = TRUE, 
+                      ranges = searchGrid_cost, 
+                      tunecontrol = tune.control(
+                        sampling = "fix", 
+                        fix = 1
+                      )
+                     )
+
+# Extract the best cost
+best_cost <- svm_tune_cost$best.model$cost
+cat("Best Cost:", best_cost, "\n")
+
+# Create the final model
+kFoldCtrl <- trainControl(method = "cv",    # for k-fold CV
+                          number = 10)      # k
+svm_tuned <- svm(Treatment ~ .,
+                 data = train,
+                 kernel = "radial", 
+                 C = best_cost, 
+                 gamma = best_gamma, 
+                 probability = TRUE, 
+                 trControl = kFoldCtrl)
+
+# Print the total number of support vectors
+paste0("The total number of support vectors was: ", svm_tuned$tot.nSV)
+
+# Predict on the test set
+pred.test_svm_tuned <- predict(svm_tuned, test, type = "response")
+
+# Create the confusion matrix
+confMat_tuned <- caret::confusionMatrix(pred.test_svm_tuned, test$Treatment)
+confMat_tuned
+```
+
+```{r}
+# Code Author: AC
+# Visualize performance
+decision_values <- attributes(predict(svm_tuned, test, decision.values = TRUE))$decision.values
+pred <- prediction(decision_values, test$Treatment)
+roc_curve <- performance(pred, "tpr", "fpr")
+plot(roc_curve, main = "ROC Curve for Tuned SVM", col = "blue")
+
+# Calculating AUC
+pred_prob <- predict(svm_tuned, test, probability = TRUE)
+pred_prob_pos <- attr(pred_prob, "probabilities")[, "Control"]
+auc <- roc(test$Treatment, pred_prob_pos)$auc
+print(auc)
+```
+
+
+```{r}
+# Code Author: AC
+# Comparing the models
+compareConfusion(confusionList = list(confMat_OOB, confMat_CV, confMat_tuned)) %>%
+  knitr::kable(format = "pandoc", caption = "Table 1. Comparing Accuracy - Support Vector Machine Models") %>%
+  kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
+```
+
+```{r, eval = FALSE}
+# Nested CV Model
+# Code Author: SE/SH
+
+# Set up grid
+searchGrid <- expand.grid(
+  .sigma = c(0.01, 0.1, 1),
+  .C = c(0.1, 1, 10)
+)
+selected_columns <- train[, !grepl("^LOC", names(train))]
+print(selected_columns)
+train$Time <- as.integer(sub("m$", "", train$Time))
+train[, -which(names(train) == "Treatment")] <- sapply(train[, -which(names(train) == "Treatment")], as.integer)
+train$Treatment <- as.factor(train$Treatment)
+
+# Set up training control with probability = TRUE
+train_control <- trainControl(method = "cv", number = 10, savePredictions = "final", classProbs = TRUE)
+
+# Train the model using nested cross-validation
+ncv <- nestcv.train(y = train$Treatment, x = train,
+                    method = 'svmRadial',
+                    tuneGrid = searchGrid,
+                    trControl = train_control,
+                    probability = TRUE)
+pred.test_svm_nested <- predict(svm_tuned, test, type = "response")
+
+# Create the confusion matrix
+confMat_nested <- caret::confusionMatrix(pred.test_svm_nested, test$Treatment)
+print(confMat_nested)
+```
+
+```{r, eval = FALSE}
+# Visualize
+# Code Author: SE
+ggplot(ncv$outer_result[[1]]$fit) +
+  scale_x_log10() +
+  ggtitle("Results of Nested CV with hyperparameter tuning") +
+  theme_bw()
+
+# Plot ROC and Precision-Recall curves
+op <- par(mfrow = c(1, 2))
+
+# Outer CV ROC
+plot(ncv$roc, 
+     main = "Outer-folds ROC", 
+     col = 'blue')
+legend("bottomright", 
+       legend = paste0("AUC = ", signif(pROC::auc(ncv$roc), 3)), 
+       bty = 'n')
+
+# Inner CV ROC
+inroc <- innercv_roc(ncv)
+plot(inroc, 
+     main = "Inner-folds ROC", 
+     col = 'red')
+legend("bottomright", 
+       legend = paste0("AUC = ", signif(pROC::auc(inroc), 3)), 
+       bty = 'n')
+```
+
+```{r, eval = FALSE}
+# Code Author: SE
+# Comparing the models
+compareConfusion(confusionList = list(confMat_OOB, confMat_CV, confMat_tuned, conMat_nested)) %>%
+  knitr::kable(format = "pandoc", caption = "Table 1. Comparing Accuracy - Support Vector Machine Models") %>%
+  kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
+```
