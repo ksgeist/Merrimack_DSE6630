@@ -237,7 +237,6 @@ compareConfusion <- function(confusionList) {
 
 
 # RANDOM FOREST
-
 One of the reasons that random forest is generally considered to work so well OOB is that it picks up a portion of the predictors for training. At each step, it randomizes the variable selection during each tree split. Thus, it is doing its own form of cross-validation internally as part of the algorithm. This is also even the OOB is considered to be less prone to overfitting as compared to other machine learning algorithms. 
 
 That said, we can explicitly apply an external cross-validation too - **because even models that are more robust to overfitting are STILL capable of being overfit.** 
@@ -277,14 +276,13 @@ Two important elements of the data science life cycle that we did not have a cha
 splits <- doSplits(vst = vsData, algorithm = "rf", splitRatio = 0.8, filterCutoff = 5)
 train <- splits[[1]]
 test <- splits[[2]]
+
 ```
 
 ## Apply $k$-fold Cross-Validation (CV) to Random Forest
 
 #### 1. Leverage the `trainControl()` and `train()` functions from the `caret` package. 
-Recall that when were doing OOB random forest last week, we didn't use `trainControl()`.
-
-First, fit the same RF we fit last week for comparison **except now we are applying the filtering for low variance / expression!**
+First, fit the RF **except now applying the filtering for low variance / expression!**
 ```{r, echo = TRUE, eval=T}
 rfOOB <- randomForest::randomForest(
   Treatment ~ ., 
@@ -292,25 +290,26 @@ rfOOB <- randomForest::randomForest(
 
 pred.test.rf <- predict(rfOOB, test, type = "response")
 confMat <- confusionMatrix(pred.test.rf, test$Treatment)
+
 ```
 
 #### 2. Employ a $k$-fold CV where $k = 10$.
-**Note**: We wouldn't really need to do this, given my comments above about the internal random sampling scheme of RF. However, I wanted you to have code you could use for SVM. And it never hurts to see how it would behave!
-
 (n_repeats*nresampling)+1
 Set the control for $k = 10$ and then run the RF:
 ```{r, eval = T}
 # Set the CV arguments
 kFoldCtrl <- trainControl(method = "cv",    # for k-fold CV
                           number = 10)      # k
+
 ```
 
-Fit the Random Forest model:
+#### Fitting the Random Forest model:
 ```{r}
 rfCV <- train(Treatment ~.,  
                data = train,
                method = "ranger",
                trControl = kFoldCtrl)    ## added in the 10-fold CV
+
 ```
 
 ##### Figure 1. Visualize the 10-fold CV Performance
@@ -318,21 +317,17 @@ rfCV <- train(Treatment ~.,
 ggplot(rfCV, highlight = TRUE) +
   ggtitle("Random Forest Performance After 10-fold CV") + 
   theme_bw()
+
 ```
 
-You'll notice that by default with the 10-fold CV is that **it is doing automated hyperparameter tuning too!** Also, note the x-axis here. It is actually the $m_{try}$ hyperparameter, the number of randomly selected predictors $P$ at each split. So, you can **visualize the effect of** $m_{try}$ **on accuracy.**
-
-##### **Question 4**: What combination of hyperparameters gives the highest accuracy in the **training model**? (Use plot above to answer.)
-> Your answer here.
-
 #### 3. Extract best model.
-But what we'd really like to know is what the best model was:
 ```{r, echo = F}
 rfCV$bestTune %>% 
 kable(
     format = "html",
     caption = "Table 1. Results of the 10-fold CV Random Forest") %>%
     kable_styling(bootstrap_options = c("hover", full_width = F))
+
 ```
 
 #### 4. Fit the test data to the best tuned model from the 10-fold CV.
