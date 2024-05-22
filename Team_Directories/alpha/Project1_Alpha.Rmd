@@ -1,9 +1,11 @@
 ---
 title: 'Project 1: Bioinformatics of Gene Expression'
-subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
 author: "Ryan Canfield, Malek Sabri, Timothy Shaffer"
 date: "2025-5-20"
-output: word_document
+output:
+  html_document:
+    df_print: paged
+subtitle: 'Merrimack College DSE6630: Healthcare & Life Sciences Analytics'
 always_allow_html: true
 ---
 
@@ -235,32 +237,7 @@ compareConfusion <- function(confusionList) {
 }
 ```
 
-
 # RANDOM FOREST
-One of the reasons that random forest is generally considered to work so well OOB is that it picks up a portion of the predictors for training. At each step, it randomizes the variable selection during each tree split. Thus, it is doing its own form of cross-validation internally as part of the algorithm. This is also even the OOB is considered to be less prone to overfitting as compared to other machine learning algorithms. 
-
-That said, we can explicitly apply an external cross-validation too - **because even models that are more robust to overfitting are STILL capable of being overfit.** 
-
-More importantly, though, there are certain __hyperparameters__ of random forests that will assist with overfitting much better than cross-validation given the internal split-variable randomization of the algorithm. 
-
-**Note**: One of the other advantages to RF that you may come across is that it is robust to multicollinearity. Why? Well, since the algorithm is randomly selecting a certain number of samples via bootstrapping to train on and another random sample of features at each split, then a more diverse set of trees is produced. It tends to lessen correlation among the trees and would have the potential to 'break up' multicollinearity in the process.
-
-## Random Forest Hyperparameters
-
-### Number of features at any given split.
-Each time a split is to be performed, the search for the split variable is limited to a random subset of the $p$ features. In R's packages `randomForest` and `ranger`, this hyperparameter is called $m_{try}$ and is arguably one of the single most important hyperparameters to tune. By default, for regression RF, $m_{try} = \frac{p}{3}$ and for classification RF, $m_{try} = \sqrt{p}$. 
-
-But let's think about that: our OOB random forest, by default, would have run an $m_{try} = \sqrt{12927}$ or $approx$ `r sqrt(12927)`. Thus, $m_{try}$ is often one of the first hyperparameters you should consider tuning for random forest.
-
-### Number of trees in the forest.
-**How many trees should you have in your forest?** Although this isn't technically a hyperparameter, if you do not have enough trees in your forest, you will not be able for your model to **converge**, i.e., stabilize the error rate. Note that one of the cross-validation packages we will use, `train()` from the `caret` package does not allow us to tune __num.trees__. I will be showing you a work-around for that.
-
-Also, note that [Hands-on Machine Learning in R](https://bradleyboehmke.github.io/HOML/random-forest.html) recommends starting with $num.trees = 10 \cdot p$, but the challenge for us is __how massive the computational time would be__. DO NOT ATTEMPT THIS! By these recommendations, you would set an $num.trees =$ `r 10*12927`, which would only crash your computer!
-
-**Instead, I am going to recommend an** $num.trees \leq 2000$ **unless you have wayyyy more computing power than I do at the moment ;).**
-
-### Complexity of each tree, aka, node split.
-Whereas the number of features at any given split ($m_{try}$) allows us to control the learning of the algorithm, the node split allows us to control the complexity of the individual trees in the forest. The default values are typically 1 and 5 for classification and regression, respectively, and while the default can work well on many datasets, noisier datasets or those that require higher values of $m_{try}$ may perform better with **increased** values of node size. Increasing values of node size **decreases** complexity and thereby tree depth. Further, larger node sizes can often speed up computation without large sacrifices to error rates.
 
 #### Now, reset `filterCutoff = 5` and partition data for random forest tuning.
 ```{r}
@@ -345,9 +322,6 @@ compareConfusion(confusionList = list(confMat, confMatCV)) %>%
     kable_styling(bootstrap_options = c("hover", full_width = F))
 
 ```
-
-## Further Tuning: Searching
-Usually, we only have a vague idea of the best hyperparameters and thus the best approach to narrow our search is to evaluate a wide range of values for each hyperparameter. We can allow packages like `caret` to automatically search for us (as above), but if the goal is to generate the most exhaustive search of hyperparameters - and in a way that is agnostic to human error - we need to do a __search__. Searches come in several flavors, but we will be executing a __grid__ search vs. a __random__ search for our study because both are quite simple to execute with the packages we already have.
 
 ### Grid Search
 ```{r, echo = FALSE}
