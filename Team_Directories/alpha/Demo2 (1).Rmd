@@ -154,7 +154,9 @@ Investigate the `gsub()` function that is part of base `R` or any other function
 ##### **Question 7**: [1 point] 
 Speculate as to why I asked you to replace the text with a **5** rather than a **0** or an `NA`. Can you think of any other logical choices for the substitution? Do you agree with my choice? (You're free to disagree, but please defend your decision either way!)
 
-> Your answer here.
+> Your answer here.Acknowledging that some readmissions did occur.
+Providing a practical estimate that avoids introducing too much bias.
+Keeping the analysis straightforward without adding complications.
 
 
 ##### **Question 8**: [1 point] 
@@ -170,9 +172,21 @@ You probably anticipated this! We just decided that, rather than a **5** we want
 
 **Hint 2: **This is NOT the only way to do this, but I solved this using `gregexpr()`, `regmatches()`, and `lapply()`.
 
-```{r}
-# Your code here.
+# ```{r}
+# NumberOfReadmissions had to be converted to numeric before applying integers
+FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions <- as.numeric(FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions)
+
+# Find all values of "5" in NumberOfReadmissions
+fives <- which(FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions == 5)
+
+# Replace values of "5" with random integers from 1 - 10
+FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions[fives] <- sample(1:10, length(fives), replace = TRUE)
+
+# Check the first 20 rows to see if this was applied correctly
+head(FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions,20)
+
 ```
+
 
 
 ##### **Question 10**: [1 point] 
@@ -180,7 +194,16 @@ It is finally time to fix those aberrant character columns by making them  numer
 ```{r}
 # ?mutate_at
 # Your code here.
-```
+```{r}
+##Select  columns 
+columns_to_convert <- c("NumberOfDischarges", "ExcessReadmissionRatio", "PredictedReadmissionRate", "ExpectedReadmissionRate", "NumberOfReadmissions")
+
+# Use mutate_at to convert the specified columns to numeric
+FY_2024_Hospital_Readmissions_Reduction_Program <- FY_2024_Hospital_Readmissions_Reduction_Program %>%
+  mutate_at(vars(one_of(columns_to_convert)), as.numeric)
+
+# Print the structure of the dataframe to check the changes
+str(FY_2024_Hospital_Readmissions_Reduction_Program)
 
 #### Let's look more closely at Measure Names.
 Notice, that what I have done here first is used the `gsub()` function to `mutate()` the `MeasureName` column to remove the text that flanked the medical conditions.
@@ -217,6 +240,17 @@ Investigate the function `pivot_wider()` or `spread()` from the `tidyr` package,
 
 **Note:** If at this point you've had any issues with any of the previous problems 2-10, you can load the cleaned readmissions data, `readmissionsClean.Rdata`.
 ```{r}
+
+wideDF <- FY_2024_Hospital_Readmissions_Reduction_Program %>%
+  pivot_wider(
+    names_from = MeasureName, 
+    values_from = c(NumberOfDischarges, ExcessReadmissionRatio, PredictedReadmissionRate, ExpectedReadmissionRate, NumberOfReadmissions), 
+    id_cols = c(FacilityName, FacilityId, State, StartDate, EndDate)
+  )
+
+# Check the new dataframe
+dim(wideDF)
+```
 load(file = "readmissionsClean.Rdata")
 ```
 
