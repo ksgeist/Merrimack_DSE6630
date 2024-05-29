@@ -453,7 +453,7 @@ We need to perform encoding on all of the categorical columns, ultimately. Howev
 
 > Your answer here.
 
-##### **Question 15**: [3 points] 
+##### **Question 15**: [3 points] (SH)
 You probably expected this - attempt to encode those columns the method you selected. It's okay if you can only think of a way to brute-force this for now; I will show you code to help you do it faster after the assignment. :)
 
 * **Hint 1: **You could use the `contains()` or `startsWith()` functions to help you quickly grab those columns so you can make the changes you want to make.
@@ -480,33 +480,48 @@ load("pneumoniaFullEncoded.Rdata")
 We also decide that we want a way to try to preserve and analyze the geographic information without causing terrible overfitting. So, we will try to apply **frequency encoding** to those two categorical columns.
 
 
-##### **Question 16**: [1 points] 
+##### **Question 16**: [1 points] (SH)
 Go through the **frequency encoding** code chunk below and comment each line. What does it do? Make sure to comment why you think the choice was made, if appropriate.
 
 ```{r}
+#concatenate the two columns we want to encode
 cols2encode <- c("State", 
                "CountyParish")
 
+#Create a new dataset with only 2 variables
+#Done by comparing the 'names' for our original dataset with the elements in 'cols2encode'
+#This allows for changing columns later if we wanted and improves usability
 temp <- pneumoniaFullEncoded[, names(pneumoniaFullEncoded) %in% cols2encode]
 
+#Create a function 'add_freq'
+#Takes two parameters: data set and column_names
 add_freq <- function(data, column_name) {
+#Create a table 'frequency map'
+#Select a columns for the dataset including NA values
   frequency_map <- table(data[[column_name]], useNA = "always")
+#Replace the column data with frequency of the occurrence 
   data[[column_name]] <- frequency_map[match(data[[column_name]],
                                              names(frequency_map))]
+#Return updated dataset
   return(data)
 }
 
+#Loop through the columns of 'temp' dataset
 for (col in names(temp)) {
+#apply the function above to the temp dataset
+#Each column in temp will be replaced with the frequencies of each occurrence 
   temp <- add_freq(temp, col)
 }
 
+#Loop through the length of cols2encode (based on above, len = 2, but could change with updates to the columns)
 for (c in 1:length(cols2encode)) {
+#Replace the designated columns in the full dataset with the frequencies from the the temp dataset
   pneumoniaFullEncoded[, cols2encode[c]] <- temp[, cols2encode[c]]
 }
 ```             
 
 
-##### **Question 17**: [1 point] 
+##### **Question 17**: [1 point] (SH)
 Use your finally & freshly encoded version of `pneumoniaFullEncoded` to answer this vital question for `State` and `CountyParish` features: are we justified using these features? Why or why not? You will need to write code to answer this question.
 
 **Hint 1: **Use your original `pneumoniaFull` dataset to compare the features in `pneumoniaFullEncoded`.
@@ -516,10 +531,22 @@ Use your finally & freshly encoded version of `pneumoniaFullEncoded` to answer t
 **Hint 3: **If you decide it is ill-advised for either or both columns, make sure to remove those features from the dataset!
 
 ```{r}
-# Your code here.
+length(unique(pneumoniaFull$State))
+length(unique(pneumoniaFullEncoded$State))
 ```
+Above we can see that there is some data loss in the encoded version. This happens when the frequency of two or more unique values in the original data set are the same and so are encoded with the same frequency. The number of unique values for state was 57 and was reduced to 49 after encoding. 
 
-> Your answer here.
+```{r}
+length(unique(pneumoniaFull$CountyParish))
+length(unique(pneumoniaFullEncoded$CountyParish))
+```
+Here there is an even greater loss.
+
+Because there is so much data lost with this encoding, I don't think it is justified to continue to use these features. 
+
+```{r}
+pneumoniaFullEncoded <- subset(pneumoniaFullEncoded, select = -c(State, CountyParish))
+```
 
 
 ### Finishing touches
@@ -545,7 +572,7 @@ Excellent! Now we are down to just 51 features...
 #### 3. Identify the target variable.
 __Our very, very last steps!__ Your task is to identify the appropriate target variable from the dataset. I have purposefully not gone into great detail about what it would be because choosing the best target is sometimes tricky. 
 
-##### **Question 18**: [2 points] 
+##### **Question 18**: [2 points] (SH)
 Use `pneumoniaAnalyze` to calculate an  `observed_readmission_rate` as the number of readmissions divided by the number of discharges, multiplied by 100, then drop the two columns used to make this new one. Now, using the data and the data dictionary, try to understand the relationship between `observed_readmission_rate` that we just created, the `PredictedReadmissionRate`, `ExpectedReadmissionRate`, and the `ExcessReadmissionRatio`. What is the relationship? What is the appropriate target to choose and why? 
 
 **Hint: **Think about (or perhaps try to investigate)why the **predicted** rate exists. What would be the (dis)advantage to using the predicted vs. the newly created `observed_readmission_rate`? 
