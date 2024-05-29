@@ -79,10 +79,9 @@ Download the [Hospitals](https://data.cms.gov/provider-data/topics/hospitals) da
 
 You may have to dig through the accompanying data dictionary **HOSPITAL_Data_Dictionary.pdf** to get a better handle on what is in the hospital-level files. 
 
-##### **Question 1**: [1 point] 
+##### **Question 1** (SE): [1 point] 
 Take a look at the chunk below, which performs **dynamic variable assignment** as it reads in each of the files. Your task is to add a comment to each line of code to describe what that line does.
 > Your answer in the code chunk as comments.
-
 
 ```{r, message=FALSE, warning=FALSE}
 
@@ -123,60 +122,81 @@ files %>%
   )
 ```
 
-##### **Question 2**: [1 point] 
+##### **Question 2** (SE): [1 point] 
 Take a look at some of the dataframes, e.g., `HCAHPS` and `FY_2024_Hospital_Readmissions_Reduction_Program`. What do you notice about the format / structure of the data? Does the data have an issue with the dimensionality? 
 **Hint: **Check to see if each row represents a single line of data or not!
 
-> Your answer here.
+```{r}
+# Display first 10 rows of HCAHPS
+head(HCAHPS,10)
 
+# Display first 10 rows of FY_2024_Hospital_Readmissions_Reduction_Program 
+head(FY_2024_Hospital_Readmissions_Reduction_Program,10)
+
+```
+> The data appears to be in long format. Each row does represent a single line of data. My initial impression is that there is not an issue with dimensionality here. 
 
 ### Tidy the data response variables' dataframe: Fiscal Year 2024 Hospital Readmissions Reduction Program.
 We are going to focus on the dataset `FY_2024_Hospital_Readmissions_Reduction_Program` to work on best practices to [tidy our data](https://vita.had.co.nz/papers/tidy-data.pdf). Although I do not personally choose to follow everything that Hadley Wickham and the __Tidy Data__ Movement has espoused, I do think a lot of the best practices are useful principles especially when we are just getting use to working with data. Further, we can leverage a lot of the functions to make our lives MUCH easier! And who doesn't like easier?!
 
-##### **Question 3**: [1 point] 
+##### **Question 3** (SE): [1 point] 
 Take a deeper look at `FY_2024_Hospital_Readmissions_Reduction_Program` at some of the numeric variables in the dataset, e.g., `NumberOfReadmissions`? 
-> Your answer here.
+
+```{r}
+# Filter dataset to include numeric columns only
+num_vars <- FY_2024_Hospital_Readmissions_Reduction_Program %>%
+  select_if(is.numeric)
+
+# Check for missing values
+miss_vals <- sapply(num_vars, function(x) sum(is.na(x)))
+print(miss_vals)
+
+# Display first 20 rows of NumberOfReadmissions column
+head(FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions, 20)
+```
+> It appears as though the numeric column, "Footnote" has 12,077 missing values. Interestingly, when filtering for numeric variables, "NumberOfReadmissions" does not appear. Even though when you look at the first 20 rows of that column, you can see missing values. This must mean that the column is not characterizes as numeric.
 
 **Hint: **Columns 5 & 7:10 have problems with the `NA` class.
 
-##### **Question 4**: [1 point] 
+##### **Question 4** (SE): [1 point] 
 Investigate the `replace_with_na_all()` function that is part of the `naniar` package. Use this function to fix the `NA` class in the aberrant columns in `FY_2024_Hospital_Readmissions_Reduction_Program`.
 
 ```{r}
-# ?replace_with_na_all
-# Your code here.
+# Use the function "replace_with_na_all()" to replace aberrant values with NA
+replace_with_na_all(FY_2024_Hospital_Readmissions_Reduction_Program, condition = ~ .x == "NA")
 ```
 
 You will notice that this aberrant class of missing value __caused__ the numeric columns to be coerced into character columns when they were imported by `read_csv()`. Although we could try using `as.numeric()` by itself, which would assign `NA` to any non-numeric entry in `FY_2024_Hospital_Readmissions_Reduction_Program`, the problem is that we could lose important information that way. Thus, as annoying as this is, we should fix it a little more specifically...
 
-##### **Question 5**: [1 point] 
+##### **Question 5** (SE): [1 point] 
 Look more closely at the `NumberOfReadmissions` column in the `FY_2024_Hospital_Readmissions_Reduction_Program`. What other issue do you see with this specific column that is coercing it to the character type, and why does it exist? 
 
 **Hint: ** Make sure to use the accompanying data dictionary **HOSPITAL_Data_Dictionary.pdf** to also examine **WHY** this problem exists!
 
-> Your answer here.
+> The other issue coercing this variable into character type, is the occurrences of "Too Few to Report". This exists because the data is mostly concerned with looking at excess rates of readmission. Reporting individual counts for low numbers of readmission also poses identification risks to specific patients.
 
-
-##### **Question 6**: [1 point] 
+##### **Question 6** (SE): [1 point] 
 Investigate the `gsub()` function that is part of base `R` or any other function of your choosing. Use the function you choose to **replace** the problematic text in  the `NumberOfReadmissions` column in `FY_2024_Hospital_Readmissions_Reduction_Program` with a **5**.
 ```{r}
-# ?gsub
-# Your code here.
+# Replace "Too Few to Report" values with "5" in using gsub
+FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions <- gsub("Too Few to Report", "5", FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions)
+
+# Check first 10 rows to confirm that it worked
+head(FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions, 10)
 ```
 
-##### **Question 7**: [1 point] 
+##### **Question 7** (SE): [1 point] 
 Speculate as to why I asked you to replace the text with a **5** rather than a **0** or an `NA`. Can you think of any other logical choices for the substitution? Do you agree with my choice? (You're free to disagree, but please defend your decision either way!)
 
-> Your answer here.
+> Replacing the text with a 5 makes sense for a few reasons. A value of 5 maintains the intent that the number of readmissions is too low to report, as the minimum reportable value of readmission is 11. This also avoids using 0, which would be misleading, because being too low to report isn't the same as zero readmissions. NA indicates missing data, while a value of 5 specifically indicates a low reported value. Using 5 is a great way to keep the column numeric and indicate a value is too low to report while not reporting it as 0 or as missing (NA). 
 
 
-##### **Question 8**: [1 point] 
+##### **Question 8** (SE): [1 point] 
 Now, imagine an alternative scenario where instead of replacing it with a **5**, I instead asked you to replace it with a randomly sampled integer from 1 to 10. What would this do? Would `gsub()` work here or would I need to execute it a different way, e.g., with an `lapply()` function or a `for()` loop?
 
-> Your answer here.
+> This would introduce variability into the replaced values, which could possibly represent a more realistic distribution of readmission counts, especially at the low end. gsub would not work here. Either "lapply()" function or "for()" loop should be used.
 
-
-##### **Question 9**: [3 points] 
+##### **Question 9** (SE): [3 points] 
 You probably anticipated this! We just decided that, rather than a **5** we want a randomly sampled integer from 1 to 10. 
 
 **Hint 1: **You might find it easier to read the data in from fresh and, after commenting out your `gsub` from Question 5, pattern match on the problematic text.
@@ -184,7 +204,18 @@ You probably anticipated this! We just decided that, rather than a **5** we want
 **Hint 2: **This is NOT the only way to do this, but I solved this using `gregexpr()`, `regmatches()`, and `lapply()`.
 
 ```{r}
-# Your code here.
+# NumberOfReadmissions had to be converted to numeric before applying integers
+FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions <- as.numeric(FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions)
+
+# Find all values of "5" in NumberOfReadmissions
+fives <- which(FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions == 5)
+
+# Replace values of "5" with random integers from 1 - 10
+FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions[fives] <- sample(1:10, length(fives), replace = TRUE)
+
+# Check first 20 rows to see if this was applied correctly
+head(FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions,20)
+
 ```
 
 
