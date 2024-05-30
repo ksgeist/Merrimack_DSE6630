@@ -81,23 +81,23 @@ You may have to dig through the accompanying data dictionary **HOSPITAL_Data_Dic
 
 ##### **Question 1**: [1 point] 
 Take a look at the chunk below, which performs **dynamic variable assignment** as it reads in each of the files. Your task is to add a comment to each line of code to describe what that line does.
-> Your answer in the code chunk as comments.
+> Answer is in code chunk! = Malek
 
 
 ```{r, message=FALSE, warning=FALSE}
-filepath <- "C:/Users/RRC/Downloads/hospitals_current_data/"
-files <- list.files(path = filepath, pattern = "Hospital.csv")
+filepath <- "~/Desktop/hospitals_current_data/" #Sets path directory
+files <- list.files(path = filepath, pattern = "Hospital.csv") #Takes the files in the directory and makes sure they are the pattern of "Hospital.csv"
 
-for(f in 1:length(files)) {
-    dat <- clean_names(read_csv(paste0(filepath, files[f]),
+for(f in 1:length(files)) { #Creates a loop going through each file
+    dat <- clean_names(read_csv(paste0(filepath, files[f]), #Reads in the file, changes the column names to something more efficient, and sets the case to "upper_camel"
                                 show_col_types = FALSE), 
                        case = "upper_camel")
-    filename <- gsub(".Hospital\\.csv", "", files[f])
-    assign(filename, dat)
+    filename <- gsub(".Hospital\\.csv", "", files[f]) #Substitutes the ".Hospital\\.csv" to a blank
+    assign(filename, dat) #Assigns the data frame
 }
 
-files <- gsub(".Hospital\\.csv", "", files) %>% data.frame()
-names(files) <- "File Name"
+files <- gsub(".Hospital\\.csv", "", files) %>% data.frame() #Gets rid of ".Hospital\\.csv" from the files and then makes it a data frame
+names(files) <- "File Name" #Changes column name to "File Name"
 ```
 
 Now, let's look at a list of the files that we've read in:
@@ -108,13 +108,15 @@ files %>%
     caption = "Table 1. List of hospital-level data files.") %>%
     kable_styling(bootstrap_options = c("striped", full_width = F)
   )
+
+# = Malek
 ```
 
 ##### **Question 2**: [1 point] 
 Take a look at some of the dataframes, e.g., `HCAHPS` and `FY_2024_Hospital_Readmissions_Reduction_Program`. What do you notice about the format / structure of the data? Does the data have an issue with the dimensionality? 
 **Hint: **Check to see if each row represents a single line of data or not!
 
-> Your answer here.
+> To me it is looking like the data was not read in properly! and in fact almost looks like it was read in inversely. The way the data looks right now is not showing that each row is a single line of data, rather the rows are column names such as "FY_2024_Hospital_Readmissions_Reduction_Program" = Malek
 
 
 ### Tidy the data response variables' dataframe: Fiscal Year 2024 Hospital Readmissions Reduction Program.
@@ -122,7 +124,7 @@ We are going to focus on the dataset `FY_2024_Hospital_Readmissions_Reduction_Pr
 
 ##### **Question 3**: [1 point] 
 Take a deeper look at `FY_2024_Hospital_Readmissions_Reduction_Program` at some of the numeric variables in the dataset, e.g., `NumberOfReadmissions`? 
-> Your answer here.
+> So obviously there are some concerns with the NA values in the specified columns. I'm not really sure as to what the plan is to correct it, but I believe that will be discussed as we will likely run into further problems down the line if we don't fix the NA's. One thing that I'll be curious to see is how we handle this. In the past, I've simply gotten rid of NA's but in this case I don't think it'd be wise to do that. With that said, in class we learned about some other methods of possibly repplacing the NA values with something else. = Malek
 
 **Hint: **Columns 5 & 7:10 have problems with the `NA` class.
 
@@ -131,7 +133,11 @@ Investigate the `replace_with_na_all()` function that is part of the `naniar` pa
 
 ```{r}
 # ?replace_with_na_all
-# Your code here.
+FY_2024_Hospital_Readmissions_Reduction_Program <- FY_2024_Hospital_Readmissions_Reduction_Program %>%
+  replace_with_na_all(condition = ~.x %in% c("", "NA"))
+summary(FY_2024_Hospital_Readmissions_Reduction_Program[, c(5, 7:10)])
+#So it turns out I didn't really fully understand what was happening. I had automatically assumed that just because there was missing values that R interpreted it as NA. But in reality we need to do some more cleaning and actually change it to NA
+# = Malek
 ```
 
 You will notice that this aberrant class of missing value __caused__ the numeric columns to be coerced into character columns when they were imported by `read_csv()`. Although we could try using `as.numeric()` by itself, which would assign `NA` to any non-numeric entry in `FY_2024_Hospital_Readmissions_Reduction_Program`, the problem is that we could lose important information that way. Thus, as annoying as this is, we should fix it a little more specifically...
@@ -141,20 +147,26 @@ Look more closely at the `NumberOfReadmissions` column in the `FY_2024_Hospital_
 
 **Hint: ** Make sure to use the accompanying data dictionary **HOSPITAL_Data_Dictionary.pdf** to also examine **WHY** this problem exists!
 
-> Your answer here.
+> I would say that the thing that is standing out to me, by looking at the data dictionary, is that there are some values which are not numeric but the type of character in the column isn't what it should be. I think it'd be useful to make sure everything that is numeric should be numeric and everything that is a character or string be exactly that. = Malek
 
 
 ##### **Question 6**: [1 point] 
 Investigate the `gsub()` function that is part of base `R` or any other function of your choosing. Use the function you choose to **replace** the problematic text in  the `NumberOfReadmissions` column in `FY_2024_Hospital_Readmissions_Reduction_Program` with a **5**.
 ```{r}
 # ?gsub
-# Your code here.
+# gsub is a function that is new to me and I'm glad I am familiarizing myself with it. It's beneficial to use if there is a pattern in a string and I want to replace that pattern with a given value. Here, the pattern flaw is getting replaced with the number 5 = Malek
+FY_2024_Hospital_Readmissions_Reduction_Program <- FY_2024_Hospital_Readmissions_Reduction_Program %>%
+  mutate(NumberOfReadmissions = gsub("N/A|Not Available|[^0-9]", "5", NumberOfReadmissions))
+FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions <- as.numeric(FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions)
+
 ```
 
 ##### **Question 7**: [1 point] 
 Speculate as to why I asked you to replace the text with a **5** rather than a **0** or an `NA`. Can you think of any other logical choices for the substitution? Do you agree with my choice? (You're free to disagree, but please defend your decision either way!)
 
-> Your answer here.
+> Your answer here.Acknowledging that some readmissions did occur.
+Providing a practical estimate that avoids introducing too much bias.
+Keeping the analysis straightforward without adding complications.
 
 
 ##### **Question 8**: [1 point] 
@@ -171,8 +183,20 @@ You probably anticipated this! We just decided that, rather than a **5** we want
 **Hint 2: **This is NOT the only way to do this, but I solved this using `gregexpr()`, `regmatches()`, and `lapply()`.
 
 ```{r}
-# Your code here.
+# NumberOfReadmissions had to be converted to numeric before applying integers
+FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions <- as.numeric(FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions)
+
+# Find all values of "5" in NumberOfReadmissions
+fives <- which(FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions == 5)
+
+# Replace values of "5" with random integers from 1 - 10
+FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions[fives] <- sample(1:10, length(fives), replace = TRUE)
+
+# Check the first 20 rows to see if this was applied correctly
+head(FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions,20)
+
 ```
+
 
 
 ##### **Question 10**: [1 point] 
@@ -182,8 +206,22 @@ It is finally time to fix those aberrant character columns by making them  numer
 # Your code here.
 ```
 
-#### Let's look more closely at Measure Names.
+```{r}
+##Select  columns 
+columns_to_convert <- c("NumberOfDischarges", "ExcessReadmissionRatio", "PredictedReadmissionRate", "ExpectedReadmissionRate", "NumberOfReadmissions")
+
+# Use mutate_at to convert the specified columns to numeric
+FY_2024_Hospital_Readmissions_Reduction_Program <- FY_2024_Hospital_Readmissions_Reduction_Program %>%
+  mutate_at(vars(one_of(columns_to_convert)), as.numeric)
+
+# Print the structure of the dataframe to check the changes
+str(FY_2024_Hospital_Readmissions_Reduction_Program)
+
+```
+
+####Let's look more closely at Measure Names.
 Notice, that what I have done here first is used the `gsub()` function to `mutate()` the `MeasureName` column to remove the text that flanked the medical conditions.
+
 ```{r}
 FY_2024_Hospital_Readmissions_Reduction_Program <-  FY_2024_Hospital_Readmissions_Reduction_Program %>%
   mutate(MeasureName = gsub("READM-30-", "", MeasureName)) %>% 
@@ -214,6 +252,20 @@ It's important to understand that these medical conditions are the **ones that M
 
 ##### **Question 11**: [1 point] 
 Investigate the function `pivot_wider()` or `spread()` from the `tidyr` package, which comes bundled with `tidyverse`. Try pivoting the `FY_2024_Hospital_Readmissions_Reduction_Program` dataset wider. Make sure you correctly identify the `names_from` and `values_from` column(s). **Make sure to save it as a separate dataframe called `wideDF`. Use the `dim()` function to prove to me that you successfully pivoted wider.
+
+**Note:** If at this point you've had any issues with any of the previous problems 2-10, you can load the cleaned readmissions data, `readmissionsClean.Rdata`.
+```{r}
+
+wideDF <- FY_2024_Hospital_Readmissions_Reduction_Program %>%
+  pivot_wider(
+    names_from = MeasureName, 
+    values_from = c(NumberOfDischarges, ExcessReadmissionRatio, PredictedReadmissionRate, ExpectedReadmissionRate, NumberOfReadmissions), 
+    id_cols = c(FacilityName, FacilityId, State, StartDate, EndDate)
+  )
+
+# Check the new dataframe
+dim(wideDF)
+```
 
 **Note:** If at this point you've had any issues with any of the previous problems 2-10, you can load the cleaned readmissions data, `readmissionsClean.Rdata`.
 ```{r}
@@ -254,6 +306,87 @@ Also, as I was writing my own function, I found that the `Payment and Value of C
 
 ##### **Question 12**: [5 points] 
 Write a function that will (1) fix any issues identified previously, e.g., issues with the `NA` class or pivoting, if needed; (2) join any number of a list of dataframes you give it; and (3) filters the data for given condition(s) prior to pivoting. 
+
+For full credit, make sure that your function can clean up and join together at least three of the dataframes. **Note**: Make sure to join with `readmissionsClean` at the end!
+
+* **Hint 1: **Feel free to drop the `startDate` and `endDate` columns, as well as the `footnote` column. I would even suggest dropping `MeasureId`.
+
+* **Hint 2: **`select(-any_of(c(...)))` can be used to drop any of a list of columns, regardless of whether it exists in every dataframe or not.
+
+* **Hint 3: **If you choose to drop all those extraneous columns, then the column you will need to merge/join on will always be in the second position, `MeasureName`.
+
+* **Hint 4: **`full_join()` in `dplyr` is likely what you will need; you will want to execute the join on `FacilityId`.
+
+* **Hint 5: **Make sure to check for and/or remove duplicate rows.
+
+* **Hint 6: **If you are really stuck, move ahead and I give you a cleaned, merged data set to work with.
+
+
+ pivot wider we would decide if we were going to filter for any specific hospital readmission conditions. For your __Project 2__, you will be choosing which medical condition(s) you want to focus on for predicting hospital readmission. However, for the remainder of this demo, we're going to focus on just __pneumonia__. 
+
+__Ideas you might consider for your project are:__
+
+* surgical interventions (`HIP-KNEE`, `CABG`)
+* heart-related conditions (`HF`, `AMI`, & `CABG`)
+* all conditions (warning: this might be too unwieldy!)
+* any other condition(s) that you motivate with a statement or two in support
+
+Therefore, let's filter for just pneumonia-related readmissions which will actually eliminate the need to pivot wider in just this case (because we only chose a single condition).
+```{r}
+readmissionsClean <- 
+  readmissionsClean %>% 
+  filter(MeasureName == "PN")
+```
+
+
+### Dynamic creation of merged dataframe objects: supporting dataframes.
+
+We will often be asked to deal with large, unwieldy datasets and sometimes we need to be able to handle them dynamically. __Dynamic variable assignment__, as I demonstrated when we read in the files, is going to come in handy - but it can sometimes be tricky to accomplish. The whole point, though, is to create code that can handle ANYTHING you throw at it. 
+
+In a similar vein, we can also perform __dynamic dataframe creation__ when we need to modify and stitch together more than one pre-existing dataframe - ESPECIALLY when we might decide down the line to alter our choices by adding or removing other dataframes.
+
+#### Writing your own function to create objects dynamically.
+
+We are going to take all the cleaning steps we did above that was not specific to the `FY_2024_Hospital_Readmissions_Reduction_Program` dataframe and tidy, pivot, & filter for specific readmission conditions, and iteratively join as many dataframes as needed. The goal is to make something flexible enough that, if you change a set of inputs, it will create a joined table from ANY set of dataframe inputs. There is more than one way to do this; but leveraging some of the existing `tidyverse` and `tidyr` functions will likely help you make this very flexible. Please note, however, that you do not have to use those packages.
+
+I start you out with something I find helpful when joining together dataframes that sometimes have *redundant* columns BUT not every column is in every dataframe. I start by making a dataframe called `hospitalInfo` that contains the pertinent information on each hospital in the dataset, so you can drop those columns from the other dataframes to prevent inflation or issues when you later join the dataframes together. You may want to join each of the other dataframes to `hospitalInfo`. 
+
+Also, as I was writing my own function, I found that the `Payment and Value of Care` table must be separated into two tables to join well, at least with how I wrote my function. So, I also do that for you below. I also clean up `HCAHPS` to make it easier to work for the function I wrote, so it may also be useful for you. Note that what I'm doing in these cases is making sure that `MeasureName` is the title of the column **I will want to join on**. 
+
+##### **Question 12**: [5 points] 
+Write a function that will (1) fix any issues identified previously, e.g., issues with the `NA` class or pivoting, if needed; (2) join any number of a list of dataframes you give it; and (3) filters the data for given condition(s) prior to pivoting. 
+
+```{r}
+# Define the function to clean and join dataframes
+clean_and_join_dataframes <- function(dataframes, filter_conditions = NULL) {
+  cleaned_dataframes <- list()
+  
+  for (df in dataframes) {
+    # Drop unnecessary columns
+    df <- df %>% select(-starts_with("Start Date"), -starts_with("End Date"), -starts_with("Footnote"), -starts_with("MeasureId"))
+    
+    # Filter the dataframe if filter conditions are provided
+    if (!is.null(filter_conditions)) {
+      for (condition in names(filter_conditions)) {
+        df <- df %>% filter(get(condition) == filter_conditions[[condition]])
+      }
+    }
+    
+    # Remove duplicate rows
+    df <- df %>% distinct()
+    
+    cleaned_dataframes <- append(cleaned_dataframes, list(df))
+  }
+  
+  # Join dataframes on 'Facility ID' and 'Measure Name'
+  merged_df <- cleaned_dataframes[[1]]
+  for (i in 2:length(cleaned_dataframes)) {
+    merged_df <- full_join(merged_df, cleaned_dataframes[[i]], by = c("Facility ID", "Measure Name"))
+  }
+  
+  return(merged_df)
+}
+```
 
 For full credit, make sure that your function can clean up and join together at least three of the dataframes. **Note**: Make sure to join with `readmissionsClean` at the end!
 
