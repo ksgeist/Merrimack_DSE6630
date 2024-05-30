@@ -347,6 +347,38 @@ Also, as I was writing my own function, I found that the `Payment and Value of C
 ##### **Question 12**: [5 points] 
 Write a function that will (1) fix any issues identified previously, e.g., issues with the `NA` class or pivoting, if needed; (2) join any number of a list of dataframes you give it; and (3) filters the data for given condition(s) prior to pivoting. 
 
+```{r}
+# Define the function to clean and join dataframes
+clean_and_join_dataframes <- function(dataframes, filter_conditions = NULL) {
+  cleaned_dataframes <- list()
+  
+  for (df in dataframes) {
+    # Drop unnecessary columns
+    df <- df %>% select(-starts_with("Start Date"), -starts_with("End Date"), -starts_with("Footnote"), -starts_with("MeasureId"))
+    
+    # Filter the dataframe if filter conditions are provided
+    if (!is.null(filter_conditions)) {
+      for (condition in names(filter_conditions)) {
+        df <- df %>% filter(get(condition) == filter_conditions[[condition]])
+      }
+    }
+    
+    # Remove duplicate rows
+    df <- df %>% distinct()
+    
+    cleaned_dataframes <- append(cleaned_dataframes, list(df))
+  }
+  
+  # Join dataframes on 'Facility ID' and 'Measure Name'
+  merged_df <- cleaned_dataframes[[1]]
+  for (i in 2:length(cleaned_dataframes)) {
+    merged_df <- full_join(merged_df, cleaned_dataframes[[i]], by = c("Facility ID", "Measure Name"))
+  }
+  
+  return(merged_df)
+}
+```
+
 For full credit, make sure that your function can clean up and join together at least three of the dataframes. **Note**: Make sure to join with `readmissionsClean` at the end!
 
 * **Hint 1: **Feel free to drop the `startDate` and `endDate` columns, as well as the `footnote` column. I would even suggest dropping `MeasureId`.
