@@ -81,23 +81,23 @@ You may have to dig through the accompanying data dictionary **HOSPITAL_Data_Dic
 
 ##### **Question 1**: [1 point] 
 Take a look at the chunk below, which performs **dynamic variable assignment** as it reads in each of the files. Your task is to add a comment to each line of code to describe what that line does.
-> Your answer in the code chunk as comments.
+> Answer is in code chunk! = Malek
 
 
 ```{r, message=FALSE, warning=FALSE}
-filepath <- "C:/Users/RRC/Downloads/hospitals_current_data/"
-files <- list.files(path = filepath, pattern = "Hospital.csv")
+filepath <- "~/Desktop/hospitals_current_data/" #Sets path directory
+files <- list.files(path = filepath, pattern = "Hospital.csv") #Takes the files in the directory and makes sure they are the pattern of "Hospital.csv"
 
-for(f in 1:length(files)) {
-    dat <- clean_names(read_csv(paste0(filepath, files[f]),
+for(f in 1:length(files)) { #Creates a loop going through each file
+    dat <- clean_names(read_csv(paste0(filepath, files[f]), #Reads in the file, changes the column names to something more efficient, and sets the case to "upper_camel"
                                 show_col_types = FALSE), 
                        case = "upper_camel")
-    filename <- gsub(".Hospital\\.csv", "", files[f])
-    assign(filename, dat)
+    filename <- gsub(".Hospital\\.csv", "", files[f]) #Substitutes the ".Hospital\\.csv" to a blank
+    assign(filename, dat) #Assigns the data frame
 }
 
-files <- gsub(".Hospital\\.csv", "", files) %>% data.frame()
-names(files) <- "File Name"
+files <- gsub(".Hospital\\.csv", "", files) %>% data.frame() #Gets rid of ".Hospital\\.csv" from the files and then makes it a data frame
+names(files) <- "File Name" #Changes column name to "File Name"
 ```
 
 Now, let's look at a list of the files that we've read in:
@@ -108,13 +108,15 @@ files %>%
     caption = "Table 1. List of hospital-level data files.") %>%
     kable_styling(bootstrap_options = c("striped", full_width = F)
   )
+
+# = Malek
 ```
 
 ##### **Question 2**: [1 point] 
 Take a look at some of the dataframes, e.g., `HCAHPS` and `FY_2024_Hospital_Readmissions_Reduction_Program`. What do you notice about the format / structure of the data? Does the data have an issue with the dimensionality? 
 **Hint: **Check to see if each row represents a single line of data or not!
 
-> Your answer here.
+> To me it is looking like the data was not read in properly! and in fact almost looks like it was read in inversely. The way the data looks right now is not showing that each row is a single line of data, rather the rows are column names such as "FY_2024_Hospital_Readmissions_Reduction_Program" = Malek
 
 
 ### Tidy the data response variables' dataframe: Fiscal Year 2024 Hospital Readmissions Reduction Program.
@@ -122,7 +124,7 @@ We are going to focus on the dataset `FY_2024_Hospital_Readmissions_Reduction_Pr
 
 ##### **Question 3**: [1 point] 
 Take a deeper look at `FY_2024_Hospital_Readmissions_Reduction_Program` at some of the numeric variables in the dataset, e.g., `NumberOfReadmissions`? 
-> Your answer here.
+> So obviously there are some concerns with the NA values in the specified columns. I'm not really sure as to what the plan is to correct it, but I believe that will be discussed as we will likely run into further problems down the line if we don't fix the NA's. One thing that I'll be curious to see is how we handle this. In the past, I've simply gotten rid of NA's but in this case I don't think it'd be wise to do that. With that said, in class we learned about some other methods of possibly repplacing the NA values with something else. = Malek
 
 **Hint: **Columns 5 & 7:10 have problems with the `NA` class.
 
@@ -131,7 +133,11 @@ Investigate the `replace_with_na_all()` function that is part of the `naniar` pa
 
 ```{r}
 # ?replace_with_na_all
-# Your code here.
+FY_2024_Hospital_Readmissions_Reduction_Program <- FY_2024_Hospital_Readmissions_Reduction_Program %>%
+  replace_with_na_all(condition = ~.x %in% c("", "NA"))
+summary(FY_2024_Hospital_Readmissions_Reduction_Program[, c(5, 7:10)])
+#So it turns out I didn't really fully understand what was happening. I had automatically assumed that just because there was missing values that R interpreted it as NA. But in reality we need to do some more cleaning and actually change it to NA
+# = Malek
 ```
 
 You will notice that this aberrant class of missing value __caused__ the numeric columns to be coerced into character columns when they were imported by `read_csv()`. Although we could try using `as.numeric()` by itself, which would assign `NA` to any non-numeric entry in `FY_2024_Hospital_Readmissions_Reduction_Program`, the problem is that we could lose important information that way. Thus, as annoying as this is, we should fix it a little more specifically...
@@ -141,15 +147,18 @@ Look more closely at the `NumberOfReadmissions` column in the `FY_2024_Hospital_
 
 **Hint: ** Make sure to use the accompanying data dictionary **HOSPITAL_Data_Dictionary.pdf** to also examine **WHY** this problem exists!
 
-> Your answer here.
+> I would say that the thing that is standing out to me, by looking at the data dictionary, is that there are some values which are not numeric but the type of character in the column isn't what it should be. I think it'd be useful to make sure everything that is numeric should be numeric and everything that is a character or string be exactly that. = Malek
 
 
 ##### **Question 6**: [1 point] 
 Investigate the `gsub()` function that is part of base `R` or any other function of your choosing. Use the function you choose to **replace** the problematic text in  the `NumberOfReadmissions` column in `FY_2024_Hospital_Readmissions_Reduction_Program` with a **5**.
 ```{r}
 # ?gsub
-# Your code here.
-```
+# gsub is a function that is new to me and I'm glad I am familiarizing myself with it. It's beneficial to use if there is a pattern in a string and I want to replace that pattern with a given value. Here, the pattern flaw is getting replaced with the number 5 = Malek
+FY_2024_Hospital_Readmissions_Reduction_Program <- FY_2024_Hospital_Readmissions_Reduction_Program %>%
+  mutate(NumberOfReadmissions = gsub("N/A|Not Available|[^0-9]", "5", NumberOfReadmissions))
+FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions <- as.numeric(FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions)
+
 ```
 
 ##### **Question 7**: [1 point] 
