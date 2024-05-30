@@ -150,11 +150,14 @@ Investigate the `gsub()` function that is part of base `R` or any other function
 # ?gsub
 # Your code here.
 ```
+```
 
 ##### **Question 7**: [1 point] 
 Speculate as to why I asked you to replace the text with a **5** rather than a **0** or an `NA`. Can you think of any other logical choices for the substitution? Do you agree with my choice? (You're free to disagree, but please defend your decision either way!)
 
-> Your answer here.
+> Your answer here.Acknowledging that some readmissions did occur.
+Providing a practical estimate that avoids introducing too much bias.
+Keeping the analysis straightforward without adding complications.
 
 
 ##### **Question 8**: [1 point] 
@@ -171,8 +174,20 @@ You probably anticipated this! We just decided that, rather than a **5** we want
 **Hint 2: **This is NOT the only way to do this, but I solved this using `gregexpr()`, `regmatches()`, and `lapply()`.
 
 ```{r}
-# Your code here.
+# NumberOfReadmissions had to be converted to numeric before applying integers
+FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions <- as.numeric(FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions)
+
+# Find all values of "5" in NumberOfReadmissions
+fives <- which(FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions == 5)
+
+# Replace values of "5" with random integers from 1 - 10
+FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions[fives] <- sample(1:10, length(fives), replace = TRUE)
+
+# Check the first 20 rows to see if this was applied correctly
+head(FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions,20)
+
 ```
+
 
 
 ##### **Question 10**: [1 point] 
@@ -182,8 +197,22 @@ It is finally time to fix those aberrant character columns by making them  numer
 # Your code here.
 ```
 
-#### Let's look more closely at Measure Names.
+```{r}
+##Select  columns 
+columns_to_convert <- c("NumberOfDischarges", "ExcessReadmissionRatio", "PredictedReadmissionRate", "ExpectedReadmissionRate", "NumberOfReadmissions")
+
+# Use mutate_at to convert the specified columns to numeric
+FY_2024_Hospital_Readmissions_Reduction_Program <- FY_2024_Hospital_Readmissions_Reduction_Program %>%
+  mutate_at(vars(one_of(columns_to_convert)), as.numeric)
+
+# Print the structure of the dataframe to check the changes
+str(FY_2024_Hospital_Readmissions_Reduction_Program)
+
+```
+
+####Let's look more closely at Measure Names.
 Notice, that what I have done here first is used the `gsub()` function to `mutate()` the `MeasureName` column to remove the text that flanked the medical conditions.
+
 ```{r}
 FY_2024_Hospital_Readmissions_Reduction_Program <-  FY_2024_Hospital_Readmissions_Reduction_Program %>%
   mutate(MeasureName = gsub("READM-30-", "", MeasureName)) %>% 
@@ -217,11 +246,74 @@ Investigate the function `pivot_wider()` or `spread()` from the `tidyr` package,
 
 **Note:** If at this point you've had any issues with any of the previous problems 2-10, you can load the cleaned readmissions data, `readmissionsClean.Rdata`.
 ```{r}
+
+wideDF <- FY_2024_Hospital_Readmissions_Reduction_Program %>%
+  pivot_wider(
+    names_from = MeasureName, 
+    values_from = c(NumberOfDischarges, ExcessReadmissionRatio, PredictedReadmissionRate, ExpectedReadmissionRate, NumberOfReadmissions), 
+    id_cols = c(FacilityName, FacilityId, State, StartDate, EndDate)
+  )
+
+# Check the new dataframe
+dim(wideDF)
+```
+
+**Note:** If at this point you've had any issues with any of the previous problems 2-10, you can load the cleaned readmissions data, `readmissionsClean.Rdata`.
+```{r}
 load(file = "../../II. Biomedical & Clinical Informatics/Demo/readmissionsClean.Rdata")
 ```
 
 #### Filtering for specific conditions.
 Ideally, though, before we'd pivot wider we would decide if we were going to filter for any specific hospital readmission conditions. For your __Project 2__, you will be choosing which medical condition(s) you want to focus on for predicting hospital readmission. However, for the remainder of this demo, we're going to focus on just __pneumonia__. 
+
+__Ideas you might consider for your project are:__
+
+* surgical interventions (`HIP-KNEE`, `CABG`)
+* heart-related conditions (`HF`, `AMI`, & `CABG`)
+* all conditions (warning: this might be too unwieldy!)
+* any other condition(s) that you motivate with a statement or two in support
+
+Therefore, let's filter for just pneumonia-related readmissions which will actually eliminate the need to pivot wider in just this case (because we only chose a single condition).
+```{r}
+readmissionsClean <- 
+  readmissionsClean %>% 
+  filter(MeasureName == "PN")
+```
+
+
+### Dynamic creation of merged dataframe objects: supporting dataframes.
+
+We will often be asked to deal with large, unwieldy datasets and sometimes we need to be able to handle them dynamically. __Dynamic variable assignment__, as I demonstrated when we read in the files, is going to come in handy - but it can sometimes be tricky to accomplish. The whole point, though, is to create code that can handle ANYTHING you throw at it. 
+
+In a similar vein, we can also perform __dynamic dataframe creation__ when we need to modify and stitch together more than one pre-existing dataframe - ESPECIALLY when we might decide down the line to alter our choices by adding or removing other dataframes.
+
+#### Writing your own function to create objects dynamically.
+
+We are going to take all the cleaning steps we did above that was not specific to the `FY_2024_Hospital_Readmissions_Reduction_Program` dataframe and tidy, pivot, & filter for specific readmission conditions, and iteratively join as many dataframes as needed. The goal is to make something flexible enough that, if you change a set of inputs, it will create a joined table from ANY set of dataframe inputs. There is more than one way to do this; but leveraging some of the existing `tidyverse` and `tidyr` functions will likely help you make this very flexible. Please note, however, that you do not have to use those packages.
+
+I start you out with something I find helpful when joining together dataframes that sometimes have *redundant* columns BUT not every column is in every dataframe. I start by making a dataframe called `hospitalInfo` that contains the pertinent information on each hospital in the dataset, so you can drop those columns from the other dataframes to prevent inflation or issues when you later join the dataframes together. You may want to join each of the other dataframes to `hospitalInfo`. 
+
+Also, as I was writing my own function, I found that the `Payment and Value of Care` table must be separated into two tables to join well, at least with how I wrote my function. So, I also do that for you below. I also clean up `HCAHPS` to make it easier to work for the function I wrote, so it may also be useful for you. Note that what I'm doing in these cases is making sure that `MeasureName` is the title of the column **I will want to join on**. 
+
+##### **Question 12**: [5 points] 
+Write a function that will (1) fix any issues identified previously, e.g., issues with the `NA` class or pivoting, if needed; (2) join any number of a list of dataframes you give it; and (3) filters the data for given condition(s) prior to pivoting. 
+
+For full credit, make sure that your function can clean up and join together at least three of the dataframes. **Note**: Make sure to join with `readmissionsClean` at the end!
+
+* **Hint 1: **Feel free to drop the `startDate` and `endDate` columns, as well as the `footnote` column. I would even suggest dropping `MeasureId`.
+
+* **Hint 2: **`select(-any_of(c(...)))` can be used to drop any of a list of columns, regardless of whether it exists in every dataframe or not.
+
+* **Hint 3: **If you choose to drop all those extraneous columns, then the column you will need to merge/join on will always be in the second position, `MeasureName`.
+
+* **Hint 4: **`full_join()` in `dplyr` is likely what you will need; you will want to execute the join on `FacilityId`.
+
+* **Hint 5: **Make sure to check for and/or remove duplicate rows.
+
+* **Hint 6: **If you are really stuck, move ahead and I give you a cleaned, merged data set to work with.
+
+
+ pivot wider we would decide if we were going to filter for any specific hospital readmission conditions. For your __Project 2__, you will be choosing which medical condition(s) you want to focus on for predicting hospital readmission. However, for the remainder of this demo, we're going to focus on just __pneumonia__. 
 
 __Ideas you might consider for your project are:__
 
