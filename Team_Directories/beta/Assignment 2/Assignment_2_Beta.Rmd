@@ -140,7 +140,7 @@ head(FY_2024_Hospital_Readmissions_Reduction_Program,10)
 
 ```
 
-> The data appears to be in long format. Each row does represent a single line of data. My initial impression is that there is not an issue with dimensionality here.
+> The data appears to be in long format. Each row does not represent a single line of data. The goal of the study is to predict disease transfer in hospitals based on hospital characteristics. Preferably the data would be in wide format, with each hospital only listed once per row. 
 
 ### Tidy the data response variables' dataframe: Fiscal Year 2024 Hospital Readmissions Reduction Program.
 
@@ -560,7 +560,7 @@ We need to perform encoding on all of the categorical columns, ultimately. Howev
 
 > For the columns beginning with "ComparedToNational_" we should perform ordinal encoding as there is a natural order (ie better, worse, or no different than the national rate). We should also perform this kind of encoding on the column beginning in "PaymentCategory_". 
 
-##### **Question 15**: [3 points]
+##### **Question 15** (SH): [3 points]
 
 You probably expected this - attempt to encode those columns the method you selected. It's okay if you can only think of a way to brute-force this for now; I will show you code to help you do it faster after the assignment. :)
 
@@ -573,7 +573,58 @@ You probably expected this - attempt to encode those columns the method you sele
 -   **Hint 3:** For full credit, don't forget to double check that you managed to preserve all the data! The `table()` function is sufficient here.
 
 ```{r}
-# Your code here.
+#data_science_index <- str_which(comp_df$job_title, "Data Scien")
+#comp_df$job_category[data_science_index] <- "Data Science"
+
+pfe <- pneumoniaFull
+
+to_encode <- select(pfe, starts_with("ComparedToNational_"))
+#unique(to_encode$`ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`)
+col_names <- names(to_encode)
+#col_names
+#I wanted to do a for loop here, but I couldn't get it to work
+
+worse_index <- str_which(to_encode$`ComparedToNational_MRSA Bacteremia`, "Worse than the National Benchmark")
+to_encode$`ComparedToNational_MRSA Bacteremia`[worse_index] <- -1
+no_diff_index <- str_which(to_encode$`ComparedToNational_MRSA Bacteremia`, "No Different than National Benchmark")
+to_encode$`ComparedToNational_MRSA Bacteremia`[no_diff_index] <- 0
+better_index <- str_which(to_encode$`ComparedToNational_MRSA Bacteremia`, "Better than the National Benchmark")
+to_encode$`ComparedToNational_MRSA Bacteremia`[better_index] <- 1
+
+worse_index <- str_which(to_encode$`ComparedToNational_Death rate for pneumonia patients`, "Worse Than the National Rate")
+to_encode$`ComparedToNational_Death rate for pneumonia patients`[worse_index] <- -1
+no_diff_index <- str_which(to_encode$`ComparedToNational_Death rate for pneumonia patients`, "No Different Than the National Rate")
+to_encode$`ComparedToNational_Death rate for pneumonia patients`[no_diff_index] <- 0
+better_index <- str_which(to_encode$`ComparedToNational_Death rate for pneumonia patients`, "Better Than the National Rate")
+to_encode$`ComparedToNational_Death rate for pneumonia patients`[better_index] <- 1
+
+worse_index <- str_which(to_encode$`ComparedToNational_Postoperative respiratory failure rate`, "Worse Than the National Rate")
+to_encode$`ComparedToNational_Postoperative respiratory failure rate`[worse_index] <- -1
+no_diff_index <- str_which(to_encode$`ComparedToNational_Postoperative respiratory failure rate`, "No Different Than the National Rate")
+to_encode$`ComparedToNational_Postoperative respiratory failure rate`[no_diff_index] <- 0
+better_index <- str_which(to_encode$`ComparedToNational_Postoperative respiratory failure rate`, "Better Than the National Rate")
+to_encode$`ComparedToNational_Postoperative respiratory failure rate`[better_index] <- 1
+
+worse_index <- str_which(to_encode$`ComparedToNational_Perioperative pulmonary embolism or deep vein thrombosis rate`, "Worse Than the National Rate")
+to_encode$`ComparedToNational_Perioperative pulmonary embolism or deep vein thrombosis rate`[worse_index] <- -1
+no_diff_index <- str_which(to_encode$`ComparedToNational_Perioperative pulmonary embolism or deep vein thrombosis rate`, "No Different Than the National Rate")
+to_encode$`ComparedToNational_Perioperative pulmonary embolism or deep vein thrombosis rate`[no_diff_index] <- 0
+better_index <- str_which(to_encode$`ComparedToNational_Perioperative pulmonary embolism or deep vein thrombosis rate`, "Better Than the National Rate")
+to_encode$`ComparedToNational_Perioperative pulmonary embolism or deep vein thrombosis rate`[better_index] <- 1
+
+worse_index <- str_which(to_encode$`ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`, "Worse Than the National Value")
+to_encode$`ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`[worse_index] <- -1
+no_diff_index <- str_which(to_encode$`ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`, "No Different Than the National Value")
+to_encode$`ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`[no_diff_index] <- 0
+better_index <- str_which(to_encode$`ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`, "Better Than the National Value")
+to_encode$`ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`[better_index] <- 1
+
+worse_index <- str_which(to_encode$`ComparedToNational_Hospital return days for pneumonia patients`, "Fewer Days Than Average per 100 Discharges")
+to_encode$`ComparedToNational_Hospital return days for pneumonia patients`[worse_index] <- -1
+no_diff_index <- str_which(to_encode$`ComparedToNational_Hospital return days for pneumonia patients`, "Average Days per 100 Discharges")
+to_encode$`ComparedToNational_Hospital return days for pneumonia patients`[no_diff_index] <- 0
+better_index <- str_which(to_encode$`ComparedToNational_Hospital return days for pneumonia patients`, "More Days Than Average per 100 Discharges")
+to_encode$`ComparedToNational_Hospital return days for pneumonia patients`[better_index] <- 1
 ```
 
 **Note**: If you struggled with Question 15, load the data below and keep going:
@@ -586,33 +637,48 @@ load("pneumoniaFullEncoded.Rdata")
 
 We also decide that we want a way to try to preserve and analyze the geographic information without causing terrible overfitting. So, we will try to apply **frequency encoding** to those two categorical columns.
 
-##### **Question 16**: [1 points]
+##### **Question 16** (SH): [1 points]
 
 Go through the **frequency encoding** code chunk below and comment each line. What does it do? Make sure to comment why you think the choice was made, if appropriate.
 
 ```{r}
+#concatenate the two columns we want to encode
 cols2encode <- c("State", 
                "CountyParish")
 
+#Create a new dataset with only 2 variables
+#Done by comparing the 'names' for our original dataset with the elements in 'cols2encode'
+#This allows for changing columns later if we wanted and improves usability
 temp <- pneumoniaFullEncoded[, names(pneumoniaFullEncoded) %in% cols2encode]
 
+#Create a function 'add_freq'
+#Takes two parameters: data set and column_names
 add_freq <- function(data, column_name) {
+#Create a table 'frequency map'
+#Select a columns for the dataset including NA values
   frequency_map <- table(data[[column_name]], useNA = "always")
+#Replace the column data with frequency of the occurrence 
   data[[column_name]] <- frequency_map[match(data[[column_name]],
                                              names(frequency_map))]
+#Return updated dataset
   return(data)
 }
 
+#Loop through the columns of 'temp' dataset
 for (col in names(temp)) {
+#apply the function above to the temp dataset
+#Each column in temp will be replaced with the frequencies of each occurrence 
   temp <- add_freq(temp, col)
 }
 
+#Loop through the length of cols2encode (based on above, len = 2, but could change with updates to the columns)
 for (c in 1:length(cols2encode)) {
+#Replace the designated columns in the full dataset with the frequencies from the the temp dataset
   pneumoniaFullEncoded[, cols2encode[c]] <- temp[, cols2encode[c]]
 }
 ```
 
-##### **Question 17**: [1 point]
+##### **Question 17** (SH): [1 point]
 
 Use your finally & freshly encoded version of `pneumoniaFullEncoded` to answer this vital question for `State` and `CountyParish` features: are we justified using these features? Why or why not? You will need to write code to answer this question.
 
@@ -623,10 +689,7 @@ Use your finally & freshly encoded version of `pneumoniaFullEncoded` to answer t
 **Hint 3:** If you decide it is ill-advised for either or both columns, make sure to remove those features from the dataset!
 
 ```{r}
-<<<<<<< HEAD
-# Your code here.
-=======
-load("~/Documents/GitHub/Merrimack_DSE6630/II. Biomedical & Clinical Informatics/Demo/pneumoniaFull.Rdata")
+load("pneumoniaFull.Rdata")
 ```
 
 
@@ -647,10 +710,7 @@ length(unique(pneumoniaFullEncoded$CountyParish))
 
 ```{r}
 pneumoniaFullEncoded <- subset(pneumoniaFullEncoded, select = -c(State, CountyParish))
->>>>>>> fbe92a69a760c60916a8df7a5bba60f4e73bce92
 ```
-
-> Your answer here.
 
 ### Finishing touches
 
@@ -679,25 +739,27 @@ Excellent! Now we are down to just 51 features...
 
 **Our very, very last steps!** Your task is to identify the appropriate target variable from the dataset. I have purposefully not gone into great detail about what it would be because choosing the best target is sometimes tricky.
 
-##### **Question 18**: [2 points]
+##### **Question 18** (SH): [2 points]
 
 Use `pneumoniaAnalyze` to calculate an `observed_readmission_rate` as the number of readmissions divided by the number of discharges, multiplied by 100, then drop the two columns used to make this new one. Now, using the data and the data dictionary, try to understand the relationship between `observed_readmission_rate` that we just created, the `PredictedReadmissionRate`, `ExpectedReadmissionRate`, and the `ExcessReadmissionRatio`. What is the relationship? What is the appropriate target to choose and why?
 
 <<<<<<< HEAD
 **Hint:** Think about (or perhaps try to investigate)why the **predicted** rate exists. What would be the (dis)advantage to using the predicted vs. the newly created `observed_readmission_rate`?
 
-> Your answer here.
-=======
+```{r}
+pneumoniaAnalyze$observed_readmission_rate <- (pneumoniaAnalyze$NumberOfReadmissions / pneumoniaAnalyze$NumberOfDischarges) * 100
+pneumoniaAnalyze <- subset(pneumoniaAnalyze, select = -c(NumberOfReadmissions, NumberOfDischarges))
+```
+
 >Predicted readmission is based on the hospital's case load and performance, while the expected readmission rate is based on the national expectations for a case load. 
 
 >Predicted rate is already a form of prediction and not an actual measure of relationships or discharges and readmission at a specific hospital, but rather a reflection of the historical rates and country-wide rates.  The target variable that makes the most sense is the one build by relevant specific data, i.e. our observed_readmission_rate variable. 
->>>>>>> fbe92a69a760c60916a8df7a5bba60f4e73bce92
 
 # Exploratory Data Analysis
 
 For your final question, you will kick start our EDA by focusing on the target variable that you identified in Question 18. **You will not be penalized for choosing the wrong target as long as you made an attempt to choose and defend a rational choice.**
 
-##### **Question 19**: [3 points]
+##### **Question 19** (SH): [3 points]
 
 Explore the target variable you identified in Question 18 with at least one other variable. Try to push yourself to try a new style of plot; for example, have you ever made a `density` or `violin` plot? These can be excellent choices when exploring the distribution of a target variable against another variable. Note that, if you choose to compare the target against one of the encoded categorical variables, you will need to properly re-label the categories for your plot.
 
@@ -706,17 +768,6 @@ Full points are awarded for professional plots with axis labels, labeled legends
 Need inspiration that comes with code?!? Check out the [R Graph Gallery](https://r-graph-gallery.com)!
 
 ```{r}
-# Your code here.
-```
-
-Lastly, make sure to **interpret** your graphic.
-
-> Your answer here.
-
-<<<<<<< HEAD
-# References
-=======
-```{r}
 pneumoniaAnalyze %>%
   ggplot( aes(x=observed_readmission_rate)) +
     geom_density(fill="#8376a2", color="#e9ecef", alpha=0.8) +
@@ -724,6 +775,9 @@ pneumoniaAnalyze %>%
     ylab("Density") +
     xlab("Readmission Rate")
 ```
+
+Lastly, make sure to **interpret** your graphic.
+
 >The distribution of the the observed readmission rate is roughly normal, but not quite. Most of the rates are centered around 16. The graph seems slightly right skewed as well. 
 
 
@@ -738,6 +792,6 @@ beeswarm(pneumoniaAnalyze$observed_readmission_rate)
 ```
 >The beeswarm graph doesn't show as much since we have a lot of data but it does show again that the rates are heavily focused between 13 and 22. 
 
-
+<<<<<<< HEAD
 # References
->>>>>>> fbe92a69a760c60916a8df7a5bba60f4e73bce92
+=======
