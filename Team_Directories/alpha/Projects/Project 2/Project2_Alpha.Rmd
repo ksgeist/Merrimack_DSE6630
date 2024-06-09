@@ -118,7 +118,7 @@ observation, or in an inpatient unit) within 30 days after they were first treat
 dict %>% 
   kable(
     format = "html",
-    caption = "Table 1. List of possible target variables from the pneumonia-related hospital readmission data. Which one to choose?") %>%
+    caption = "Table 1. List of possible target variables from the Heart Failure-related hospital readmission data. Which one to choose?") %>%
     kable_styling(bootstrap_options = c("striped", full_width = F)
   )
 ```
@@ -723,7 +723,7 @@ If you're worried you did it incorrectly, or you got stuck, you may load my data
 
 ```{r}
 load(file = "readyTrain.Rdata")
-# readyTrain <- readyTrain %>% data.frame()
+readyTrain <- readyTrain %>% data.frame()
 
 load(file = "readyTest.Rdata")
 # readyTest <- readyTest %>% data.frame()
@@ -862,18 +862,19 @@ As we said before, the goal of segmentation analysis is to broadly cluster our h
 Let's explore the clusters - segments - of the hospitals based on their average values from the __original__ dataset. Your task is to add comments to this code chunk. 
 
 ```{r, echo = TRUE, fig.height = 6, fig.width=6}
+## Uses the KMeans function on the readyTrain dataset and stores it in kmeansResult. Below are the parameters.
 kmeansResult <- kmeans(readyTrain, 	
-                         centers = 3,      ## COMMENT HERE
-                         nstart = 50,      
-                         iter.max = 1000,  
-                         algorithm = "MacQueen")
+                         centers = 3,            ## Specifies 3 clusters for k-means clustering.
+                         nstart = 50,            ## Number of initial sets of cluster centers to try.
+                         iter.max = 1000,        ## Maximum number of iterations.
+                         algorithm = "MacQueen") ## Algorithm used for clustering.
 
-## COMMENT HERE
+## Adds a column called Cluster based on result.
 kmeansTrain <- imputedTrain %>% 
   mutate(Cluster = kmeansResult$cluster) %>% 
   clean_names()
 
-## COMMENT HERE (Hint: look at the PCA Importance Graph again if you aren't sure!)
+## Specifies which variables to import for PCA.
 pcaImportantVars <- c("overall_hospital_rating",
                       "care_transition",
                       "nurse_communication",
@@ -890,23 +891,20 @@ pcaImportantVars <- c("overall_hospital_rating",
                       "compared_to_national_hospital_return_days_for_pneumonia_patients",
                       "cleanliness")
 
-## COMMENT HERE
+## Renames some of the rows in the Cluser column
 kmeansTrain %>% 
-  ## COMMENT HERE
+  ## Selects relevant variables and 'Cluster' column
   select(all_of(pcaImportantVars), cluster) %>% 
-  ## COMMENT HERE
   rename(`Hospital Return Days Score` = hospital_return_days_for_pneumonia_patients,
          `Hospital Return Days Nat'l Comparison` = compared_to_national_hospital_return_days_for_pneumonia_patients,
          `Median Minutes spent in Emergency Dept` = median_time_minutes_patients_spent_in_ed) %>% 
-  ## COMMENT HERE
+  ## Cleans column names
   clean_names(case = "title") %>% 
   group_by(Cluster) %>% 
-  ## COMMENT HERE
-  summarise_if(is.numeric, mean, na.rm = TRUE) %>% 
-  ## COMMENT HERE
+  ## Groups data by 'Cluster'  summarise_if(is.numeric, mean, na.rm = TRUE) %>% 
   pivot_longer(-1, names_to = "Measure", values_to = "Value") %>% 
-  ## COMMENT HERE
-    ggplot(aes(x = Cluster, y = Value, fill = as.factor(Cluster))) +
+    ## Creates a plot with the given data
+  ggplot(aes(x = Cluster, y = Value, fill = as.factor(Cluster))) +
     geom_col(alpha = 0.75) +
     scale_fill_manual(values = myPal) +
     labs(title = "Cluster Means",
