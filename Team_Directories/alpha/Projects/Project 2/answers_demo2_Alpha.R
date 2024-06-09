@@ -7,7 +7,7 @@ pacman::p_load(tidyverse,
 
 #########################
 ## Set the file path; you may need to update this on your computer.
-filepath <- "hospitals_current_data/"
+filepath <- "C:/Users/RRC/Downloads/hospitals_current_data/"
 ## Grab just the hospital-level files:
 files <- list.files(path = filepath, pattern = "Hospital.csv")
 
