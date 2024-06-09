@@ -62,7 +62,7 @@ save(readmissionsClean, file = "readmissionsClean.Rdata")
 ############## This is where you will filter for whatever condition(s) you are choosing to focus on!
 ## Filter for just pneumonia:
 readmissionsClean <- readmissionsClean %>% 
-  filter(MeasureName == "HF")
+  filter(MeasureName == "PN")
 
 #########################
 ## First, make sure to separate the Payment and Values tables, giving each facility IDs:
