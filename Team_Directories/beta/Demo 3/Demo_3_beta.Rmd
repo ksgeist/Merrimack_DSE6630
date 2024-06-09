@@ -37,7 +37,8 @@ pacman::p_load(tidyverse,
                RColorBrewer,
                gridExtra,
                ggrepel,
-               kableExtra
+               kableExtra, 
+               mapproj
 )
 ```
 
@@ -77,7 +78,7 @@ Great, our first map of the continental US! But it's pretty uninteresting just a
 ### 1.2 Prepare the pneumonia-related hospital readmissions data.
 Bring in the hospital readmissions data.
 ```{r}
-load("/Users/seugley/Desktop/Data Science/DSE 5002/Merrimack_DSE6630/Team_Directories/beta/Demo 3/pneumoniaFull.Rdata")
+load("pneumoniaFull.Rdata")
 ```
 Notice that I brought in our **fully merged, non-encoded, non-transformed** dataset from Demo 2 called `pneumoniaFull.Rdata`! Bet you didn't think you'd ever see that again, huh?! We are using these data because they contain all our spatial information as well as our data in the original form, which is precisely what we would want to map.
 
@@ -384,27 +385,43 @@ county_readmissions <- pneumoniaFull %>%
 
 ### 3.4 Merge mean `PredictedReadmissionsRate` with the `counties` data for mapping.
 
-#### Question 4 [1 points]:
+#### Question 4 (AC) [1 points]:
 Merge the `counties` data with the summarized readmissions dataset you just made.
 
 **Note**: I got you started here because there's a bit of trickery. You must `arrange` by the `order` (which tells the polygons what order to plot in). Merging will jumble them up and plot a big mess if you don't order them!
 
 ```{r}
-## FILL IN THE BLANKS
-# ___ <- merge(counties, ___, by = c("region", "subregion"), all.x = TRUE) %>% arrange(order)
+# Merge the counties data with the summarized readmissions dataset and arrange by order
+counties_with_readmissions <- merge(counties, county_readmissions, by = c("region", "subregion"), all.x = TRUE) %>% arrange(order)
+
 ```
 
-#### Question 5 [3 points]:
+#### Question 5 (AC) [3 points]:
 Merge the `counties` data with the summarized readmissions dataset you just made.
 
 ```{r}
-# Your code here
+plot <- ggplot(counties_with_readmissions, aes(x = long, y = lat, group = group, fill = avg_readmit)) + 
+  geom_polygon(color = "black", alpha = 1) +
+  scale_fill_continuous(name = "Mean Readmissions", low = "white", high = "#01387a", na.value = "white") +
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    legend.position = "bottom"
+  ) +
+  ggtitle("Average Pneumonia-Related Hospital Readmissions by County")
+
+# Print the map
+plot
 ```
 
-#### Question 6 [1 points]:
+#### Question 6 (AC) [1 points]:
 What do you notice immediately about the county-level data? Why do you think this is an issue? Are there some counties that legitimately lack hospitals entirely?
 
-> Your answer here.
+> The first thing that I notice about the county-level data is how cluttered and conjested it looks. It's incredibly hard to notice trends when the counties are clustered so closely together, particularly in the middle of the country. Additionally, some counties may not have an acute-care hospital, or a hospital altogether in extremely rural areas of the country, further skewing the results of the visualization. 
 
 #### Question 7 [5 bonus points]:
 Use the `stateInfo` dataframe to explore a **hypothesis of your own** about county-level hospital admissions. You could look at population density again, median income, median home value, or even the number of housing units!
