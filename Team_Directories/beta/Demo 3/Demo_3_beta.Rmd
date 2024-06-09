@@ -1,0 +1,415 @@
+---
+title: "Mini Demo 3: Public Health & Epidemiology"
+subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
+author: "Adeline Casali, Samantha Harper, Scott Eugley"
+date: "3 June 2024"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    theme: flatly
+    fig_crop: no
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      cache = TRUE,
+                      cache.comments = TRUE,
+                      size = 13)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
+# Turn off scientific notation
+options(scipen=999)
+
+# Set seed
+set.seed(50009)
+
+
+# Clean, set up, and load
+pacman::p_unload(pacman::p_loaded(), character.only = TRUE)
+rm(list = ls(all = TRUE))
+
+pacman::p_load(tidyverse,
+               maps,
+               zipcodeR,
+               ggplot2, 
+               RColorBrewer,
+               gridExtra,
+               ggrepel,
+               kableExtra
+)
+```
+
+# Epidemiology of pneumonia-related hospital readmissions
+
+As you work through your Project 2, keep in mind that we are actually working with __spatial data__ even though we have not focused on that much until now. This relates to everything we will be doing in Module 3 on Public Health & Epidemiology, though! As data scientists of public health and epidemiology, one of the __most powerful__ tools in our toolkit are maps. 
+
+For our hospital readmissions data, we had a lot of spatial data that we could have leveraged but didn't really in our other analysis. This demo, we are going to take advantage of the fact that there is a LOT of spatial data here that we can use: _addresss_, _county_, _state_, _zip code_... wow! We will focus first on the __state level__ data together, and then I am going to have you try your own analysis at the county-level.
+
+## 1 State-level Analysis of Pneuomonia-related Hospital Readmissions
+
+### 1.1 Make a base map. 
+Let's practice bring up a very simple little map of the US from `maps` and `ggplot2`. The `maps` package provides latitude and longitude data for various in the package. We will do something much more complicated for our Project 3, but for this little exploration let's just keep it simple.
+
+Notice that first I am having to extract state-level geographic information from the `map_data()` function. Similar functions exist for other geographic levels of data, including world (country), county, or other regions of the world.
+
+```{r, echo = FALSE}
+states <- map_data("state")
+
+ggplot(states, aes(x = long, y = lat, group = group)) + 
+  geom_polygon(color = "black", 
+               fill = "#82b8fa",
+               alpha = 1) +
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank()
+  ) +
+  ggtitle("A beautiful, blank map of the continental United States")
+```
+
+Great, our first map of the continental US! But it's pretty uninteresting just as it is. Let's use this map to overlay our pneumonia-related hospital readmissions data.
+
+### 1.2 Prepare the pneumonia-related hospital readmissions data.
+Bring in the hospital readmissions data.
+```{r}
+load("/Users/seugley/Desktop/Data Science/DSE 5002/Merrimack_DSE6630/Team_Directories/beta/Demo 3/pneumoniaFull.Rdata")
+```
+Notice that I brought in our **fully merged, non-encoded, non-transformed** dataset from Demo 2 called `pneumoniaFull.Rdata`! Bet you didn't think you'd ever see that again, huh?! We are using these data because they contain all our spatial information as well as our data in the original form, which is precisely what we would want to map.
+
+But, before we can merge them with the state data that we extracted for the map, notice that `State` in our pneumonia-related readmissions data is an abbreviation (e.g., "AL") but it's the name of the state in the `map_data` ("alabama"). **How can we fix that?**
+
+We are going to write a function to do the mapping ourselves, but you may wonder why. Although `maps` includes a data source, `states.fips`, that we can load and use to get state names - the problem there is that states with islands, like WA state or NY, can have additional mappings that we'd miss. It's easier in this particular case to write our own little function, I think. Notice also that I am choosing to name the new column in `pneumoniaFull.Rdata` as `region`; this is to match the column name in the `states` dataframe that we use for mapping so we can merge the tables more easily.
+
+```{r, echo = TRUE}
+## We can use this to see which states we have in our dataset, if needed
+# unique(states$region)
+
+## Set up a lookup table that goes abbr = state_name
+stateNames <- c(
+  "AL" = "alabama", "AK" = "alaska", "AZ" = "arizona", "AR" = "arkansas", 
+  "CA" = "california", "CO" = "colorado", "CT" = "connecticut", "DC" = "district of columbia", "DE" = "delaware", "FL" = "florida", "GA" = "georgia", "HI" = "hawaii", 
+  "ID" = "idaho", "IL" = "illinois", "IN" = "indiana", "IA" = "iowa", 
+  "KS" = "kansas", "KY" = "kentucky", "LA" = "louisiana", "ME" = "maine", 
+  "MD" = "maryland", "MA" = "massachusetts", "MI" = "michigan", 
+  "MN" = "minnesota", "MS" = "mississippi", "MO" = "missouri", "MT" = "montana", 
+  "NE" = "nebraska", "NV" = "nevada", "NH" = "new hampshire", "NJ" = "new jersey", 
+  "NM" = "new mexico", "NY" = "new york", "NC" = "north carolina", 
+  "ND" = "north dakota", "OH" = "ohio", "OK" = "oklahoma", "OR" = "oregon", 
+  "PA" = "pennsylvania", "RI" = "rhode island", "SC" = "south carolina", 
+  "SD" = "south dakota", "TN" = "tennessee", "TX" = "texas", "UT" = "utah", 
+  "VT" = "vermont", "VA" = "virginia", "WA" = "washington", "WV" = "west virginia",
+  "WI" = "wisconsin", "WY" = "wyoming"
+)
+
+## Function to look up the state name based on abbreviation
+getStateName <- function(abbr) {
+  stateNames[abbr]
+}
+
+## Now make a new column named region
+pneumoniaFull <- pneumoniaFull %>% 
+  mutate(region = getStateName(State))      ## Naming it 'region' to make the name in the states dataframe
+```
+
+### 1.3 Summarize the data by mean `PredictedReadmissionsRate`.
+
+```{r}
+## Grab just the readmissions and the region, drop the NAs, then group by region and calculate the mean readmissions
+avgReadmissions <- pneumoniaFull %>% 
+  select(PredictedReadmissionRate, region) %>% 
+  drop_na() %>% 
+  group_by(region) %>% 
+  summarize(avgReadmit = mean(PredictedReadmissionRate, na.rm = TRUE))
+```
+
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+avgReadmissions %>% 
+  arrange(desc(avgReadmit)) %>% 
+  top_n(5) %>% 
+   kable(digits = 2,
+    format = "html",
+    caption = "Table 1. Top 5 states for pneumonia-related readmissions.") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F)
+  )
+```
+
+
+### 1.4 Merge mean `PredictedReadmissionsRate` with the `states` data for mapping.
+
+```{r}
+mergedStates <- merge(avgReadmissions, states, by = "region")
+```
+
+
+### 1.5 Map! 
+```{r, echo = FALSE}
+p1 <- ggplot(mergedStates, aes(x = long, y = lat, group = group, fill = avgReadmit)) + 
+  geom_polygon(color = "black", 
+               alpha = 1) +
+  scale_fill_continuous(name="Mean Readmissions", 
+            low = "white", high = "#01387a") +
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    legend.position = "bottom"
+  ) +
+  ggtitle("Average pneumonia-related hospital readmissions")
+
+p1
+```
+
+#### Do you notice any trends that would be worth testing? For example, do you see any pattern with very populated states?
+
+## 2 Assessing other state-related spatial correlations
+
+Perhaps you noticed, as I did, that there seemed to be higher rates of pneumonia-related readmissions in states with higher population sizes, like California, Florida, and New York (although Texas is not among them). Since admissions have been measured as a percent of pneumonia cases admitted to the hospital, they should not in theory be sensitive to population size beyond what is happening in the surrounding environment. In other words, we don't need to worry about scaling or adjusting these values because we are looking at a percentage. However, there could be underlying associations or correlations that are worth exploring.
+
+* **Hypothesis 1**: States with larger populations have higher average pneumonia-related readmissions because populations are more dense, enabling both pneumonia spread and are seen in states with larger populations.
+
+But we had also posed back in Demo 2 that perhaps it has even more to do with the population of elderly individuals, as these individuals were most suspceptible to death by pneumonia for various age-related reasons. Perhaps higher readmissions has more to do with **who** is being infected with pneumonia in addition to the qualities of the hospitals.
+
+* **Hypothesis 2**: States with a higher proportion of their population over the age of 65 have higher rates of readmission because of age-related factors that increase the likelihood of severe illness and even death.
+
+But these are not the only population-related hypotheses we could pose. Perhaps, instead, it has to do with poverty - perhaps states with higher poverty rates also tend to see lower rates of medical coverage, thereby leading hospitals to release patients too early to spare costs. Thus, we might also ask if states with higher poverty rates are more likely to see higher pneumonia readmissions?
+
+* **Hypothesis 3**: Higher rates of pneumonia-related readmissions may be associated with higher rates of poverty because of poorer medical coverage, including non- and under-insuredness, which in turn could lead some hospitals to turn out patients sooner than they should.
+
+### 2.1 Pre-processing the population-level data to test hypotheses
+
+Let's bring in some data from the 2023 US Census (these are projections based on the 2020 Census), as well from the Administration for Community Living (ACL) which had conveniently already compiled data from the US census bureau for our hypotheses 2 and 3. The 2023 US Census Bureau projections were downloaded from [here](https://www.census.gov/data/tables/time-series/demo/popest/2020s-state-detail.html), and the ACL data were downloaded from [here](https://acl.gov/aging-and-disability-in-america/data-and-research/profile-older-americans). For our convenience, I already put them into a `CSV` we can import. The geographic measurements also come from the US Census Bureau, which I obtained
+[here](https://www.census.gov/geographies/reference-files/2010/geo/state-area.html).
+
+```{r}
+## Read in, calculate the percent of the total adult population over 65,
+## Make the states lowercase
+## Calculate population density as hundreds of people per square mile
+
+pop <- read_csv("2023_US_Census.csv", show_col_types = FALSE) %>% 
+  mutate(over65PercentPop = over65Pop / adultPop,
+         region = tolower(region),
+         popDensity = (totalPop/100)/(landSqMi))      
+```
+
+Notice that I calculated the % of the population that is over the age of 65 relative to the total adult population, but how should we best address Hypothesis 1? We _could_ just use the total population size, but since our question has to do with population __spread__, we would be better served to calculate the __population density__. Higher densities would facilitate faster spread; lower densities, lower spread, at least by conventional wisdom. Thus, we do that here as well!
+
+```{r, echo = FALSE, warning = FALSE, message=FALSE}
+pop %>% 
+  arrange() %>% 
+  top_n(6) %>% 
+   kable(digits = 2,
+    format = "html",
+    caption = "Table 2. First 6 rows of US Census Bureau data.") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F)
+  )
+```
+
+### 2.2 Hypothesis 1: Readmissions by Population Density
+```{r, echo = FALSE, warning = FALSE, message = FALSE, fig.width=11, fig.height=5}
+## Lastly, merge with the states map data so we can map!
+popStates <- merge(states, pop, by = "region") %>% 
+  filter(region != "district of columbia") %>% 
+  mutate(popDensity = round(popDensity, 2))
+
+p2 <- ggplot(popStates, aes(x = long, y = lat, group = group, fill = popDensity)) + 
+  geom_polygon(color = "black", 
+               alpha = 1) +
+  scale_fill_continuous(name="100 people per sq. mi.", 
+            low = "white", high = "#b52a07") +
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    legend.position = "bottom"
+  ) +
+  ggtitle("Population density by state")
+
+temp <- merge(avgReadmissions, pop, by = "region") %>% 
+  filter(region != "district of columbia")
+p3 <- ggplot(temp, aes(x = popDensity, y = avgReadmit)) +
+  geom_point(alpha = 0.5) + 
+  geom_smooth(method = "lm", se = T, color = "#b52a07") +
+  theme_minimal() +
+  labs(title = "Correlation of pneumonia-related hospital readmissions by\nstate population density",
+       x = "100 people per sq. mi.",
+       y = "Pneumonia-related Hospital Readmission Rate")
+
+grid.arrange(p1, p2, ncol = 2)
+p3
+```
+
+### 2.3 Hypothesis 2: Readmissions by Percent of Population 65+
+```{r, echo = FALSE, warning = FALSE, message = FALSE, fig.width=11, fig.height=5}
+popStates <- popStates %>% 
+  mutate(over65PercentPop = round(over65PercentPop, 2))
+p2 <- ggplot(popStates, aes(x = long, y = lat, group = group, fill = over65PercentPop)) + 
+  geom_polygon(color = "black", 
+               alpha = 1) +
+  scale_fill_continuous(name="% Population 65+", 
+            low = "white", high = "#024501") +
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    legend.position = "bottom"
+  ) +
+  ggtitle("Percent of adults 65+ years")
+
+temp <- merge(avgReadmissions, pop, by = "region")
+p3 <- ggplot(temp, aes(x = over65PercentPop, y = avgReadmit)) +
+  geom_point(alpha = 0.5) + 
+  geom_smooth(method = "lm", se = T, color = "#024501") +
+  theme_minimal() +
+  labs(title = "Correlation of pneumonia-related hospital readmissions by\nstate elderly population",
+       x = "% Adult Population 65+ Years",
+       y = "Pneumonia-related Hospital Readmission Rate")
+
+grid.arrange(p1, p2, ncol = 2)
+p3
+```
+
+
+### 2.4 Hypothesis 3: Readmissions by Percent of Population Living Below the Poverty Line
+```{r, echo = FALSE, warning = FALSE, message = FALSE, fig.width=11, fig.height=5}
+popStates <- popStates %>% 
+  mutate(percBelowPoverty = round(percBelowPoverty*100, 1))
+
+p2 <- ggplot(popStates, aes(x = long, y = lat, group = group, fill = percBelowPoverty)) + 
+  geom_polygon(color = "black", 
+               alpha = 1) +
+  scale_fill_continuous(name="% Below Poverty", 
+            low = "white", high = "#45012d") +
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    legend.position = "bottom"
+  ) +
+  ggtitle("Percent of population below poverty")
+
+temp <- merge(avgReadmissions, pop, by = "region") %>% 
+    mutate(percBelowPoverty = round(percBelowPoverty*100, 1))
+
+p3 <- ggplot(temp, aes(x = percBelowPoverty, y = avgReadmit)) +
+  geom_point(alpha = 0.5) + 
+  geom_smooth(method = "lm", se = T, color = "#45012d") +
+  theme_minimal() +
+  labs(title = "Correlation of pneumonia-related hospital readmissions by\nstate population below poverty",
+       x = "% Population Below Poverty",
+       y = "Pneumonia-related Hospital Readmission Rate")
+
+grid.arrange(p1, p2, ncol = 2)
+p3
+```
+
+#### Question 1 (SE) [2 points]:
+Which hypothesis is supported, if any? Make sure to briefly discuss, in a sentence or two, each hypothesis and the evidence you see here. Does it warrant any kind of follow-up?
+
+> Hypothesis 1: This hypothesis does seem to be supported, based on the correlation scatterplot. There is a positive correlation between pop. density and pneumonia-related hospital readmission. States with higher pop. density tend to have higher readmission rates. Some follow-up is warranted, I would like to look at the density/readmission relationship at a finer geographic level, like county or by zip code. This could help identify specific areas of high density that could be driving this correlation.
+
+> Hypothesis 2: There does not seem to be a clear correlation between % of adults over 65 and readmission rates across states. There still may be some options for further explanation before giving up on this hypothesis. Perhaps investigating potential non-linear relationships, or look at different age groups, like 70+ or 75+ to see if there's a correlation in the oldest age groups. 
+
+> Hypothesis 3: There is a possible positive correlation here, but it is not strongly supported.This hypothesis could also benefit from looking at it from a finer geographic level, as poverty can vary greatly within states. 
+
+## 3. County Level Analysis of Pneumonia-related Readmissions
+Now, it's your turn! We're going to practice our new mapping skills by having you practice working with the __county data__.
+
+### 3.1 Make a base map. 
+Use the `maps` package and the `map_data()` function to extract the county level data and plot a base map:
+
+#### Question 2 (SE) [2 points]:
+I get you started a little bit below, but now it's your turn to try to make a base map of the US counties.
+
+```{r, echo = FALSE}
+counties <- map_data("county")
+
+ggplot(counties, aes(x = long, y = lat, group = group)) +
+  geom_polygon(fill = "darkgrey", color = "lightgrey") +
+  coord_map() +
+  theme_void()
+```
+
+### 3.2 Extracting county-level data for use
+
+`zipcodeR` is an incredibly handy package when working with US data! The `search_state()` function will look up information we need based on the states we have at the city- and county-levels, which we can use with the 
+```{r}
+## Apply the search_state function to get all sorts of wonderful zipcode level details
+stateInfo <- search_state(pneumoniaFull$State)
+```
+
+
+### 3.3 Summarize the data by mean `PredictedReadmissionsRate`.
+
+#### Question 3 (SE) [3 points]:
+Summarize the county-level data to calculate the average pneumonia related hospital readmissions so that you can merge this with the `stateInfo` table above as well as the `counties` dataframe that we extracted from `map_data()`. 
+
+**Hint 1**: My code above should be an excellent starting point if you need it.
+
+**Hint 2**: You may find it easiest at this point to go ahead and rename your column `CountyParish` to match the `counties` data frame! Also make sure to make it lower case! 
+
+**Hint 3**: You are still going to need the state information from the readmissions dataset! You will want to group by both `region` AND `subregion`!
+
+**Hint 4**: You will want to remove the `NA` data before merging, but I would suggest doing it right before you group and summarize.
+
+```{r, echo = TRUE}
+# Rename 'CountyParish' column and make lowercase
+pneumoniaFull <- pneumoniaFull %>%
+  rename(subregion = CountyParish) %>%
+  mutate(subregion = tolower(subregion))
+
+# Summarize data by mean PredictedReadmissionsRate at the county level
+county_readmissions <- pneumoniaFull %>%
+  select(PredictedReadmissionRate, region, subregion) %>%
+  drop_na() %>%  # Drop NAs
+  group_by(region, subregion) %>% # Group by region and subregion. Then summarize.
+  summarize(avg_readmit = mean(PredictedReadmissionRate, na.rm = TRUE))
+```
+
+### 3.4 Merge mean `PredictedReadmissionsRate` with the `counties` data for mapping.
+
+#### Question 4 [1 points]:
+Merge the `counties` data with the summarized readmissions dataset you just made.
+
+**Note**: I got you started here because there's a bit of trickery. You must `arrange` by the `order` (which tells the polygons what order to plot in). Merging will jumble them up and plot a big mess if you don't order them!
+
+```{r}
+## FILL IN THE BLANKS
+# ___ <- merge(counties, ___, by = c("region", "subregion"), all.x = TRUE) %>% arrange(order)
+```
+
+#### Question 5 [3 points]:
+Merge the `counties` data with the summarized readmissions dataset you just made.
+
+```{r}
+# Your code here
+```
+
+#### Question 6 [1 points]:
+What do you notice immediately about the county-level data? Why do you think this is an issue? Are there some counties that legitimately lack hospitals entirely?
+
+> Your answer here.
+
+#### Question 7 [5 bonus points]:
+Use the `stateInfo` dataframe to explore a **hypothesis of your own** about county-level hospital admissions. You could look at population density again, median income, median home value, or even the number of housing units!
+
+**Hint**: You would need to merge the data again with the `counties` dataset so that you could make a map.
+```{r}
+# Your code here
+```
