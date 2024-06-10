@@ -696,10 +696,66 @@ load("imputedTest.Rdata")
 Quickly explore how well the imputation did by choosing at least one numeric variable and one of the categorical variables. Did the distributions or frequencies change drastically?
 
 ```{r}
+# Median time in ED before and after imputation
 
+# Handle missing values
+train_clean <- na.omit(train$`Median time (minutes) patients spent in ED`)
+imputedTrain_clean <- na.omit(imputedTrain$`Median time (minutes) patients spent in ED`)
+
+# Create density objects
+train_density <- density(train_clean)
+imputedTrain_density <- density(imputedTrain_clean)
+
+# Plot the density for the train dataset
+plot(train_density,
+     main = "Density Plot of Median Time (minutes) Patients Spent in ED",
+     xlab = "Median Time (minutes)",
+     ylab = "Density",
+     col = rgb(0, 0, 1, 0.5),
+     lwd = 2) 
+
+# Add density plot for imputedTrain dataset
+lines(imputedTrain_density,
+      col = rgb(1, 0, 0, 0.5),
+      lwd = 2) 
+
+# Add legend to differentiate between density plots
+legend("topright", legend = c("Train", "Imputed Train"),
+       col = c(rgb(0, 0, 1, 0.5), rgb(1, 0, 0, 0.5)),
+       lwd = 2)
+
+# Comparison of death rate (compared to national) before and after imputation
+
+# Create frequency tables for categorical variable
+train_table <- table(train$`ComparedToNational_Death rate for pneumonia patients`)
+imputedTrain_table <- table(imputedTrain$`ComparedToNational_Death rate for pneumonia patients`)
+
+# Convert tables to dfs for plotting
+train_df <- as.data.frame(train_table)
+imputedTrain_df <- as.data.frame(imputedTrain_table)
+
+# Rename columns for clarity
+colnames(train_df) <- c("Category", "Frequency")
+colnames(imputedTrain_df) <- c("Category", "Frequency")
+
+# Add column to distinguish the datasets
+train_df$Dataset <- "Train"
+imputedTrain_df$Dataset <- "Imputed Train"
+
+# Combine dfs
+combined_df <- rbind(train_df, imputedTrain_df)
+
+# Plot
+ggplot(combined_df, aes(x = Category, y = Frequency, fill = Dataset)) +
+  geom_bar(stat = "identity", position = "dodge", alpha = 0.7) +
+  labs(title = "Comparison of Death Rate for Pneumonia Patients",
+       x = "Compared To National",
+       y = "Frequency") +
+  theme_minimal() +
+  scale_fill_manual(values = c("Train" = "blue", "Imputed Train" = "red"))
 ```
 
-> Your answer here.
+> The distributions and frequencies did not change drastically after imputation. So, the imputation did really well.
          
 Struggling? Here's my solution:
 ```{r, warning = FALSE, message=FALSE}
@@ -727,16 +783,21 @@ ggplot(imputedTrain, aes(x = PredictedReadmissionRate)) +
 ##### **Question 12** (SE): [1 point]
 Why is a histogram, or even a Q-Q plot, an insufficient way to assess whether a distribution is approximately normal?
 
-> Your answer here.
+> Histograms and Q-Q plots are subject to interpretation. A histogram can be influenced by the number of bins and bin width chosen, which can lead to different interpretations of the distribution. Similarly with Q-Q plots, slight deviations from the line may be over or under interpreted. Histograms and Q-Q plots are also affected by sample size, where smaller sample sizes can lead to more variable appearing plots. Statistical tests are a good way to provide quantitative measures of normaility, to support visual tools. 
 
 ##### **Question 13** (SE): [1 point]
 Apply a Shapiro-Wilk test for normality using the `shapiro.test()` function. What does it indicate about your distribution? (**Note**: Shapiro tests are only reliable for $N < 5000$, but it is fine to perform here.)
 
 ```{r}
-# Your code here
+# Shapiro-Wilk test for normality
+shapiro_result <- shapiro.test(imputedTrain$PredictedReadmissionRate)
+
+# Print result
+shapiro_result
+
 ```
 
-> Your answer here.
+> The Shapiro-Wilk test indicates a distribution that is significantly different from a normal distribution. 
 
 ### 3.5.1 Box-Cox Transformation
 
@@ -777,12 +838,32 @@ Can you tell what it did to the distribution? __Look closely__, if not. It's sub
 ##### **Question 14** (SE): [1 point]
 Now repeat all of the steps to perform a Box-Cox transform on your own to the `imputedTest` data. Why do you think we need to transform the test data too?
 
-> Your answer here.
+> It is important to also perform transformation on the test data to ensure consistency and comparability between the train and test set. All pre-processing performed on the train set should also be applied to the test set. This is also important when it comes to evaluation of model performance. If the train set was transformed but the test set (which represents new and unseen data) was not, this may result in a poor evaluation of model performance.
 
 ```{r}
-# Your code here
+# Perform Box-Cox transformation on imputedTest data
+bc_data_test <- BoxCoxTrans(imputedTest$PredictedReadmissionRate)
+bc_data_test
 
-# Make sure to check that your transform looks successful!
+# Apply Box-Cox transformation to imputedTest data
+imputedTest$bc_PredictedReadmissionRate <- predict(bc_data_test, imputedTest$PredictedReadmissionRate)
+
+# Visualize Box-Cox transformed data
+ggplot(imputedTest, aes(x = bc_PredictedReadmissionRate)) +
+  geom_histogram(alpha = 0.6, 
+                 fill = prettyPurples[7],
+                 color = prettyPurples[2]) +
+  theme_minimal() +
+  labs(title = "Box-Cox Transformed Predicted Readmission Ratio (Test Data)",
+       y = "Frequency",
+       x = "Predicted Readmission Ratio")
+
+
+qqnorm(imputedTest$bc_PredictedReadmissionRate)
+qqline(imputedTest$bc_PredictedReadmissionRate, 
+       col = "hotpink", lty = 2, lwd = 2)
+
+
 ```
 
 
@@ -795,9 +876,30 @@ Now that we have applied a Box-Cox transform to the target variable, we can cent
 Make a copy of the imputed training set, drop our original, non-Box-Cox transformed target from the dataset, and then center and scale the whole training set using the `scale()` function in R. I called my dataset `readyTrain`, so if you name it anything else just note you'll have to update subsequent code. Then, __do the same thing for the test data__!
 
 ```{r}
-# Your code here
+# Make a copy of the imputed training set and name it 'readyTrain'
+readyTrain <- imputedTrain
 
-## Make sure you both center AND scale your data!
+# Drop the original target variable
+readyTrain$PredictedReadmissionRate <- NULL
+
+# Center/scale training set
+readyTrain_scaled <- scale(readyTrain)
+
+# Convert matrix to df
+readyTrain <- as.data.frame(readyTrain_scaled)
+
+# Perform all the same steps for the test set
+# Make a copy of the imputed test set and name it 'readyTest'
+readyTest <- imputedTest
+
+# Drop the original target variable
+readyTest$PredictedReadmissionRate <- NULL
+
+# Center/scale test set
+readyTest_scaled <- scale(readyTest)
+
+# Convert matrix to df
+readyTest <- as.data.frame(readyTest_scaled)
 ```
 
 
@@ -842,7 +944,7 @@ fviz_screeplot(pca,
 ##### **Question 16** (SE): [1 point]
 Using the 'elbow' method of the scree plot - the point at which the percentage of variance explained seems to level off - approximately how many principal components would be significant to explain the total variation in the training data set? (**Hint**: if it's not super obvious, that's actually informative!)
 
-> Your answer here
+> One, possibly two PCs explain the majority of the variation in the train set.
 
 Next, let's explore how much the variables are contributing (this is based on the weight of their rotations). In PCA, we are interested in the __loadings__, i.e., the linear combination weights (coefficients) whereby unit-scaled components define or "load" a variable. Loadings help us interpret principal components.
 
@@ -870,7 +972,7 @@ fviz_pca_biplot(pca,
 ##### **Question 17** (SE): [1 point]
 On principal components 1 and 2 (the PCs that account for the __most__ variance in the training data), do you see any pattern (i.e., clustering) relative to the hospital return days for pneumonia patients compared to the national average? Why or why not? 
 
-> Your answer here
+> There does appear to be a pattern. The red points, representing hospitals that are worse than the national average, appear to be clustered more towards the left side of the plot. The yellow points, which represent hospitals that are better than the national average, tend to be clustered more towards the right. Finally, the blue points, representing hospitals that are the same as the national average, are more spread out, but mostly fall in between the red and yellow points.
 
 
 Next, let's look at the contributions of the top 20 features; anything above the dotted red-line contributes significantly to the overall explanation of variance, and anything below the dotted line does not.
@@ -920,7 +1022,7 @@ grid.arrange(p6, p7, p8, p9, nrow = 2)
 ##### **Question 18** (SE): [1 point]
 Which number of clusters, $k$, do you think has the best explanatory power? Is it hard to tell?
 
-> Your answer here
+> It is difficult to definitively determine the optimal number of clusters visually. I would say 2-5 clusters seems to oversimplify the data and 8-9 clusters seems to over-segment the data. 6 or 7 seems clusters seem to sit in the sweet spot, providing good separation of data points, capturing distinct subgroups while maintaing well defined clusters.
 
 Next, let's employ the 'elbow' method again, this time to look at when the __within sum of squares__ drops off rather than the percent variance, as was done in PCA.
 
@@ -935,7 +1037,7 @@ fviz_nbclust(readyTrain,
 #### **Question 19** (SE): [1 point]
 What is the __within sum of squares__ and what exactly is it measuring here? By the elbow method, which $k$ is the optimal number of clusters? Did it agree with your choice from the other heuristic method?
 
-> Your answer here
+> WSS measures the compactness of the clusters. WSS calculates the squared Euclidean distance between each data point and the cluster centroid (mean point of the cluster), then sums the squared distances across all data points and clusters. A lower WSS indicates data points in within each cluster are closer to their centroids, meaning more well-defined and compact clusters. Interestingly, implementing the 'elbow' method on the plot, it does agree with my choice from the heuristic method, with 6-7 clusters being optimal. 
 
 
 ## 4.3 Segmentation Analysis
@@ -947,17 +1049,17 @@ Let's explore the clusters - segments - of the hospitals based on their average 
 
 ```{r, echo = TRUE, fig.height = 6, fig.width=6}
 kmeansResult <- kmeans(readyTrain, 	
-                         centers = 3,      ## COMMENT HERE
+                         centers = 3, ## Specify number of clusters to create
                          nstart = 50,      
                          iter.max = 1000,  
                          algorithm = "MacQueen")
 
-## COMMENT HERE
+## Assign cluster labels to train data
 kmeansTrain <- imputedTrain %>% 
   mutate(Cluster = kmeansResult$cluster) %>% 
   clean_names()
 
-## COMMENT HERE (Hint: look at the PCA Importance Graph again if you aren't sure!)
+## Select important variables for PCA
 pcaImportantVars <- c("overall_hospital_rating",
                       "care_transition",
                       "nurse_communication",
@@ -974,22 +1076,23 @@ pcaImportantVars <- c("overall_hospital_rating",
                       "compared_to_national_hospital_return_days_for_pneumonia_patients",
                       "cleanliness")
 
-## COMMENT HERE
+## Group and summarize data by cluster. Calculate mean for numeric variables
 kmeansTrain %>% 
-  ## COMMENT HERE
+## Select important variables and cluster column
   select(all_of(pcaImportantVars), cluster) %>% 
-  ## COMMENT HERE
+## Rename columns
   rename(`Hospital Return Days Score` = hospital_return_days_for_pneumonia_patients,
          `Hospital Return Days Nat'l Comparison` = compared_to_national_hospital_return_days_for_pneumonia_patients,
          `Median Minutes spent in Emergency Dept` = median_time_minutes_patients_spent_in_ed) %>% 
-  ## COMMENT HERE
-  clean_names(case = "title") %>% 
-  group_by(Cluster) %>% 
-  ## COMMENT HERE
+  clean_names(case = "title") %>% ## Clean column names to uppercase title format
+  group_by(Cluster) %>% ## Group data by cluster
+  
+## Calculate mean for numeric variables
   summarise_if(is.numeric, mean, na.rm = TRUE) %>% 
-  ## COMMENT HERE
+## Reshape data for plotting
   pivot_longer(-1, names_to = "Measure", values_to = "Value") %>% 
-  ## COMMENT HERE
+  
+## Create plot
     ggplot(aes(x = Cluster, y = Value, fill = as.factor(Cluster))) +
     geom_col(alpha = 0.75) +
     scale_fill_manual(values = myPal) +
