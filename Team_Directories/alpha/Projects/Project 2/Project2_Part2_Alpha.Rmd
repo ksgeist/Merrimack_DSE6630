@@ -268,20 +268,51 @@ longDataScore %>%
 ##### **Question 1**: [1 point]
 Use the code above, or write your own *de novo*, to explore the relationships between the expected heart failure  readmissions and the `HcahpsLinear...` variables.
 ```{r, fig.width=6, fig.height=8, echo = TRUE, message = FALSE}
-# Your code here
+# #Malek
+hcahps_data <- longDataScore %>% 
+  filter(str_detect(Variable, "HcahpsLinear"))
+
+hcahps_data %>%  
+  ggplot(aes(y = ExpectedReadmissionRate, 
+             x = Value)) +
+    geom_point(alpha = 0.25) + 
+    geom_smooth(aes(fill = as.factor(NatlComparisonHospitalDays), 
+                    color = as.factor(NatlComparisonHospitalDays)), 
+                method = "lm", 
+                se = TRUE, 
+                show.legend = TRUE) + 
+    labs(title = "Relationship of Heart Failure-related hospital expected readmissions to HcahpsLinear variables",
+         x = "Rate or Score",
+         y = "Expected Heart Failure-related Readmissions",
+         color = "Expected heart failure readmissions Compared to National Average") +
+    scale_fill_manual(values = c("gold", "cadetblue", "maroon")) + 
+    scale_color_manual(values = c("gold", "cadetblue", "maroon"),
+                       labels = c("Better", "Same", "Worse")) + 
+    guides(fill = "none", color = guide_legend(override.aes = list(fill = NA))) + 
+    theme_minimal() +
+    theme(legend.position = "bottom",
+          strip.text = element_text(size = 8),
+          legend.text = element_text(size = 8),
+          legend.title = element_text(size = 10),
+          title = element_text(size = 12, color = "maroon")) + 
+    facet_wrap(~ Variable, 
+               scales = "free_x",
+               ncol = 2)
 ```
 
 ##### **Question 2**: [1 point]
 What relationships do you find most compelling from your graphic and why? Also, name one outstanding question you have at this point, whether it is about the data, the data collection, or something more speculative.
 
-> Your answer here.
+> #Malek
+Here I would not say that there is one specific relationship that stands out the most. The biggest question that I have as of now is that I wonder if the relationship of the variables is similar based on the size or geographical location of the hospital.
 
 #### Bias and Limitation
 
 ##### **Question 3**: [1 point]
 All studies have bias (introduced or systemic error) and limitations (failure to fully explain something). We could go more deeply into these concepts, but for now I want you to take a stab and just brainstorming either ways we might have bias OR the limitations of using this target variable. You do not need to answer both, but you're welcome to do so. You can read more about bias [here](https://www.ncbi.nlm.nih.gov/books/NBK574513/) or see some deeper explanations of limitations [here](https://www.aje.com/arc/how-to-write-limitations-of-the-study/). You do not need to write a lot; just 2-3 sentences. I am simply asking you to pause and reflect on our choices here before we proceed. 
 
-> Your answer here.
+> #Malek
+This answer is pretty much identical to the one from the first half of this project. One potential bias in using the Expected readmission rate as our target variable is selection bias. The thing that is making me weary here is that the data is pretty reliant on historical data which may or may not be up to date. Thus, if one hospital has more data than another that is really covering all the bases then I believe this would definitely be shown in the outcomes. 
 
 
 # 3 Pre-processing and Feature Selection
@@ -306,7 +337,8 @@ colnames(HEART_FAILURE_AnalyzeDemo) <- gsub('Score_|HcahpsLinearMeanValue_|_Paym
 ##### **Question 4**: [1 point]
 Why do you think I choose to keep `Hospital return days for pneumonia patients` and `ComparedToNational_Hospital return days for pneumonia patients`? Do you agree with my choice? Why or why not? What analytic pitfalls are there to including them?
 
-> Your answer here.
+> #Malek
+Again, this answer is going to be pretty similar to part 1. I would say that I do agree with your choice... Probably always best to agree with you in these situations as there is likely a reason why you did what you did haha. Anyways, I like keeping both of them in there as it gives some kind of standard for us to use and compare with. As long as things aren't becoming redundant, which I don't believe they are in this case, then we should be in good shape. In terms of the new target variable, I do believe that this is still useful, but just on the heart failute side as these two pieces of data can be useful when comparing to eachother. Especially because of the many factors that go into heart failure this can be a good way to see regional differences compared with national. 
 
 
 ### 3.1.2 Dropping any features with near-zero variance. [Automated Method]
@@ -330,12 +362,15 @@ HEART_FAILURE_AnalyzeDemo <- HEART_FAILURE_AnalyzeDemo[, -nearZeroVar(HEART_FAIL
 ##### **Question 5**: [1 point]
 If you are not familiar yet with the concept of __zero or near-zero variance__, do a little digging. Based on what you read, try to explain for your naive advocacy group stakeholders, why it's important to remove the features with little variance.
 
-> Your answer here.
+> #Malek
+In this instance, the data points that got dropped were PaymentCategory for heart failure patients, ComparedToNational_Postoperative respiratory failure rate, and ComparedToNational_Perioperative pulmonary embolism or deep vein thrombosis rate. So, zero or near-zero variance deals with data that is pretty much exactly the same and thus the information is redundant and not useful. The problem arises when trying to build our models and all this data is doing is creating noise. Ultimately making our models less helpful. When these are removed the models are better able to focus on the important things. 
+
 
 ##### **Question 6**: [1 point]
 Why do I want to make sure unique identifiers, like `FacilityID`, are out of the dataframe for before I either run `nearZeroVar()` or proceeding with the rest of the analysis? What problems does keeping them in there create?
 
-> Your answer here.
+>#Malek 
+Unique identifiers need to get removed because they can cause a disturbance in the models and understanding the data. These are not data points we are analyzing and are really just indicators of facilites in this case and thus there isn't anything to analyze 
 
 ## 3.2 Assess missingness & devise an imputation plan
 ```{r}
@@ -360,7 +395,8 @@ heatmap(df,
 ##### **Question 7**: [1 point]
 What columns seem to be most correlated in terms of missingness with our target, `PredictedReadmissionRate`? Does this give you any cause for concern?
 
-> Your answer here.
+> #Malek
+Interestingly enough, the heat map is showing the same missingness columns which are SurveyResponseRate, healthcare workers given influenza vaccination, and median time patients spent in ED
 
 ### Drop the rows that are missing from the target variable. 
 
@@ -376,38 +412,38 @@ paste0(c("Rows: ", "Columns: "), dim(HEART_FAILURE_AnalyzeDemo))
 
 ##### **Question 8**: [2 points]
 There are three parts to this question to get it to all come together correctly. **Practice reading R code**
-
+#Malek
 * Comment the function to explain what it does (I've defined the arguments for you)
 * Run the function (fill in the blank)
 * Fill in the missing piece in the partitioning chunk below
 
 ```{r}
+#Malek
 calcSplitRatio <- function(p = NA, df) {
   ## @p  = the number of parameters. by default, if none are provided, the number of columns (predictors) in the dataset are used
   ## @df = the dataframe that will be used for the analysis
   
-  ## COMMENT HERE
+  ##With no p, it is set to the number of columns in the dataframe - 1
   if(is.na(p)) {
-    p <- ncol(df) -1   ## COMMENT HERE
+    p <- ncol(df) -1   ##parameters is columns - 1
   }
   
-  ## COMMENT HERE
+  ##So now we are builiding the test set size and using that important formula of (1/sqrt(p))
   test_N <- (1/sqrt(p))*nrow(HEART_FAILURE_AnalyzeDemo)
-  ## COMMENT HERE
+  ##Determines the proportion of test set compared to the whole data frame
   test_prop <- round((1/sqrt(p))*nrow(HEART_FAILURE_AnalyzeDemo)/nrow(HEART_FAILURE_AnalyzeDemo), 2)
-  ## COMMENT HERE
+  ##Training proportion, whatever the test isn't
   train_prop <- 1-test_prop
   
-  ## COMMENT HERE
+  ##Prints best ratio
   print(paste0("The ideal split ratio is ", train_prop, ":", test_prop, "training:testing"))
   
-  ## COMMENT HERE
+  ##Returns training proportion
   return(train_prop)
 }
 
 ## Fill in the blanks to run:
-# train_prop <- ___(df = ___)
-
+train_prop <- calcSplitRatio(df = HEART_FAILURE_AnalyzeDemo)
 ```
 
 **Hint**: One important note here is that if the number of parameters are not provided (which is true for the starter code I gave you to run it - it does NOT pass any parameters to that argument!), then by default our function is designed to take the number of columns of the dataframe and subtract one for the target variable. Neat, huh?
@@ -415,12 +451,13 @@ calcSplitRatio <- function(p = NA, df) {
 You should have gotten an __83-17 split__. Notice how that's actually very close to the canonical 80-20 split!
 
 ```{r}
-# ind <- createDataPartition(HEART_FAILURE_AnalyzeDemo$___,                  ## Remember to put the target here!
-#                            p = ___,                                   ## Remember to use the object you just made from your function!
-#                            list = FALSE)
-# 
-# train <- HEART_FAILURE_AnalyzeDemo[___, ]
-# test <- HEART_FAILURE_AnalyzeDemo[-c(ind), ]
+#Malek
+ind <- createDataPartition(HEART_FAILURE_AnalyzeDemo$ExpectedReadmissionRate, 
+                            p = train_prop,
+                            list = FALSE)
+
+train <- HEART_FAILURE_AnalyzeDemo[ind, ]
+test <- HEART_FAILURE_AnalyzeDemo[-c(ind), ]
 ```
 
 Load the test and train data in case you struggled with Question 7 so you can proceed:
@@ -473,7 +510,8 @@ data.frame(imputedTrain$OOBerror, names(temp)) %>%
 ##### **Question 9**: [1 point]
 What does `MSE` and `PCF` indicate here? You may find looking at the `missForest` [Vignette](https://stat.ethz.ch/education/semesters/ss2012/ams/paper/missForest_1.2.pdf) helpful. How is the random forest that was performed here similar to what we performed on the gene expression data? How does this differ?
 
-> Your answer here.
+>#Malek
+This question was kind of confusing for me, but MSE I believe is the mean squared error. What is being measured in the mean squared error is the average of all the differences between the true and the estimated values. PCF, partial complete fraction looks at the proportion of correctly observed values. The thing that I want to point out here is that in gene expression the forests are applied based on gene expression patterns, but on the flip side missforest looks at missing values and builds forests from there I believe. 
 
 ```{r}
 imputedTrain <- imputedTrain$ximp %>% 
@@ -502,7 +540,27 @@ imputedTrain <- imputedTrain$ximp %>%
 ##### **Question 10**: [1 point]
 Now repeat the imputation steps for the `test` dataset, storing it into `imputedTest`.
 ```{r}
-# > Your code here
+# > #Malek
+imputedTest <- imputedTrain$ximp %>% 
+  ## Put the original State and target variables back on
+  mutate(State = test$State,
+         ExpectedReadmissionRate = test$ExpectedReadmissionRate) %>% 
+  ## Convert the factors back to character type...
+  mutate_at(c("Emergency.department.volume",
+              "ComparedToNational_MRSA.Bacteremia",
+              "ComparedToNational_Composite.patient.safety",
+              "ComparedToNational_Death.rate.for.pneumonia.patients",
+              "ComparedToNational_Hospital.return.days.for.pneumonia.patients"),
+            as.character) %>% 
+  mutate_at(c("Emergency.department.volume",
+              "ComparedToNational_MRSA.Bacteremia",
+              "ComparedToNational_Composite.patient.safety",
+              "ComparedToNational_Death.rate.for.pneumonia.patients",
+              "ComparedToNational_Hospital.return.days.for.pneumonia.patients"),
+            as.numeric)
+
+## Save data files to be used in future
+# save(imputedTest, file = "imputedTest.Rdata")
 ```
 
 
