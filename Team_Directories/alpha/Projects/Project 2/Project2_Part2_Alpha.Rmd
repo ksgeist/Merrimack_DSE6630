@@ -878,24 +878,24 @@ Then come up with at least FOUR characteristics per cluster. You may choose to f
 ```{r, echo = FALSE, collapse=TRUE}
 library(tibble)
 library(kableExtra)
+
 dict <- tribble(
 ~`Top Defining Attributes`, ~`Description`,
-"Emergency Department (ED) Volume", "Medium ED volume compared to other clusters",
-"Shortest Median Time in ED", "Patients spend the least amount of time in the ED",
-"High Patient Satisfaction", "Highest scores across all communication aspects",
-"Low Readmission Rate", "Well below national average for predicted readmission rate",
+"Doctor Communication", "Best doctor communication compared to other clusters",
+"Nurse Communication", "Highest scored out of all the clusters",
+"Staff Responsiveness", "Highest scores across all communication aspects",
+"Highest Communication about Medicines", "Well above average for commuicating about medicines",
 
 
-"Return hospital days due to Heart Failure", "Below national average and lowest return days overall", 
-"Emergency Department (ED)", "Lowest median time for patients in the ED, and lowest ED volume",
-"High Overall Hospital Rating", "Highest overall rating compared to other clusters",
-"Excellent Care Transition", "Highest rating for care transition aspect",
+"Overall Hospital Rating", "Highest rated Hospitals", 
+"Care Transition", "Best at transitioning paitents",
+"Cleanliness", "Cleanest hospitals",
+"Quietness", "Quietest opitals",
 
-"Strong Nurse Communication", "Highest nurse communication scores",
-"Strong Doctor Communication", "Highest score in doctor communication aspect",
-"High Care Transition", "Highest rate of Care while transitioning",
-"High Queitness", "Reported to have the lowest noise level",
-"Cleanliness", "Reported to get the highest cleanliness score",
+"Death Rate for HF Paitents", "Lowest death rate when compared to other clusters",
+"Recommended Hospital", "Highest Recommended Hospital",
+"Emergency Department Volume", "Large amounts of volume",
+"Time spent in Emergency Room", "Reported to have the lowest median time in the ED",
 )
 
 
@@ -903,9 +903,9 @@ dict %>%
   kable(
     format = "html",
     caption = "Table 5. Hospital segmentation analysis: three types of broad groupings identified.") %>%
-    pack_rows("1: Highest Ranked Emergency Department", 1, 4) %>%
+    pack_rows("1: Best Hospital for Communicating information ", 1, 4) %>%
     pack_rows("2: Highest Performing Hospitals", 5, 8) %>%
-    pack_rows("3: Best Hospitals for Patient Care ", 9, 12) %>%
+    pack_rows("3: Best Ranked Emergency Department", 9, 12) %>%
     kable_styling(bootstrap_options = c("striped", full_width = F)
   )
 ```
@@ -915,7 +915,7 @@ dict %>%
 #### **Question 22**: [1 point]
 Make a recommendation for our client for 1-2 machine learning analyses __your team__ would choose to use to test whether these clusters can be used for robust predictions of hospital performance for pneumonia patients. How would you know whether or not your predictions were robust? What would you look for or compare?
 
-> I would recommend a logistic regression to test and see if the clusters can predict pneumonia  outcomes accurately based on the given historical data. Then, I'd preform a decision tree analysis to try and understand the factors that influence the predictions made by those clusters. To check if predictions are robust, I'd just compare the predicted outcomes with actual outcomes from a new set of pneumonia patient data, and check different metricslike accuracy, sensitivity, and specificity. If the model consistently predicts outcomes across different datasets, it indicates robustness.
+> I would recommend a DBSCAN and logistic regression to test and see if the clusters can predict heart failure outcomes accurately based on the given historical data. Then, I'd preform a decision tree analysis to try and understand the factors that influence the predictions made by those clusters. To check if predictions are robust, I'd just compare the predicted outcomes with actual outcomes from a new set of pneumonia patient data, and check different metricslike accuracy, sensitivity, and specificity. If the model consistently predicts outcomes across different datasets, it indicates robustness.
 
 # 4 Supervised Learning Methods
 
@@ -929,10 +929,10 @@ Could our PCA benefit from re-running it after dealing with possible multicollin
 ## 4.1 Pairwise Correlation 
 
 ```{r, echo = FALSE, fig.width = 7, fig.height = 7}
-corrMat <- cor(readyTrain)
+corrMat2 <- cor(HFreadyTrain)
 
 ## Make a heatmap
-heatmap(corrMat, 
+heatmap(corrMat2, 
         col = rev(colorRampPalette(brewer.pal(8, "RdYlBu"))(8)), 
         cexRow = 0.5, 
         cexCol = 0.5, 
@@ -950,7 +950,7 @@ Where do you see the highest potential for multicollinearity? Why do you say tha
 ### 4.2.1 Fitting a model to estimate VIF
 
 ```{r, echo=FALSE, fig.height=6, fig.width=6}
-mod <- lm(bc_ExpectedReadmissionRate ~ ., data = readyTrain)
+mod <- lm(bc_ExpectedReadmissionRate ~ ., data = HFreadyTrain)
 par(mfrow=c(2,2))
 plot(mod, 1)
 plot(mod, 2)
@@ -990,27 +990,28 @@ vifResults %>%
 ##### **Question 26**: [1 point]
 Does multicollinearity seem to be an issue in this dataset and, if so, among which variables? Why do you come to this conclusion?
 
-> After reading this article https://corporatefinanceinstitute.com/resources/data-science/variance-inflation-factor-vif/#:~:text=Generally%2C%20a%20VIF%20above%204,that%20needs%20to%20be%20corrected. I found that multiple variables have high multicollinearity mainly all the varaibles above 5 have strong multicollinearity so tese 5 need to be addressed Overall.hospital.rating	24.65
-Recommend.hospital	16.39
+> After reading this article https://corporatefinanceinstitute.com/resources/data-science/variance-inflation-factor-vif/#:~:text=Generally%2C%20a%20VIF%20above%204,that%20needs%20to%20be%20corrected. I found that multiple variables have high multicollinearity mainly all the varaibles above 5 have strong multicollinearity so tese 5 need to be addressed 
+Overall.hospital.rating	24.16
+Recommend.hospital	16.69
+Care.transition	8.76
 Nurse.communication	8.57
-Care.transition	8.32
-Staff.responsiveness 5.65.
+Staff.responsiveness	5.46
 
 ### 4.2.3 Dropping the most collinear variables and re-running the OLS regression.
 
 ```{r}
 ## Drop those with VIF over 4
-regressionTrain <- readyTrain %>% 
+HFregressionTrain <- HFreadyTrain %>% 
   select(-Overall.hospital.rating, -Recommend.hospital, -Nurse.communication, -Care.transition, -Staff.responsiveness, -Communication.about.medicines, -Doctor.communication)
 
 ## Do the same for the testing data!
-regressionTest <- readyTest %>% 
+HFregressionTest <- HFreadyTest %>% 
   select(-Overall.hospital.rating, -Recommend.hospital, -Nurse.communication, -Care.transition, -Staff.responsiveness, -Communication.about.medicines, -Doctor.communication)
 ```
 
 ```{r, echo = FALSE}
 ## Fit a linear model
-mod <- lm(bc_ExpectedReadmissionRate ~ ., data = regressionTrain)
+mod <- lm(bc_ExpectedReadmissionRate ~ ., data = HFregressionTrain)
 ## Extract just the R-squared
 summary(mod)$adj.r.squared
 ```
@@ -1031,13 +1032,13 @@ stargazer(bestMod,
 
 ```{r}
 ## Make the predictions
-predictions <- predict(bestMod, newdata = regressionTest)
+predictions <- predict(bestMod, newdata = HFregressionTest)
 ## Calculate the RMSE
-RMSE(predictions, regressionTest$bc_ExpectedReadmissionRate)
+RMSE(predictions, HFregressionTest$bc_ExpectedReadmissionRate)
 
-maxvalues <- max(readyTrain$bc_ExpectedReadmissionRate)
+maxvalues <- max(HFreadyTrain$bc_ExpectedReadmissionRate)
 maxvalues
-minvalues <- min(readyTrain$bc_ExpectedReadmissionRate)
+minvalues <- min(HFreadyTrain$bc_ExpectedReadmissionRate)
 minvalues
 
 ```
@@ -1054,10 +1055,10 @@ Can you interpret what the RMSE tells your client here? Is this a good model? An
 
 ```{r, echo = FALSE, warning=FALSE, message=FALSE}
 ## Add the predictions to the dataset
-regressionTest$predictions <- predictions
+HFregressionTest$predictions <- predictions
 
 ## Graph what the predictions look like relative to the actual data
-ggplot(regressionTest, 
+ggplot(HFregressionTest, 
        aes(x = predictions, y = bc_ExpectedReadmissionRate)) +
        geom_point(alpha = 0.5, color = "hotpink") +
        geom_smooth(color = "hotpink", fill = "hotpink", se = T, method = "lm") +
@@ -1082,14 +1083,14 @@ ctrl <- trainControl(method = "repeatedcv",
 ```{r}
 searchGrid <- expand.grid(.alpha = seq(0, 1, length.out = 10), .lambda = seq(0, 5, length.out = 15))
 elasticMod <- train(bc_ExpectedReadmissionRate ~ ., 
-                    data = readyTrain[, -26], 
+                    data = HFreadyTrain[, -26], 
                     method = "glmnet", 
                     tuneGrid = searchGrid,
                     trControl = ctrl) 
 ```
 
 ```{r}
-sum(colSums(is.na(readyTrain)))
+sum(colSums(is.na(HFreadyTrain)))
 ```
 
 ##### **Question 28**: [1 point]
@@ -1124,7 +1125,7 @@ elasticMod$bestTune$lambda
 ##### **Question 28**: [1 point]
 Check the values of $\alpha$ and $\lambda$ here. What do they suggest about the optimal regularization that is being fit here? (Recall that when both $\alpha$ and $\lambda$ are zero, it's an OLS regression!)
 
-> The values $\alpha$ and $\lambda$ are 1 and 0 which suggest that the model is performing lasso regression without regularization. The model attempts to select features without a penalty. This could lead to overfitting and requires more evaluation to potentially tune for optimal performance.
+> The values $\alpha$ and $\lambda$ are 0 and 0 which suggest that the model is still performing OLS regression. This it suggests that the model did not apply any regularization to the coefficients. This means that the model is attempting to find the best fit to the training data without any constraints on the coefficients.
 
 ```{r, echo = FALSE, fig.width=4, fig.height=5, warning=FALSE, message=FALSE}
 results <- elasticMod$results %>% 
@@ -1170,14 +1171,14 @@ important %>%
 ##### **Question 29**: [1 point]
 Which of the features were most important? How does this compare to the most important features out of regression? How about about of PCA?
 
-> The most important features wre Recommend hospital, Hospital return days for pneumonia patients, payment for pneumonia patients and Overall hospital rating. This compares to the important feature for regression because overall hospital rating and recommend hospital were high on the VIF list making then have high multicolinearity. For PCA the same two variables contributed the most in Dim 1 and 2.
+> The most important features wre Recommend hospital, Death Rate for heart failure paitents, Emergency department volume, and median time in ED. This is different when comparing the VIF and PCA dimensions which are different and focus more on communication.
 
 ```{r}
-prOLS <- postResample(pred = predict(mod, newdata = regressionTest), 
-                      obs = regressionTest$bc_PredictedReadmissionRate)
+prOLS <- postResample(pred = predict(mod, newdata = HFregressionTest), 
+                      obs = HFregressionTest$bc_ExpectedReadmissionRate)
 
-prElastic <- postResample(pred = predict(elasticMod, newdata = readyTest), 
-                      obs = readyTest$bc_PredictedReadmissionRate)
+prElastic <- postResample(pred = predict(elasticMod, newdata = HFreadyTest), 
+                      obs = HFreadyTest$bc_ExpectedReadmissionRate)
 
 ## Display the output
 rbind(prOLS, prElastic) %>% 
@@ -1191,19 +1192,15 @@ rbind(prOLS, prElastic) %>%
 ##### **Question 30**: [1 point]
 Using the same method, check for overfitting / underfitting. Make predictions using `readyTrain` rather than `readyTest`, and then check how the RMSE on the training data compares to the RMSE of the training data for the Elastic Net. How do they compare? (Recall what we discussed when we did the gene expression demo: the relationship of the test vs. training accuracy can be used to assess overfitting/underfitting. The same logic applies to RMSE too!) __How do both compare to what we got out of the OLS regression?__ Which would you say is the better predictive model, the OLS regression or the Elastic Net? Why?
 
->  After comparing all the numbers in the table below we can see that they are all very similar and close to each other. When comparing the RMSE the R^2 and MAE for the training and testing sets we can see that OLS regression might overfitting and the Elastic Net is underfitting. Below is the break down.
+>  After comparing all the numbers in the table below we can see that they are all the exact same. When comparing the RMSE the R^2 and MAE for the training and testing sets we can see that OLS regression and the Elastic net are the same due to the best alpha and lambda values for the Eleastic Net are both 0 making it an OLS regression
 
-> For OLS regression the RMSE is lower on training data compared to testing data, R^2 is higher on training data compared to testing data, and the MAE is lower on training data compared to testing data. All of these point towards the model starting to overfit.
-
-> For Elastic Net RMSE is higher on training data compared to testing data, R^2 is lower on training data compared to testing data, and MAE is higher on training data compared to testing data. These are all the oppisite of the OLS regression and so they point to the model beginning to underfit.
-
-> Even thought the model is slightly overfitting the I think the OLS regression preforms better because the values of the RMSE, R-squared, and MAE are closer then the values for the Elastic Net model. Becasue of this when given more data that it has not seen it will do better and be stronger at making predictions.
+> The model performs equally well on both the training and testing datasets, it suggests that the model has found  the best parameters to capture any  underlying patterns the data might have without overfitting or underfitting. This is the best case scenario and indicates that the model well preform well to unseen data. Even though this is what we want, it doesn't necessarily mean that the model is optimal. We should stillconsider other evaluation metrics and perform more cross-validation to ensure the reliability and robustness of the model.
 
 ```{r}
-prOLS_train <- postResample(pred = predict(mod, newdata = readyTrain), 
-                            obs = readyTrain$bc_PredictedReadmissionRate)
-prElastic_train <- postResample(pred = predict(elasticMod, newdata = readyTrain), 
-                                obs = readyTrain$bc_PredictedReadmissionRate)
+prOLS_train <- postResample(pred = predict(mod, newdata = HFreadyTrain), 
+                            obs = HFreadyTrain$bc_ExpectedReadmissionRate)
+prElastic_train <- postResample(pred = predict(elasticMod, newdata = HFreadyTrain), 
+                                obs = HFreadyTrain$bc_ExpectedReadmissionRate)
 
 rbind(prOLS_train, prOLS, prElastic_train, prElastic) %>%
   kable(digits = 2,
@@ -1216,13 +1213,13 @@ rbind(prOLS_train, prOLS, prElastic_train, prElastic) %>%
 A graphical comparison of the two models.
 
 ```{r, echo = FALSE, warning=FALSE, message=FALSE}
-elasticPredictions <- predict(elasticMod, newdata = readyTest)
-testingResults <- c(regressionTest$predictions,
+elasticPredictions <- predict(elasticMod, newdata = HFreadyTest)
+testingResults <- c(HFregressionTest$predictions,
                     elasticPredictions)
-label <- c(rep("OLS Prediction", nrow(regressionTest)),
+label <- c(rep("OLS Prediction", nrow(HFregressionTest)),
            rep("Elastic Net Prediction", length(elasticPredictions)))
 temp <- cbind.data.frame(testingResults, label)
-temp$actual <- rep(regressionTest$bc_PredictedReadmissionRate, 2)
+temp$actual <- rep(HFregressionTest$bc_ExpectedReadmissionRate, 2)
 
 ## Graph what the predictions look like relative to the actual data
 ggplot(temp, 
