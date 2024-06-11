@@ -1268,6 +1268,7 @@ Now, re-run the linear regression and let's print the adjusted $R^2$.
 ```{r, echo = FALSE}
 ## Fit a linear model
 mod <- lm(bc_PredictedReadmissionRate ~ ., data = regressionTrain)
+summary(mod)
 ## Extract just the R-squared
 summary(mod)$adj.r.squared
 ```
@@ -1422,7 +1423,8 @@ elasticMod$bestTune$lambda
 ##### **Question 28**: [1 point]
 Check the values of $\alpha$ and $\lambda$ here. What do they suggest about the optimal regularization that is being fit here? (Recall that when both $\alpha$ and $\lambda$ are zero, it's an OLS regression!)
 
-> ANSWER
+> Since alpha is one, the model chose a Ridge Regression model. 
+Since lambda is one, the model performed no shrinkage and we have a OLS regression. 
 
 Let's also plot the results of the tuning search. Can you the type of tuning search you did? (**Hint**: the visual pattern should confirm your answer from earlier!)
 
@@ -1473,7 +1475,10 @@ important %>%
 ##### **Question 29**: [1 point]
 Which of the features were most important? How does this compare to the most important features out of regression? How about about of PCA?
 
-> Your answer here.
+> The top features for the elastic net were Recommended Hospital, Hospital return days and payment. 
+For PCA the top features were overall hospital rating, Care transition, nurse communication, and recommeded hospital. 
+For regression the top features were Payment for Pneumonia patients, Death rate for pneumonia patients, median time in the EDD, Hospital return days, Quietness, and excess readmission. 
+
 
 
 Let's also make predictions on the testing sets for the OLS and Elastic Net models using the `postResample()` function in `caret`; this will do predictions, but it will enable us to more easily generate metrics that we can use to compare model performance, such as $R^2$ and MAE.
@@ -1496,10 +1501,22 @@ rbind(prOLS, prElastic) %>%
 ##### **Question 30**: [1 point]
 Using the same method, check for overfitting / underfitting. Make predictions using `readyTrain` rather than `readyTest`, and then check how the RMSE on the training data compares to the RMSE of the training data for the Elastic Net. How do they compare? (Recall what we discussed when we did the gene expression demo: the relationship of the test vs. training accuracy can be used to assess overfitting/underfitting. The same logic applies to RMSE too!) __How do both compare to what we got out of the OLS regression?__ Which would you say is the better predictive model, the OLS regression or the Elastic Net? Why?
 
-> Your answer here.
+> They are very similar! prOLS perfomred better with RMSE, but the Elastic net performed better with Rsquared. OLS also did better with MAE. 
 
 ```{r}
-# Your code here
+prOLS <- postResample(pred = predict(mod, newdata = regressionTrain), 
+                      obs = regressionTrain$bc_PredictedReadmissionRate)
+
+prElastic <- postResample(pred = predict(elasticMod, newdata = readyTrain), 
+                      obs = readyTrain$bc_PredictedReadmissionRate)
+
+## Display the output
+rbind(prOLS, prElastic) %>% 
+  kable(digits = 2,
+    format = "html",
+    caption = "Table 8. Comparison of the OLS and Elastic Net Regressions") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F)
+)
 ```
 
 A graphical comparison of the two models.
