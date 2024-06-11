@@ -1269,7 +1269,7 @@ Now, re-run the linear regression and let's print the adjusted $R^2$.
 ```{r, echo = FALSE}
 ## Fit a linear model
 mod <- lm(bc_PredictedReadmissionRate ~ ., data = regressionTrain)
-summary(mod)
+#summary(mod)
 ## Extract just the R-squared
 summary(mod)$adj.r.squared
 ```
@@ -1388,7 +1388,7 @@ sum(colSums(is.na(readyTrain)))
 
 The other reason would be because of failed convergence of the model. Thus, this suggests that our model failed to converge during cross-validation, likely because in some of the folds the predictions have zero variance.
 
-##### **Question 28**: [1 point]
+##### **Question 28**: (SH) [1 point]
 Explain what exactly we are doing here. Remind yourself of the parameters of the `trainControl()` and `train()` functions, and look up any new ones you do not yet know. Specifically, make sure to address what type of CV and hyperparameter search is being performed, as well as if both the $\alpha$ and $\lambda$ hyperparameters of elastic net are being tuned.
 
 > The train function takes a method (glmnet in this case) as well as the data (readyTrain). Train will take a data frame with possible tuning values (searchGride for us) where the columns are named after the tuning parameters. "The model is trained on slightly different data for each candidate combination of tuning parameters" (R Documentation). This suggests that both $\alpha$ and $\lambda$ are being tuned. 
@@ -1421,7 +1421,7 @@ $\lambda$:
 ```{r,echo=FALSE}
 elasticMod$bestTune$lambda
 ```
-##### **Question 28**: [1 point]
+##### **Question 28**: (SH) [1 point]
 Check the values of $\alpha$ and $\lambda$ here. What do they suggest about the optimal regularization that is being fit here? (Recall that when both $\alpha$ and $\lambda$ are zero, it's an OLS regression!)
 
 > Since alpha is one, the model chose a Ridge Regression model. 
@@ -1473,7 +1473,7 @@ important %>%
        fill = "")
 ```
 
-##### **Question 29**: [1 point]
+##### **Question 29**: (SH) [1 point]
 Which of the features were most important? How does this compare to the most important features out of regression? How about about of PCA?
 
 > The top features for the elastic net were Recommended Hospital, Hospital return days and payment. 
@@ -1502,7 +1502,7 @@ rbind(prOLS, prElastic) %>%
 ##### **Question 30**: [1 point]
 Using the same method, check for overfitting / underfitting. Make predictions using `readyTrain` rather than `readyTest`, and then check how the RMSE on the training data compares to the RMSE of the training data for the Elastic Net. How do they compare? (Recall what we discussed when we did the gene expression demo: the relationship of the test vs. training accuracy can be used to assess overfitting/underfitting. The same logic applies to RMSE too!) __How do both compare to what we got out of the OLS regression?__ Which would you say is the better predictive model, the OLS regression or the Elastic Net? Why?
 
-> They are very similar! prOLS perfomred better with RMSE, but the Elastic net performed better with Rsquared. OLS also did better with MAE. 
+> They are very similar! OLS perfomred better with RMSE, but the Elastic net performed better with Rsquared. OLS also did better with MAE. 
 
 ```{r}
 prOLS <- postResample(pred = predict(mod, newdata = regressionTrain), 
@@ -1551,7 +1551,7 @@ Unsurprisingly from the RMSE, these models are performing VERY similarly.
 ##### **Question 31**: [4 points]
 What conclusions do you make at this point about whether to make predictions with an OLS regression, Elastic Net, or neither? What recommendations would you make to our client at this point? What other analyses might your suggest, or other data we might want to include? Please try to flesh out 2-3 recommendations in at least a paragraph.
 
-> Your answer here.
+> The accuracy on both OLS regression and Elastic Net is still fairly low. If they would like to go with one of these models, I would suggest further testing to see how sample size impacts the results as well as the specificity and sensitivity. Ideally, an IRB or ethics body would participate in adjusting the model so that the error has the least negative impact. I would also suggest that further work be performed to see if another model might before with a higher accuracy. The parameter tuning from the Elastic Net suggests that either LASSO or Ridge regression might be models worth considering. Finally, I might suggest a non-linear model to see how it compares in accuarcy for data that seems non-linear from our testing so far. 
 
 # 5 Next Steps
 
@@ -1773,5 +1773,26 @@ ggplot(temp, aes(x = testingResults, y = actual, color = label)) +
        color = "Model")
 ```
 
-## Results and Comparison
+## Results and Comparison (SH)
+
+```{r}
+prRidge <- postResample(pred = predict(ridgeMod, newdata = readyTest), 
+                      obs = readyTest$bc_PredictedReadmissionRate)
+
+prLasso <- postResample(pred = predict(lassoMod, newdata = readyTest), 
+                      obs = readyTest$bc_PredictedReadmissionRate)
+
+## Display the output
+rbind(prRidge, prLasso) %>% 
+  kable(digits = 2,
+    format = "html",
+    caption = "Table 8. Comparison of the Ridge and Lasso") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F)
+)
+```
+
+From the RMSE and Rsquare values above (.76 and .77), it is clear that Lasso and Ridge regression perform very similarly. In fact, they also perform very similarly to the elastic net model above. (.77). These are still not very accurate models. However, the graphs above also demonstrate the that data is somewhat non linear. Ridge regression, lasso, and elastic net all assume a somewhat linear relationship between data. Further models could explore models that focus on non-linear relationships. 
+
+
+
 
