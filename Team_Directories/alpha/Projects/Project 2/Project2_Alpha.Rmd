@@ -314,13 +314,43 @@ I also see a negative trend for both ICU and ED Venous Thromboembolism Prophylax
 ##### **Question 1**: [1 point]
 Use the code above, or write your own *de novo*, to explore the relationships between the predicted pneumonia readmissions and the `HcahpsLinear...` variables.
 ```{r, fig.width=6, fig.height=8, echo = TRUE, message = FALSE}
-# Your code here
+# #Malek
+hcahps_data <- longDataScore %>% 
+  filter(str_detect(Variable, "HcahpsLinear"))
+
+hcahps_data %>%  
+  ggplot(aes(y = PredictedReadmissionRate, 
+             x = Value)) +
+    geom_point(alpha = 0.25) + 
+    geom_smooth(aes(fill = as.factor(NatlComparisonHospitalDays), 
+                    color = as.factor(NatlComparisonHospitalDays)), 
+                method = "lm", 
+                se = TRUE, 
+                show.legend = TRUE) + 
+    labs(title = "Relationship of pneumonia-related hospital readmissions to HcahpsLinear variables",
+         x = "Rate or Score",
+         y = "Predicted Pneumonia-related Readmissions",
+         color = "Pneumonia-related Readmission Compared to National Average") +
+    scale_fill_manual(values = c("gold", "cadetblue", "maroon")) + 
+    scale_color_manual(values = c("gold", "cadetblue", "maroon"),
+                       labels = c("Better", "Same", "Worse")) + 
+    guides(fill = "none", color = guide_legend(override.aes = list(fill = NA))) + 
+    theme_minimal() +
+    theme(legend.position = "bottom",
+          strip.text = element_text(size = 8),
+          legend.text = element_text(size = 8),
+          legend.title = element_text(size = 10),
+          title = element_text(size = 12, color = "maroon")) + 
+    facet_wrap(~ Variable, 
+               scales = "free_x",
+               ncol = 2)
 ```
 
 ##### **Question 2**: [1 point]
 What relationships do you find most compelling from your graphic and why? Also, name one outstanding question you have at this point, whether it is about the data, the data collection, or something more speculative.
 
-> Your answer here.
+> #Malek
+The relationship that stands out to me the most would be that of the hospital rating as well as the cleanliness. For both of these graphics we see similar shapes. One thing that I am curious of is if the cleanliness or rating actually could potentially play a role in the outcome of patients. 
 
 Although there is certainly more EDA we could do, we are going to wrap that up here for the sake of moving on - but, as always, I encourage you to think about or even explore what else you would like to know about your data that we did not do!
 
@@ -341,7 +371,8 @@ But remember that what matters most is that we are __matching our question__.
 ##### **Question 3**: [1 point]
 All studies have bias (introduced or systemic error) and limitations (failure to fully explain something). We could go more deeply into these concepts, but for now I want you to take a stab and just brainstorming either ways we might have bias OR the limitations of using this target variable. You do not need to answer both, but you're welcome to do so. You can read more about bias [here](https://www.ncbi.nlm.nih.gov/books/NBK574513/) or see some deeper explanations of limitations [here](https://www.aje.com/arc/how-to-write-limitations-of-the-study/). You do not need to write a lot; just 2-3 sentences. I am simply asking you to pause and reflect on our choices here before we proceed. 
 
-> Your answer here.
+> #Malek
+One potential bias in using the Predicted Readmission Rate as our target variable is selection bias. The thing that is making me weary here is that the data is pretty reliant on historical data which may or may not be up to date. Thus, if one hospital has more data than another that is really covering all the bases then I believe this would definitely be shown in the outcomes. 
 
 
 # 3 Pre-processing and Feature Selection
@@ -372,7 +403,8 @@ colnames(pneumoniaAnalyzeDemo) <- gsub('Score_|HcahpsLinearMeanValue_|_Payment',
 ##### **Question 4**: [1 point]
 Why do you think I choose to keep `Hospital return days for pneumonia patients` and `ComparedToNational_Hospital return days for pneumonia patients`? Do you agree with my choice? Why or why not? What analytic pitfalls are there to including them?
 
-> Your answer here.
+> #Malek
+I would say that I do agree with your choice... Probably always best to agree with you in these situations as there is likely a reason why you did what you did haha. Anyways, I like keeping both of them in there as it gives some kind of standard for us to use and compare with. As long as things aren.t becoming redundant, which I don't believe they are in this case, then we should be in good shape.
 
 
 ### 3.1.2 Dropping any features with near-zero variance. [Automated Method]
@@ -400,12 +432,15 @@ We can see that we lost three more features due to near-zero variance, bringing 
 ##### **Question 5**: [1 point]
 If you are not familiar yet with the concept of __zero or near-zero variance__, do a little digging. Based on what you read, try to explain for your naive advocacy group stakeholders, why it's important to remove the features with little variance.
 
-> Your answer here.
+> #Malek
+So, zero or near-zero variance deals with data that is pretty much exactly the same and thus the information is redundant and not useful. The problem arises when trying to build our models and all this data is doing is creating noise. Ultimately making our models less helpful. When these are removed the models are better able to focus on the important things. 
+
 
 ##### **Question 6**: [1 point]
 Why do I want to make sure unique identifiers, like `FacilityID`, are out of the dataframe for before I either run `nearZeroVar()` or proceeding with the rest of the analysis? What problems does keeping them in there create?
 
-> Your answer here.
+> #Malek
+Unique identifiers need to get removed because they can cause a disturbance in the models and understanding the data. These are not data points we are analyzing and are really just indicators of facilites in this case and thus there isn't anything to analyze 
 
 ## 3.2 Assess missingness & devise an imputation plan
 
@@ -442,7 +477,8 @@ Darker colors mean higher degrees of correlated missingness. So, for example, we
 
 What columns seem to be most correlated in terms of missingness with our target, `PredictedReadmissionRate`? Does this give you any cause for concern?
 
-> Your answer here.
+> #Malek
+SurveyResponseRate, healthcare workers given influenza vaccination, and median time patients spent in ED are all variables that are highly correlated missingness to the target variable. I would say that I am not concerned as there are plenty of other variables for the models to build off of that aren't at high levels of missingness. 
 
 ### Drop the rows that are missing from the target variable. 
 We will not be able to use those rows at all moving forward, sadly. That is going to reduce our sample size pretty sizably, from $N = 4,816$ to only $N = 2,726$.
@@ -464,38 +500,39 @@ Now, wouldn't it be nice to have a handy function that could calculate the optim
 
 ##### **Question 8**: [2 points]
 There are three parts to this question to get it to all come together correctly. **Practice reading R code**
-
+#Malek
 * Comment the function to explain what it does (I've defined the arguments for you)
 * Run the function (fill in the blank)
 * Fill in the missing piece in the partitioning chunk below
 
 ```{r}
+#Malek
+
 calcSplitRatio <- function(p = NA, df) {
   ## @p  = the number of parameters. by default, if none are provided, the number of columns (predictors) in the dataset are used
   ## @df = the dataframe that will be used for the analysis
   
-  ## COMMENT HERE
+  ##With no p, it is set to the number of columns in the dataframe - 1
   if(is.na(p)) {
-    p <- ncol(df) -1   ## COMMENT HERE
+    p <- ncol(df) -1   ##parameters is columns - 1
   }
   
-  ## COMMENT HERE
+  ##So now we are builiding the test set size and using that important formula of (1/sqrt(p))
   test_N <- (1/sqrt(p))*nrow(pneumoniaAnalyzeDemo)
-  ## COMMENT HERE
+  ##Determines the proportion of test set compared to the whole data frame
   test_prop <- round((1/sqrt(p))*nrow(pneumoniaAnalyzeDemo)/nrow(pneumoniaAnalyzeDemo), 2)
-  ## COMMENT HERE
+  ##Training proportion, whatever the test isn't
   train_prop <- 1-test_prop
   
-  ## COMMENT HERE
+  ##Prints best ratio
   print(paste0("The ideal split ratio is ", train_prop, ":", test_prop, "training:testing"))
   
-  ## COMMENT HERE
+  ##Returns training proportion
   return(train_prop)
 }
 
 ## Fill in the blanks to run:
-# train_prop <- ___(df = ___)
-
+train_prop <- calcSplitRatio(df = pneumoniaAnalyzeDemo)
 ```
 
 **Hint**: One important note here is that if the number of parameters are not provided (which is true for the starter code I gave you to run it - it does NOT pass any parameters to that argument!), then by default our function is designed to take the number of columns of the dataframe and subtract one for the target variable. Neat, huh?
@@ -566,7 +603,8 @@ data.frame(imputedTrain$OOBerror, names(temp)) %>%
 ##### **Question 9**: [1 point]
 What does `MSE` and `PCF` indicate here? You may find looking at the `missForest` [Vignette](https://stat.ethz.ch/education/semesters/ss2012/ams/paper/missForest_1.2.pdf) helpful. How is the random forest that was performed here similar to what we performed on the gene expression data? How does this differ?
 
-> Your answer here.
+> #Malek
+This question was kind of confusing for me, but MSE I believe is the mean squared error. What is being measured in the mean squared error is the average of all the differences between the true and the estimated values. PCF, partial complete fraction looks at the proportion of correctly observed values. The thing that I want to point out here is that in gene expression the forests are applied based on gene expression patterns, but on the flip side missforest looks at missing values and builds forests from there I believe. 
 
 We are almost done. The last thing we need to do is extract the imputed values from `imputed_data$ximp`, and add the `State` and target variables back on. Then, we need to turn the factor features back into numbers for our next analyses.
 
@@ -598,7 +636,18 @@ imputedTrain <- imputedTrain$ximp %>%
 ##### **Question 10**: [1 point]
 Now repeat the imputation steps for the `test` dataset, storing it into `imputedTest`.
 ```{r}
-# > Your code here
+# > #Malek
+imputedTest <- missForest::impute.newdata(object = missForest_model, newdata = test)
+
+imputedTest <- imputedTest$ximp %>% 
+  mutate(State = test$State,
+         PredictedReadmissionRate = test$PredictedReadmissionRate) %>% 
+  mutate_at(vars(Emergency.department.volume,
+                 ComparedToNational_MRSA.Bacteremia,
+                 ComparedToNational_Composite.patient.safety,
+                 ComparedToNational_Death.rate.for.pneumonia.patients,
+                 ComparedToNational_Hospital.return.days.for.pneumonia.patients),
+            ~ as.numeric(as.character(.)))
 ```
 
 
