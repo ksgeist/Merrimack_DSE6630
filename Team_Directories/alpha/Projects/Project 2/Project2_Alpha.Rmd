@@ -612,32 +612,45 @@ load("imputedTest.Rdata")
 Quickly explore how well the imputation did by choosing at least one numeric variable and one of the categorical variables. Did the distributions or frequencies change drastically?
 
 ```{r}
-```{R}
-# Compare distributions for numeric variable ''
-ggplot() +
-  geom_density(aes(x = HEART_FAILURE_Full$FacilityId), color = "blue", fill = "blue", alpha = 0.3) +
-  geom_density(aes(x = HEART_FAILURE_Full$FacilityId), color = "red", fill = "red", alpha = 0.3) +
-  labs(title = "Comparison of facilty ID Distribution",
-       x = "FacilityId",
-       y = "Density",
-       fill = "Data") +
-  scale_fill_manual(values = c("blue" = "Original Data", "red" = "Imputed Data"))
+````{r}
+# Visualize distributions before imputation
+p1 <- ggplot(hf_data, aes(x = NumberOfDischarges)) + 
+  geom_histogram(binwidth = 50, fill = "blue", alpha = 0.7) + 
+  ggtitle("Number of Discharges Before Imputation")
 
-# Compare frequencies for categorical variable 'sex'
-original_sex_freq <- HEART_FAILURE_Full %>% count(CountyParish)
-imputed_sex_freq <- HEART_FAILURE_Full %>% count(CountyParish)
+p2 <- ggplot(hf_data, aes(x = State)) + 
+  geom_bar(fill = "blue", alpha = 0.7) + 
+  ggtitle("State Frequency Before Imputation")
 
-comparison_sex <- merge(original_country_freq, imputed_country_freq, by = "CountryParish", suffixes = c("_original", "_imputed"))
+# Impute missing values
+hf_data$NumberOfDischarges[is.na(hf_data$NumberOfDischarges)] <- median(hf_data$NumberOfDischarges, na.rm = TRUE)
+hf_data$ExcessReadmissionRatio[is.na(hf_data$ExcessReadmissionRatio)] <- median(hf_data$ExcessReadmissionRatio, na.rm = TRUE)
+hf_data$PredictedReadmissionRate[is.na(hf_data$PredictedReadmissionRate)] <- median(hf_data$PredictedReadmissionRate, na.rm = TRUE)
+hf_data$ExpectedReadmissionRate[is.na(hf_data$ExpectedReadmissionRate)] <- median(hf_data$ExpectedReadmissionRate, na.rm = TRUE)
+hf_data$NumberOfReadmissions[is.na(hf_data$NumberOfReadmissions)] <- median(hf_data$NumberOfReadmissions, na.rm = TRUE)
 
-ggplot(comparison_country, aes(x = country)) +
-  geom_bar(aes(y = n_original, fill = "Original Data"), stat = "identity", position = "dodge") +
-  geom_bar(aes(y = n_imputed, fill = "Imputed Data"), stat = "identity", position = "dodge") +
-  labs(title = "Comparison of country Frequency",
-       x = "country",
-       y = "Frequency",
-       fill = "Data") +
-  scale_fill_manual(values = c("Original Data" = "blue", "Imputed Data" = "red"))
-```
+# Mode imputation for categorical variable
+mode_impute <- function(x) {
+  ux <- unique(x[!is.na(x)])
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+hf_data$State[is.na(hf_data$State)] <- mode_impute(hf_data$State)
+
+# Visualize distributions after imputation
+p3 <- ggplot(hf_data, aes(x = NumberOfDischarges)) + 
+  geom_histogram(binwidth = 50, fill = "green", alpha = 0.7) + 
+  ggtitle("Number of Discharges After Imputation")
+
+p4 <- ggplot(hf_data, aes(x = State)) + 
+  geom_bar(fill = "green", alpha = 0.7) + 
+  ggtitle("State Frequency After Imputation")
+
+# Display the plots
+print(p1)
+print(p2)
+print(p3)
+print(p4)
 yes it did change 
 
 
@@ -672,13 +685,15 @@ ggplot(imputedTrain, aes(x = PredictedReadmissionRate)) +
 ##### **Question 12**: [1 point]
 Why is a histogram, or even a Q-Q plot, an insufficient way to assess whether a distribution is approximately normal?
 
-> Your answer here.
+> Your answer here.hile histograms and Q-Q plots are useful tools for visualizing data distributions and checking for normality, they have limitations that make them insufficient on their own to conclusively determine whether a distribution is approximately normal.
 
 ##### **Question 13**: [1 point]
 Apply a Shapiro-Wilk test for normality using the `shapiro.test()` function. What does it indicate about your distribution? (**Note**: Shapiro tests are only reliable for $N < 5000$, but it is fine to perform here.)
 
 ```{r}
-# Your code here
+ Your code here 
+shapiro_test_result <- shapiro.test(heart_failure_filtered$NumberOfDischarges)
+shapiro_test_result
 ```
 
 > Your answer here.
@@ -722,7 +737,25 @@ Can you tell what it did to the distribution? __Look closely__, if not. It's sub
 ##### **Question 14**: [1 point]
 Now repeat all of the steps to perform a Box-Cox transform on your own to the `imputedTest` data. Why do you think we need to transform the test data too?
 
-> Your answer here.
+> Your answer here.# Apply the Box-Cox transformation to the imputedTest data
+bc_test_data <- predict(bc_data, imputedTest$PredictedReadmissionRate)
+imputedTest$bc_PredictedReadmissionRate <- bc_test_data
+
+# Visualize the Box-Cox transformed data
+library(ggplot2)
+
+# Histogram of the transformed PredictedReadmissionRate
+ggplot(imputedTest, aes(x = bc_PredictedReadmissionRate)) +
+  geom_histogram(alpha = 0.6, fill = "purple", color = "black") +
+  theme_minimal() +
+  labs(title = "Box-Cox Transformed Predicted Readmission Ratio (Test Data)",
+       y = "Frequency",
+       x = "Predicted Readmission Ratio")
+
+# Q-Q plot of the transformed PredictedReadmissionRate
+qqnorm(imputedTest$bc_PredictedReadmissionRate)
+qqline(imputedTest$bc_PredictedReadmissionRate, col = "hotpink", lty = 2, lwd = 2)
+Why Transform the Test Data?
 
 ```{r}
 # Your code here
@@ -740,7 +773,26 @@ Now that we have applied a Box-Cox transform to the target variable, we can cent
 Make a copy of the imputed training set, drop our original, non-Box-Cox transformed target from the dataset, and then center and scale the whole training set using the `scale()` function in R. I called my dataset `readyTrain`, so if you name it anything else just note you'll have to update subsequent code. Then, __do the same thing for the test data__!
 
 ```{r}
-# Your code here
+##Make a copy of the imputed training set
+readyTrain <- hf_data_train
+
+# Drop the original, non-Box-Cox transformed target from the dataset
+readyTrain <- readyTrain %>% select(-ExpectedReadmissionRate)
+
+# Center and scale the whole training set
+readyTrain <- as.data.frame(scale(readyTrain))
+
+# Add back the target variable (scaled)
+readyTrain$ExpectedReadmissionRate <- hf_data_train$ExpectedReadmissionRate
+
+# Do the same thing for the test data
+readyTest <- hf_data_test %>% select(-ExpectedReadmissionRate)
+readyTest <- as.data.frame(scale(readyTest))
+readyTest$ExpectedReadmissionRate <- hf_data_test$ExpectedReadmissionRate
+
+# Display the first few rows of the training and test datasets
+head(readyTrain)
+head(readyTest)
 
 ## Make sure you both center AND scale your data!
 ```
@@ -787,7 +839,29 @@ fviz_screeplot(pca,
 ##### **Question 16**: [1 point]
 Using the 'elbow' method of the scree plot - the point at which the percentage of variance explained seems to level off - approximately how many principal components would be significant to explain the total variation in the training data set? (**Hint**: if it's not super obvious, that's actually informative!)
 
-> Your answer here
+> Your answer here  # Perform PCA on the scaled training dataset
+pca_result <- prcomp(readyTrain[, -ncol(readyTrain)], center = TRUE, scale. = TRUE)
+
+# Calculate the variance explained by each principal component
+explained_variance <- pca_result$sdev^2 / sum(pca_result$sdev^2)
+
+# Create a scree plot
+scree_plot <- qplot(1:length(explained_variance), cumsum(explained_variance), geom = "line") +
+  geom_point() +
+  xlab("Principal Component") +
+  ylab("Cumulative Proportion of Variance Explained") +
+  ggtitle("Scree Plot") +
+  theme_minimal()
+
+# Display the scree plot
+print(scree_plot)
+
+Perform PCA: Using the prcomp function on the scaled training dataset, excluding the target variable.
+Calculate Explained Variance: Compute the proportion of variance explained by each principal component.
+Plot Scree Plot: Plot the cumulative proportion of variance explained by each principal component to visualize the 'elbow'.
+Run this code in your R environment to generate the scree plot. The point at which the line starts to level off indicates the optimal number of principal components to retain.
+
+Elbow Point: The number of principal components at which the cumulative proportion of variance explained starts to level off is considered optimal. This indicates the number of components that capture most of the variation in the data.
 
 Next, let's explore how much the variables are contributing (this is based on the weight of their rotations). In PCA, we are interested in the __loadings__, i.e., the linear combination weights (coefficients) whereby unit-scaled components define or "load" a variable. Loadings help us interpret principal components.
 
@@ -815,7 +889,7 @@ fviz_pca_biplot(pca,
 ##### **Question 17**: [1 point]
 On principal components 1 and 2 (the PCs that account for the __most__ variance in the training data), do you see any pattern (i.e., clustering) relative to the hospital return days for pneumonia patients compared to the national average? Why or why not? 
 
-> Your answer here
+> this indicates that there are underlying patterns in the data that are captured by the first two principal components. 
 
 
 Next, let's look at the contributions of the top 20 features; anything above the dotted red-line contributes significantly to the overall explanation of variance, and anything below the dotted line does not.
@@ -864,7 +938,7 @@ grid.arrange(p6, p7, p8, p9, nrow = 2)
 
 ##### **Question 18**: [1 point]
 Which number of clusters, $k$, do you think has the best explanatory power? Is it hard to tell?
-
+it is hard to tell
 > Your answer here
 
 Next, let's employ the 'elbow' method again, this time to look at when the __within sum of squares__ drops off rather than the percent variance, as was done in PCA.
@@ -880,7 +954,26 @@ fviz_nbclust(readyTrain,
 #### **Question 19**: [1 point]
 What is the __within sum of squares__ and what exactly is it measuring here? By the elbow method, which $k$ is the optimal number of clusters? Did it agree with your choice from the other heuristic method?
 
-> Your answer here
+> Your answer here# Extract the first two principal components
+pca_data <- as.data.frame(pca_result$x[, 1:2])
+pca_data$ExcessReadmissionRatio <- readyTrain$ExcessReadmissionRatio
+
+# Calculate WCSS for different values of k
+set.seed(123)
+wcss <- sapply(1:10, function(k) {
+  kmeans(pca_data[, 1:2], centers = k, nstart = 20)$tot.withinss
+})
+
+# Plot the WCSS against the number of clusters
+elbow_plot <- qplot(1:10, wcss, geom = "line") +
+  geom_point() +
+  xlab("Number of Clusters (k)") +
+  ylab("Within-Cluster Sum of Squares") +
+  ggtitle("Elbow Method for Determining Optimal Number of Clusters") +
+  theme_minimal()
+
+# Display the elbow plot
+print(elbow_plot)
 
 
 ## 4.3 Segmentation Analysis
@@ -890,7 +983,7 @@ As we said before, the goal of segmentation analysis is to broadly cluster our h
 #### **Question 20**: [1 point]
 Let's explore the clusters - segments - of the hospitals based on their average values from the __original__ dataset. Your task is to add comments to this code chunk. 
 
-```{r, echo = TRUE, fig.height = 6, fig.width=6}
+``{r}
 ## Uses the KMeans function on the readyTrain dataset and stores it in kmeansResult. Below are the parameters.
 kmeansResult <- kmeans(readyTrain, 	
                          centers = 3,            ## Specifies 3 clusters for k-means clustering.
@@ -900,55 +993,48 @@ kmeansResult <- kmeans(readyTrain,
 
 ## Adds a column called Cluster based on result.
 kmeansTrain <- imputedTrain %>% 
-  mutate(Cluster = kmeansResult$cluster) %>% 
-  clean_names()
-## Specifies which variables to import for PCA.
-pcaImportantVars <- c("overall_hospital_rating",
-                      "care_transition",
-                      "nurse_communication",
-                      "recommend_hospital",
-                      "staff_responsiveness",
-                      "communication_about_medicines",
-                      "doctor_communication",
-                      "discharge_information",
-                      "predicted_readmission_rate",
-                      "quietness",
-                      "median_time_minutes_patients_spent_in_ed",
-                      "hospital_return_days_for_pneumonia_patients",
-                      "emergency_department_volume", 
-                      "compared_to_national_hospital_return_days_for_pneumonia_patients",
-                      "cleanliness")
-```
+  mutate(Cluster = kmeansResult$cluster) %>% ## Add the cluster assignment to the dataset.
+  clean_names() ## Clean the column names to ensure consistency in naming.
+
 ```{r}
-## Renames some of the rows in the Cluser column
+## Specifies which variables to import for PCA.
+pcaImportantVars <- c("overall_hospital_rating",            ## Overall hospital rating
+                      "care_transition",                    ## Care transition score
+                      "nurse_communication",                ## Nurse communication score
+                      "recommend_hospital",                 ## Recommendation score
+                      "staff_responsiveness",               ## Staff responsiveness score
+                      "communication_about_medicines",      ## Communication about medicines score
+                      "doctor_communication",               ## Doctor communication score
+                      "discharge_information",              ## Discharge information score
+                      "predicted_readmission_rate",         ## Predicted readmission rate
+                      "quietness",                          ## Quietness score
+                      "median_time_minutes_patients_spent_in_ed",  ## Median time patients spent in ED
+                      "hospital_return_days_for_pneumonia_patients",  ## Hospital return days for pneumonia patients
+                      "emergency_department_volume",        ## Emergency department volume
+                      "compared_to_national_hospital_return_days_for_pneumonia_patients", ## Comparison to national hospital return days for pneumonia patients
+                      "cleanliness")                        ## Cleanliness score
+## Renames some of the rows in the Cluster column
 kmeansTrain %>% 
   ## Selects relevant variables and 'Cluster' column
-  select(all_of(pcaImportantVars), cluster) %>% 
-  rename(`Hospital Return Days Score` = hospital_return_days_for_pneumonia_patients,
-         `Hospital Return Days Nat'l Comparison` = compared_to_national_hospital_return_days_for_pneumonia_patients,
-         `Median Minutes spent in Emergency Dept` = median_time_minutes_patients_spent_in_ed) %>% 
+  select(all_of(pcaImportantVars), cluster) %>%  ## Selects the specified variables and the cluster column.
+  rename(`Hospital Return Days Score` = hospital_return_days_for_pneumonia_patients,  ## Renames the column for better readability.
+         `Hospital Return Days Nat'l Comparison` = compared_to_national_hospital_return_days_for_pneumonia_patients,  ## Renames the column for better readability.
+         `Median Minutes spent in Emergency Dept` = median_time_minutes_patients_spent_in_ed) %>%  ## Renames the column for better readability.
   ## Cleans column names
-  clean_names(case = "title") %>% 
-  group_by(Cluster) %>% 
+  clean_names(case = "title") %>%  ## Cleans the column names to title case.
+  group_by(Cluster) %>%  ## Groups data by cluster.
   ## Groups data by cluster
-  summarise_if(is.numeric, mean, na.rm = TRUE) %>% 
-  pivot_longer(-1, names_to = "Measure", values_to = "Value") %>% 
-    ## Creates a plot with the given data
-  ggplot(aes(x = Cluster, y = Value, fill = as.factor(Cluster))) +
-    geom_col(alpha = 0.75) +
-    scale_fill_manual(values = myPal) +
-    labs(title = "Cluster Means",
-         x = "",
-         fill = "Cluster") +
-    theme_minimal() +
-    theme(legend.position = "bottom",
-        strip.text = element_text(size=6),
-        legend.text = element_text(size = 8),
-        legend.title = element_text(size = 10),
-        title = element_text(size = 12, color = "maroon")) + 
-    facet_wrap(~Measure, 
-             scales = "free_y",
-             ncol = 3)
+  summarise_if(is.numeric, mean, na.rm = TRUE) %>%  ## Summarises numeric variables by their mean within each cluster.
+  pivot_longer(-1, names_to = "Measure", values_to = "Value") %>%  ## Converts the data from wide format to long format for plotting.
+  ## Creates a plot with the given data
+  ggplot(aes(x = Cluster, y = Value, fill = as.factor(Cluster))) +  ## Creates a ggplot object for visualization.
+    geom_col(alpha = 0.75) +  ## Adds bar plots with transparency.
+    scale_fill_manual(values = myPal) +  ## Manually sets fill colors for the clusters.
+    labs(title = "Cluster Means",  ## Adds a title to the plot.
+         x = "",  ## No label for the x-axis.
+         fill = "Cluster") +  ## Adds a label for the fill legend.
+    theme_minimal() +  ## Applies a minimal theme
+```
 ```
 
 #### **Question 21**: [1 point]
