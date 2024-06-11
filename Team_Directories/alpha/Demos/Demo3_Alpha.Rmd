@@ -334,10 +334,12 @@ Use the `maps` package and the `map_data()` function to extract the county level
 I get you started a little bit below, but now it's your turn to try to make a base map of the US counties.
 
 ```{r, echo = FALSE}
-# counties <- map_data("___") ## FILL ME IN
+counties <- map_data("county")
 
-# ggplot(counties, aes(x = long, y = lat, group = group)) + 
-#   ____ # FINISH ME!
+ggplot(counties, aes(x = long, y = lat, group = group)) + 
+  geom_polygon(fill = "white", color = "black") +
+  coord_fixed()
+
 ```
 
 ### 3.2 Extracting county-level data for use
@@ -360,10 +362,18 @@ Summarize the county-level data to calculate the average pneumonia related hospi
 
 **Hint 3**: You are still going to need the state information from the readmissions dataset! You will want to group by both `region` AND `subregion`!
 
-**Hint 4**: You will want to remove the `NA` data before merging, but I would suggest doing it right before you group and summarize.
+**Hint 4**: You will want to remove the `NA` data before merging, but I would suggest doing it right before you group and summarize. 
 
 ```{r, echo = TRUE}
-## Your code here
+pneumoniaFull <- pneumoniaFull %>%
+  rename(subregion = CountyParish) %>%
+  mutate(subregion = tolower(subregion)) %>% 
+  filter(!is.na(subregion))
+
+countySummary <- pneumoniaFull %>%
+  group_by(region, subregion) %>%
+  summarise(mean_predicted_readmissions = mean(PredictedReadmissionRate, na.rm = TRUE), .groups = "drop")
+
 ```
 
 ### 3.4 Merge mean `PredictedReadmissionsRate` with the `counties` data for mapping.
@@ -375,14 +385,29 @@ Merge the `counties` data with the summarized readmissions dataset you just made
 
 ```{r}
 ## FILL IN THE BLANKS
-# ___ <- merge(counties, ___, by = c("region", "subregion"), all.x = TRUE) %>% arrange(order)
+mergedData <- merge(counties, countySummary, by = c("region", "subregion"), all.x = TRUE) %>% arrange(order)
+
 ```
 
 #### Question 5 [3 points]:
 Merge the `counties` data with the summarized readmissions dataset you just made.
 
 ```{r}
-# Your code here
+colnames(stateInfo)[colnames(stateInfo) == "lng"] <- "long"
+FinalData <- merge(mergedData, stateInfo, by = c("lat", "long"), all.x = TRUE) %>% arrange(order)
+
+g1 <- ggplot(FinalData, aes(x = long, y = lat, group = group, fill = mean_predicted_readmissions)) + 
+  geom_polygon(color = "black", alpha = 1) +
+  scale_fill_continuous(name = "Mean Predicted Readmissions", low = "lightgrey", high = "#28B463", na.value = "white") +
+  theme(
+    plot.margin = margin(b = 5 * unit(1, "lines")),
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    legend.position = "top") +
+  ggtitle("Average Predicted Pneumonia-Related Hospital Readmissions by County")
+
+g1
+
 ```
 
 #### Question 6 [1 points]:
