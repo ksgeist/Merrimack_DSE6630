@@ -47,7 +47,8 @@ pacman::p_load(tidyverse,
                car,
                stargazer,
                glmnet,
-               forcats
+               forcats, 
+               kableExtra
 )
 ```
 
@@ -1562,4 +1563,198 @@ It's time to choose your adventure! After working through this demo and answerin
 Unlike what you may have seen on Canvas, I am going to make things much lighter on you this time so we can all catch a breath. I am looking for 1-2 markdown documents with their knitted HTML. For example, if you're choosing Adventures 1 or 2, you may want to work through this document once, make a copy, and then do it again for the new condition(s) you choose to work through. If you're choosing Adventure 3, maybe you just choose to add on to the bottom of this document, replacing the 'Next Steps' section you see here.
 
 Just make sure to answer the questions well, and make sure to justify the decisions you make. Tell me WHY you're choosing the condition(s) you are in Adventures 1 or 2. Tell me WHY you're doing the analyses you are in Adventure 3. Other than that, make this your own exploratory learning adventure!
+
+# Adventure 3: Ridge and Lasso Models
+We have chosen to create two additional models, Ridge and Lasso, to compare with the Elastic Net model created above. 
+
+## Ridge Model (AC)
+```{r}
+ctrl <- trainControl(method = "repeatedcv", 
+                     number = 10, 
+                     repeats = 5, 
+                     search = "grid", 
+                     verboseIter = FALSE)
+
+# Step 2: Define the Ridge model
+ridgeGrid <- expand.grid(.alpha = 0, .lambda = seq(0, 5, length.out = 15))
+ridgeMod <- train(bc_PredictedReadmissionRate ~ ., 
+                  data = readyTrain[, -26], 
+                  method = "glmnet", 
+                  tuneGrid = ridgeGrid,
+                  trControl = ctrl) 
+
+# Step 3: Evaluate the performance of the Ridge model on the test set
+prRidge <- postResample(pred = predict(ridgeMod, newdata = readyTest), 
+                        obs = readyTest$bc_PredictedReadmissionRate)
+
+# Display the performance metrics
+performance <- prRidge %>% 
+  as.data.frame() %>% 
+  t() %>% 
+  data.frame() %>% 
+  setNames(c("RMSE", "Rsquared", "MAE")) %>% 
+  rownames_to_column(var = "Metric") %>% 
+  kable(digits = 2, 
+        format = "html", 
+        caption = "Table: Performance of Ridge Model") %>% 
+  kable_styling(bootstrap_options = c("hover", "full_width" = F))
+
+print(performance)
+
+# Step 4: Visualize feature importance for the Ridge model
+ridgeImportance <- varImp(ridgeMod)$importance %>% 
+  mutate(Feature = rownames(.)) %>% 
+  mutate(Feature = gsub("\\.", " ", Feature)) %>% 
+  arrange(desc(Overall))
+
+# Plot feature importance for Ridge
+ggplot(ridgeImportance, aes(y = Overall, fill = Overall, x = fct_reorder(Feature, Overall))) +
+  geom_col() + 
+  scale_fill_continuous(low = "purple", high = "blue") +
+  coord_flip() +
+  theme_minimal() +
+  labs(title = "Feature Importance as Determined by Ridge",
+       x = "",
+       y = "Importance", 
+       fill = "")
+
+# Step 5: Graphical comparison of predictions to actual values
+ridgePredictions <- predict(ridgeMod, newdata = readyTest)
+
+testingResults <- c(readyTest$bc_PredictedReadmissionRate, ridgePredictions)
+label <- c(rep("Actual", nrow(readyTest)), 
+           rep("Ridge Prediction", length(ridgePredictions)))
+temp <- cbind.data.frame(testingResults, label)
+temp$actual <- rep(readyTest$bc_PredictedReadmissionRate, 2)
+
+# Graph the predictions relative to the actual data
+ggplot(temp, aes(x = testingResults, y = actual, color = label)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(se = TRUE, method = "lm", alpha = 0.45) +
+  scale_color_manual(values = c("navy", "hotpink")) +
+  theme_minimal() +
+  labs(title = "Ridge Regression Predictions vs Actual",
+       x = "Predicted Readmission Rate from Model",
+       y = "Actual Readmission Rate",
+       color = "Model")
+```
+
+
+## Lasso Model (AC)
+```{r}
+# Step 1: Define the control parameters for cross-validation
+ctrl <- trainControl(method = "repeatedcv", 
+                     number = 10, 
+                     repeats = 5, 
+                     search = "grid", 
+                     verboseIter = FALSE)
+
+# Step 2: Define and train the Ridge model
+ridgeGrid <- expand.grid(.alpha = 0, .lambda = seq(0, 5, length.out = 15))
+ridgeMod <- train(bc_PredictedReadmissionRate ~ ., 
+                  data = readyTrain[, -26], 
+                  method = "glmnet", 
+                  tuneGrid = ridgeGrid,
+                  trControl = ctrl) 
+
+# Define and train the Lasso model
+lassoGrid <- expand.grid(.alpha = 1, .lambda = seq(0, 5, length.out = 15))
+lassoMod <- train(bc_PredictedReadmissionRate ~ ., 
+                  data = readyTrain[, -26], 
+                  method = "glmnet", 
+                  tuneGrid = lassoGrid,
+                  trControl = ctrl) 
+
+# Step 3: Evaluate the performance of all three models on the test set
+prRidge <- postResample(pred = predict(ridgeMod, newdata = readyTest), 
+                        obs = readyTest$bc_PredictedReadmissionRate)
+prLasso <- postResample(pred = predict(lassoMod, newdata = readyTest), 
+                        obs = readyTest$bc_PredictedReadmissionRate)
+prElastic <- postResample(pred = predict(elasticMod, newdata = readyTest), 
+                          obs = readyTest$bc_PredictedReadmissionRate)
+
+# Display the performance metrics
+performance <- rbind(prRidge, prLasso, prElastic)
+rownames(performance) <- c("Ridge", "Lasso", "Elastic Net")
+performance %>% 
+  kable(digits = 2, 
+        format = "html", 
+        caption = "Table: Performance Comparison of Ridge, Lasso, and Elastic Net Models") %>% 
+  kable_styling(bootstrap_options = c("hover", "full_width" = F))
+
+# Step 4: Visualize feature importance for all models
+ridgeImportance <- varImp(ridgeMod)$importance %>% 
+  mutate(Feature = rownames(.)) %>% 
+  mutate(Feature = gsub("\\.", " ", Feature)) %>% 
+  arrange(desc(Overall))
+
+lassoImportance <- varImp(lassoMod)$importance %>% 
+  mutate(Feature = rownames(.)) %>% 
+  mutate(Feature = gsub("\\.", " ", Feature)) %>% 
+  arrange(desc(Overall))
+
+elasticImportance <- varImp(elasticMod)$importance %>% 
+  mutate(Feature = rownames(.)) %>% 
+  mutate(Feature = gsub("\\.", " ", Feature)) %>% 
+  arrange(desc(Overall))
+
+# Plot feature importance for Ridge
+ggplot(ridgeImportance, aes(y = Overall, fill = Overall, x = fct_reorder(Feature, Overall))) +
+  geom_col() + 
+  scale_fill_continuous(low = "purple", high = "blue") +
+  coord_flip() +
+  theme_minimal() +
+  labs(title = "Feature Importance as Determined by Ridge",
+       x = "",
+       y = "Importance", 
+       fill = "")
+
+# Plot feature importance for Lasso
+ggplot(lassoImportance, aes(y = Overall, fill = Overall, x = fct_reorder(Feature, Overall))) +
+  geom_col() + 
+  scale_fill_continuous(low = "purple", high = "blue") +
+  coord_flip() +
+  theme_minimal() +
+  labs(title = "Feature Importance as Determined by Lasso",
+       x = "",
+       y = "Importance", 
+       fill = "")
+
+# Plot feature importance for Elastic Net
+ggplot(elasticImportance, aes(y = Overall, fill = Overall, x = fct_reorder(Feature, Overall))) +
+  geom_col() + 
+  scale_fill_continuous(low = "purple", high = "blue") +
+  coord_flip() +
+  theme_minimal() +
+  labs(title = "Feature Importance as Determined by Elastic Net",
+       x = "",
+       y = "Importance", 
+       fill = "")
+
+# Step 5: Graphical comparison of predictions
+ridgePredictions <- predict(ridgeMod, newdata = readyTest)
+lassoPredictions <- predict(lassoMod, newdata = readyTest)
+elasticPredictions <- predict(elasticMod, newdata = readyTest)
+
+testingResults <- c(readyTest$bc_PredictedReadmissionRate, ridgePredictions, lassoPredictions, elasticPredictions)
+label <- c(rep("Actual", nrow(readyTest)), 
+           rep("Ridge Prediction", length(ridgePredictions)), 
+           rep("Lasso Prediction", length(lassoPredictions)), 
+           rep("Elastic Net Prediction", length(elasticPredictions)))
+temp <- cbind.data.frame(testingResults, label)
+temp$actual <- rep(readyTest$bc_PredictedReadmissionRate, 4)
+
+# Graph the predictions relative to the actual data
+ggplot(temp, aes(x = testingResults, y = actual, color = label)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(se = TRUE, method = "lm", alpha = 0.45) +
+  scale_color_manual(values = c("navy", "hotpink", "darkgreen", "purple")) +
+  theme_minimal() +
+  labs(title = "Comparison of Ridge, Lasso, and Elastic Net Predictions",
+       x = "Predicted Readmission Rate from Model",
+       y = "Actual Readmission Rate",
+       color = "Model")
+```
+
+## Results and Comparison with OLS Regression and Elastic Net
 
