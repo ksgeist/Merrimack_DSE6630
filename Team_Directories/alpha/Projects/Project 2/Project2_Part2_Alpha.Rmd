@@ -269,12 +269,26 @@ longDataScore %>%
 Use the code above, or write your own *de novo*, to explore the relationships between the expected heart failure  readmissions and the `HcahpsLinear...` variables.
 ```{r, fig.width=6, fig.height=8, echo = TRUE, message = FALSE}
 # #Malek
-hcahps_data <- longDataScore %>% 
-  filter(str_detect(Variable, "HcahpsLinear"))
+hcahps_data <- HEART_FAILURE_AnalyzeDemo %>%
+  rename(NatlComparisonHospitalDays = `ComparedToNational_Hospital return days for heart failure patients`) %>% 
+  select(contains(c("NatlComparisonHospitalDays", "ExpectedReadmissionRate", "HcahpsLinear"))) %>% 
+  pivot_longer(-c(1, 2, 12), names_to = "Variable2", values_to = "Value2") %>% 
+  drop_na() %>% 
+  mutate(Variable2 = gsub("Score_", "", Variable2)) %>% 
+  mutate(Variable2 = ifelse(Variable2 == "Average (median) time patients spent in the emergency department before leaving from the visit A lower number of minutes is better", "Median time (minutes) patients spent in ED",
+                    ifelse(Variable2 == "CMS Medicare PSI 90: Patient safety and adverse events composite", "Composite patient safety", 
+                    ifelse(Variable2 == "Abdomen CT Use of Contrast Material", "Abdomen CT w/ contrast", 
+                    ifelse(Variable2 == "Perioperative pulmonary embolism or deep vein thrombosis rate", "Perioperative pulmonary embolism/DVT",                     
+                    ifelse(Variable2 == "Percentage of healthcare personnel who completed COVID-19 primary vaccination series", "Healthcare workers given 1st COVID-19 vaccine",           ifelse(Variable2 == "Left before being seen", "% left ED before being seen", 
+                    ifelse(Variable2 == "Intensive Care Unit Venous Thromboembolism Prophylaxis", "Venous Thromboembolism Prophylaxis in ICU", Variable2))))))),
+         NatlComparisonHospitalDays = ifelse(NatlComparisonHospitalDays == 1, "Better", 
+                                      ifelse(NatlComparisonHospitalDays == -1, "Worse",
+                                      ifelse(NatlComparisonHospitalDays == 0, "Same", NatlComparisonHospitalDays))))
+
 
 hcahps_data %>%  
   ggplot(aes(y = ExpectedReadmissionRate, 
-             x = Value)) +
+             x = Value2)) +
     geom_point(alpha = 0.25) + 
     geom_smooth(aes(fill = as.factor(NatlComparisonHospitalDays), 
                     color = as.factor(NatlComparisonHospitalDays)), 
@@ -295,7 +309,7 @@ hcahps_data %>%
           legend.text = element_text(size = 8),
           legend.title = element_text(size = 10),
           title = element_text(size = 12, color = "maroon")) + 
-    facet_wrap(~ Variable, 
+    facet_wrap(~ Variable2, 
                scales = "free_x",
                ncol = 2)
 ```
@@ -319,17 +333,6 @@ This answer is pretty much identical to the one from the first half of this proj
 
 ### 3.1.1 Dropping the targets we aren't planning to use. [Manual Method]
 ```{r}
-HEART_FAILURE_AnalyzeDemo <- HEART_FAILURE_AnalyzeDemo %>% 
-  select(-PredictedReadmissionRate, 
-         -ExcessReadmissionRatio,
-         -observed_readmission_rate, 
-         -contains(c("Sample_", "NumberOfPatients")),
-         -NumberSurveysCompleted) %>% 
-  rename(`Median time (minutes) patients spent in ED` = `Score_Average (median) time patients spent in the emergency department before leaving from the visit A lower number of minutes is better`,
-         `Composite patient safety` = `Score_CMS Medicare PSI 90: Patient safety and adverse events composite`,
-         `ComparedToNational_Composite patient safety` = `ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`,
-         `Healthcare workers given 1st COVID-19 vaccine` = `Score_Percentage of healthcare personnel who completed COVID-19 primary vaccination series`)
-
 ## Clean up the column names quickly - remove "Score_", "HcahpsLinearMeanValue_", "_Payment"
 colnames(HEART_FAILURE_AnalyzeDemo) <- gsub('Score_|HcahpsLinearMeanValue_|_Payment', '', colnames(HEART_FAILURE_AnalyzeDemo))
 ```
@@ -436,7 +439,7 @@ calcSplitRatio <- function(p = NA, df) {
   train_prop <- 1-test_prop
   
   ##Prints best ratio
-  print(paste0("The ideal split ratio is ", train_prop, ":", test_prop, "training:testing"))
+  print(paste0("The ideal split ratio is ", train_prop, " : ", test_prop, " training : testing"))
   
   ##Returns training proportion
   return(train_prop)
@@ -456,27 +459,21 @@ ind <- createDataPartition(HEART_FAILURE_AnalyzeDemo$ExpectedReadmissionRate,
                             p = train_prop,
                             list = FALSE)
 
-train <- HEART_FAILURE_AnalyzeDemo[ind, ]
-test <- HEART_FAILURE_AnalyzeDemo[-c(ind), ]
-```
-
-Load the test and train data in case you struggled with Question 7 so you can proceed:
-```{r}
-load(file = "pneumoniaTrain.Rdata")
-load(file = "pneumoniaTest.Rdata")
+HFtrain <- HEART_FAILURE_AnalyzeDemo[ind, ]
+HFtest <- HEART_FAILURE_AnalyzeDemo[-c(ind), ]
 ```
 
 
 ## 3.4 Impute missing variables using `missForest`.
 ```{r, include = FALSE}
 # Remove encoded categorical variables for imputation, plus the target and state (which have no missing)
-data_sans_encoded = train %>% 
+data_sans_encoded = HFtrain %>% 
   select(-ExpectedReadmissionRate,
          -State,
          -`Emergency department volume`, 
          -contains("ComparedToNational"))
 
-data_cat = train %>% 
+data_cat = HFtrain %>% 
   select(`Emergency department volume`, 
          contains("ComparedToNational")) %>% 
   mutate_all(as.factor)
@@ -485,7 +482,7 @@ data_cat = train %>%
 temp <- cbind(data_sans_encoded, data_cat)
 
 # Impute missing values using missForest
-imputedTrain <- missForest(temp, 
+HFimputedTrain <- missForest(temp, 
                           variablewise = TRUE,
                           verbose = FALSE)
 ```
@@ -494,9 +491,9 @@ Let's look at a quick summary of the results.
 
 ```{r, echo = FALSE}
 # Show a quick summary of the results
-data.frame(imputedTrain$OOBerror, names(temp)) %>% 
+data.frame(HFimputedTrain$OOBerror, names(temp)) %>% 
   rename(Variable = `names.temp.`,
-         `OOB Error` = imputedTrain.OOBerror) %>% 
+         `OOB Error` = HFimputedTrain.OOBerror) %>% 
 ## Print the columns
   kable(digits = 2,
     format = "html",
@@ -514,61 +511,82 @@ What does `MSE` and `PCF` indicate here? You may find looking at the `missForest
 This question was kind of confusing for me, but MSE I believe is the mean squared error. What is being measured in the mean squared error is the average of all the differences between the true and the estimated values. PCF, partial complete fraction looks at the proportion of correctly observed values. The thing that I want to point out here is that in gene expression the forests are applied based on gene expression patterns, but on the flip side missforest looks at missing values and builds forests from there I believe. 
 
 ```{r}
-imputedTrain <- imputedTrain$ximp %>% 
+HFimputedTrain <- HFimputedTrain$ximp %>% 
   ## Put the original State and target variables back on
-  mutate(State = train$State,
-         PredictedReadmissionRate = train$PredictedReadmissionRate) %>% 
+  mutate(State = HFtrain$State,
+         ExpectedctedReadmissionRate = HFtrain$ExpectedctedReadmissionRate) %>% 
   ## Convert the factors back to character type...
   mutate_at(c("Emergency department volume",
               "ComparedToNational_MRSA Bacteremia",
               "ComparedToNational_Composite patient safety",
-              "ComparedToNational_Death rate for pneumonia patients",
-              "ComparedToNational_Hospital return days for pneumonia patients"),
+              "ComparedToNational_Death rate for heart failure patients",
+              "ComparedToNational_Hospital return days for heart failure patients"),
             as.character) %>% 
   ## ... so we can then convert them back to numeric type.
   mutate_at(c("Emergency department volume",
               "ComparedToNational_MRSA Bacteremia",
               "ComparedToNational_Composite patient safety",
-              "ComparedToNational_Death rate for pneumonia patients",
-              "ComparedToNational_Hospital return days for pneumonia patients"),
+              "ComparedToNational_Death rate for heart failure patients",
+              "ComparedToNational_Hospital return days for heart failure patients"),
             as.numeric)
+
+
+HFimputedTrain <- cbind(HFimputedTrain, HFtrain$ExpectedReadmissionRate)
+names(HFimputedTrain)[names(HFimputedTrain) == "HFtrain$ExpectedReadmissionRate"] <- "ExpectedReadmissionRate"
+
 
 ## Save data files so they can be loaded for future use 
 # save(imputedTrain, file = "imputedTrain.Rdata")
 ```
 
+
 ##### **Question 10**: [1 point]
 Now repeat the imputation steps for the `test` dataset, storing it into `imputedTest`.
 ```{r}
 # > #Malek
-imputedTest <- imputedTrain$ximp %>% 
+# Remove encoded categorical variables for imputation, plus the target and state (which have no missing)
+data_sans_encoded2 = HFtest %>% 
+  select(-ExpectedReadmissionRate,
+         -State,
+         -`Emergency department volume`, 
+         -contains("ComparedToNational"))
+
+data_cat2 = HFtest %>% 
+  select(`Emergency department volume`, 
+         contains("ComparedToNational")) %>% 
+  mutate_all(as.factor)
+
+# Stitch them back together:
+temptest <- cbind(data_sans_encoded2, data_cat2)
+
+# Impute missing values using missForest
+HFimputedTest <- missForest(temptest, 
+                          variablewise = TRUE,
+                          verbose = FALSE)
+
+HFimputedTest <- HFimputedTest$ximp %>% 
   ## Put the original State and target variables back on
-  mutate(State = test$State,
-         ExpectedReadmissionRate = test$ExpectedReadmissionRate) %>% 
+  mutate(State = HFtest$State,
+         ExpectedReadmissionRate = HFtest$ExpectedReadmissionRate) %>% 
   ## Convert the factors back to character type...
-  mutate_at(c("Emergency.department.volume",
-              "ComparedToNational_MRSA.Bacteremia",
-              "ComparedToNational_Composite.patient.safety",
-              "ComparedToNational_Death.rate.for.pneumonia.patients",
-              "ComparedToNational_Hospital.return.days.for.pneumonia.patients"),
+  mutate_at(c("Emergency department volume",
+              "ComparedToNational_MRSA Bacteremia",
+              "ComparedToNational_Composite patient safety",
+              "ComparedToNational_Death rate for heart failure patients",
+              "ComparedToNational_Hospital return days for heart failure patients"),
             as.character) %>% 
-  mutate_at(c("Emergency.department.volume",
-              "ComparedToNational_MRSA.Bacteremia",
-              "ComparedToNational_Composite.patient.safety",
-              "ComparedToNational_Death.rate.for.pneumonia.patients",
-              "ComparedToNational_Hospital.return.days.for.pneumonia.patients"),
+  mutate_at(c("Emergency department volume",
+              "ComparedToNational_MRSA Bacteremia",
+              "ComparedToNational_Composite patient safety",
+              "ComparedToNational_Death rate for heart failure patients",
+              "ComparedToNational_Hospital return days for heart failure patients"),
             as.numeric)
+
 
 ## Save data files to be used in future
 # save(imputedTest, file = "imputedTest.Rdata")
 ```
 
-
-If you need help, load these data for help, to turn off imputation, and/or save time.
-```{r, echo=FALSE}
-load("imputedTrain.Rdata")
-load("imputedTest.Rdata")
-```
 
 ##### **Question 11**: [1 point]
 Quickly explore how well the imputation did by choosing at least one numeric variable and one of the categorical variables. Did the distributions or frequencies change drastically?
@@ -590,7 +608,7 @@ Struggling? Here's my solution:
 **In other words: is our target variable approximately normally distributed?**
 
 ```{r, echo = FALSE, warning=FALSE, message=FALSE}
-ggplot(imputedTrain, aes(x = ExpectedReadmissionRate)) +
+ggplot(HFimputedTrain, aes(x = ExpectedReadmissionRate)) +
   geom_histogram(alpha = 0.6, 
                  fill = prettyPurples[5],
                  color = prettyPurples[2]) +
@@ -617,7 +635,7 @@ Apply a Shapiro-Wilk test for normality using the `shapiro.test()` function. Wha
 ### 3.5.1 Box-Cox Transformation
 
 ```{r}
-bc_data <- BoxCoxTrans(imputedTrain$ExpectedReadmissionRate)
+bc_data <- BoxCoxTrans(HFimputedTrain$ExpectedReadmissionRate)
 bc_data
 ```
 
@@ -625,11 +643,11 @@ So, we can see here that the estimated lambda is -0.3; so not quite a full squar
 
 Now apply the Box-Cox transformation:
 ```{r, echo = TRUE}
-imputedTrain$bc_ExpectedReadmissionRate <- predict(bc_data, imputedTrain$ExpectedReadmissionRate)
+HFimputedTrain$bc_ExpectedReadmissionRate <- predict(bc_data, HFimputedTrain$ExpectedReadmissionRate)
 ```
 
 ```{r, echo = FALSE, message = FALSE, warning=FALSE}
-ggplot(imputedTrain, aes(x = bc_ExpectedReadmissionRate)) +
+ggplot(HFimputedTrain, aes(x = bc_ExpectedReadmissionRate)) +
   geom_histogram(alpha = 0.6, 
                  fill = prettyPurples[7],
                  color = prettyPurples[2]) +
@@ -639,8 +657,8 @@ ggplot(imputedTrain, aes(x = bc_ExpectedReadmissionRate)) +
        x = "Expected Readmission Ratio")
 
 
-qqnorm(imputedTrain$bc_ExpectedReadmissionRate)
-qqline(imputedTrain$bc_ExpectedReadmissionRate, 
+qqnorm(HFimputedTrain$bc_ExpectedReadmissionRate)
+qqline(HFimputedTrain$bc_ExpectedReadmissionRate, 
        col = "hotpink", lty = 2, lwd = 2)
 ```
 
@@ -650,9 +668,9 @@ Now repeat all of the steps to perform a Box-Cox transform on your own to the `i
 > Your answer here.
 
 ```{r}
-# Your code here
+bc_data2 <- BoxCoxTrans(HFimputedTest$ExpectedReadmissionRate)
+HFimputedTest$bc_ExpectedReadmissionRate <- predict(bc_data2, HFimputedTest$ExpectedReadmissionRate)
 
-# Make sure to check that your transform looks successful!
 ```
 
 ### 3.5.2 Centering & Scaling
@@ -661,27 +679,29 @@ Now repeat all of the steps to perform a Box-Cox transform on your own to the `i
 Make a copy of the imputed training set, drop our original, non-Box-Cox transformed target from the dataset, and then center and scale the whole training set using the `scale()` function in R. I called my dataset `readyTrain`, so if you name it anything else just note you'll have to update subsequent code. Then, __do the same thing for the test data__!
 
 ```{r}
-# Your code here
+center_and_scale <- function(data) {
+  scaled_data <- scale(data)
+  return(scaled_data)
+}
 
-## Make sure you both center AND scale your data!
+HFimputedTrain <- HFimputedTrain %>% select(-ExpectedReadmissionRate)
+HFimputedTest <- HFimputedTest %>% select(-ExpectedReadmissionRate)
+
+HFreadyTrain <- center_and_scale(HFimputedTrain)
+HFreadyTest <- center_and_scale(HFimputedTest)
+
+HFreadyTrain <- HFreadyTrain %>% data.frame()
+HFreadyTest <- HFreadyTest %>% data.frame()
+
+
 ```
-
-
-```{r}
-load(file = "readyTrain.Rdata")
-readyTrain <- readyTrain %>% data.frame()
-
-load(file = "readyTest.Rdata")
-readyTest <- readyTest %>% data.frame()
-```
-
 
 # 4 Unsupervised Learning Methods
 
 ## 4.1 Principal Component Analysis
 
 ```{r}
-pca <- prcomp(readyTrain)
+pca <- prcomp(HFreadyTrain)
 summary(pca)
 ```
 
@@ -704,7 +724,7 @@ Using the 'elbow' method of the scree plot - the point at which the percentage o
 
 ```{r, echo = FALSE}
 ## Create a factor variable that contains the information about the compared to national average - return to hospital days variable
-returnHospitalComparison <- factor(readyTrain$ComparedToNational_Hospital.return.days.for.heart.failure.patients)
+returnHospitalComparison <- factor(HFreadyTrain$ComparedToNational_Hospital.return.days.for.heart.failure.patients)
 levels(returnHospitalComparison) <- c("Worse", "Same", "Better")
 
 fviz_pca_biplot(pca, 
@@ -738,14 +758,14 @@ fviz_contrib(pca,
 myPal <- c("#de378d","#32a840", "#463ab5","#0e87e3", "gold", "#ae5bc9", "#e35c0e", "cadetblue", "#0ee383")
 for(k in 2:9) {
   plotName <- paste0("p", k)
-  kmeansResult <- kmeans(readyTrain, 	
+  kmeansResult <- kmeans(HFreadyTrain, 	
                          centers = k,       ## number of clusters
                          nstart = 25,       ## num of times to repeat the process with random initialization; increase if you're failing to converge
                          iter.max = 1000,    ## num of iterations to run k-means
                       	algorithm = "MacQueen")      ## since the default algorithm can struggle with close points, we are adjusting the method
   kmeansGraph <- fviz_cluster(kmeansResult, 
                               geom = "point", 
-                              data = readyTrain,
+                              data = HFreadyTrain,
                               show.clust.cent = TRUE,
                               ggtheme = theme_minimal(),
                               ellipse.type = "norm",
@@ -765,7 +785,7 @@ Which number of clusters, $k$, do you think has the best explanatory power? Is i
 
 ```{r, echo = FALSE}
 # Determine number of clusters
-fviz_nbclust(readyTrain,
+fviz_nbclust(HFreadyTrain,
              FUNcluster = kmeans, 
              method = "wss",  
              linecolor = prettyPurples[7])
@@ -784,16 +804,24 @@ Let's explore the clusters - segments - of the hospitals based on their average 
 
 ```{r, echo = TRUE, fig.height = 6, fig.width=6}
 ## Uses the KMeans function on the readyTrain dataset and stores it in kmeansResult. Below are the parameters.
-kmeansResult <- kmeans(readyTrain, 	
+HFkmeansResult <- kmeans(HFreadyTrain, 	
                          centers = 3,            ## Specifies 3 clusters for k-means clustering.
                          nstart = 50,            ## Number of initial sets of cluster centers to try.
                          iter.max = 1000,        ## Maximum number of iterations.
                          algorithm = "MacQueen") ## Algorithm used for clustering.
 
 ## Adds a column called Cluster based on result.
-kmeansTrain <- imputedTrain %>% 
-  mutate(Cluster = kmeansResult$cluster) %>% 
+HFkmeansTrain <- HFimputedTrain %>% 
+  mutate(Cluster = HFkmeansResult$cluster) %>% 
   clean_names()
+```
+
+```{r}
+names(HFkmeansTrain)
+```
+
+
+```{r}
 ## Specifies which variables to import for PCA.
 pcaImportantVars <- c("overall_hospital_rating",
                       "care_transition",
@@ -803,45 +831,42 @@ pcaImportantVars <- c("overall_hospital_rating",
                       "communication_about_medicines",
                       "doctor_communication",
                       "discharge_information",
-                      "expected_readmission_rate",
+                      "death_rate_for_heart_failure_patients",
                       "quietness",
                       "median_time_minutes_patients_spent_in_ed",
                       "hospital_return_days_for_heart_failure_patients",
                       "emergency_department_volume", 
                       "compared_to_national_hospital_return_days_for_heart_failure_patients",
-                      "cleanliness")
-```
-```{r}
-## Renames some of the rows in the Cluser column
-kmeansTrain %>% 
-  ## Selects relevant variables and 'Cluster' column
-  select(all_of(pcaImportantVars), cluster) %>% 
-  rename(`Hospital Return Days Score` = hospital_return_days_for_heart_failure_patients,
-         `Hospital Return Days Nat'l Comparison` = compared_to_national_hospital_return_days_for_heart_failure_patients,
-         `Median Minutes spent in Emergency Dept` = median_time_minutes_patients_spent_in_ed) %>% 
-  ## Cleans column names
-  clean_names(case = "title") %>% 
-  group_by(Cluster) %>% 
-  ## Groups data by cluster
-  summarise_if(is.numeric, mean, na.rm = TRUE) %>% 
-  pivot_longer(-1, names_to = "Measure", values_to = "Value") %>% 
-    ## Creates a plot with the given data
+                      "cleanliness",
+                      "bc_expected_readmission_rate")
+
+
+HFkmeansTrain %>% 
+  select(all_of(pcaImportantVars), cluster) %>%
+  rename("Hospital Return Days Score" = hospital_return_days_for_heart_failure_patients,
+         "Hospital Return Days Nat'l Comparison" = compared_to_national_hospital_return_days_for_heart_failure_patients,
+         "Median Minutes spent in Emergency Dept" = median_time_minutes_patients_spent_in_ed) %>%
+  clean_names(case = "title") %>%
+  group_by(Cluster) %>%
+  summarise_if(is.numeric, mean, na.rm = TRUE) %>%
+  pivot_longer(-1, names_to = "Measure", values_to = "Value") %>%
   ggplot(aes(x = Cluster, y = Value, fill = as.factor(Cluster))) +
     geom_col(alpha = 0.75) +
     scale_fill_manual(values = myPal) +
     labs(title = "Cluster Means",
          x = "",
          fill = "Cluster") +
-    theme_minimal() +
+    theme_minimal() + 
     theme(legend.position = "bottom",
-        strip.text = element_text(size=6),
-        legend.text = element_text(size = 8),
-        legend.title = element_text(size = 10),
-        title = element_text(size = 12, color = "maroon")) + 
+          strip.text = element_text(size=6),
+          legend.text = element_text(size = 8),
+          legend.title = element_text(size = 10),
+          title = element_text(size = 12, color = "maroon")) + 
     facet_wrap(~Measure, 
-             scales = "free_y",
-             ncol = 3)
-```
+               scales = "free_y",
+               ncol = 3)
+``` 
+
 
 #### **Question 21**: [1 point]
 Notice, for example, that Cluster 2 hospitals seem to include the hospitals that had the __below__ national average return hospital days (and thus the fewest return hospital days in terms of the quantitative score). Look at how else you might broadly characterize - or segment - these hospitals.

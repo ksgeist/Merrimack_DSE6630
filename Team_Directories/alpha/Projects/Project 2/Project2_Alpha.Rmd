@@ -313,14 +313,29 @@ I also see a negative trend for both ICU and ED Venous Thromboembolism Prophylax
 
 ##### **Question 1**: [1 point]
 Use the code above, or write your own *de novo*, to explore the relationships between the predicted pneumonia readmissions and the `HcahpsLinear...` variables.
+
 ```{r, fig.width=6, fig.height=8, echo = TRUE, message = FALSE}
 # #Malek
-hcahps_data <- longDataScore %>% 
-  filter(str_detect(Variable, "HcahpsLinear"))
-
-hcahps_data %>%  
+longDataScore2 <- pneumoniaAnalyzeDemo %>%
+  rename(NatlComparisonHospitalDays = `ComparedToNational_Hospital return days for pneumonia patients`) %>% 
+  select(contains(c("NatlComparisonHospitalDays", "PredictedReadmissionRate", "HcahpsLinear"))) %>% 
+  pivot_longer(-c(1, 2, 12), names_to = "Variable2", values_to = "Value2") %>% 
+  drop_na() %>% 
+  mutate(Variable2 = gsub("Score_", "", Variable2)) %>% 
+  mutate(Variable2 = ifelse(Variable2 == "Average (median) time patients spent in the emergency department before leaving from the visit A lower number of minutes is better", "Median time (minutes) patients spent in ED",
+                    ifelse(Variable2 == "CMS Medicare PSI 90: Patient safety and adverse events composite", "Composite patient safety", 
+                    ifelse(Variable2 == "Abdomen CT Use of Contrast Material", "Abdomen CT w/ contrast", 
+                    ifelse(Variable2 == "Perioperative pulmonary embolism or deep vein thrombosis rate", "Perioperative pulmonary embolism/DVT",                     
+                    ifelse(Variable2 == "Percentage of healthcare personnel who completed COVID-19 primary vaccination series", "Healthcare workers given 1st COVID-19 vaccine",           ifelse(Variable2 == "Left before being seen", "% left ED before being seen", 
+                    ifelse(Variable2 == "Intensive Care Unit Venous Thromboembolism Prophylaxis", "Venous Thromboembolism Prophylaxis in ICU", Variable2))))))),
+         NatlComparisonHospitalDays = ifelse(NatlComparisonHospitalDays == 1, "Better", 
+                                      ifelse(NatlComparisonHospitalDays == -1, "Worse",
+                                      ifelse(NatlComparisonHospitalDays == 0, "Same", NatlComparisonHospitalDays))))
+```
+```{r}
+longDataScore2 %>%  
   ggplot(aes(y = PredictedReadmissionRate, 
-             x = Value)) +
+             x = Value2)) +
     geom_point(alpha = 0.25) + 
     geom_smooth(aes(fill = as.factor(NatlComparisonHospitalDays), 
                     color = as.factor(NatlComparisonHospitalDays)), 
@@ -341,7 +356,7 @@ hcahps_data %>%
           legend.text = element_text(size = 8),
           legend.title = element_text(size = 10),
           title = element_text(size = 12, color = "maroon")) + 
-    facet_wrap(~ Variable, 
+    facet_wrap(~ Variable2, 
                scales = "free_x",
                ncol = 2)
 ```
@@ -525,7 +540,7 @@ calcSplitRatio <- function(p = NA, df) {
   train_prop <- 1-test_prop
   
   ##Prints best ratio
-  print(paste0("The ideal split ratio is ", train_prop, ":", test_prop, "training:testing"))
+  print(paste0("The ideal split ratio is ", train_prop, " : ", test_prop, " training:testing"))
   
   ##Returns training proportion
   return(train_prop)
@@ -540,12 +555,12 @@ train_prop <- calcSplitRatio(df = pneumoniaAnalyzeDemo)
 You should have gotten an __83-17 split__. Notice how that's actually very close to the canonical 80-20 split!
 
 ```{r}
-# ind <- createDataPartition(pneumoniaAnalyzeDemo$___,                  ## Remember to put the target here!
-#                            p = ___,                                   ## Remember to use the object you just made from your function!
-#                            list = FALSE)
-# 
-# train <- pneumoniaAnalyzeDemo[___, ]
-# test <- pneumoniaAnalyzeDemo[-c(ind), ]
+ind <- createDataPartition(pneumoniaAnalyzeDemo$PredictedReadmissionRate,                  ## Remember to put the target here!
+                            p = train_prop,                                   ## Remember to use the object you just made from your function!
+                            list = FALSE)
+ 
+ train <- pneumoniaAnalyzeDemo[ind, ]
+ test <- pneumoniaAnalyzeDemo[-c(ind), ]
 ```
 
 Load the test and train data in case you struggled with Question 7 so you can proceed:
@@ -610,6 +625,7 @@ We are almost done. The last thing we need to do is extract the imputed values f
 
 **Notice** a bit of annoying trickery here. Because we had converted them to a factor type (as __required__ by `missForest`), in order to back-convert them correctly to our original ordinal encoding, we had to first convert to character and then to numeric. So, our conversion went __factor__ $\rightarrow$ __character__ $\rightarrow$ __numeric__ in order to get exactly what we wanted! 
 ```{r}
+
 imputedTrain <- imputedTrain$ximp %>% 
   ## Put the original State and target variables back on
   mutate(State = train$State,
@@ -637,17 +653,49 @@ imputedTrain <- imputedTrain$ximp %>%
 Now repeat the imputation steps for the `test` dataset, storing it into `imputedTest`.
 ```{r}
 # > #Malek
-imputedTest <- missForest::impute.newdata(object = missForest_model, newdata = test)
+# Remove encoded categorical variables for imputation, plus the target and state (which have no missing)
+data_sans_encoded_test <- test %>% 
+  select(-PredictedReadmissionRate,
+         -State,
+         -`Emergency department volume`, 
+         -contains("ComparedToNational"))
 
+data_cat_test <- test %>% 
+  select(`Emergency department volume`, 
+         contains("ComparedToNational")) %>% 
+  mutate_all(as.factor)
+
+# Stitch them back together:
+temp_test <- cbind(data_sans_encoded_test, data_cat_test)
+
+# Impute missing values using missForest for the test dataset
+imputedTest <- missForest(temp_test, 
+                          variablewise = TRUE,
+                          verbose = FALSE)
+
+# Convert factors back to numeric type in the imputedTest dataset
 imputedTest <- imputedTest$ximp %>% 
+  ## Put the original State and target variables back on
   mutate(State = test$State,
          PredictedReadmissionRate = test$PredictedReadmissionRate) %>% 
-  mutate_at(vars(Emergency.department.volume,
-                 ComparedToNational_MRSA.Bacteremia,
-                 ComparedToNational_Composite.patient.safety,
-                 ComparedToNational_Death.rate.for.pneumonia.patients,
-                 ComparedToNational_Hospital.return.days.for.pneumonia.patients),
-            ~ as.numeric(as.character(.)))
+  ## Convert the factors back to character type...
+  mutate_at(c("Emergency department volume",
+              "ComparedToNational_MRSA Bacteremia",
+              "ComparedToNational_Composite patient safety",
+              "ComparedToNational_Death rate for pneumonia patients",
+              "ComparedToNational_Hospital return days for pneumonia patients"),
+            as.character) %>% 
+  ## ... so we can then convert them back to numeric type.
+  mutate_at(c("Emergency department volume",
+              "ComparedToNational_MRSA Bacteremia",
+              "ComparedToNational_Composite patient safety",
+              "ComparedToNational_Death rate for pneumonia patients",
+              "ComparedToNational_Hospital return days for pneumonia patients"),
+            as.numeric)
+
+## Save data files so they can be loaded for future use 
+# save(imputedTest, file = "imputedTest.Rdata")
+
 ```
 
 
@@ -661,7 +709,7 @@ load("imputedTest.Rdata")
 Quickly explore how well the imputation did by choosing at least one numeric variable and one of the categorical variables. Did the distributions or frequencies change drastically?
 
 ```{r}
-````{r}
+
 # Visualize distributions before imputation
 p1 <- ggplot(hf_data, aes(x = NumberOfDischarges)) + 
   geom_histogram(binwidth = 50, fill = "blue", alpha = 0.7) + 
@@ -700,15 +748,13 @@ print(p1)
 print(p2)
 print(p3)
 print(p4)
-yes it did change 
 
+```
 
+> Your answer here. yes it did change 
 
+# Struggling? Here's my solution:
 
-
-> Your answer here.
-         
-Struggling? Here's my solution:
 ```{r, warning = FALSE, message=FALSE}
 # source(file = "answer_question11.R", echo = TRUE)
 ```
@@ -740,7 +786,6 @@ Why is a histogram, or even a Q-Q plot, an insufficient way to assess whether a 
 Apply a Shapiro-Wilk test for normality using the `shapiro.test()` function. What does it indicate about your distribution? (**Note**: Shapiro tests are only reliable for $N < 5000$, but it is fine to perform here.)
 
 ```{r}
- Your code here 
 shapiro_test_result <- shapiro.test(heart_failure_filtered$NumberOfDischarges)
 shapiro_test_result
 ```
@@ -786,7 +831,10 @@ Can you tell what it did to the distribution? __Look closely__, if not. It's sub
 ##### **Question 14**: [1 point]
 Now repeat all of the steps to perform a Box-Cox transform on your own to the `imputedTest` data. Why do you think we need to transform the test data too?
 
-> Your answer here.# Apply the Box-Cox transformation to the imputedTest data
+> Your answer here.
+
+```{r}
+# Apply the Box-Cox transformation to the imputedTest data
 bc_test_data <- predict(bc_data, imputedTest$PredictedReadmissionRate)
 imputedTest$bc_PredictedReadmissionRate <- bc_test_data
 
@@ -804,13 +852,12 @@ ggplot(imputedTest, aes(x = bc_PredictedReadmissionRate)) +
 # Q-Q plot of the transformed PredictedReadmissionRate
 qqnorm(imputedTest$bc_PredictedReadmissionRate)
 qqline(imputedTest$bc_PredictedReadmissionRate, col = "hotpink", lty = 2, lwd = 2)
-Why Transform the Test Data?
+#Why Transform the Test Data?
 
-```{r}
+```
 # Your code here
 
 # Make sure to check that your transform looks successful!
-```
 
 
 
@@ -888,7 +935,10 @@ fviz_screeplot(pca,
 ##### **Question 16**: [1 point]
 Using the 'elbow' method of the scree plot - the point at which the percentage of variance explained seems to level off - approximately how many principal components would be significant to explain the total variation in the training data set? (**Hint**: if it's not super obvious, that's actually informative!)
 
-> Your answer here  # Perform PCA on the scaled training dataset
+> Your answer here
+
+```{r}
+# Perform PCA on the scaled training dataset
 pca_result <- prcomp(readyTrain[, -ncol(readyTrain)], center = TRUE, scale. = TRUE)
 
 # Calculate the variance explained by each principal component
@@ -904,6 +954,8 @@ scree_plot <- qplot(1:length(explained_variance), cumsum(explained_variance), ge
 
 # Display the scree plot
 print(scree_plot)
+
+```
 
 Perform PCA: Using the prcomp function on the scaled training dataset, excluding the target variable.
 Calculate Explained Variance: Compute the proportion of variance explained by each principal component.
@@ -969,7 +1021,9 @@ for(k in 2:9) {
                          centers = k,       ## number of clusters
                          nstart = 25,       ## num of times to repeat the process with random initialization; increase if you're failing to converge
                          iter.max = 1000,    ## num of iterations to run k-means
-                      	algorithm = "MacQueen")      ## since the default algorithm can struggle with close points, we are adjusting the method
+                         algorithm = "MacQueen")      ## since the default algorithm can struggle with close points, we are adjusting the method
+  
+  
   kmeansGraph <- fviz_cluster(kmeansResult, 
                               geom = "point", 
                               data = readyTrain,
@@ -1003,7 +1057,10 @@ fviz_nbclust(readyTrain,
 #### **Question 19**: [1 point]
 What is the __within sum of squares__ and what exactly is it measuring here? By the elbow method, which $k$ is the optimal number of clusters? Did it agree with your choice from the other heuristic method?
 
-> Your answer here# Extract the first two principal components
+> your anwser here
+
+```{r}
+# Extract the first two principal components
 pca_data <- as.data.frame(pca_result$x[, 1:2])
 pca_data$ExcessReadmissionRatio <- readyTrain$ExcessReadmissionRatio
 
@@ -1024,6 +1081,7 @@ elbow_plot <- qplot(1:10, wcss, geom = "line") +
 # Display the elbow plot
 print(elbow_plot)
 
+```
 
 ## 4.3 Segmentation Analysis
 
@@ -1032,7 +1090,7 @@ As we said before, the goal of segmentation analysis is to broadly cluster our h
 #### **Question 20**: [1 point]
 Let's explore the clusters - segments - of the hospitals based on their average values from the __original__ dataset. Your task is to add comments to this code chunk. 
 
-``{r}
+```{r}
 ## Uses the KMeans function on the readyTrain dataset and stores it in kmeansResult. Below are the parameters.
 kmeansResult <- kmeans(readyTrain, 	
                          centers = 3,            ## Specifies 3 clusters for k-means clustering.
@@ -1044,6 +1102,8 @@ kmeansResult <- kmeans(readyTrain,
 kmeansTrain <- imputedTrain %>% 
   mutate(Cluster = kmeansResult$cluster) %>% ## Add the cluster assignment to the dataset.
   clean_names() ## Clean the column names to ensure consistency in naming.
+
+```
 
 ```{r}
 ## Specifies which variables to import for PCA.
@@ -1082,8 +1142,15 @@ kmeansTrain %>%
     labs(title = "Cluster Means",  ## Adds a title to the plot.
          x = "",  ## No label for the x-axis.
          fill = "Cluster") +  ## Adds a label for the fill legend.
-    theme_minimal() +  ## Applies a minimal theme
-```
+    theme_minimal() + 
+  theme(legend.position = "bottom",
+        strip.text = element_text(size=6),
+        legend.text = element_text(size = 8),
+        legend.title = element_text(size = 10),
+        title = element_text(size = 12, color = "maroon")) + 
+    facet_wrap(~Measure, 
+             scales = "free_y",
+             ncol = 3)
 ```
 
 #### **Question 21**: [1 point]
