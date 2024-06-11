@@ -710,48 +710,38 @@ Quickly explore how well the imputation did by choosing at least one numeric var
 
 ```{r}
 
-# Visualize distributions before imputation
-p1 <- ggplot(hf_data, aes(x = NumberOfDischarges)) + 
-  geom_histogram(binwidth = 50, fill = "blue", alpha = 0.7) + 
-  ggtitle("Number of Discharges Before Imputation")
+# Plot distribution before imputation (using imputed test data as a proxy)
+ggplot(imputedTest, aes(x = `Payment for pneumonia patients`)) +
+  geom_histogram(binwidth = 1000, fill = "blue", alpha = 0.7) +
+  ggtitle("Payment for pneumonia patients Before Imputation") +
+  xlab("Payment Amount") +
+  ylab("Frequency")
 
-p2 <- ggplot(hf_data, aes(x = State)) + 
-  geom_bar(fill = "blue", alpha = 0.7) + 
-  ggtitle("State Frequency Before Imputation")
+# Plot distribution after imputation (using imputed train data)
+ggplot(imputedTrain, aes(x = `Payment for pneumonia patients`)) +
+  geom_histogram(binwidth = 1000, fill = "green", alpha = 0.7) +
+  ggtitle("Payment for pneumonia patients After Imputation") +
+  xlab("Payment Amount") +
+  ylab("Frequency")
 
-# Impute missing values
-hf_data$NumberOfDischarges[is.na(hf_data$NumberOfDischarges)] <- median(hf_data$NumberOfDischarges, na.rm = TRUE)
-hf_data$ExcessReadmissionRatio[is.na(hf_data$ExcessReadmissionRatio)] <- median(hf_data$ExcessReadmissionRatio, na.rm = TRUE)
-hf_data$PredictedReadmissionRate[is.na(hf_data$PredictedReadmissionRate)] <- median(hf_data$PredictedReadmissionRate, na.rm = TRUE)
-hf_data$ExpectedReadmissionRate[is.na(hf_data$ExpectedReadmissionRate)] <- median(hf_data$ExpectedReadmissionRate, na.rm = TRUE)
-hf_data$NumberOfReadmissions[is.na(hf_data$NumberOfReadmissions)] <- median(hf_data$NumberOfReadmissions, na.rm = TRUE)
+# Categorical variable: Emergency department volume
+# Plot frequencies before imputation (using imputed test data as a proxy)
+ggplot(imputedTest, aes(x = factor(`Emergency department volume`))) +
+  geom_bar(fill = "blue", alpha = 0.7) +
+  ggtitle("Emergency department volume Before Imputation") +
+  xlab("Volume") +
+  ylab("Frequency")
 
-# Mode imputation for categorical variable
-mode_impute <- function(x) {
-  ux <- unique(x[!is.na(x)])
-  ux[which.max(tabulate(match(x, ux)))]
-}
-
-hf_data$State[is.na(hf_data$State)] <- mode_impute(hf_data$State)
-
-# Visualize distributions after imputation
-p3 <- ggplot(hf_data, aes(x = NumberOfDischarges)) + 
-  geom_histogram(binwidth = 50, fill = "green", alpha = 0.7) + 
-  ggtitle("Number of Discharges After Imputation")
-
-p4 <- ggplot(hf_data, aes(x = State)) + 
-  geom_bar(fill = "green", alpha = 0.7) + 
-  ggtitle("State Frequency After Imputation")
-
-# Display the plots
-print(p1)
-print(p2)
-print(p3)
-print(p4)
+# Plot frequencies after imputation (using imputed train data)
+ggplot(imputedTrain, aes(x = factor(`Emergency department volume`))) +
+  geom_bar(fill = "green", alpha = 0.7) +
+  ggtitle("Emergency department volume After Imputation") +
+  xlab("Volume") +
+  ylab("Frequency")
 
 ```
 
-> Your answer here. yes it did change 
+> Your answer here.It looks like it did not change. 
 
 # Struggling? Here's my solution:
 
@@ -786,11 +776,13 @@ Why is a histogram, or even a Q-Q plot, an insufficient way to assess whether a 
 Apply a Shapiro-Wilk test for normality using the `shapiro.test()` function. What does it indicate about your distribution? (**Note**: Shapiro tests are only reliable for $N < 5000$, but it is fine to perform here.)
 
 ```{r}
-shapiro_test_result <- shapiro.test(heart_failure_filtered$NumberOfDischarges)
-shapiro_test_result
+shapiro_test_result <- shapiro.test(imputedTrain$PredictedReadmissionRate)
+
+# Print the test result
+print(shapiro_test_result)
 ```
 
-> Your answer here.
+>  Your answer here.The p-value is much smaller than the common alpha level of 0.05, which means we reject the null hypothesis. The null hypothesis of the Shapiro-Wilk test is that the data is normally distributed. Since we reject the null hypothesis, we conclude that the PredictedReadmissionRate does not follow a normal distribution.
 
 ### 3.5.1 Box-Cox Transformation
 
@@ -826,36 +818,43 @@ qqline(imputedTrain$bc_PredictedReadmissionRate,
        col = "hotpink", lty = 2, lwd = 2)
 ```
 
-Can you tell what it did to the distribution? __Look closely__, if not. It's subtle but discernible.
+Can you tell what it did to the distribution? __Look closely__, if not. It's subtle but discernible.It looks like a normal QQ plot for the normilised quantile residuals, In other words distribution looks normalized 
+
 
 ##### **Question 14**: [1 point]
 Now repeat all of the steps to perform a Box-Cox transform on your own to the `imputedTest` data. Why do you think we need to transform the test data too?
 
-> Your answer here.
+> Your answer here.To get more acurate results
 
 ```{r}
-# Apply the Box-Cox transformation to the imputedTest data
-bc_test_data <- predict(bc_data, imputedTest$PredictedReadmissionRate)
-imputedTest$bc_PredictedReadmissionRate <- bc_test_data
+# Define colors (if needed)
+prettyPurples <- c("#E0BBE4", "#957DAD", "#D291BC", "#FEC8D8", "#FFDFD3", "#B19CD9", "#DA70D6")
 
-# Visualize the Box-Cox transformed data
-library(ggplot2)
+# Box-Cox Transformation on imputedTest data
+bc_test_data <- BoxCoxTrans(imputedTest$PredictedReadmissionRate)
+print(bc_test_data)
 
-# Histogram of the transformed PredictedReadmissionRate
+# Apply Box-Cox transformation
+imputedTest$bc_PredictedReadmissionRate <- predict(bc_test_data, imputedTest$PredictedReadmissionRate)
+
+# Plot the histogram of Box-Cox transformed data
 ggplot(imputedTest, aes(x = bc_PredictedReadmissionRate)) +
-  geom_histogram(alpha = 0.6, fill = "purple", color = "black") +
+  geom_histogram(alpha = 0.6, 
+                 fill = prettyPurples[6],
+                 color = prettyPurples[2]) +
   theme_minimal() +
-  labs(title = "Box-Cox Transformed Predicted Readmission Ratio (Test Data)",
+  labs(title = "Box-Cox Transformed Predicted Readmission Ratio (Test Data), N = 2,726 hospitals",
        y = "Frequency",
        x = "Predicted Readmission Ratio")
 
-# Q-Q plot of the transformed PredictedReadmissionRate
+# QQ plot for Box-Cox transformed data
 qqnorm(imputedTest$bc_PredictedReadmissionRate)
-qqline(imputedTest$bc_PredictedReadmissionRate, col = "hotpink", lty = 2, lwd = 2)
-#Why Transform the Test Data?
+qqline(imputedTest$bc_PredictedReadmissionRate, 
+       col = "hotpink", lty = 2, lwd = 2)
+
 
 ```
-# Your code here
+
 
 # Make sure to check that your transform looks successful!
 
@@ -869,28 +868,40 @@ Now that we have applied a Box-Cox transform to the target variable, we can cent
 Make a copy of the imputed training set, drop our original, non-Box-Cox transformed target from the dataset, and then center and scale the whole training set using the `scale()` function in R. I called my dataset `readyTrain`, so if you name it anything else just note you'll have to update subsequent code. Then, __do the same thing for the test data__!
 
 ```{r}
-##Make a copy of the imputed training set
-readyTrain <- hf_data_train
+# Box-Cox Transformation on imputedTrain data
+bc_data <- BoxCoxTrans(imputedTrain$PredictedReadmissionRate)
+imputedTrain$bc_PredictedReadmissionRate <- predict(bc_data, imputedTrain$PredictedReadmissionRate)
 
-# Drop the original, non-Box-Cox transformed target from the dataset
-readyTrain <- readyTrain %>% select(-ExpectedReadmissionRate)
+# Box-Cox Transformation on imputedTest data
+bc_test_data <- BoxCoxTrans(imputedTest$PredictedReadmissionRate)
+imputedTest$bc_PredictedReadmissionRate <- predict(bc_test_data, imputedTest$PredictedReadmissionRate)
 
-# Center and scale the whole training set
-readyTrain <- as.data.frame(scale(readyTrain))
+# Create a copy of the imputed training set
+readyTrain <- imputedTrain
 
-# Add back the target variable (scaled)
-readyTrain$ExpectedReadmissionRate <- hf_data_train$ExpectedReadmissionRate
+# Drop the original, non-Box-Cox transformed target variable
+readyTrain <- readyTrain %>%
+  select(-PredictedReadmissionRate)
 
-# Do the same thing for the test data
-readyTest <- hf_data_test %>% select(-ExpectedReadmissionRate)
-readyTest <- as.data.frame(scale(readyTest))
-readyTest$ExpectedReadmissionRate <- hf_data_test$ExpectedReadmissionRate
+# Center and scale the training set
+readyTrain_scaled <- as.data.frame(scale(readyTrain))
 
-# Display the first few rows of the training and test datasets
-head(readyTrain)
-head(readyTest)
+# Create a copy of the imputed test set
+readyTest <- imputedTest
+
+# Drop the original, non-Box-Cox transformed target variable
+readyTest <- readyTest %>%
+  select(-PredictedReadmissionRate)
+
+# Center and scale the test set
+readyTest_scaled <- as.data.frame(scale(readyTest))
+
+# Print the first few rows of the scaled datasets
+head(readyTrain_scaled)
+head(readyTest_scaled)
 
 ## Make sure you both center AND scale your data!
+
 ```
 
 
@@ -935,7 +946,7 @@ fviz_screeplot(pca,
 ##### **Question 16**: [1 point]
 Using the 'elbow' method of the scree plot - the point at which the percentage of variance explained seems to level off - approximately how many principal components would be significant to explain the total variation in the training data set? (**Hint**: if it's not super obvious, that's actually informative!)
 
-> Your answer here
+> Your answer here the elbow looks like is  around dimession 6 
 
 ```{r}
 # Perform PCA on the scaled training dataset
@@ -990,7 +1001,7 @@ fviz_pca_biplot(pca,
 ##### **Question 17**: [1 point]
 On principal components 1 and 2 (the PCs that account for the __most__ variance in the training data), do you see any pattern (i.e., clustering) relative to the hospital return days for pneumonia patients compared to the national average? Why or why not? 
 
-> this indicates that there are underlying patterns in the data that are captured by the first two principal components. 
+> this indicates that there are underlying patterns in the data that are captured by the first two principal components. There is clustering relative to the hospital return days for pneumonia patients 
 
 
 Next, let's look at the contributions of the top 20 features; anything above the dotted red-line contributes significantly to the overall explanation of variance, and anything below the dotted line does not.
@@ -1042,7 +1053,7 @@ grid.arrange(p6, p7, p8, p9, nrow = 2)
 ##### **Question 18**: [1 point]
 Which number of clusters, $k$, do you think has the best explanatory power? Is it hard to tell?
 it is hard to tell
-> Your answer here
+> Your answer here K 8 and K 6
 
 Next, let's employ the 'elbow' method again, this time to look at when the __within sum of squares__ drops off rather than the percent variance, as was done in PCA.
 
@@ -1057,7 +1068,7 @@ fviz_nbclust(readyTrain,
 #### **Question 19**: [1 point]
 What is the __within sum of squares__ and what exactly is it measuring here? By the elbow method, which $k$ is the optimal number of clusters? Did it agree with your choice from the other heuristic method?
 
-> your anwser here
+> your anwser here The within sum of squares (WSS) measures the compactness of clusters in a clustering algorithm like k-means. It is the sum of squared distances between each point and its cluster centroid. Lower WSS values indicate more compact clusters.
 
 ```{r}
 # Extract the first two principal components
@@ -1091,67 +1102,73 @@ As we said before, the goal of segmentation analysis is to broadly cluster our h
 Let's explore the clusters - segments - of the hospitals based on their average values from the __original__ dataset. Your task is to add comments to this code chunk. 
 
 ```{r}
-## Uses the KMeans function on the readyTrain dataset and stores it in kmeansResult. Below are the parameters.
-kmeansResult <- kmeans(readyTrain, 	
-                         centers = 3,            ## Specifies 3 clusters for k-means clustering.
-                         nstart = 50,            ## Number of initial sets of cluster centers to try.
-                         iter.max = 1000,        ## Maximum number of iterations.
-                         algorithm = "MacQueen") ## Algorithm used for clustering.
-
-## Adds a column called Cluster based on result.
-kmeansTrain <- imputedTrain %>% 
-  mutate(Cluster = kmeansResult$cluster) %>% ## Add the cluster assignment to the dataset.
-  clean_names() ## Clean the column names to ensure consistency in naming.
-
-```
-
 ```{r}
-## Specifies which variables to import for PCA.
-pcaImportantVars <- c("overall_hospital_rating",            ## Overall hospital rating
-                      "care_transition",                    ## Care transition score
-                      "nurse_communication",                ## Nurse communication score
-                      "recommend_hospital",                 ## Recommendation score
-                      "staff_responsiveness",               ## Staff responsiveness score
-                      "communication_about_medicines",      ## Communication about medicines score
-                      "doctor_communication",               ## Doctor communication score
-                      "discharge_information",              ## Discharge information score
-                      "predicted_readmission_rate",         ## Predicted readmission rate
-                      "quietness",                          ## Quietness score
-                      "median_time_minutes_patients_spent_in_ed",  ## Median time patients spent in ED
-                      "hospital_return_days_for_pneumonia_patients",  ## Hospital return days for pneumonia patients
-                      "emergency_department_volume",        ## Emergency department volume
-                      "compared_to_national_hospital_return_days_for_pneumonia_patients", ## Comparison to national hospital return days for pneumonia patients
-                      "cleanliness")                        ## Cleanliness score
-## Renames some of the rows in the Cluster column
+# Perform k-means clustering on the readyTrain dataset
+kmeansResult <- kmeans(readyTrain, 	
+                         centers = 3,            # Specifies 3 clusters for k-means clustering
+                         nstart = 50,            # Number of initial sets of cluster centers to try
+                         iter.max = 1000,        # Maximum number of iterations
+                         algorithm = "MacQueen") # Algorithm used for clustering
+
+# Add a column called Cluster to the imputedTrain dataset based on the clustering result
+kmeansTrain <- imputedTrain %>% 
+  mutate(Cluster = kmeansResult$cluster) %>% 
+  clean_names() # Clean the column names
+# Specify which variables to import for PCA
+pcaImportantVars <- c("overall_hospital_rating",
+                      "care_transition",
+                      "nurse_communication",
+                      "recommend_hospital",
+                      "staff_responsiveness",
+                      "communication_about_medicines",
+                      "doctor_communication",
+                      "discharge_information",
+                      "predicted_readmission_rate",
+                      "quietness",
+                      "median_time_minutes_patients_spent_in_ed",
+                      "hospital_return_days_for_pneumonia_patients",
+                      "emergency_department_volume", 
+                      "compared_to_national_hospital_return_days_for_pneumonia_patients",
+                      "cleanliness")
+
+# Rename some of the rows in the Cluster column
 kmeansTrain %>% 
-  ## Selects relevant variables and 'Cluster' column
-  select(all_of(pcaImportantVars), cluster) %>%  ## Selects the specified variables and the cluster column.
-  rename(`Hospital Return Days Score` = hospital_return_days_for_pneumonia_patients,  ## Renames the column for better readability.
-         `Hospital Return Days Nat'l Comparison` = compared_to_national_hospital_return_days_for_pneumonia_patients,  ## Renames the column for better readability.
-         `Median Minutes spent in Emergency Dept` = median_time_minutes_patients_spent_in_ed) %>%  ## Renames the column for better readability.
-  ## Cleans column names
-  clean_names(case = "title") %>%  ## Cleans the column names to title case.
-  group_by(Cluster) %>%  ## Groups data by cluster.
-  ## Groups data by cluster
-  summarise_if(is.numeric, mean, na.rm = TRUE) %>%  ## Summarises numeric variables by their mean within each cluster.
-  pivot_longer(-1, names_to = "Measure", values_to = "Value") %>%  ## Converts the data from wide format to long format for plotting.
-  ## Creates a plot with the given data
-  ggplot(aes(x = Cluster, y = Value, fill = as.factor(Cluster))) +  ## Creates a ggplot object for visualization.
-    geom_col(alpha = 0.75) +  ## Adds bar plots with transparency.
-    scale_fill_manual(values = myPal) +  ## Manually sets fill colors for the clusters.
-    labs(title = "Cluster Means",  ## Adds a title to the plot.
-         x = "",  ## No label for the x-axis.
-         fill = "Cluster") +  ## Adds a label for the fill legend.
-    theme_minimal() + 
-  theme(legend.position = "bottom",
-        strip.text = element_text(size=6),
-        legend.text = element_text(size = 8),
-        legend.title = element_text(size = 10),
-        title = element_text(size = 12, color = "maroon")) + 
+  # Select relevant variables and 'Cluster' column
+  select(all_of(pcaImportantVars), cluster) %>% 
+  rename(`Hospital Return Days Score` = hospital_return_days_for_pneumonia_patients,
+         `Hospital Return Days Nat'l Comparison` = compared_to_national_hospital_return_days_for_pneumonia_patients,
+         `Median Minutes spent in Emergency Dept` = median_time_minutes_patients_spent_in_ed) %>% 
+  # Clean column names with title case
+  clean_names(case = "title") %>% 
+  # Group data by cluster
+  group_by(Cluster) %>% 
+  # Summarize numeric variables by calculating the mean, removing NAs
+  summarise_if(is.numeric, mean, na.rm = TRUE) %>% 
+  # Reshape data for plotting
+  pivot_longer(-1, names_to = "Measure", values_to = "Value") %>% 
+  # Create a plot with the given data
+  ggplot(aes(x = Cluster, y = Value, fill = as.factor(Cluster))) +
+    geom_col(alpha = 0.75) +
+    # Set custom colors for clusters
+    scale_fill_manual(values = myPal) +
+    # Add titles and labels
+    labs(title = "Cluster Means",
+         x = "",
+         fill = "Cluster") +
+    # Use a minimal theme
+    theme_minimal() +
+    # Customize legend and title appearance
+    theme(legend.position = "bottom",
+          strip.text = element_text(size=6),
+          legend.text = element_text(size = 8),
+          legend.title = element_text(size = 10),
+          title = element_text(size = 12, color = "maroon")) + 
+    # Create facets for each measure with free y-axis scaling
     facet_wrap(~Measure, 
-             scales = "free_y",
-             ncol = 3)
+               scales = "free_y",
+               ncol = 3)
 ```
+
 
 #### **Question 21**: [1 point]
 Notice, for example, that Cluster 2 hospitals seem to include the hospitals that had the __below__ national average return hospital days (and thus the fewest return hospital days in terms of the quantitative score). Look at how else you might broadly characterize - or segment - these hospitals.
