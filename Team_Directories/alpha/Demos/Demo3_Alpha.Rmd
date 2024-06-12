@@ -421,5 +421,30 @@ Use the `stateInfo` dataframe to explore a **hypothesis of your own** about coun
 
 **Hint**: You would need to merge the data again with the `counties` dataset so that you could make a map.
 ```{r}
-# Your code here
+merged_data <- merge(stateInfo, counties, by = "long")
+
+
+merged_data <- merged_data %>%
+  mutate(admission_rate = hospital_admissions / population * 1000)  
+ggplot(merged_data, aes(x = median_income, y = admission_rate)) +
+  geom_point() +
+  geom_smooth(method = "lm", col = "red") +
+  labs(title = "Relationship between Median Income and Hospital Admission Rate",
+       x = "Median Income",
+       y = "Hospital Admission Rate (per 1000 people)") +
+  theme_minimal()
+
+counties_sf <- st_as_sf(counties, coords = c("longitude", "latitude"), crs = 4326)
+
+merged_sf <- merge(counties_sf, merged_data, by = "county_id")
+
+# Plot the map with admission rates
+ggplot(merged_sf) +
+  geom_sf(aes(fill = admission_rate)) +
+  scale_fill_viridis_c() +
+  labs(title = "Map of Hospital Admission Rates by County",
+       fill = "Admission Rate (per 1000 people)") +
+  theme_minimal()
+
+```
 ```
