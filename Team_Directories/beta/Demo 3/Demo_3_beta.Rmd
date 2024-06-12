@@ -427,6 +427,72 @@ What do you notice immediately about the county-level data? Why do you think thi
 Use the `stateInfo` dataframe to explore a **hypothesis of your own** about county-level hospital admissions. You could look at population density again, median income, median home value, or even the number of housing units!
 
 **Hint**: You would need to merge the data again with the `counties` dataset so that you could make a map.
+
+>I chose to examine median income in each county. 
+
+**Hypothesis**: Counties with higher median income have lower average pneumonia-related readmissions because people are able to afford better care and longer hospital stays, reducing pneumonia spread and hosptials in areas with higher income are likely to be better performing hospitals.
+
 ```{r}
-# Your code here
+stateInfo <- stateInfo %>% 
+  mutate(region = getStateName(state))
+
 ```
+
+```{r}
+stateInfo <- stateInfo %>%
+  rename(subregion = county) %>%
+  mutate(subregion = tolower(subregion)) %>%
+  mutate(subregion = word(subregion, 1))
+
+county_income <- stateInfo %>%
+  select(region, subregion, median_household_income) %>%
+  drop_na() %>%  # Drop NAs
+  group_by(region, subregion) %>% # Group by region and subregion. Then summarize.
+  summarize(avg_med_income = mean(median_household_income, na.rm = TRUE)) 
+```
+
+
+```{r}
+counties_with_income <- merge(counties, county_income, by = c("region", "subregion"), all.x = TRUE) %>% arrange(order)
+#counties_with_readmissions <- merge(counties, county_readmissions, by = c("region", "subregion"), all.x = TRUE) %>% arrange(order)
+```
+
+
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE, fig.width=11, fig.height=5}
+
+p4 <- ggplot(counties_with_income, aes(x = long, y = lat, group = group, fill = avg_med_income)) + 
+  geom_polygon(color = "black", 
+               alpha = 1) +
+  scale_fill_continuous(name="% Below Poverty", 
+            low = "white", high = "#45012d") +
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    legend.position = "bottom"
+  ) +
+  ggtitle("Average Median Income")
+
+
+temp5 <- merge(counties_with_readmissions, counties_with_income, by = c("region", "subregion"), all.x = TRUE) %>% arrange("order") %>%
+  filter(region != "district of columbia")
+
+p5 <- ggplot(temp5, aes(x = avg_med_income, y = avg_readmit)) +
+  geom_point(alpha = 0.5) + 
+  geom_smooth(method = "lm", se = T, color = "#45012d") +
+  theme_minimal() +
+  labs(title = "Correlation of pneumonia-related hospital readmissions by\nmedian county income",
+       x = "Median Income",
+       y = "Pneumonia-related Hospital Readmission Rate")
+
+grid.arrange(plot, p4, ncol = 2)
+p5
+
+
+```
+There seems to be some sort of correlation between income and pneumonia readmissions, but nothing striking. 
+
