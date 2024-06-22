@@ -131,8 +131,18 @@ As we discussed in lecture the last 2 weeks, one of the key types of spatial dat
 #### Question 1 [1 point]:
 
 What do each of these six files represent? You will not be able to open them directly on your computer, so you may need to refer back to lecture and do a little digging to figure out the type of data you would expect each of these files to contain.
+# RRC
+> `cnty19_1.cpg` -- This file specifies the encoding for the shapefile (e.g., UTF-8) to ensure proper character representation.
+   
+> `cnty19_1.dbf` -- This file stores attribute data related to each county boundaries in CA. Examples of this would be population, area, and administrative info.
 
-> Your answer here.
+> `cnty19_1.prj`: -- This file contains the coordinate system and projection information used to geographically position the county boundary data.
+
+> `cnty19_1.shp` -- This is the main file that stores all the geometry and shapes of each of the county boundaries in CA. Examples of this would be points, lines, and polygons.
+
+> `cnty19_1.shp.xml` -- This file is an XML file that stores metadata about the shapefile. Examples of information that would be found in this file include data sources, creation date, and other descriptive details.
+
+> `cnty19_1.shx` -- This file is used to index the geometry in the `cnty19_1.shp` file. This helps to mak things more efficient for accessing the shapefile's features.
 
 ## 2.2 Our objective
 
@@ -152,7 +162,7 @@ __The initial processing steps will include:__
 We will leverage the `read_sf()` function that is part of the `sf` package. As you might have guessed, `sf` refers to __shapefile__. Note that there is an alternative method to read in shapefiles called `st_read`, which is an alias for `read_sd()` with some different default arguments. By default, `read_sf()` is quiet, whereas `read_st()` will print information about the data source by default. Additionally, `read_sf()` returns a tibble rather than a dataframe. So which to choose? It's your preference, in this case. We're going to use read_sf() but we could use `read_st()` if we wanted.
 
 ```{r}
-cali_sf <- read_sf("~/Desktop/California_County_Boundaries/cnty19_1.shp") 
+cali_sf <- read_sf("C:/Users/RRC/Downloads/California_County_Boundaries/cnty19_1.shp") 
 
 ## Alternatively, we can read in the shapefile using the 'st_read()' function
 # cali_st <- st_read("./California_County_Boundaries/cnty19_1.shp") 
@@ -161,19 +171,20 @@ cali_sf <- read_sf("~/Desktop/California_County_Boundaries/cnty19_1.shp")
 Next, let's take a look at the geometry of the shapefile that we loaded.
 ```{r}
 cali_sf$geometry
+
 ```
 
 Notice that we have a __polygon__ geometry in our shapefile. If you were to investigate further, you would find that currently there are no other geometries (e.g., lines or points) in this shapefile. We could add them and export the shapefile, if we ever needed to do so, like to share with someone else.
 
 #### Question 2 [1 point]:
 What is the bounding box that comes with our shapefile and what does it tell us?
-
-> Your answer here.
+# RRC
+> The bounding box that is provided with this shapefile specifies the geographic boundaries of the dataset. It gives minimum and maximum coordinates in both the horizontal (x) and vertical (y) dimensions. For this box. xmin and ymin represent the southwestern corner, while xmax and ymax represent the northeastern corner. This is helpful for being precise when mapping the boundary, which lets us prperaly look at and analyze the map, and the shapefile's features.
 
 #### Question 3 [1 point]:
 What is the projection? What does it tell us and why does projection matter? 
-
-> Your answer here.
+# RRC
+> I think a projection is used to simulate how the Earth's surface is curved. When people begain making maps they thought that the Earth was flat, but now that proved that it is curved a projection is needed to compensate for that. In online mapping, it is very common to use "WGS 84 / Pseudo-Mercator" for the projection. "WGS 84 / Pseudo-Mercator" specifies how coordinates are mapped from on a spherical surface to a two-dimensional plane. This also helps with acurracy when analyzing.
 
 ### 2.3.2 The most basic map of California using __tmap__.
 
@@ -184,7 +195,6 @@ With `tmap`, you always get started with `tm_shape()`. This is equivalent to the
 Note that if you'd like to see the Vignette for the `tmap` package, you can find it [here](https://cran.r-project.org/web/packages/tmap/tmap.pdf).
 
 ```{r, fig.height=3, fig.width=3}
-
 ## Start our map in tmap using tm_shape(); we are using the cali_sf tibble we imported
 tm_shape(cali_sf) + 
   ## Give it a default color fill
@@ -222,15 +232,20 @@ Now, what if we only wanted to visualize a few counties? Let's look at the three
 cali_sf %>% 
   ## Filter to just the 3 counties that border Oregon
   filter(COUNTY_NAM == "Del Norte" | COUNTY_NAM == "Siskiyou" | COUNTY_NAM == "Modoc") %>% 
+  
 ## Start our map in tmap using tm_shape()
 tm_shape() + 
+  
   ## Give it a default color fill
   tm_fill() +
+  
   ## Draw some default borders
   tm_borders() + 
+  
   ## Add text to identify the counties by name
   tm_text("COUNTY_NAM", 
           size = 0.8) +
+  
   ## Let's give it a title:
   tm_layout(
       "The 3 California counties that border Oregon",
@@ -240,9 +255,32 @@ tm_shape() +
 
 #### Question 4 [1 point]:
 Do the same with `ggplot2` including adding the text labels and the title. 
-
+#RRC
 ```{r}
-# Your code here
+# Filter to just the 3 counties that border Oregon.
+counties_bordering_or = cali_sf %>%
+  filter(COUNTY_NAM %in% c("Del Norte", "Siskiyou", "Modoc"))
+
+# Plot using ggplot2.
+ggplot() +
+  
+  # Add county boundaries.
+  geom_sf(data = cali_sf, fill = "white", color = "grey10") +
+  
+  # Highlight counties that border Oregon.
+  geom_sf(data = counties_bordering_or, fill = "#28B463", color = "grey1") +
+  
+  # Add county name labels.
+  geom_sf_label(data = counties_bordering_or, aes(label = COUNTY_NAM), size = 3) +
+  
+  # Customize plot appearance.
+  labs(title = "The 3 California Counties that Border Oregon",
+       x = "X Coordinate", y = "Y Coordinate") +  # Labels for axes.
+  theme_minimal() +  # Minimalist theme.
+  theme(panel.grid = element_blank(), # Remove background grid.
+        axis.text = element_text(size = 10)) +  # Adjust text size.
+  coord_sf(xlim = c(-13800000, -12400000), ylim = c(4500000, 5200000))  # Adjust zoom level.
+
 ```
 
 
@@ -264,29 +302,36 @@ __Our Process:__
 
 #### Question 5 [1 point]:
 Annotate the following code chunk with comments to make sure you understand what we are doing here.
-
+#RRC
 ```{r, echo = TRUE, warning=FALSE, message=FALSE}
-## YOUR COMMENT HERE - make sure to comment on the choice of data
+# Extracting mortality data and preparing for spatial analysis. -- I stuck with death and mortality here.
 mortality_sf <- totalDeaths %>% 
-  ## YOUR COMMENT HERE
+  
+  # Renaming the County column to COUNTY_NAM, to remain with the spatial data.
   rename(COUNTY_NAM = County) %>%
-  ## YOUR COMMENT HERE
+  
+  # Grouping the mortality data in each county by year, and month.
   group_by(COUNTY_NAM, Year, Month) %>% 
-  ## YOUR COMMENT HERE
+  
+  # Summarizing the total deaths in each county by year, and month.
   summarise(totalDeaths = sum(totalDeaths, na.rm = TRUE)) %>%
-  ## YOUR COMMENT HERE - make sure to comment on the relationship parameter
+  
+  # Performing a full join with cali_sf based on the renamed column and the existing column COUNTY_NAM.
   full_join(cali_sf, by = "COUNTY_NAM", relationship = "many-to-many") %>% 
-  ## YOUR COMMENT HERE
+  
+  # Converting the resulting tibble to an sf object..
   st_as_sf() %>% 
-  ## YOUR COMMENT HERE
+  
+  # Filtering out the counties that are islands.
   filter(is.na(ISLAND))
+
 ```
 
 #### Question 6 [1 point]:
 
 What does `st_join()` do? Could you have executed the join with `st_join()` instead of `full_join()` here? Why or why not? 
-
-> Your answer here.
+#RRC
+> `st_join()` lets you perform spatial joins on sf objects based on spatial relationships like intersects, and overlaps. It looks at geometry when joining. In the code above we just used full join instead of st join because the totalDeaths column we made was not a spatial data column we joined a numerical column with spaitial data not spatial data to spatial data so full join was the right one to do. st join would not of worked due to how it was made
 
 ## 2.5 Visualizing annual trends in overall mortality
 
@@ -333,11 +378,11 @@ In order to access the Census API, you will need your own Census API key. I coul
 
 #### Question 7 [1 point]:
 You will sign up for your API census key [here](https://api.census.gov/data/key_signup.html). You should be able to obtain your key very quickly, but if you run into trouble then I will give you the data I have downloaded through __my__ API key so that you can still keep going with the project.
-
+#RRC
 Once your have your key, fill it into this code chunk here:
 ```{r}
 ## Set your API key (put it between the quotation marks):
-key <- ""
+key <- "ea92b7345c7058b38dc5a5c36832a78e52dcc5e0" # Ryan's API key
 ```
 
 ### 2.6.2 Downloading data tables from the 2020 Census API
@@ -412,7 +457,7 @@ census <- getPopSizes(key, vars, header)
 
 #### Question 8 [3 points]:
 Your task is to join the census data to the shapefile of overall mortality we've already made. We want a tibble that contains all of the data from the census dataframe and all of the data from `mortality_sf`. I called mine `mortality_sf2` but you may call yours anything you'd like. 
-
+#RRC
 * **Hint 1**: The easiest way is to use the FIPS data to join.
 
 * **Hint 2**: Don't worry about calculating % mortality yet.
@@ -420,12 +465,17 @@ Your task is to join the census data to the shapefile of overall mortality we've
 * **Hint 3**: If you're having problems, check your data types!
 
 ```{r}
-# Your code here.
+# Perform the left join based on FIPS code (COUNTY in census, COUNTY_FIP in mortality_sf)
+mortality_sf2 <- left_join(mortality_sf, census, by = c("COUNTY_FIP" = "COUNTY"))
+
+# View the resulting tibble
+head(mortality_sf2)
+
 ```
 
 **Note**: If you're unable to do this for any reason, you can pick back up here. You will need to download the data from [Google Drive](https://drive.google.com/file/d/15MT127zoySDS7kOfr9uhLwPSIWBCok1W/view?usp=sharing), if needed, as the shapefile is too large for GitHub yet again. I have placed mine on my Desktop, but you can put it anywhere you like and update the directory path. Just make sure not to put it in your GitHub repo!
 ```{r}
-load("~/Desktop/mortality_sf2.Rdata")
+#load("~/Desktop/mortality_sf2.Rdata")
 ```
 
 Now, we were all so excited, we decided to calculate the annual population-adjusted % mortality per county per year so that we could recreate the map we tried to make above. This is what we did... (notice that, this time, I set the color scale for the chloropeth to equal the **five number summary** from `fivenum()` so that we could more easily see the median versus the quartiles.)
@@ -464,8 +514,8 @@ tm_shape(mortalityAnnual_sf2) +
 
 #### Question 9 [2 points]:
 What patterns do you observe now, if any? Do you think this is a true pattern? Aren't we being told that deaths are going **up** due to COVID-19??
-
-> Your answer here.
+#RRC
+> The pattern that I observe is that in they years 2017, 2018, and 2019, there were very high mortality rates in the north, and northern coastal counties, and high mortaility rates in the southern counties. This is indicated by the dark purple counties and purple counties in the north and south respectively. However in 2020 when COVID-19 started all the mortality rates in pretty much every county drop by at least one tier. I think this is a true pattern due to the fact that everyone had to quarantine so there was less human interactions and less chance for other diseases to spread or crime to happen. These maps show all causes not just deaths by COVID-19 so the statement "that deaths are going **up** due to COVID-19" could be true but relative to all other causes of death in CA it would appear to be lower.
 
 # 3 The data for 2020 isn't complete...
 
@@ -482,7 +532,7 @@ totalDeaths <- totalDeaths %>%
   full_join(census, by = "County")
 ```
 
-Let's now look ook at annual and monthly trends in total numbers of deaths
+Let's now look look at annual and monthly trends in total numbers of deaths
 
 ```{r, echo = FALSE, warning = FALSE, message = FALSE}
 totalDeaths %>% 
@@ -504,8 +554,8 @@ ggplot(aes(x = Month, y = propDeaths, color = as.factor(Year), linetype = as.fac
 
 #### Question 10 [1 point]:
 Why did this happen and how could we fix it? (**There is more than one correct answer possible.**) Could we have made our maps this way and had them be accurate if we'd had a full 12 months' of data for each year?
-
-> Your answer here.
+#RRC
+> The maps appeared the way they did because in the years before COVID-19 (2017, 2918, and 2019) they had 4 more months of data when compared to 2020 so even though there are more deaths in 2020 by month, overall there appeared to be more deaths in the previous years due to them having more data. To fix this we could only look at the first 8 months of each year and then re-compare the numbers and maps.
 
 ## 3.1 Fixing the map's accuracy.
 
