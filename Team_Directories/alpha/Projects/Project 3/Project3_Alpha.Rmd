@@ -598,10 +598,33 @@ tm_shape(mortalityMonthly_sf2) +
 Now try executing a different way to more accurately portray the % mortality. (**Hint**: If you need an idea to get you started, ask yourself if you could filter the `mortality_sf2` tibble in some way to restrict what is plotted.) What do you observe, and how do the results compare to the map I chose to make?
 
 ```{r}
-# Your code here
+# #Malek
+filtered_mortality_sf2 <- mortality_sf2 %>% 
+  filter(totalN > 1000)
+
+filtered_mortalityMonthly_sf2 <- filtered_mortality_sf2 %>% 
+  group_by(COUNTY_NAM, Year, Month) %>% 
+  summarize(percMortality = 100 * (sum(totalDeaths, na.rm = TRUE) / mean(totalN, na.rm = TRUE)), .groups = 'drop')
+
+breaks <- pretty(range(filtered_mortalityMonthly_sf2$percMortality, na.rm = TRUE), n = 10)
+
+tm_shape(filtered_mortalityMonthly_sf2) + 
+  tm_polygons(
+    col = "percMortality", 
+    palette = get_brewer_pal(palette = "BuPu", n = 10, plot = FALSE),
+    breaks = breaks,
+    alpha = 1,
+    title = "Monthly % Mortality, All Causes"
+  ) +
+  tm_borders() + 
+  tm_text("COUNTY_NAM", size = 0.25, col = "darkgrey") +
+  tm_facets(by = "Year", ncol = 2) +
+  tm_layout(
+    legend.position = c("right", "bottom"), 
+    title.position = c('right', 'top'))
 ```
 
-> Your answer here.
+> #Malek - So essentially this new map should be much cleaner than the first one. By only having counties with a population greater than 1000 I'm definitely getting rid of a lot of unecessary noise. With the decrease in noise, we should hopefully experience an increase in accuracy. The mortality rates are now more stable and thus less impacted by the smaller population sizes. Personally, I feel as though the map is much easier to read now and we can come to many more definitive conclusions.
 
 # 4 Project future mortality
 
@@ -672,10 +695,16 @@ ggplot(aes(x = Month,
 Do you think this regression prediction is robust? Why or why not? (**Hint**: Check your assumptions with `plot(mod)`!!)
 
 ```{r}
-# Your code here.
+# #Malek
+mod <- lm(percMortality ~ COUNTY_NAM + Year + Month, data = mortalityMonthly_sf2)
+
+par(mfrow = c(2, 2)) 
+plot(mod)
+
+par(mfrow = c(1, 1))
 ```
 
-> Your answer here.
+> #Malek - In order to make sure the prediction is indeed robust it's important to evaluate a few things including linearity, normality, and independence. For the most part, this is not really a model I would like to put my name beside. It appears that there is room to improve and I definitely think it can be done. 
 
 ## 4.2 Showing the predictions on a map
 
@@ -736,13 +765,97 @@ deaths2020 <- fromJSON("https://data.chhs.ca.gov/datastore/odata3.0/579cc04a-52d
 
 #### Question 13 [15 points]:
 
-> Your analysis plan here.
+> #Malek - The first model was too simple and did not meet the necessary criteria I was looking for. The following random forest is obviously more complex while also diving much deeper than a linear regression can.
 
 ```{r}
-# Your code here. You can add more code chunks as needed to do the work asked!
+##Malek
+
+deaths2020 <- fromJSON("https://data.chhs.ca.gov/datastore/odata3.0/579cc04a-52d6-4c4c-b2df-ad901c9049b7?$format=json")
+deaths2020 <- deaths2020$value
+
+deaths2020 <- deaths2020 %>%
+  mutate(Month = as.numeric(substr(month, 6, 7)),
+         Year = as.numeric(substr(month, 1, 4)),
+         totalDeaths = as.numeric(total_deaths)) %>%
+  select(County, Year, Month, totalDeaths) %>%
+  rename(COUNTY_NAM = County)
+
+merged_data <- mortalityMonthly_sf2 %>%
+  left_join(deaths2020, by = c("COUNTY_NAM", "Year", "Month"))
+
+set.seed(15)
+rf_model <- randomForest(percMortality ~ COUNTY_NAM + Year + Month + totalDeaths, data = merged_data, na.action = na.omit)
+
+newdata$propDeaths <- predict(rf_model, newdata = newdata)
+
+predictions <- predict(rf_model, newdata = merged_data)
+rmse <- sqrt(mean((merged_data$percMortality - predictions)^2, na.rm = TRUE))
+print(paste("RMSE of the Random Forest model:", round(rmse, 2)))
+
+newdata$isPredicted <- "1"
+
+temp <- deaths2020 %>%
+  group_by(Year, Month, COUNTY_NAM) %>%
+  summarise(propDeaths = sum(totalDeaths, na.rm = TRUE) / sum(totalN, na.rm = TRUE) * 100) %>%
+  mutate(isPredicted = "0")
+
+temp2 <- newdata %>%
+  group_by(Year, Month, COUNTY_NAM, isPredicted) %>%
+  summarize(propDeaths = mean(propDeaths))
+
+temp <- rbind(temp, temp2)
+
+regressionPredicted <- temp %>%
+  full_join(cali_sf, by = "COUNTY_NAM", relationship = "many-to-many") %>%
+  st_as_sf() %>%
+  filter(is.na(ISLAND)) %>%
+  filter(Month >= 9)
+
+tm_shape(regressionPredicted) + 
+  tm_polygons(
+    col = "propDeaths", 
+    palette = get_brewer_pal(palette = "BuPu", n = 10, plot = FALSE),
+    alpha = 1,
+    title = "Sept - Dec % Total Mortality, 2020 Predicted"
+  ) +
+  tm_borders() + 
+  tm_text("COUNTY_NAM", size = 0.25, col = "darkgrey") +
+  tm_facets(by = "Year", ncol = 2) +
+  tm_layout(
+    legend.position = c("right", "bottom"), 
+    title.position = c('right', 'top')
+  )
+
+temp <- deaths2020 %>%
+  group_by(Year, Month) %>%
+  summarise(propDeaths = sum(totalDeaths, na.rm = TRUE) / sum(totalN, na.rm = TRUE) * 100) %>%
+  mutate(isPredicted = "0")
+
+temp2 <- newdata %>%
+  group_by(Year, Month, isPredicted) %>%
+  summarize(propDeaths = mean(propDeaths))
+
+temp <- rbind(temp, temp2)
+
+temp %>%
+  ggplot(aes(x = Month, y = propDeaths, color = as.factor(Year), linetype = as.factor(Year))) +
+  geom_line(alpha = 0.7, size = 1.1) +
+  geom_point(aes(size = isPredicted), show.legend = FALSE) +
+  scale_x_continuous(n.breaks = 10) +
+  scale_color_manual(values = c("#d45731", "cornflowerblue", "#925ebf", "#86a607")) +
+  scale_linetype_manual(values = c("dashed", "dotdash", "dotted", "solid")) +
+  scale_size_manual(values = c(0, 3)) +
+  labs(
+    title = "Percent Deaths per Capita",
+    y = "% of deaths per capita", 
+    subtitle = "Cumulative for all California counties",
+    color = "Year",
+    linetype = "Year"
+  ) +
+  theme_minimal()
 ```
 
-> Your conclusions here.
+> #Malek - The random forest caused a significant increase in accuracy and overall improval. This is something that I now have much more confidence in as it is inherently more reliable than the linear regression. The map also provides a way to visualize as well as analyze through a different lens.
 
 If this open-ended analysis feels overwhelming, just ask for more hints to get you started!
 
@@ -812,7 +925,7 @@ ggplot(aes(y = deathsInjuriesProportion, x = biologicalSex, fill = as.factor(Yea
 
 Is it fair to model the values without accounting for an effect of sex, do you think? Why or why not?
 
-> Your answer here.
+> #Malek - I would probably say that it doesn't make the most sense to consider this a fair model without accounting for sex. I feel as though sex could provide some valuable insight which is due to some of the inherent biological differences between sex. Additionally, there may be different behaviors for the different sexes which could also definitely have an impact. 
 
 #### Proportion of Deaths by Sex
 
@@ -843,7 +956,7 @@ ggplot(aes(x = Month,
 
 What do you notice about the trend? Is there anything compelling here potentially? Can you find any possible explanation for what happened in May (month 5) of 2020?
 
-> Your answer here.
+> #Malek - So this trend where the female population on average has a significantly lower proportion of deaths due to accident or injury is quite compelling and shows exactly why it is important to map these out seperated by sex. Another trend that I notice is that both male and female tend to increase/decrease at the same time which could be indicating environmental or societal factors. The next thing I would like to point out is how there is a very big drop off in May 2020 for males. My best assumption for this would be due to covid. I'm assuming that the male population had more jobs that could cause death and injury but during covid these jobs slowed down and people were just outside getting injured less in general and thus, less male workers were exhibiting death due to injury or accident which caused a steep drop off in the graph.
 
 ### 6.1.2 Mapping injury-related deaths by stay-at-home orders & sex
 
@@ -888,7 +1001,7 @@ tm_shape() +
 
 Do you think there is any evidence that the proportion of deaths due to accident & injury changed as a result of the stay-at-home orders? What would provide stronger evidence of a change in proportion of deaths due to accident and injury as a result of the shutdown? Is there any evidence of interaction with the sex of the decedent?
 
-> Your answer here.
+> #Malek - I would say that there is moderate evidence for proportion of deaths due to accident and injury being changed as a result of the stay-at-home order. However, if I want to have stronger evidence some of the things I could do would be to do some statistical analysis like a t test or time series analysis. 
 
 
 Now, what if we wanted to attempt to control for any underlying population-level differences in the sex ratio of each county? Although we expect, _a priori_, for all counties to have a female to male ratio of 1:1, we know that in reality that isn't always the case. 
@@ -911,12 +1024,20 @@ We can see that we have a very strongly __left-skewed__ distribution, with the m
 Calculate the correlation of `femaleMaleRatio` and the `deathsInjuriesProportion`, making sure to be careful to drop or exclude any NAs before making your calculation. 
 
 ```{r}
-# Your code here.
+# #Malek
+
+correlation_data <- injDeaths %>%
+  select(femaleMaleRatio, deathsInjuriesProportion) %>%
+  filter(!is.na(femaleMaleRatio) & !is.na(deathsInjuriesProportion))
+
+correlation <- cor(correlation_data$femaleMaleRatio, correlation_data$deathsInjuriesProportion)
+
+print(paste("Correlation between femaleMaleRatio and deathsInjuriesProportion:", round(correlation, 4)))
 ```
 
 Do you think that this correlation coefficient indicates that we need to make a correction on our maps, or is it likely sufficient just to make the correction in our models? In other words, large correlation coefficients (in the absolute value sense) would indicate a need to correct the maps; smaller coefficients would indicate that it's probably not a big deal for our visualizations provided to stakeholders.
 
-> Your answer here.
+> #Malek - I would say that this is probably sufficient enough just to make a correction in the models. The question I would ask though is... what is a correlation coefficient relative to to consider it "high". I do think though that with some tweaking to the models this would be good enough for shareholders
 
 
 #### Question 18 [1 point]:
@@ -935,7 +1056,7 @@ injDeaths %>%
   theme_minimal()
 ```
 
-> Your answer here.
+> #Malek - I would say that the scatterplot does not agree since it has an upward slope and positive but the CC I got was negative
 
 ### 6.1.3 Predictive Modeling
 
@@ -1118,13 +1239,13 @@ The __weak learners__ can also be chosen in addition to the loss function, meani
 
 Look for a reliable resource that explains how the GBM algorithm works and do your best to attempt to explain what is happening at each iteration. Make sure to give a link or citation. 
 
-> Your answer here.
+>  #Malek - So my understanding of what is happening is you start with an initial model, find the residuals, then build a model for the residuals, and update the model based on the residuals model. In each iteration this is done until the model gets better and better. The link that helped me understand GBM more in depth can be found here: https://www.frontiersin.org/journals/neurorobotics/articles/10.3389/fnbot.2013.00021/full
 
 #### Question 20 [2 points]:
 
 What hyperparameters can one tune in a GBM? **Hint**: Make sure to explain at least 4! 
 
-> Your answer here.
+> #Malek - This type of question is very fresh in my mind as I am currently taking the artificial intelligence and machine learning course. 4 hyperparameters that can be tuned in a GBM include the number of trees to make sure we are getting the best tuning possible and not overfitting, shrinkage which defines how much each tree has an impact on the final model, tree depth to control the depth of each tree with deeper trees being more complex but more at risk for overfitting, and lastly minimum number of observations which determines minimal number of leaves in trees. 
 
 Okay, let's execute it!
 
