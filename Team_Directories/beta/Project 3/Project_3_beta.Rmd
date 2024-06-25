@@ -760,19 +760,7 @@ deaths2020 <- fromJSON("https://data.chhs.ca.gov/datastore/odata3.0/579cc04a-52d
 
 ```{r}
 #First create a training and test set using deaths2020 as 'correct' value
-
-
-
-```
-
-```{r}
-#Then train the model on the data like we did for the lm
-mod_rf <- randomForest::randomForest(
-  percMortality ~ COUNTY_NAM + Year + Month, 
-  data = mortalityMonthly_sf2)
-```
-
-```{r}
+#mortalityMonthly_sf2 is our training data, like above
 ## Make the new data:
 ## Get the names of the counties; repeat four times for the 4 months
 COUNTY_NAM_rf <- rep(unique(mortalityMonthly_sf2$COUNTY_NAM), 4)
@@ -783,6 +771,46 @@ Month_rf <- c(rep(9, 58),
             rep(12, 58))
 Year_rf <- rep(2020, length(Month))
 newdata_rf <- cbind.data.frame(COUNTY_NAM_rf, Year_rf, Month_rf)
+```
+
+```{r}
+class(deaths2020)
+head(deaths2020)
+#This data is not broken out by month
+#So we will instead compare totals for 2020
+```
+
+
+```{r, echo = TRUE, warning=FALSE, message=FALSE}
+deaths_rf <- deaths2020 %>% 
+#filter to only use total_population
+  filter(stata == "Total Population") %>%
+# Rename the county column to match sf
+  rename(COUNTY_NAM_rf = County) %>%
+# Group by county name, year, and month
+  group_by(COUNTY_NAM_rf, Year) %>% 
+# Summarize totalDeaths by summing up deaths for each group
+  summarise(totalDeaths = sum(Count, na.rm = TRUE)) %>%
+# Perform full join with the California sf by COUNTY_NAM
+  full_join(cali_sf, by = "COUNTY_NAM", relationship = "many-to-many") %>% 
+# Convert the resulting data to an sf object
+  st_as_sf() %>% 
+# Filter out islands
+  filter(is.na(ISLAND))
+```
+
+
+
+
+```{r}
+#Then train the model on the data like we did for the lm
+mod_rf <- randomForest::randomForest(
+  percMortality ~ COUNTY_NAM + Year + Month, 
+  data = mortalityMonthly_sf2)
+```
+
+```{r}
+
 
 ## Attach it to the dataframe and then call it the same name as the original Y
 newdata_rf$propDeaths <- predict(mod_rf, newdata_rf = newdata_rf)
