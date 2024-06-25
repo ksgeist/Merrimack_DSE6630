@@ -749,7 +749,12 @@ _Wait, how?_ Ah, the pandemic is over in reality! You can find the actual number
 
 **Hint**: You can read this file in as a dataframe using JSON API as follows!
 ```{r}
-deaths2020 <- fromJSON("https://data.chhs.ca.gov/datastore/odata3.0/579cc04a-52d6-4c4c-b2df-ad901c9049b7?$top=5&$format=json")
+#deaths2020 <- fromJSON("https://data.chhs.ca.gov/datastore/odata3.0/579cc04a-52d6-4c4c-b2df-ad901c9049b7?$top=5&$format=json")
+#This is giving me a list that contains a data frame, but that dataframe only has 5 rows??
+```
+
+```{r}
+deaths2020 <- read_sf("~/Desktop/20231206_deaths_final_2014_2022_county_year_sup.csv")
 ```
 
 **Remember** to filter for the proper condition, Year, and Months to get the data you need for your testing set.
@@ -763,36 +768,28 @@ deaths2020 <- fromJSON("https://data.chhs.ca.gov/datastore/odata3.0/579cc04a-52d
 #mortalityMonthly_sf2 is our training data, like above
 ## Make the new data:
 ## Get the names of the counties; repeat four times for the 4 months
-COUNTY_NAM_rf <- rep(unique(mortalityMonthly_sf2$COUNTY_NAM), 4)
+COUNTY_NAM <- rep(unique(mortalityMonthly_sf2$COUNTY_NAM), 4)
 ## Make a set of months for each of the 58 counties for Sept, Oct, Nov, Dec
-Month_rf <- c(rep(9, 58),
+Month <- c(rep(9, 58),
             rep(10, 58),
             rep(11, 58),
             rep(12, 58))
-Year_rf <- rep(2020, length(Month))
-newdata_rf <- cbind.data.frame(COUNTY_NAM_rf, Year_rf, Month_rf)
-```
-
-```{r}
-class(deaths2020)
-head(deaths2020)
-#This data is not broken out by month
-#So we will instead compare totals for 2020
+Year <- rep(2020, length(Month))
+newdata_rf <- cbind.data.frame(COUNTY_NAM, Year, Month)
 ```
 
 
 ```{r, echo = TRUE, warning=FALSE, message=FALSE}
 deaths_rf <- deaths2020 %>% 
 #filter to only use total_population
-  filter(stata == "Total Population") %>%
+  filter(Strata == "Total Population") %>%
+  filter(Cause_Desc == "All causes (total)") %>%
 # Rename the county column to match sf
-  rename(COUNTY_NAM_rf = County) %>%
+  rename(COUNTY_NAM = County) %>%
 # Group by county name, year, and month
-  group_by(COUNTY_NAM_rf, Year) %>% 
-# Summarize totalDeaths by summing up deaths for each group
-  summarise(totalDeaths = sum(Count, na.rm = TRUE)) %>%
+  group_by(COUNTY_NAM, Year) %>%
 # Perform full join with the California sf by COUNTY_NAM
-  full_join(cali_sf, by = "COUNTY_NAM", relationship = "many-to-many") %>% 
+  full_join(cali_sf, by = "COUNTY_NAM", relationship = "many-to-many") %>%
 # Convert the resulting data to an sf object
   st_as_sf() %>% 
 # Filter out islands
@@ -800,25 +797,130 @@ deaths_rf <- deaths2020 %>%
 ```
 
 
-
-
 ```{r}
 #Then train the model on the data like we did for the lm
 mod_rf <- randomForest::randomForest(
   percMortality ~ COUNTY_NAM + Year + Month, 
-  data = mortalityMonthly_sf2)
+  data = mortalityMonthly_sf2, mtry = 3)
+#mod_rf
 ```
 
 ```{r}
-
-
+#Make predictions
 ## Attach it to the dataframe and then call it the same name as the original Y
-newdata_rf$propDeaths <- predict(mod_rf, newdata_rf = newdata_rf)
-newdata$isPredicted <- "1"
+newdata_rf$propDeaths <- predict(mod_rf, newdata = newdata_rf)
+newdata_rf$isPredicted <- "1"
+```
+
+```{r}
+#To get the monthly average, we can divide our total in deaths_rf by 12
+#Then compare with our summary
+## Remove the extra characters from the name of the county
+census <- census %>% 
+  rename(COUNTY_NAM = County)
 ```
 
 
-> Your conclusions here.
+```{r}
+
+## Join with the total deaths
+deaths_rf <- deaths_rf %>% 
+  full_join(census, by = "COUNTY_NAM")
+
+deaths_rf$propDeath = deaths_rf$Count/deaths_rf$totalN
+
+deaths_rf_20 <- deaths_rf %>%
+  filter(Year == 2020) %>%
+  group_by(COUNTY_NAM) %>%
+  summarize(monthly_death = sum(as.numeric(propDeath), na.rm = TRUE)/12)
+
+new_means <- newdata_rf %>%
+  group_by(COUNTY_NAM) %>%
+  summarize(avg_death = mean(propDeaths))
+
+mean((new_means$avg_death - deaths_rf_20$monthly_death)^2)
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+#Line Graph
+temp <- totalDeaths %>% 
+  group_by(Year, Month) %>% 
+  summarise(propDeaths = sum(totalDeaths, na.rm = TRUE) / sum(totalN, na.rm = TRUE)*100) %>%   select(Year, Month, propDeaths) %>% 
+  mutate(isPredicted = "0")
+  
+temp2 <- newdata_rf %>% 
+  group_by(Year, Month, isPredicted) %>% 
+  select(-COUNTY_NAM) %>% 
+  summarize(propDeaths = mean(propDeaths))
+
+## Row bind
+temp <- rbind(temp, temp2)
+```
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE}
+#Line Graph
+temp %>% 
+ggplot(aes(x = Month, 
+           y = propDeaths, 
+           color = as.factor(Year), 
+           linetype = as.factor(Year))) +
+  geom_line(alpha = 0.7, 
+            size = 1.1) +
+  geom_point(aes(size = isPredicted), show.legend = FALSE) +
+  scale_x_continuous(n.breaks = 10) +
+  scale_color_manual(values = c("#d45731", "cornflowerblue", "#925ebf", "#86a607")) +
+  scale_linetype_manual(values=c("dashed", "dotdash", "dotted", "solid")) +
+  scale_size_manual(values=c(0, 3)) +
+  labs(title = "Percent Deaths per Capita",
+       y = "% of deaths per capita ", 
+       subtitle = "Cumulative for all California counties",
+       color = "Year",
+       linetype = "Year") +
+  theme_minimal()
+```
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+temp <- totalDeaths %>% 
+  group_by(Year, Month, County) %>% 
+  summarise(propDeaths = sum(totalDeaths, na.rm = TRUE) / sum(totalN, na.rm = TRUE)*100) %>%   
+  select(Year, Month, propDeaths, County) %>% 
+  rename(COUNTY_NAM = County) %>% 
+  mutate(isPredicted = "0")
+  
+temp2 <- newdata_rf %>% 
+  group_by(Year, Month, COUNTY_NAM, isPredicted) %>% 
+  summarize(propDeaths = mean(propDeaths))
+
+## Row bind
+temp <- rbind(temp, temp2)
+
+## Get the geometries for each county for mapping
+regressionPredicted <- temp %>% 
+  full_join(cali_sf, by = "COUNTY_NAM", relationship = "many-to-many") %>% 
+  st_as_sf() %>% 
+  filter(is.na(ISLAND)) %>% 
+  ## Filter for just the latter months
+  filter(Month >= 9)
+```
+
+```{r, echo = FALSE, fig.height=8, fig.width = 8, warning = FALSE}
+## Plot the map
+tm_shape(regressionPredicted) + 
+  ## Plot and fill the counties with monthly % mortality
+  tm_polygons(col = "propDeaths", 
+              palette=get_brewer_pal(palette="BuPu", n=10, plot=FALSE),
+              breaks = summ,
+              alpha = 1,
+              title = "Sept - Dec % Total Mortality, 2020 Predicted") +
+  tm_borders() + 
+  tm_text("COUNTY_NAM", size=0.25, col = "darkgrey") +
+  tm_facets(by = "Year", ncol = 2) +
+  tm_layout(legend.position = c("right", "bottom"), 
+            title.position = c('right', 'top'))
+
+```
+
+
+> This model seems much better at predicting the increase in deaths. 
 
 If this open-ended analysis feels overwhelming, just ask for more hints to get you started!
 
@@ -884,11 +986,11 @@ ggplot(aes(y = deathsInjuriesProportion, x = biologicalSex, fill = as.factor(Yea
   theme_classic()
 ```
 
-#### Question 14 [1 point]:
+#### Question 14 (SEH) [1 point]:
 
 Is it fair to model the values without accounting for an effect of sex, do you think? Why or why not?
 
-> Your answer here.
+> There is a very interesting discrepency between sex in relation to deaths from accident and injury. This may be due to job risks in fields that skew heavily male and skewed gender ratios in certain higher risk activities and sports. 'Fair' is a subjective term. There are definitely things we can learn when we split by sex, but there are also things that might be revaled with aggregated data. It is also worth considering how many deaths of each gender there are. My guess would be that California has a fairly even sex ratio, but I'm not sure. 
 
 #### Proportion of Deaths by Sex
 
@@ -915,11 +1017,11 @@ ggplot(aes(x = Month,
   theme_minimal()
 ```
 
-#### Question 15 [1 point]:
+#### Question 15 (SEH) [1 point]:
 
 What do you notice about the trend? Is there anything compelling here potentially? Can you find any possible explanation for what happened in May (month 5) of 2020?
 
-> Your answer here.
+> The stay at home order in California started in March and May was when a few things opened. I'm not sure why there is a huge turndown at this point. It does seem that the decreased activity lead to fewer accident and injury deaths. One possible explaination is that accident and injury deaths can be delayed from the initial event, leading to a decrease slightly after the stay at home order. 
 
 ### 6.1.2 Mapping injury-related deaths by stay-at-home orders & sex
 
@@ -960,11 +1062,11 @@ tm_shape() +
 ```
 
 
-#### Question 16 [1 point]:
+#### Question 16 (SEH) [1 point]:
 
 Do you think there is any evidence that the proportion of deaths due to accident & injury changed as a result of the stay-at-home orders? What would provide stronger evidence of a change in proportion of deaths due to accident and injury as a result of the shutdown? Is there any evidence of interaction with the sex of the decedent?
 
-> Your answer here.
+> There is not strong evidence that the stay at home order impacted deaths from accident and injury. We could get stronger evidence if more than a few counties decreased in deaths during the stay at home order. I do continue to see an interaction between sex and death from injury and accident, but I'm not sure if it's causally linked from the map. 
 
 
 Now, what if we wanted to attempt to control for any underlying population-level differences in the sex ratio of each county? Although we expect, _a priori_, for all counties to have a female to male ratio of 1:1, we know that in reality that isn't always the case. 
@@ -983,19 +1085,20 @@ ggplot(aes(x = femaleMaleRatio)) +
 
 We can see that we have a very strongly __left-skewed__ distribution, with the mean of the female:male ratio dragged to the left. What does this mean, exactly? **We have more counties with a higher proportion of men than women than otherwise!** And since men seem to have a higher proportion of deaths by accident / injury as opposed to females, we need to decide if we think we need to account for this in our maps. Accounting for it in the model will be easy - we just include the female:male ratio as a predictor variable. However, in the maps is actually a little trickier and would require a mathematical correction that could be difficult for our stakeholders to understand. Is it even necessary then?
 
-#### Question 17 [1 point]:
+#### Question 17  (SEH) [1 point]:
 Calculate the correlation of `femaleMaleRatio` and the `deathsInjuriesProportion`, making sure to be careful to drop or exclude any NAs before making your calculation. 
 
 ```{r}
-# Your code here.
+  injDeaths_na <- na.omit(injDeaths)
+  cor(injDeaths_na$femaleMaleRatio, injDeaths_na$deathsInjuriesProportion)
 ```
 
 Do you think that this correlation coefficient indicates that we need to make a correction on our maps, or is it likely sufficient just to make the correction in our models? In other words, large correlation coefficients (in the absolute value sense) would indicate a need to correct the maps; smaller coefficients would indicate that it's probably not a big deal for our visualizations provided to stakeholders.
 
-> Your answer here.
+> There is a fairly weak relationship between the male/female ratio and the deaths from injuries proportion, so it's probably not a big deal for our visualizations. 
 
 
-#### Question 18 [1 point]:
+#### Question 18 (SEH) [1 point]:
 
 Now, take a look at the scatter plot below with a best-fit line. Does the plot agree with the correlation coefficient (i.e., direction of slope) you obtained? Why or why not?
 
@@ -1011,7 +1114,7 @@ injDeaths %>%
   theme_minimal()
 ```
 
-> Your answer here.
+> Yes. The slow is slightly positive, which corresponds to the slightly positive correlation coefficient, signfying a weak positive relationship. 
 
 ### 6.1.3 Predictive Modeling
 
