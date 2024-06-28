@@ -35,9 +35,12 @@ pacman::p_load(tidyverse,
                DESeq2,
                RColorBrewer,
                gridExtra,
+               miniml, 
                ggrepel,
                e1071,
+               Biobase, 
                caret,
+               GEOquery, 
                ROCR, 
                pROC, 
                randomForest,
@@ -72,8 +75,54 @@ willow <- willow[ ,-1]
 GeneAnnotation <- read_tsv("./Data/Human.GRCh38.p13.annot.tsv")
 
 #Load MetaData
-#I don't think this is right?
-metadata <-read_tsv("./Data/GSE260487_gene.fpkm.txt")
+metadata <- read_tsv("./Data/GSE260487_gene.fpkm.txt",
+                     show_col_types = FALSE) %>% 
+            as.data.frame() %>% 
+            mutate_if(is.character, as.factor)
+```
+```{r}
+# Data Processing using Soft file
+gse <- getGEO("GSE218490", GSEMatrix = TRUE)
+
+# Access the first ExpressionSet object
+eset <- gse[[1]]
+
+# Extract expression data
+exprs_data <- exprs(eset)
+head(exprs_data)
+
+# Extract phenotype data (sample metadata)
+pheno_data <- pData(eset)
+head(pheno_data)
+
+# Extract feature data (gene/probe metadata)
+feature_data <- fData(eset)
+head(feature_data)
+
+# Inspect phenotype data
+colnames(pheno_data)
+head(pheno_data)
+
+# Inspect feature data
+colnames(feature_data)
+head(feature_data)
+
+# Inspect the assay data
+assay_data <- exprs(gse[[1]])
+head(assay_data)
+
+# Inspect the phenotype data
+pheno_data <- pData(phenoData(gse[[1]]))
+head(pheno_data)
+```
+
+```{r}
+# Create DESeqDataSet object
+dds <- DESeqDataSetFromMatrix(
+  countData = willow,
+  colData = pheno_data,
+  design = ~ characteristics_ch1.1
+)
 ```
 
 
