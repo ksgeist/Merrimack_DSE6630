@@ -13,7 +13,7 @@ output:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE,
-                      cache = FALSE,    ### Turned off so students don't have issues with GitHub
+                      cache = TRUE, 
                       cache.comments = TRUE,
                       size = 13)
 ```
@@ -51,7 +51,8 @@ pacman::p_load(tidyverse,
                pdp, 
                vip, 
                kernlab, 
-               BiocManager
+               BiocManager, 
+               readr
 )
 ```
 
@@ -61,67 +62,25 @@ pacman::p_load(tidyverse,
 # Data Processing
 
 ```{r}
-#Load Raw Counts
-#Note: I renamed the file for ease and because I think the extra '.' was messing with the read function
-willow <- read_tsv("./Data/GeneCounts.tsv")
-
-#Make GeneID the row names and remove column
-rownames(willow) <- willow$GeneID
-willow <- willow[ ,-1]
+#Load processed data
+willow <- read_delim("./Data/GSE218490_Processed_data.txt", delim = "\t", locale = locale(encoding = "UTF-16"))
 
 #Load Gene Annotation Data
 #This shows info for each gene
-
-GeneAnnotation <- read_tsv("./Data/Human.GRCh38.p13.annot.tsv")
+GeneAnnotation <- read_delim("./Data/GSE218490_S.viminalis_root_transcriptome_V1.0.annotation.txt", 
+                             delim = "\t", 
+                             col_names = TRUE)
 
 #Load MetaData
-metadata <- read_tsv("./Data/GSE260487_gene.fpkm.txt",
-                     show_col_types = FALSE) %>% 
-            as.data.frame() %>% 
-            mutate_if(is.character, as.factor)
-```
-```{r}
-# Data Processing using Soft file
-gse <- getGEO("GSE218490", GSEMatrix = TRUE)
-
-# Access the first ExpressionSet object
-eset <- gse[[1]]
-
-# Extract expression data
-exprs_data <- exprs(eset)
-head(exprs_data)
-
-# Extract phenotype data (sample metadata)
-pheno_data <- pData(eset)
-head(pheno_data)
-
-# Extract feature data (gene/probe metadata)
-feature_data <- fData(eset)
-head(feature_data)
-
-# Inspect phenotype data
-colnames(pheno_data)
-head(pheno_data)
-
-# Inspect feature data
-colnames(feature_data)
-head(feature_data)
-
-# Inspect the assay data
-assay_data <- exprs(gse[[1]])
-head(assay_data)
-
-# Inspect the phenotype data
-pheno_data <- pData(phenoData(gse[[1]]))
-head(pheno_data)
+metadata <- read_csv("./Data/salix_metadata.csv")
 ```
 
 ```{r}
 # Create DESeqDataSet object
 dds <- DESeqDataSetFromMatrix(
   countData = willow,
-  colData = pheno_data,
-  design = ~ characteristics_ch1.1
+  colData = metadata,
+  design = ~ 
 )
 ```
 
