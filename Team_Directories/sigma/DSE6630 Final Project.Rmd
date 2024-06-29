@@ -1,14 +1,16 @@
 ---
 title: "DSE6630 Final Project"
-subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
 author: "Ryan Canfield, and Malek Sabri"
 date: "30 June 2024"
 output:
+  word_document:
+    toc: true
   html_document:
     toc: true
     toc_float: true
     theme: flatly
-    fig_crop: no
+    fig_crop: false
+subtitle: 'Merrimack College DSE6630: Healthcare & Life Sciences Analytics'
 ---
 
 ```{r setup, include=FALSE}
@@ -73,13 +75,12 @@ Here we are reading in shape files found on the website below to get the county 
 [here](https://www.mass.gov/info-details/massgis-data-counties?_gl=1*1atxnmf*_ga*MTAyOTc5ODQ4LjE3MTk2MTk0NDU.*_ga_MCLPEGW7WM*MTcxOTYxOTU2Ny4xLjEuMTcxOTYxOTU3Ni4wLjAuMA..#downloads-) 
 
 ```{r}
-ma_sf <- read_sf("C:/Users/RRC/Downloads/counties/COUNTIESSURVEY_POLYM.shp") 
+ma_sf <- read_sf("COUNTIESSURVEY POLYM.shp") 
 ma_sf$geometry
 
 ```
 
 Reading in the shape file and looking at the geometry of it as well.
-
 ```{r, fig.height=3, fig.width=3}
 # Initiate the plot and tell it the data set
 ggplot(ma_sf) +
@@ -95,25 +96,76 @@ ggplot(ma_sf) +
 
 1. Based on the data we have we can look at most most common cancer mortalities in the three counties with the lowest income compared to the highest income (look at incomes online ) and map then to compare. after finding results we can come pair either hospital numbers or poor insurance due to low income
 
-2. We can use bar graphs and other visuals and aggregate the data to look at highest mortality cancer types between males females and both combined. From here we can come up with a few recommendations like creating more tests to watch out for these types more 
+top 3 highest
+1. Nantucket
+2. Norfolk
+3. Middlesex
 
-3. ?? maybe something else like seeing trends in mortalities and seeing if any new cancer arises as highest deaths. or try predicitons or regressions maybe like in project three but our data is sevearly lacking so maybe not.
+top 3 lowest
+1. Hampden 
+2. Berkshire
+3. Franklin
 
-4. quick write up/report explaining our original idea and the data we thought we were going to receive, then getting the actual data and changing our plan to this and what we did with this. 
+2. We can use bar graphs and other visuals and aggregate the data to look at highest mortality cancer types between males females and both combined. From here we can come up with a few recommendations like creating more tests to watch out for these types of cancer, and seeing trends in mortalities and seeing if any new cancer arises as highest deaths.
 
+# 2 Methods and Visualizations 
+## 2.1 Question 1
+### Wrangling and preprocessing
+```{r}
+# Filtering data to include only the top three highest and top three lowest counties based on income. (We found these by researching)
+filtered_data1 <- df %>%
+  filter(location_name %in% c('Nantucket County', 'Norfolk County', 'Middlesex County', 
+                              'Hampden County', 'Berkshire County', 'Franklin County') 
+         & sex %in% c('Both'))
 
+# Only including variables we need for the visual we don't need gender since it is all the same and we do not need year since we will be grouping the data next.
+dfBoth <- filtered_data1[, c('FIPS', 'location_name', 'cause_name', 'mx')]  
 
+# Grouping by cancer type and getting the average of each mortality rate from each year.
+dfBothFinal <- dfBoth %>%
+    group_by(FIPS, location_name, cause_name) %>%
+    summarise(averge_mortality_rate = mean(mx)) 
+```
 
+```{r}
+# Merge summarized data with spatial data (if necessary)
+dfBothFinalMerged <- merge(ma_sf, dfBothFinal, by.x = "FIPS_ID", by.y = "FIPS", all.x = TRUE)
 
+# Plot the map with ggplot2, labeling the top causes
+ggplot(dfBothFinalMerged) +
+  geom_sf(aes(fill = averge_mortality_rate), color = "black") +
+  scale_fill_viridis_c(name = "Average Mortality Rate", label = scales::comma) +
+  theme_minimal() +
+  ggtitle("Highest Mortality Rate by County in Massachusetts") +
+  labs(fill = "Average Mortality Rate") +
+  theme(legend.position = "bottom")
 
+# Sort and select top six counties by average mortality rate
+top_causes <- dfBothFinalMerged %>%
+  arrange(desc(averge_mortality_rate)) %>%
+  slice_head(n = 6) %>%
+  select(FIPS_ID, location_name, cause_name)
+top_causes2 <- dfBothFinalMerged %>%
+  arrange(desc(averge_mortality_rate)) %>%
+  slice(7:12) %>%
+  select(FIPS_ID, location_name, cause_name)
 
+# Plot the map with ggplot2, labeling the top causes
+ggplot(dfBothFinalMerged) +
+  geom_sf(aes(fill = averge_mortality_rate), color = "black") +
+  geom_sf_label(data = top_causes, aes(label = paste(location_name, cause_name, top_causes2$cause_name, sep = "\n")), size = 2.5) +  
 
+  scale_fill_viridis_c(name = "Average Mortality Rate", label = scales::comma) +
+  theme_minimal() +
+  ggtitle("Highest Mortality Rate by County in Massachusetts") +
+  labs(fill = "Average Mortality Rate") +
+  theme(legend.position = "bottom")
 
+```
 
-
-
-
-
-
-
-
+```{r}
+# Grouping by cancer type and getting the average of each mortality rate from each year.
+dfBothFinal <- dfBothFinal %>%
+  arrange(desc(averge_mortality_rate))
+head(dfBothFinal, 18)
+```
