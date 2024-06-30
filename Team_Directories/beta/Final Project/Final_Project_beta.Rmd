@@ -39,6 +39,7 @@ pacman::p_load(tidyverse,
                miniml, 
                ggrepel,
                e1071,
+               glmnet, 
                Biobase, 
                caret,
                GEOquery, 
@@ -62,7 +63,7 @@ pacman::p_load(tidyverse,
 
 # Data Processing
 
-```{r}
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
 #Load processed data
 willow <- read_delim("./Data/GSE218490_Processed_data.txt", delim = "\t", locale = locale(encoding = "UTF-16"))
 
@@ -75,7 +76,7 @@ GeneAnnotation <- read_delim("./Data/GSE218490_S.viminalis_root_transcriptome_V1
 #Load MetaData
 metadata <- read_csv("./Data/salix_metadata.csv")
 ```
-```{r}
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
 #Clean willow dataset to just include counts
 #Not 100% sure which count to use, but total_contig_reads seemed to match demo 1 the most?
 willow <- willow[, c("Feature_ID", "CT_R1-Total_contig_reads", "CT_R2-Total_contig_reads", "CT_R3-Total_contig_reads", "CC_R1-Total_contig_reads", "CC_R2-Total_contig_reads", "CC_R3-Total_contig_reads", "MT_R1-Total_contig_reads", "MT_R2-Total_contig_reads", "MT_R3-Total_contig_reads", "MC_R1-Total_contig_reads", "MC_R2-Total_contig_reads", "MC_R3-Total_contig_reads")]
@@ -83,29 +84,37 @@ willow <- willow[, c("Feature_ID", "CT_R1-Total_contig_reads", "CT_R2-Total_cont
 
 ```
 
-```{r}
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
 #Set Feature_ID as row numbers
 rownames(willow) <- willow$Feature_ID
 willow <- willow[ ,-1]
 ```
-```{r}
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
 rownames(metadata) <- metadata$Accession
 metadata <- metadata[ ,-1]
 ```
-```{r, results='hide', echo = TRUE}
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
 levels(as.factor(metadata$Treatment))
 metadata$Treatment <- factor(metadata$Treatment, levels = c("Control", "Cold-Acclimated Control", "Metal-Polluted", "Metal-Polluted Cold-Acclimated"))
 ```
 
-```{r, echo = TRUE, results='asis'}
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
 print(all(colnames(counts) %in% rownames(metadata)))
 print(all(colnames(counts) == rownames(metadata)))
 ncol(willow) == nrow(metadata)
 ```
 
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Replace - with _ in metadata and willow
+metadata$Treatment <- gsub("-", "_", metadata$Treatment)
+colnames(metadata) <- gsub("-", "_", colnames(metadata))
+colnames(metadata) <- gsub(" ", "_", colnames(metadata))
+colnames(willow) <- gsub("-", "_", colnames(willow))
+```
+
 # DESeq
 
-```{r}
+```{r, warning=FALSE}
 # Create DESeqDataSet object
 dds <- DESeqDataSetFromMatrix(
   countData = willow,
@@ -115,7 +124,7 @@ dds <- DESeqDataSetFromMatrix(
 dim(dds)
 ```
 
-```{r}
+```{r, warning=FALSE}
 # VST function from demo 1
 runVST <- function(dsgnObject, blind, fitType, makePlot = TRUE, writeTable = FALSE, writeRData = FALSE) {
   ## Perform the VST
@@ -161,7 +170,7 @@ runVST <- function(dsgnObject, blind, fitType, makePlot = TRUE, writeTable = FAL
 runVST(dds, blind = FALSE, fitType = "parametric", makePlot = TRUE, writeTable = FALSE, writeRData = TRUE)
 ```
 
-```{r}
+```{r, warning=FALSE}
 # Gene expression variance by means - should be linear
 meanCounts <- rowMeans(assay(dds))      ## Per locus, what is the average expression
 varCounts <- apply(assay(dds), 1, var)  ## Apply the variance function by margin = 1, which is rows
@@ -178,21 +187,44 @@ abline(lm(log(varCounts+0.0001) ~ log((meanCounts+0.0001))),
        lwd = 2)
 ```
 
-```{r}
+```{r, warning=FALSE}
+# Pre-process the data for DESeq
+colnames(colData(dds)) <- gsub("[.-]", "_", colnames(colData(dds)))
+
+# Function to replace unwanted characters in factor levels
+sanitize_levels <- function(factor_levels) {
+    gsub("[^a-zA-Z0-9_.]", "_", factor_levels)
+}
+
+# Apply this function to all factors in colData
+col_data <- colData(dds)
+for (col in names(col_data)) {
+    if (is.factor(col_data[[col]])) {
+        levels(col_data[[col]]) <- sanitize_levels(levels(col_data[[col]]))
+    }
+}
+
+# Update colData in the DESeqDataSet
+colData(dds) <- col_data
+```
+
+
+```{r, warning=FALSE}
 # Estimate size factors
 dds <- estimateSizeFactors(dds) 
 
 # Determine significantly differentially expressed genes
-alpha <- 0.05                                                         ## Setting this for a False Discovery Rate of 5%
+alpha <- 0.01                                                  ## Setting this for a False Discovery Rate of 1%
 dispObject <- estimateDispersions(dds)                         ## Estimate the dispersions
-waldObject <- nbinomWaldTest(dispObject)                              ## Use that to perform the negative binomial Wald tests
+waldObject <- nbinomWaldTest(dispObject)                       ## Use that to perform the negative binomial Wald tests
 resultsDESeq <- results(waldObject,
                         alpha = alpha, 
-                        pAdjustMethod = "BH")                         ## Uses Benjamini-Hochberg / FDR adjusted p-values
+                        pAdjustMethod = "BH",                  ## Uses Benjamini-Hochberg / FDR adjusted p-values
+                        lfcThreshold = 3)                      ## Set the log fold change threshold to 3
 summary(resultsDESeq)
 ```
 
-```{r}
+```{r, warning=FALSE}
 # Volcano plot of gene expression
 res <- resultsDESeq %>% 
   as.data.frame() %>% 
@@ -216,7 +248,7 @@ res %>%
         axis.title = element_text(size = 12),
         title = element_text(size = 15),
         legend.text = element_text(size = 12)) +
-  geom_vline(xintercept = c(-2, 2), col="purple")                      ## Log-fold change of 2 times
+  geom_vline(xintercept = c(-3, 3), col="purple")                      ## Log-fold change of 3 times
 ```
 
 # Random Forest
@@ -277,7 +309,7 @@ doSplits <- function(vst, algorithm, splitRatio, filterCutoff) {
 ```
 
 
-```{r}
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
 # Load in data
 load("vst_all_timepoints.Rdata")
 
@@ -286,13 +318,9 @@ load("vst_all_timepoints.Rdata")
 splits <- doSplits(vst = vsData, algorithm = "rf", splitRatio = 0.5, filterCutoff = 5)
 train <- splits[[1]]
 test <- splits[[2]]
-
-#Extract data from design object
-#Be sure to check filter cutoff
-
 ```
 
-```{r}
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
 # Functions for comparing genes and comfusion matrices
 findOverlappingGenes <- function(lfc, important) {
   ### @lfc = the log-fold change cutoff you'd like to employ on the originall DESeq results
@@ -342,21 +370,7 @@ compareConfusion <- function(confusionList) {
 ```
 
 
-```{r}
-# Replace dots with underscores in factor levels
-train$Treatment <- factor(gsub("\\.", "_", levels(train$Treatment))[train$Treatment])
-test$Treatment <- factor(gsub("\\.", "_", levels(test$Treatment))[test$Treatment])
-
-# Make row names valid R variable names with make.names()
-rownames(train) <- make.names(rownames(train))
-rownames(test) <- make.names(rownames(test))
-train$Treatment <- factor(make.names(levels(train$Treatment))[train$Treatment])
-test$Treatment <- factor(make.names(levels(test$Treatment))[test$Treatment])
-
-# Verify the modified row names
-rownames(train)
-rownames(test)
-
+```{r, warning=FALSE}
 # OOB rf 
 rfOOB <- randomForest::randomForest(
   Treatment ~ ., 
@@ -366,112 +380,94 @@ pred.test.rf <- predict(rfOOB, test, type = "response")
 confMat <- confusionMatrix(pred.test.rf, test$Treatment)
 ```
 
-```{r}
-# k-fold CV rf
-# Set the CV arguments
-kFoldCtrl <- trainControl(method = "cv",    # for k-fold CV
-                          number = 10)      # k
-
-rfCV <- train(Treatment ~.,  
-               data = train,
-               method = "ranger",
-               sample.fraction = 1, 
-               trControl = kFoldCtrl)    ## added in the 10-fold CV
-
-ggplot(rfCV, highlight = TRUE) +
-  ggtitle("Random Forest Performance After 10-fold CV") + 
-  theme_bw()
-
-rfCV$bestTune %>% 
-kable(
-    format = "html",
-    caption = "Table 1. Results of the 10-fold CV Random Forest") %>%
-    kable_styling(bootstrap_options = c("hover", full_width = F))
-
-rfCV <- train(Treatment ~.,  
-               data = train,
-               method = "ranger",
-               trControl = kFoldCtrl, 
-               sample.fraction = 1, 
-               tuneGrid = rfCV$bestTune)   # Add in the results of the CV and auto tuning
-
-# Ensure the factor levels in the test set match those in the training set
-test$Label <- factor(test$Label, levels = levels(train$Label))
-
-pred.test.rf <- predict(rfCV, test, type = "raw")  ## type is now 'raw' 
-# Store the confusion matrix
-confMatCV <- confusionMatrix(pred.test.rf, test$Treatment)
-```
-
-```{r}
+```{r, warning=FALSE}
 # rf with grid search
-# Make a set of k = 10 seeds for reproducibility
-seeds <- vector(mode = "list", length = 11)
-for(i in 1:10) {
-  seeds[[i]]<- sample.int(n=1000, 54)   # Increase 54 if you have a larger grid! 
+# Define the grid of hyperparameters
+hyper_params <- expand.grid(
+  mtry = c(50),
+  ntree = c(40),
+  splitrule = c("gini", "extratrees")
+)
+
+# Initialize variables to store models and evaluation results
+models <- list()
+confusion_matrices <- list()
+
+for (i in 1:nrow(hyper_params)) {
+  # Train random forest model with current hyperparameters
+  rf_model <- randomForest(
+    Treatment ~ .,
+    data = train,
+    mtry = hyper_params$mtry[i],
+    ntree = hyper_params$ntree[i],
+    splitrule = hyper_params$splitrule[i]
+  )
+
+  # Store the model
+  models[[i]] <- rf_model
+
+  # Predict on test set
+  pred_test <- predict(rf_model, newdata = test, type = "response")
+
+  # Generate confusion matrix
+  conf_matrix <- confusionMatrix(pred_test, test$Treatment)
+  confusion_matrices[[i]] <- conf_matrix
 }
-# For the last model
-seeds[[11]]<-sample.int(1000, 1)
 
-# Set the CV arguments
-kFoldCtrl <- trainControl(method = "cv",    # for k-fold CV
-                          number = 10,      # k
-                          seeds = seeds)    # sets the seeds, one for each split
+# Extract performance metrics (e.g., accuracy) from confusion matrices
+accuracies <- sapply(confusion_matrices, function(cm) cm$overall['Accuracy'])
 
-searchGrid <- expand.grid(
-  mtry = floor(ncol(train) * c(.05, .15, .25, .35, .45)),
-  splitrule = c("gini", "extratrees"),
-  min.node.size = c(1, 3, 5, 10) 
-)
+# Find index of model with highest accuracy (or other metric of interest)
+best_model_index <- which.max(accuracies)
 
-rfTuned <- train(Treatment ~.,  
-               data = train,
-               method = "ranger",
-               trControl = kFoldCtrl, 
-               tuneGrid = searchGrid # Add in the search grid
-)
+# Retrieve the best model
+rfTuned <- models[[best_model_index]]
+print(rfTuned)
 
-ggplot(rfTuned, highlight = TRUE) +
-  ggtitle("Random Forest Performance Grid Search Tuning") + 
-  theme_bw()
-
-rfTuned$bestTune %>% 
-kable(
+pred.test.rf.best <- predict(rfTuned, test, type = "response")
+confMatTuned <- confusionMatrix(pred.test.rf.best, test$Treatment)
+```
+```{r}
+# Comparison of OOB vs tuned RF
+compareConfusion(confusionList = list(confMat, confMatTuned)) %>% 
+    kable(
     format = "html",
-    caption = "Table 3. Results of the Grid Search on Random Forest") %>%
+    caption = "Table 4. Comparing Accuracy - Random Forest") %>%
     kable_styling(bootstrap_options = c("hover", full_width = F))
-
-rfTuned <- train(Treatment ~.,  
-               data = train,
-               method = "ranger",
-               trControl = kFoldCtrl, 
-               tuneGrid = rfTuned$bestTune)   # Add in the results of the CV and auto tuning
-
-pred.test.rf <- predict(rfTuned, test, type = "raw")  ## type is now 'raw' 
-# Store the confusion matrix
-confMatTuned <- confusionMatrix(pred.test.rf, test$Treatment)
 ```
 
-```{r}
-# nested CV
-searchGrid <- expand.grid(.mtry = floor(ncol(train) * c(0.01, 0.05, 0.10)),
-                        .min.node.size = c(1, 5, 10),
-                        .splitrule = "gini"                        
-                        )
 
-ncv <- nestcv.train(y = train$Treatment, x = train,
-                    method = 'ranger',
-                    tuneGrid = searchGrid, 
-                    savePredictions = "final")
+```{r, warning=FALSE}
+# Pull important genes
+importantRF <- rf_filter(rfTuned, 
+                               y = train$Treatment, 
+                               x = train[, -ncol(train)], # drop Treatment
+                               type ="full") %>% as.data.frame()
+names(importantRF) <- "MeanDecreaseGini"
 
-ggplot(ncv$outer_result[[1]]$fit) +
-  scale_x_log10() +
-  ggtitle("Results of Nested CV with hyperparameter tuning") +
-  theme_bw()
+importantRF %>% 
+  arrange(desc(abs(MeanDecreaseGini))) %>% 
+  top_n(10) %>% 
+kable(
+    format = "html",
+    caption = "Table 5. Important Features from the Random Forest Model") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F))
 
-preds <- predict(ncv, 
-                 newdata = test)
-confMatNCV <- confusionMatrix(preds, test$Treatment)
+```
+
+```{r, warning=FALSE}
+# Find overlapping genes
+importantRF_filt <- importantRF %>% 
+  as.data.frame() %>% 
+  filter(MeanDecreaseGini > 0)
+rownames(importantRF_filt) <- gsub("V", "", rownames(importantRF_filt))
+
+findOverlappingGenes(lfc = 3, importantRF_filt) %>% 
+  arrange(desc(abs(MeanDecreaseGini))) %>% 
+  kable(
+    format = "html",
+    caption = "Table 6. Overlapping Features identified from DESeq and Random Forest") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F))
 ```
 
 
