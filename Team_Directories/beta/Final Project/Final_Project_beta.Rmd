@@ -112,8 +112,78 @@ dds <- DESeqDataSetFromMatrix(
 dim(dds)
 ```
 
-
 # Random Forest
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
+#Do Splits from Project 1
+#So we don't have to reinvent the wheel here
+doSplits <- function(vst, algorithm, splitRatio, filterCutoff) {
+  ### @vst = vst dataset as extracted from DESeq2
+  ### @algorithm = ML algorithm used; currently set up for rf and svm
+  ### @splitRatio = the split ratio to employ (training size)
+  ### @filterCutoff = the filter cutoff for median number of VST gene counts
+  
+  ## According to the Valabas et al. (2019) paper, make sure that we are filtering in TRAINING set only! 
+
+  # Extract the VST data and transpose
+  tVST <- t(assay(vst))
+  
+  # We do have gene names, e.g., TRNAV-UAC that are malformed for ranger and randomForest. We will fix that before proceeding:
+  for (c in 1:ncol(tVST)) {
+    colName <- colnames(tVST)[c]
+    colName <- gsub("-", "_", colName)
+    colName -> colnames(tVST)[c]
+  }
+  
+  ## Add the metadata as columns & merge
+  df1 <- cbind(colData(vst)[1], colData(vst)[3], colData(vst)[2])       ## We don't need the size factors
+  tVST <- merge(tVST, df1, by = "row.names")
+
+  ## The merge turns back into a dataframe and removes the sample names from the rows; let's put them back:
+  rownames(tVST) <- tVST[,1]
+  tVST <- tVST[,-1]
+  
+  if(algorithm == "svm") {
+    ## Make the factors unordered
+    tVST <- tVST %>% 
+      mutate_if(is.ordered, factor, ordered = FALSE)
+  }
+  
+  ## Create the data partitions
+  ind <- createDataPartition(y = tVST[, c("Treatment")],     ## Treatment is evenly distributed
+                             p = splitRatio,                    ## % into training
+                             list = FALSE)                      ## don't return a list
+  train <- tVST[ind, ]
+  test <- tVST[-ind,]
+  
+  ## Now apply the filtering:
+  # Calculate row medians of VST gene counts
+  medians <- rowMedians(assay(vst))
+
+  # Filter the features out of train:
+  train <- train[, medians > filterCutoff]  
+  print(paste0("After filtering, the number of genes remaining in the dataset are: ", ncol(train)))
+
+  splits <- list(train, test)
+  return(splits)
+}
+```
+
+
+```{r}
+#Split data
+#Do before processing to avoid data leakage
+
+#Extract data from design object
+#Be sure to check filter cutoff
+
+```
+
+```{r}
+#
+```
+
+
 
 # Results and Discussion
 
