@@ -35,6 +35,7 @@ pacman::p_load(tidyverse,
                DESeq2,
                RColorBrewer,
                gridExtra,
+               vsn, 
                miniml, 
                ggrepel,
                e1071,
@@ -102,6 +103,8 @@ print(all(colnames(counts) == rownames(metadata)))
 ncol(willow) == nrow(metadata)
 ```
 
+# DESeq
+
 ```{r}
 # Create DESeqDataSet object
 dds <- DESeqDataSetFromMatrix(
@@ -110,6 +113,110 @@ dds <- DESeqDataSetFromMatrix(
   design = ~ Treatment)
 
 dim(dds)
+```
+
+```{r}
+# VST function from demo 1
+runVST <- function(dsgnObject, blind, fitType, makePlot = TRUE, writeTable = FALSE, writeRData = FALSE) {
+  ## Perform the VST
+  
+  # Check if the fitType is the regularized log:
+  if(fitType == "rlog") {
+    vsData <- rlog(dsgnObject, blind = blind)
+  }
+  ## Otherwise:
+  else {
+    vsData <- varianceStabilizingTransformation(dsgnObject, 
+                                              blind = blind, 
+                                              fitType = fitType)
+  }
+  
+  if(makePlot == TRUE) {
+    # Plot the effect of the VS transform:
+    p1 <- meanSdPlot(assay(dsgnObject), plot = F)
+    p1 <- p1$gg + ggtitle("Before Variance Stabilization") + 
+      scale_fill_gradient(low = "cadetblue", high = "purple") + 
+      theme_bw() + theme(legend.position = "bottom")
+    p2 <- meanSdPlot(assay(vsData), plot = F)
+    p2 <- p2$gg + ggtitle("After Variance Stabilization") + 
+      scale_fill_gradient(low = "cadetblue", high = "purple") + 
+      theme_bw() + theme(legend.position = "bottom")
+    grid.arrange(p1, p2, nrow=1)
+  }
+  
+  if(writeTable == TRUE) {
+    # Write the data for future use, if needed:
+    write.table(assay(vsData),
+              file = "vst.txt",
+              sep="\t", 
+              quote=F, 
+              row.names=T)
+  }
+  if(writeRData == TRUE) {
+    save(vsData, file="vst_all_timepoints.Rdata")
+  }
+  return(vsData)
+}
+
+runVST(dds, blind = FALSE, fitType = "parametric", makePlot = TRUE, writeTable = FALSE, writeRData = TRUE)
+```
+
+```{r}
+# Gene expression variance by means - should be linear
+meanCounts <- rowMeans(assay(dds))      ## Per locus, what is the average expression
+varCounts <- apply(assay(dds), 1, var)  ## Apply the variance function by margin = 1, which is rows
+
+plot(log(varCounts) ~ log(meanCounts), 
+     ylab = "Natural-log Variance in Gene Expression", 
+     xlab = "Natural-log Mean Expression", 
+     main = "\nLog-Log plot of variance by mean for each gene\n should be approximately linear.\n", 
+     pch = 16, 
+     cex = 0.75)
+abline(lm(log(varCounts+0.0001) ~ log((meanCounts+0.0001))), 
+       col = "#a8325e", 
+       lty = 2, 
+       lwd = 2)
+```
+
+```{r}
+# Estimate size factors
+dds <- estimateSizeFactors(dds) 
+
+# Determine significantly differentially expressed genes
+alpha <- 0.05                                                         ## Setting this for a False Discovery Rate of 5%
+dispObject <- estimateDispersions(dds)                         ## Estimate the dispersions
+waldObject <- nbinomWaldTest(dispObject)                              ## Use that to perform the negative binomial Wald tests
+resultsDESeq <- results(waldObject,
+                        alpha = alpha, 
+                        pAdjustMethod = "BH")                         ## Uses Benjamini-Hochberg / FDR adjusted p-values
+summary(resultsDESeq)
+```
+
+```{r}
+# Volcano plot of gene expression
+res <- resultsDESeq %>% 
+  as.data.frame() %>% 
+  mutate(DEG = ifelse(log2FoldChange > 0 & padj < 0.05, "Up DEG",
+                       ifelse(log2FoldChange < 0 & padj < 0.05, "Down DEG", "N.S."))) %>% 
+  drop_na()    ## We have to drop the NAs for Volcano plots, unfortunately!
+
+# Next, we would like to annotate anything with greater then 2 log-fold change in expression:
+res <- res %>% 
+  mutate(locus = ifelse(abs(log2FoldChange) > 3, rownames(res), ""))
+
+res %>% 
+  ggplot(aes(x = log2FoldChange, y = -log10(pvalue), label=locus, color = DEG)) + 
+  geom_point(alpha = 0.85, size = 1.5) +
+  scale_color_manual(values=c("cadetblue", "gray", "#a8325e")) +
+  geom_text_repel(show.legend = FALSE) +
+  labs(y = expression(paste(-log[10], " p-value")),
+       x = expression(paste(log[2], "-fold change"))) +
+  theme_classic() +
+  theme(axis.text = element_text(size = 12), 
+        axis.title = element_text(size = 12),
+        title = element_text(size = 15),
+        legend.text = element_text(size = 12)) +
+  geom_vline(xintercept = c(-2, 2), col="purple")                      ## Log-fold change of 2 times
 ```
 
 # Random Forest
@@ -171,8 +278,14 @@ doSplits <- function(vst, algorithm, splitRatio, filterCutoff) {
 
 
 ```{r}
+# Load in data
+load("vst_all_timepoints.Rdata")
+
 #Split data
-#Do before processing to avoid data leakage
+#Do before processing to avoid data leakage - adjusted splitRatio to allow for adequate data in the test set
+splits <- doSplits(vst = vsData, algorithm = "rf", splitRatio = 0.5, filterCutoff = 5)
+train <- splits[[1]]
+test <- splits[[2]]
 
 #Extract data from design object
 #Be sure to check filter cutoff
@@ -180,9 +293,186 @@ doSplits <- function(vst, algorithm, splitRatio, filterCutoff) {
 ```
 
 ```{r}
-#
+# Functions for comparing genes and comfusion matrices
+findOverlappingGenes <- function(lfc, important) {
+  ### @lfc = the log-fold change cutoff you'd like to employ on the originall DESeq results
+  ### @important = the list, df, or matrix that contains the importance values from the ML classifier; make sure it is already filtered if needed.
+
+  res <- resultsDESeq %>% 
+    as.data.frame() %>% 
+    filter(abs(log2FoldChange) >= lfc)   # Make sure to filter by the ABSOLUTE VALUE :)
+  
+  # Move the rownames (genes) back to a column
+  res$geneID <- rownames(res)
+  # Coerce to a dataframe, if needed
+  important <- important %>% 
+    as.data.frame() %>% 
+    filter()
+  # Move the rownames (genes) back to a column, if needed
+  if (!"geneID" %in% colnames(important)) {
+      important$geneID <- rownames(important)
+  }
+  #Perform an inner join to find the overlap
+  overlap <- inner_join(res, important, by = "geneID")
+  
+  return(overlap)
+}
+
+compareConfusion <- function(confusionList) {
+  ## instantiate
+  finalDF <- data.frame()
+  for(i in 1:length(confusionList)) {
+    ## The first one
+    if(i == 1) {
+      confMat <- confusionList[[i]]   ## grab the first one
+      df <- confMat$overall %>% as.data.frame() 
+      finalDF <- rownames(df) %>% as.data.frame()
+      colnames(finalDF)[1] <- "Metric"
+      finalDF$`Confusion Matrix 1`  <- df[, 1]       ## grab the value
+    }
+    if(i > 1) {
+      name <- paste0('Confusion Matrix ', i)
+      confMat <- confusionList[[i]]
+      df <- confMat$overall %>% as.data.frame()
+      finalDF[, name] <- df[, 1]       ## grab the value
+    }
+  }
+  return(finalDF)
+}
 ```
 
+
+```{r}
+# Replace dots with underscores in factor levels
+train$Treatment <- factor(gsub("\\.", "_", levels(train$Treatment))[train$Treatment])
+test$Treatment <- factor(gsub("\\.", "_", levels(test$Treatment))[test$Treatment])
+
+# Make row names valid R variable names with make.names()
+rownames(train) <- make.names(rownames(train))
+rownames(test) <- make.names(rownames(test))
+train$Treatment <- factor(make.names(levels(train$Treatment))[train$Treatment])
+test$Treatment <- factor(make.names(levels(test$Treatment))[test$Treatment])
+
+# Verify the modified row names
+rownames(train)
+rownames(test)
+
+# OOB rf 
+rfOOB <- randomForest::randomForest(
+  Treatment ~ ., 
+  data = train)
+
+pred.test.rf <- predict(rfOOB, test, type = "response")
+confMat <- confusionMatrix(pred.test.rf, test$Treatment)
+```
+
+```{r}
+# k-fold CV rf
+# Set the CV arguments
+kFoldCtrl <- trainControl(method = "cv",    # for k-fold CV
+                          number = 10)      # k
+
+rfCV <- train(Treatment ~.,  
+               data = train,
+               method = "ranger",
+               sample.fraction = 1, 
+               trControl = kFoldCtrl)    ## added in the 10-fold CV
+
+ggplot(rfCV, highlight = TRUE) +
+  ggtitle("Random Forest Performance After 10-fold CV") + 
+  theme_bw()
+
+rfCV$bestTune %>% 
+kable(
+    format = "html",
+    caption = "Table 1. Results of the 10-fold CV Random Forest") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F))
+
+rfCV <- train(Treatment ~.,  
+               data = train,
+               method = "ranger",
+               trControl = kFoldCtrl, 
+               sample.fraction = 1, 
+               tuneGrid = rfCV$bestTune)   # Add in the results of the CV and auto tuning
+
+# Ensure the factor levels in the test set match those in the training set
+test$Label <- factor(test$Label, levels = levels(train$Label))
+
+pred.test.rf <- predict(rfCV, test, type = "raw")  ## type is now 'raw' 
+# Store the confusion matrix
+confMatCV <- confusionMatrix(pred.test.rf, test$Treatment)
+```
+
+```{r}
+# rf with grid search
+# Make a set of k = 10 seeds for reproducibility
+seeds <- vector(mode = "list", length = 11)
+for(i in 1:10) {
+  seeds[[i]]<- sample.int(n=1000, 54)   # Increase 54 if you have a larger grid! 
+}
+# For the last model
+seeds[[11]]<-sample.int(1000, 1)
+
+# Set the CV arguments
+kFoldCtrl <- trainControl(method = "cv",    # for k-fold CV
+                          number = 10,      # k
+                          seeds = seeds)    # sets the seeds, one for each split
+
+searchGrid <- expand.grid(
+  mtry = floor(ncol(train) * c(.05, .15, .25, .35, .45)),
+  splitrule = c("gini", "extratrees"),
+  min.node.size = c(1, 3, 5, 10) 
+)
+
+rfTuned <- train(Treatment ~.,  
+               data = train,
+               method = "ranger",
+               trControl = kFoldCtrl, 
+               tuneGrid = searchGrid # Add in the search grid
+)
+
+ggplot(rfTuned, highlight = TRUE) +
+  ggtitle("Random Forest Performance Grid Search Tuning") + 
+  theme_bw()
+
+rfTuned$bestTune %>% 
+kable(
+    format = "html",
+    caption = "Table 3. Results of the Grid Search on Random Forest") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F))
+
+rfTuned <- train(Treatment ~.,  
+               data = train,
+               method = "ranger",
+               trControl = kFoldCtrl, 
+               tuneGrid = rfTuned$bestTune)   # Add in the results of the CV and auto tuning
+
+pred.test.rf <- predict(rfTuned, test, type = "raw")  ## type is now 'raw' 
+# Store the confusion matrix
+confMatTuned <- confusionMatrix(pred.test.rf, test$Treatment)
+```
+
+```{r}
+# nested CV
+searchGrid <- expand.grid(.mtry = floor(ncol(train) * c(0.01, 0.05, 0.10)),
+                        .min.node.size = c(1, 5, 10),
+                        .splitrule = "gini"                        
+                        )
+
+ncv <- nestcv.train(y = train$Treatment, x = train,
+                    method = 'ranger',
+                    tuneGrid = searchGrid, 
+                    savePredictions = "final")
+
+ggplot(ncv$outer_result[[1]]$fit) +
+  scale_x_log10() +
+  ggtitle("Results of Nested CV with hyperparameter tuning") +
+  theme_bw()
+
+preds <- predict(ncv, 
+                 newdata = test)
+confMatNCV <- confusionMatrix(preds, test$Treatment)
+```
 
 
 # Results and Discussion
