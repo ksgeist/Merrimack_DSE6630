@@ -74,14 +74,42 @@ GeneAnnotation <- read_delim("./Data/GSE218490_S.viminalis_root_transcriptome_V1
 #Load MetaData
 metadata <- read_csv("./Data/salix_metadata.csv")
 ```
+```{r}
+#Clean willow dataset to just include counts
+#Not 100% sure which count to use, but total_contig_reads seemed to match demo 1 the most?
+willow <- willow[, c("Feature_ID", "CT_R1-Total_contig_reads", "CT_R2-Total_contig_reads", "CT_R3-Total_contig_reads", "CC_R1-Total_contig_reads", "CC_R2-Total_contig_reads", "CC_R3-Total_contig_reads", "MT_R1-Total_contig_reads", "MT_R2-Total_contig_reads", "MT_R3-Total_contig_reads", "MC_R1-Total_contig_reads", "MC_R2-Total_contig_reads", "MC_R3-Total_contig_reads")]
+
+
+```
+
+```{r}
+#Set Feature_ID as row numbers
+rownames(willow) <- willow$Feature_ID
+willow <- willow[ ,-1]
+```
+```{r}
+rownames(metadata) <- metadata$Accession
+metadata <- metadata[ ,-1]
+```
+```{r, results='hide', echo = TRUE}
+levels(as.factor(metadata$Treatment))
+metadata$Treatment <- factor(metadata$Treatment, levels = c("Control", "Cold-Acclimated Control", "Metal-Polluted", "Metal-Polluted Cold-Acclimated"))
+```
+
+```{r, echo = TRUE, results='asis'}
+print(all(colnames(counts) %in% rownames(metadata)))
+print(all(colnames(counts) == rownames(metadata)))
+ncol(willow) == nrow(metadata)
+```
 
 ```{r}
 # Create DESeqDataSet object
 dds <- DESeqDataSetFromMatrix(
   countData = willow,
   colData = metadata,
-  design = ~ 
-)
+  design = ~ Treatment)
+
+dim(dds)
 ```
 
 
