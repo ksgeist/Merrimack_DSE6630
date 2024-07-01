@@ -70,7 +70,7 @@ willow <- read_delim("./Data/GSE218490_Processed_data.txt", delim = "\t", locale
 #Load Gene Annotation Data
 #This shows info for each gene
 GeneAnnotation <- read_delim("./Data/GSE218490_S.viminalis_root_transcriptome_V1.0.annotation.txt", 
-                             delim = "\t", 
+                             delim = ",", 
                              col_names = TRUE)
 
 #Load MetaData
@@ -433,7 +433,7 @@ confMatTuned <- confusionMatrix(pred.test.rf.best, test$Treatment)
 compareConfusion(confusionList = list(confMat, confMatTuned)) %>% 
     kable(
     format = "html",
-    caption = "Table 4. Comparing Accuracy - Random Forest") %>%
+    caption = "Comparing Accuracy - Random Forest") %>%
     kable_styling(bootstrap_options = c("hover", full_width = F))
 ```
 
@@ -448,10 +448,10 @@ names(importantRF) <- "MeanDecreaseGini"
 
 importantRF %>% 
   arrange(desc(abs(MeanDecreaseGini))) %>% 
-  top_n(10) %>% 
+  head(10) %>% 
 kable(
     format = "html",
-    caption = "Table 5. Important Features from the Random Forest Model") %>%
+    caption = "Important Features from the Random Forest Model") %>%
     kable_styling(bootstrap_options = c("hover", full_width = F))
 
 ```
@@ -463,12 +463,38 @@ importantRF_filt <- importantRF %>%
   filter(MeanDecreaseGini > 0)
 rownames(importantRF_filt) <- gsub("V", "", rownames(importantRF_filt))
 
-findOverlappingGenes(lfc = 3, importantRF_filt) %>% 
-  arrange(desc(abs(MeanDecreaseGini))) %>% 
+overlapping_genes <- findOverlappingGenes(lfc = 3, importantRF_filt) %>%
+  arrange(desc(abs(MeanDecreaseGini)))
+overlapping_genes %>% 
   kable(
     format = "html",
-    caption = "Table 6. Overlapping Features identified from DESeq and Random Forest") %>%
-    kable_styling(bootstrap_options = c("hover", full_width = F))
+    caption = "Overlapping Features identified from DESeq and Random Forest") %>%
+  kable_styling(bootstrap_options = c("hover", "full_width" = F))
+```
+
+```{r}
+# Join with gene annotation
+GeneAnnotation <- GeneAnnotation %>%
+  rownames_to_column(var = "geneID")
+ImportantGenesAnnotated <- overlapping_genes %>%
+  left_join(GeneAnnotation, by = "geneID")
+colnames(ImportantGenesAnnotated) <- gsub("\\s+", "", colnames(ImportantGenesAnnotated), perl = TRUE)
+
+# Select relevant columns
+selected_columns <- ImportantGenesAnnotated %>%
+  select(geneID, MeanDecreaseGini, Pathway, Symbol, Description)
+selected_columns$Pathway <- gsub('"', '', selected_columns$Pathway)
+selected_columns$Symbol <- gsub('"', '', selected_columns$Symbol)
+selected_columns$Description <- gsub('"', '', selected_columns$Description)
+
+# Create table
+selected_columns %>% 
+  kable(
+    format = "html",
+    caption = "Important Genes with Annotations",
+    col.names = c("Gene ID", "Mean Decrease Gini", "Pathway", "Symbol", "Description")
+  ) %>%
+  kable_styling(bootstrap_options = c("hover", "full_width" = F))
 ```
 
 
