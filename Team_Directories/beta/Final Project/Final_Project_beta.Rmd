@@ -2,7 +2,7 @@
 title: "Final Project: Willow"
 subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
 author: "Adeline Casali, Samantha Harper, Scott Eugley"
-date: "30 June 2024"
+date: "26 June 2024"
 output:
   html_document:
     toc: true
@@ -59,11 +59,21 @@ pacman::p_load(tidyverse,
 ```
 
 
-# Introduction
+# Background and Hypothesis
 
-# Data Processing
+# Data Source
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Results and Analysis
+
+# Conclusion
+
+# Recommendations, Limitations, and Next Steps
+
+# Appendix 1: References
+
+# Appendix 2: Code
+## Data Preprocessing 
+```{r, message=FALSE, warning=FALSE}
 #Load processed data
 willow <- read_delim("./Data/GSE218490_Processed_data.txt", delim = "\t", locale = locale(encoding = "UTF-16"))
 
@@ -84,7 +94,7 @@ willow <- willow[, c("Feature_ID", "CT_R1-Total_contig_reads", "CT_R2-Total_cont
 
 ```
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE}
+```{r, message=FALSE, warning=FALSE}
 #Set Feature_ID as row numbers
 rownames(willow) <- willow$Feature_ID
 willow <- willow[ ,-1]
@@ -98,13 +108,13 @@ levels(as.factor(metadata$Treatment))
 metadata$Treatment <- factor(metadata$Treatment, levels = c("Control", "Cold-Acclimated Control", "Metal-Polluted", "Metal-Polluted Cold-Acclimated"))
 ```
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE}
+```{r, message=FALSE, warning=FALSE}
 print(all(colnames(counts) %in% rownames(metadata)))
 print(all(colnames(counts) == rownames(metadata)))
 ncol(willow) == nrow(metadata)
 ```
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE}
+```{r, message=FALSE, warning=FALSE}
 # Replace - with _ in metadata and willow
 metadata$Treatment <- gsub("-", "_", metadata$Treatment)
 colnames(metadata) <- gsub("-", "_", colnames(metadata))
@@ -112,9 +122,8 @@ colnames(metadata) <- gsub(" ", "_", colnames(metadata))
 colnames(willow) <- gsub("-", "_", colnames(willow))
 ```
 
-# DESeq
-
-```{r, warning=FALSE}
+## DESeq and VST
+```{r, message=FALSE, warning=FALSE}
 # Create DESeqDataSet object
 dds <- DESeqDataSetFromMatrix(
   countData = willow,
@@ -124,7 +133,7 @@ dds <- DESeqDataSetFromMatrix(
 dim(dds)
 ```
 
-```{r, warning=FALSE}
+```{r, message=FALSE, warning=FALSE}
 # VST function from demo 1
 runVST <- function(dsgnObject, blind, fitType, makePlot = TRUE, writeTable = FALSE, writeRData = FALSE) {
   ## Perform the VST
@@ -170,7 +179,7 @@ runVST <- function(dsgnObject, blind, fitType, makePlot = TRUE, writeTable = FAL
 runVST(dds, blind = FALSE, fitType = "parametric", makePlot = TRUE, writeTable = FALSE, writeRData = TRUE)
 ```
 
-```{r, warning=FALSE}
+```{r, message=FALSE, warning=FALSE}
 # Gene expression variance by means - should be linear
 meanCounts <- rowMeans(assay(dds))      ## Per locus, what is the average expression
 varCounts <- apply(assay(dds), 1, var)  ## Apply the variance function by margin = 1, which is rows
@@ -187,7 +196,7 @@ abline(lm(log(varCounts+0.0001) ~ log((meanCounts+0.0001))),
        lwd = 2)
 ```
 
-```{r, warning=FALSE}
+```{r, message=FALSE, warning=FALSE}
 # Pre-process the data for DESeq
 colnames(colData(dds)) <- gsub("[.-]", "_", colnames(colData(dds)))
 
@@ -208,8 +217,7 @@ for (col in names(col_data)) {
 colData(dds) <- col_data
 ```
 
-
-```{r, warning=FALSE}
+```{r, message=FALSE, warning=FALSE}
 # Estimate size factors
 dds <- estimateSizeFactors(dds) 
 
@@ -224,7 +232,7 @@ resultsDESeq <- results(waldObject,
 summary(resultsDESeq)
 ```
 
-```{r, warning=FALSE}
+```{r, message=FALSE, warning=FALSE}
 # Volcano plot of gene expression
 res <- resultsDESeq %>% 
   as.data.frame() %>% 
@@ -251,8 +259,7 @@ res %>%
   geom_vline(xintercept = c(-3, 3), col="purple")                      ## Log-fold change of 3 times
 ```
 
-# Random Forest
-
+## Random Forest
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
 #Do Splits from Project 1
 #So we don't have to reinvent the wheel here
@@ -307,7 +314,6 @@ doSplits <- function(vst, algorithm, splitRatio, filterCutoff) {
   return(splits)
 }
 ```
-
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 # Load in data
@@ -368,7 +374,6 @@ compareConfusion <- function(confusionList) {
   return(finalDF)
 }
 ```
-
 
 ```{r, warning=FALSE}
 # OOB rf 
@@ -437,7 +442,7 @@ compareConfusion(confusionList = list(confMat, confMatTuned)) %>%
     kable_styling(bootstrap_options = c("hover", full_width = F))
 ```
 
-
+## Gene Expression Comparison
 ```{r, warning=FALSE}
 # Pull important genes
 importantRF <- rf_filter(rfTuned, 
@@ -496,8 +501,3 @@ selected_columns %>%
   ) %>%
   kable_styling(bootstrap_options = c("hover", "full_width" = F))
 ```
-
-
-# Results and Discussion
-
-# Conclusion
