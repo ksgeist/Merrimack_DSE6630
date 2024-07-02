@@ -69,12 +69,37 @@ pacman::p_load(tidyverse,
     The original analysis done by Ambroise et al. was performed using the edgeR package. Our analysis was performed using DESeq2 using the total contig. reads of each gene for each of the 12 samples.  
 
 # Results and Analysis
+### Data Preprocessing
+    We began by loading the processed data and gene annotation files. The dataset comprised of total reads for each gene across 12 samples categorized into four treatment groups: control soil temperate (CT), control soil cold-acclimated (CC), metal-polluted soil temperate (MT), and metal-polluted soil cold-acclimated (MC). Metadata was also incorporated to provide contextual information for each sample. Column names were standardized to avoid potential errors in downstream analysis, and the data was converted to an appropriate format for DESeq analysis.  
+    Next, we created a DESeqDataSet object using the gene count data and metadata. The DESeqDataSet serves as a container for storing gene expression data along with experimental information, facilitating the application of DESeq2’s statistical methods. Additionally, to address the inherent variability in RNA-seq data, we applied a Variance Stabilizing Transformation (VST). This method normalizes the data by transforming count data and is particularly useful for reducing heteroscedasticity, making the data more amenable to analysis using linear models. The effectiveness of the VST was evaluated by plotting the mean-variance relationship before and after transformation (Figure 1). Post-transformation, the data exhibited a more linear relationship, indicating successful stabilization of variance.  
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+knitr::include_graphics("vst.png")  
+```
+  
+*Figure 1: Effects of the Variance Stabilizing Transformation on the data*  
+
+### Differential Gene Expression Analysis
+    With the transformed data, we performed differential gene expression analysis using DESeq2. Size factors were estimated to normalize for differences in sequencing depth, and dispersions were calculated to model gene expression count variability. We used the negative binomial Wald test to identify genes that were differentially expressed between the treatment groups. Our analysis revealed that out of 15,173 genes, five exhibited significantly differential expression (adjusted p-value <0.05, log-fold change threshold of 3). Specifically, three genes were upregulated and two genes were downregulated in response to the combined stress of heavy metals and cold acclimation. To visualize the results, we generated a volcano plot. This plot highlights the genes with significant changes in expression levels, displaying the relationship between the magnitude of change (log-fold change) and statistical significance (adjusted p-value) (Figure 2).  
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+knitr::include_graphics("volcano.png")  
+```
+  
+*Figure 2: Volcano plot of gene expression*  
+
+### Random Forest Model
+    To compare the differential expression analysis with DESeq2, we implemented a Random Forest model to classify the samples based on their treatment groups. The Random Forest algorithm was chosen for its robustness and ability to handle high-dimensional data, making it suitable for gene expression analysis. An out-of-box model was trained using a subset of the preprocessed gene expression data, and its performance was assessed to be 100%, albeit with the limited availability of data. We conducted a grid search to tune the model’s hyperparameters, including the number of variables tried at each split (mtry), the number of trees (ntree), and the split rule (gini or extratrees). The optimized model showed equal classification accuracy.  
+
+### Gene Expression Comparison
+    Finally, we focused on identifying genes that were consistently highlighted by both the DESeq2 differential expression analysis and the Random Forest model. This approach ensures robustness in our findings, as genes significant in both analyses are more likely to be true markers of stress response in Salix viminalis. Nineteen genes were identified as overlapping between the two analyses, suggesting that these genes are critical components of the willow tree’s responses to metal pollution and cold acclimation (Figure 3). Of note are gene 11, which was found to display different temperature sensitivities; gene 44, which was found to be involved in the production of leaf volatile organic compounds (signaling molecules); and gene 283, which is essential for plant innate immunity (Hooper et al., 2017).  
 
 # Discussion and Conclusion
+
 
 # Recommendations, Limitations, and Next Steps
 
 # Appendix 1: References
+Ambroise, V.; Legay, S.; Jozefczak, M.; Leclercq, C.C.; Planchon, S.; Hausman, J.-F.; Renaut, J.; Cuypers, A.; Sergeant, K. Impact of Heavy Metals on Cold Acclimation of Salix viminalis Roots. Int. J. Mol. Sci. 2024, 25, 1545. https://doi.org/10.3390/ijms25031545  
+Hooper CM, Castleden I, Tanz SK, Aryamanesh, and Millar, AH (2017) SUBA4: the interactive data analysis centre for Arabidopsis subcellular protein locations Nucleic Acids Res. Jan 4;45(D1):D1064-D1074. doi: 10.1093/nar/gkw1041 
 
 # Appendix 2: Code
 ## Data Preprocessing 
