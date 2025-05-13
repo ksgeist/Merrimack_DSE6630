@@ -32,9 +32,11 @@ __NOTE__: Your team name will be in lower case, so the branch name is also lower
 4. Work in your assigned folder!
 
 5. Add changes to the staging area, commit, then push:
- - a. Add to staging area
+ - a. Fetch changes from GitHub (pull + merge).
+ `git fetch`
+ - b. Add to staging area
 `git add .`
- - b. Commit changes with message
+ - c. Commit changes with message
 `git commit -m "My Commit Message"`
- - c. Push your changes to your branch on the remote repo
+ - d. Push your changes to your branch on the remote repo
 `git push`
