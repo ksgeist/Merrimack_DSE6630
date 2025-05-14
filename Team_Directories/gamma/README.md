@@ -2,7 +2,7 @@
 
 # Team Members:
 - Greg Andriotakis
-- Member 2
+- Sue Susman
 - Member 3
 
 # Description
