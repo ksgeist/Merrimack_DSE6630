@@ -3,7 +3,7 @@
 # Team Members:
 - Greg Andriotakis
 - Sue Susman
-- Member 3
+- Collins Njagi
 
 # Description
 This is the directory for team Gamma in the Merrimack College DSE6630 Healthcare Healthcare & Life Sciences Analytics Course during Summer 2025. 
