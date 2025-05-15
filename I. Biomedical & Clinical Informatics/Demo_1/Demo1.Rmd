@@ -1,5 +1,5 @@
 ---
-title: 'Demo 2: Biomedical & Clinical Informatics'
+title: 'Demo 1: Biomedical & Clinical Informatics'
 author: "Stephanie Garofalo, Sharon Singh, & Jason Cicero"
 date: "15 May 2024"
 output:
@@ -82,27 +82,37 @@ Download the [Hospitals](https://data.cms.gov/provider-data/topics/hospitals) da
 
 ### Read in the hospital-level data iteratively, while dynamically naming & storing each file as a dataframe.
 
+```{r}
+## Make sure to adjust your path!
+filepath <- "/Users/stephgarofalo/Documents/GitHub/Merrimack_DSE6630/I. Biomedical & Clinical Informatics/Demo_1/hospitals_current_data"
+```
+
 You may have to dig through the accompanying data dictionary **HOSPITAL_Data_Dictionary.pdf** to get a better handle on what is in the hospital-level files. 
 
-##### **Question 1**: [1 point] 
+##### **Question 1**: [1 point] - SG
 Take a look at the chunk below, which performs **dynamic variable assignment** as it reads in each of the files. Your task is to add a comment to each line of code to describe what that line does.
 > Your answer in the code chunk as comments.
 
 
 ```{r, message=FALSE, warning=FALSE}
-filepath <- "~/Desktop/hospitals_current_data/"
-files <- list.files(path = filepath, pattern = "Hospital.csv")
+# List all CSV files in the folder and assign to 'files'
+files <- list.files(filepath, pattern = "\\.csv$")
 
-for(f in 1:length(files)) {
-    dat <- clean_names(read_csv(paste0(filepath, files[f]),
-                                show_col_types = FALSE), 
-                       case = "upper_camel")
-    filename <- gsub(".Hospital\\.csv", "", files[f])
-    assign(filename, dat)
+# Loop through each file and read it in with cleaned column names
+for (f in 1:length(files)) {
+  dat <- clean_names(
+    read_csv(file.path(filepath, files[f]), show_col_types = FALSE),
+    case = "upper_camel"
+  )
+  filename <- gsub(".Hospital\\.csv", "", files[f])
+  assign(filename, dat)
 }
 
+
+# Create a summary table of file names
 files <- gsub(".Hospital\\.csv", "", files) %>% data.frame()
 names(files) <- "File Name"
+
 ```
 
 Now, let's look at a list of the files that we've read in:
@@ -115,57 +125,62 @@ files %>%
   )
 ```
 
-##### **Question 2**: [1 point] 
+##### **Question 2**: [1 point] - SG
 Take a look at some of the dataframes, e.g., `HCAHPS` and `FY_2024_Hospital_Readmissions_Reduction_Program`. What do you notice about the format / structure of the data? Does the data have an issue with the dimensionality? 
 **Hint: **Check to see if each row represents a single line of data or not!
 
-> Your answer here.
+> These dataframes are in long format.
 
 
 ### Tidy the data response variables' dataframe: Fiscal Year 2024 Hospital Readmissions Reduction Program.
 We are going to focus on the dataset `FY_2024_Hospital_Readmissions_Reduction_Program` to work on best practices to [tidy our data](https://vita.had.co.nz/papers/tidy-data.pdf). Although I do not personally choose to follow everything that Hadley Wickham and the __Tidy Data__ Movement has espoused, I do think a lot of the best practices are useful principles especially when we are just getting use to working with data. Further, we can leverage a lot of the functions to make our lives MUCH easier! And who doesn't like easier?!
 
-##### **Question 3**: [1 point] 
+##### **Question 3**: [1 point] - SG
 Take a deeper look at `FY_2024_Hospital_Readmissions_Reduction_Program` at some of the numeric variables in the dataset, e.g., `NumberOfReadmissions`? 
-> Your answer here.
+> These columns have quite a large amount of NA.
 
 **Hint: **Columns 5 & 7:10 have problems with the `NA` class.
 
-##### **Question 4**: [1 point] 
+##### **Question 4**: [1 point] - SG
 Investigate the `replace_with_na_all()` function that is part of the `naniar` package. Use this function to fix the `NA` class in the aberrant columns in `FY_2024_Hospital_Readmissions_Reduction_Program`.
 
 ```{r}
-# ?replace_with_na_all
-# Your code here.
+# Replace all NA values
+FY_2025_Hospital_Readmissions_Reduction_Program <- replace_with_na_all(
+  FY_2025_Hospital_Readmissions_Reduction_Program,
+  condition = ~ .x %in% c("Not Available", "N/A", "", "NA")
+)
+
 ```
 
 You will notice that this aberrant class of missing value __caused__ the numeric columns to be coerced into character columns when they were imported by `read_csv()`. Although we could try using `as.numeric()` by itself, which would assign `NA` to any non-numeric entry in `FY_2024_Hospital_Readmissions_Reduction_Program`, the problem is that we could lose important information that way. Thus, as annoying as this is, we should fix it a little more specifically...
 
-##### **Question 5**: [1 point] 
+##### **Question 5**: [1 point] - SG
 Look more closely at the `NumberOfReadmissions` column in the `FY_2024_Hospital_Readmissions_Reduction_Program`. What other issue do you see with this specific column that is coercing it to the character type, and why does it exist? 
 
 **Hint: ** Make sure to use the accompanying data dictionary **HOSPITAL_Data_Dictionary.pdf** to also examine **WHY** this problem exists!
 
-> Your answer here.
+>  The other issue that is coercing it to the character type is that it contains "Too Few to Report" as entries as well as numerical values. In the Data Dictionary it also states that the data type for 'NumberOfReadmissions' is character.
 
 
-##### **Question 6**: [1 point] 
+##### **Question 6**: [1 point] - SG
 Investigate the `gsub()` function that is part of base `R` or any other function of your choosing. Use the function you choose to **replace** the problematic text in  the `NumberOfReadmissions` column in `FY_2024_Hospital_Readmissions_Reduction_Program` with a **5**.
 ```{r}
-# ?gsub
-# Your code here.
+# Replace 'Too Few to Report' in 'NumberOfReadmissions' column with a **5**.
+FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions <- 
+  gsub("Too Few to Report", "5", FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions)
 ```
 
-##### **Question 7**: [1 point] 
+##### **Question 7**: [1 point] - SG
 Speculate as to why I asked you to replace the text with a **5** rather than a **0** or an `NA`. Can you think of any other logical choices for the substitution? Do you agree with my choice? (You're free to disagree, but please defend your decision either way!)
 
-> Your answer here.
+>  5 is a conservative estimate that keeps the data usable without falsely implying zero or losing the row as NA. It acknowledges there were readmissions, just not enough to report precisely. I agree with this choice.
 
 
-##### **Question 8**: [1 point] 
+##### **Question 8**: [1 point] - SG
 Now, imagine an alternative scenario where instead of replacing it with a **5**, I instead asked you to replace it with a randomly sampled integer from 1 to 10. What would this do? Would `gsub()` work here or would I need to execute it a different way, e.g., with an `lapply()` function or a `for()` loop?
 
-> Your answer here.
+>  You’d need a loop, lapply(), or ifelse() with sample(), because gsub() only applies a single fixed replacement, not random values. This introduces variability but may reduce consistency.
 
 
 ##### **Question 9**: [3 points] 
