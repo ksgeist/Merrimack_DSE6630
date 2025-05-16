@@ -213,7 +213,7 @@ FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions <-
 ```
 
 
-##### **Question 10**: [1 point] 
+##### **Question 10**: [1 point] SS
 It is finally time to fix those aberrant character columns by making them  numeric. However, just using `as.numeric()` would require us to do it over and over on each of the columns in multiple lines of code. Instead, investigate the function `mutate_at()` which will allow you to pass it a list of columns you want to convert with the function you want to use.
 ```{r}
 # ?mutate_at
@@ -252,12 +252,30 @@ dict %>%
 
 It's important to understand that these medical conditions are the **ones that Medicaid/Medicare tracks for hospital readmissions**. These are not the only conditions in which a patient might be readmitted, but these are the ones that the agency uses to keep track of hospital performance.
 
-##### **Question 11**: [1 point] 
+##### **Question 11**: [1 point] SS
 Investigate the function `pivot_wider()` or `spread()` from the `tidyr` package, which comes bundled with `tidyverse`. Try pivoting the `FY_2024_Hospital_Readmissions_Reduction_Program` dataset wider. Make sure you correctly identify the `names_from` and `values_from` column(s). **Make sure to save it as a separate dataframe called `wideDF`. Use the `dim()` function to prove to me that you successfully pivoted wider.
 
 **Note:** If at this point you've had any issues with any of the previous problems 2-10, you can load the cleaned readmissions data, `readmissionsClean.Rdata`.
 ```{r}
-load(file = "readmissionsClean.Rdata")
+load("~/Downloads/.RData")
+
+library(tidyr)
+
+#spread MeasureName into columns - values are the readmission rates 
+wideDF <- FY_2025_Hospital_Readmissions_Reduction_Program %>%
+  pivot_wider(
+    names_from = MeasureName,                  # Each unique measure (e.g., PN, AMI) becomes a column
+    values_from = NumberOfReadmissions         # Fill those columns with readmission counts
+  )
+
+#wideDF <- FY_2024_Hospital_Readmissions_Reduction_Program %>% pivot_wider(...) or spread(...)
+#dim(wideDF)
+wideDF <- FY_2025_Hospital_Readmissions_Reduction_Program %>%
+  pivot_wider(
+    names_from = MeasureName,
+    values_from = NumberOfReadmissions
+  )
+dim(wideDF)
 ```
 
 #### Filtering for specific conditions.
@@ -275,6 +293,22 @@ Therefore, let's filter for just pneumonia-related readmissions which will actua
 readmissionsClean <- 
   readmissionsClean %>% 
   filter(MeasureName == "PN")
+
+dict <- tribble(
+  ~Acronym, ~Definition,
+  "HIP-KNEE", "Total Hip/Knee Arthroplasty",
+  "HF", "Heart Failure",
+  "COPD", "Chronic Obstructive Pulmonary Disease",
+  "AMI", "Acute Myocardial Infarction",
+  "CABG", "Coronary Artery Bypass Graft",
+  "PN", "Pneumonia"
+)
+dict %>% 
+  kable(
+    format = "html",
+    caption = "Table 2. Acronyms of medical conditions for which hospital readmissions are tracked.") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F)
+  )
 ```
 
 
@@ -292,7 +326,7 @@ I start you out with something I find helpful when joining together dataframes t
 
 Also, as I was writing my own function, I found that the `Payment and Value of Care` table must be separated into two tables to join well, at least with how I wrote my function. So, I also do that for you below. I also clean up `HCAHPS` to make it easier to work for the function I wrote, so it may also be useful for you. Note that what I'm doing in these cases is making sure that `MeasureName` is the title of the column **I will want to join on**. 
 
-##### **Question 12**: [5 points] 
+##### **Question 12**: [5 points] SS
 Write a function that will (1) fix any issues identified previously, e.g., issues with the `NA` class or pivoting, if needed; (2) join any number of a list of dataframes you give it; and (3) filters the data for given condition(s) prior to pivoting. 
 
 For full credit, make sure that your function can clean up and join together at least three of the dataframes. **Note**: Make sure to join with `readmissionsClean` at the end!
@@ -339,13 +373,56 @@ hospitalInfo <- Payment_and_Value_of_Care %>%
 
 Okay, take a stab at it!
 ```{r}
-# Your function here.
+library(dplyr)
+library(janitor)
+library(naniar)
+library(purrr)
+
+tidyNjoin <- function(datList, filterList, hospitalInfo) {
+  
+  clean_df <- function(df) {
+    df %>%
+      clean_names(case = "upper_camel") %>%
+      mutate(across(where(is.character), ~ ifelse(.x %in% c("Not Available", "N/A", "", "NA"), NA, .x))) %>%
+      mutate(across(where(is.character), trimws)) %>%
+      distinct()
+  }
+  
+  filter_by_measure <- function(df, measures) {
+    if ("MeasureName" %in% names(df)) {
+      df <- df %>% filter(MeasureName %in% measures)
+    }
+    return(df)
+  }
+
+  cleaned_filtered_list <- map2(datList, filterList, function(df, fl) {
+    df %>%
+      clean_df() %>%
+      filter_by_measure(fl) %>%
+      select(-any_of(c("StartDate", "EndDate", "Footnote", "Footnote1", "Footnote2", "MeasureId")))
+  })
+  
+  merged_df <- reduce(cleaned_filtered_list, function(x, y) {
+    join_keys <- intersect(names(x), names(y))
+    join_cols <- intersect(join_keys, c("FacilityId", "MeasureName"))
+    
+    if (length(join_cols) == 0) {
+      full_join(x, y, by = "FacilityId")
+    } else {
+      full_join(x, y, by = join_cols)
+    }
+  })
+    final_df <- left_join(merged_df, hospitalInfo, by = "FacilityId")
+  
+  return(final_df)
+}
 ```
 
 
 ### The full, merged, tidied dataset for pneumonia.
 ```{r}
 load("pneumoniaFull.Rdata")
+dim(pneumoniaFull)
 ```
 
 I ultimately chose to merge **eight** of the datasets together, although I selectively filtered to focus on my question: **Can we predict pneumonia-related hospital readmissions based on factors that might indicate how well the hospital is doing at diagnostics and disease prevention?**
@@ -426,28 +503,60 @@ Additionally, we are going to perform **encoding** to our categorical variables.
 
 Although we ideally could just include these steps (and perhaps you did!) in our tidying & joining function from Question 12, I wanted to make sure we talk about this explicitly. 
 
-##### **Question 13**: [1 point] 
+##### **Question 13**: [1 point]  SS
 Looking through the feature names, you probably notice names like `LowerEstimate_Death rate for pneumonia patients`. We do not need the higher and lower estimates in this case; just the point estimates. Use the `contains()` function to **drop** any columns that contain `LowerEstimate` or `HigherEstimate`. Let's also go ahead and drop any columns containing `Denominator` and `HcahpsAnswerPercent` as well. How many features did you drop? 
-> Your answer here.
+> 7
 
 ```{r}
-# Your code here.
+# Store original number of features
+original_ncol <- ncol(pneumoniaFull)
+
+# Drop unwanted columns
+pneumoniaFull <- pneumoniaFull %>%
+  select(
+    -contains("LowerEstimate"),
+    -contains("HigherEstimate"),
+    -contains("Denominator"),
+    -contains("HcahpsAnswerPercent")
+  )
+
+# Store new number of features
+new_ncol <- ncol(pneumoniaFull)
+
+# Calculate how many features were dropped
+features_dropped <- original_ncol - new_ncol
+features_dropped
 ```
 
 **Note:** Please drop `FacilityName`, `TelephoneNumber`, `Address`, & `CityTown` at this stage as well, if they're still in your full dataset.
 
 ```{r}
-# Your code here.
+pneumoniaFull <- pneumoniaFull %>%
+  select(
+    -contains("LowerEstimate"),
+    -contains("HigherEstimate"),
+    -contains("Denominator"),
+    -contains("HcahpsAnswerPercent"),
+    -contains("FacilityName"),
+    -contains("TelephoneNumber"),
+    -contains("Address"),
+    -contains("CityTown")
+  )
+
+# Check dimensions after dropping
+dim(pneumoniaFull)
 ```
 
 ## Encoding
 
 ### Mystery encoding! (Well, it won't be a mystery for long.)
 
-##### **Question 14**: [1 point] 
+##### **Question 14**: [1 point] SS
 We need to perform encoding on all of the categorical columns, ultimately. However, we will focus first on the columns that begin with ``ComparedToNational_`, e.g., `ComparedToNational_Death rate for pneumonia patients`. What kind of encoding should we perform on these columns? Why? **What other column do we also need to perform this kind of encoding on?**
+> I believe should perform ordinal encoding on the ComparedToNational_ columns because the values represent ordered categories (examples are "Worse than the National Benchmark", "No Different than National Benchmark", "Better than the National Benchmark"). These categories have a meaningful rank or order but are not numerical by default, so encoding them as ordinal integers (such as 1 = Worse, 2 = No Different, 3 = Better) preserves that order and allows models to use them effectively.
 
-> Your answer here.
+> We also need to perform ordinal encoding on the Score columns from the HCAHPS dataset (ex. "Score_Nurse communication", "Score_Doctor communication"). These scores are typically linear mean scores or ordinal ratings, and should be treated as ordered numerical values with reflecting increasing quality. If they are stored as character or factor, they must be encoded appropriately to reflect their ordinal nature.
+
 
 ##### **Question 15**: [3 points] 
 You probably expected this - attempt to encode those columns the method you selected. It's okay if you can only think of a way to brute-force this for now; I will show you code to help you do it faster after the assignment. :)
