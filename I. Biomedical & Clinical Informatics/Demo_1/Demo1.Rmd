@@ -183,7 +183,7 @@ Now, imagine an alternative scenario where instead of replacing it with a **5**,
 >  You’d need a loop, lapply(), or ifelse() with sample(), because gsub() only applies a single fixed replacement, not random values. This introduces variability but may reduce consistency.
 
 
-##### **Question 9**: [3 points] 
+##### **Question 9**: [3 points] SS
 You probably anticipated this! We just decided that, rather than a **5** we want a randomly sampled integer from 1 to 10. 
 
 **Hint 1: **You might find it easier to read the data in from fresh and, after commenting out your `gsub` from Question 5, pattern match on the problematic text.
@@ -192,6 +192,24 @@ You probably anticipated this! We just decided that, rather than a **5** we want
 
 ```{r}
 # Your code here.
+FY_2025_Hospital_Readmissions_Reduction_Program <- read_csv(
+  file.path(filepath, "FY_2025_Hospital_Readmissions_Reduction_Program_Hospital.csv"),
+  show_col_types = FALSE
+) %>% clean_names(case = "upper_camel")
+
+#replace with integer
+FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions <- 
+  lapply(FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions, function(x) {
+    if (grepl("Too Few to Report", x)) {
+      sample(1:10, 1)  # Random integer from 1 to 10
+    } else {
+      x
+    }
+  }) %>% unlist()
+
+#convert to numeric
+FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions <- 
+  as.numeric(FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions)
 ```
 
 
@@ -199,15 +217,17 @@ You probably anticipated this! We just decided that, rather than a **5** we want
 It is finally time to fix those aberrant character columns by making them  numeric. However, just using `as.numeric()` would require us to do it over and over on each of the columns in multiple lines of code. Instead, investigate the function `mutate_at()` which will allow you to pass it a list of columns you want to convert with the function you want to use.
 ```{r}
 # ?mutate_at
-# Your code here.
+FY_2025_Hospital_Readmissions_Reduction_Program <- FY_2025_Hospital_Readmissions_Reduction_Program %>%
+  mutate_at(vars(NumberOfDischarges, NumberOfReadmissions, ExcessReadmissionRatio, PredictedReadmissionRate, ExpectedReadmissionRate),
+            ~ as.numeric(.))
 ```
 
 #### Let's look more closely at Measure Names.
 Notice, that what I have done here first is used the `gsub()` function to `mutate()` the `MeasureName` column to remove the text that flanked the medical conditions.
 ```{r}
-FY_2024_Hospital_Readmissions_Reduction_Program <-  FY_2024_Hospital_Readmissions_Reduction_Program %>%
-  mutate(MeasureName = gsub("READM-30-", "", MeasureName)) %>% 
-  mutate(MeasureName = gsub("-HRRP", "", MeasureName)) 
+FY_2025_Hospital_Readmissions_Reduction_Program <- FY_2025_Hospital_Readmissions_Reduction_Program %>%
+  mutate(MeasureName = gsub("READM-30-", "", MeasureName)) %>%
+  mutate(MeasureName = gsub("-HRRP", "", MeasureName))
 ```
 
 Let's look at what medical conditions the acronyms stand for:
