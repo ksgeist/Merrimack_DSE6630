@@ -219,7 +219,7 @@ FY_2025_Hospital_Readmissions_Reduction_Program <- FY_2025_Hospital_Readmissions
 #### Let's look more closely at Measure Names.
 Notice, that what I have done here first is used the `gsub()` function to `mutate()` the `MeasureName` column to remove the text that flanked the medical conditions.
 ```{r}
-FY_2024_Hospital_Readmissions_Reduction_Program <-  FY_2024_Hospital_Readmissions_Reduction_Program %>%
+FY_2025_Hospital_Readmissions_Reduction_Program <-  FY_2025_Hospital_Readmissions_Reduction_Program %>%
   mutate(MeasureName = gsub("READM-30-", "", MeasureName)) %>% 
   mutate(MeasureName = gsub("-HRRP", "", MeasureName)) 
 ```
@@ -338,16 +338,32 @@ hospitalInfo <- Payment_and_Value_of_Care %>%
 
 Okay, take a stab at it!
 ```{r}
-#This is just some rudimentary code to outline my thought process, did not get far
-tidy_data <- function(df) {
+#took me (MN) awhile to even come up with this, not my strong suit
+clean_filter <- function(df, ...) {
+  
+  tidy_data <- function(df) {
   df <- df %>%
-    replace_with_na_all(df,condition = ~.x == "N/A")
+    select(-any_of(c("StartDate", "EndDate", "Footnote"))) %>%
+    replace_with_na_all( condition = ~.x %in% c("Not Available", "Not Applicable", "Missing Data"))
+  }
+  
+  filter_data <- function(df, ... ) {
+  df <- df %>%
+    filter(...)
+  }
+  df <- tidy_data(df)
+  df <- filter_data(df, ...)
   
 }
 
-pivot_data <- function(df) {
-  
-}
+Maternal_Health <- clean_filter(Maternal_Health) #testing the function
+
+
+
+
+#pivot_data <- function(df, names_from, values_from) {
+#join_data <- function(df,)
+
 
 ```
 
@@ -437,16 +453,16 @@ Although we ideally could just include these steps (and perhaps you did!) in our
 
 ##### **Question 13**: [1 point] 
 Looking through the feature names, you probably notice names like `LowerEstimate_Death rate for pneumonia patients`. We do not need the higher and lower estimates in this case; just the point estimates. Use the `contains()` function to **drop** any columns that contain `LowerEstimate` or `HigherEstimate`. Let's also go ahead and drop any columns containing `Denominator` and `HcahpsAnswerPercent` as well. How many features did you drop? 
-> Your answer here.
+> MN: 25 dropped
 
 ```{r}
-# Your code here.
+pneumoniaFull <- select(pneumoniaFull, -contains("LowerEstimate"), -contains("HigherEstimate"), -contains("Denominator"), -contains("HcahpsAnswerPercent"))
 ```
 
 **Note:** Please drop `FacilityName`, `TelephoneNumber`, `Address`, & `CityTown` at this stage as well, if they're still in your full dataset.
 
 ```{r}
-# Your code here.
+pneumoniaFull <- select(pneumoniaFull, -contains("FacilityName"), -contains("TelephoneNumber"), -contains("Address"), -contains("CityTown"))
 ```
 
 ## Encoding
