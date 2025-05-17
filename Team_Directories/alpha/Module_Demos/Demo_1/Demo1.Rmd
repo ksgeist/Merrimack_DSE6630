@@ -3,14 +3,14 @@ title: 'Demo 2: Biomedical & Clinical Informatics'
 author: "Team Alpha - Krisha Bugajski-Sharp, Trinity Tobin, and Nick Lagoni"
 date: "15 May 2025"
 output:
-  pdf_document:
-    toc: true
-  word_document:
-    toc: true
   html_document:
     toc: true
     toc_float: true
     theme: flatly
+  word_document:
+    toc: true
+  pdf_document:
+    toc: true
 always_allow_html: true
 subtitle: 'Merrimack College DSE6630: Healthcare & Life Sciences Analytics'
 bibliography: references.bib
@@ -50,6 +50,7 @@ pacman::p_load(tidyverse,
 )
 ```
 
+
 # Introduction
 
 You have just been brought on as a data science consultant for a patient advocacy watchdog. They have asked you to source information about hospital readmissions, because they would like to flag specific geographic areas or types of hospitals where hospital readmission is unexpectedly high. They have heard that datasets exist to investigate these types of questions, but they are not really sure where to begin.
@@ -88,14 +89,17 @@ You may have to dig through the accompanying data dictionary **HOSPITAL_Data_Dic
 Take a look at the chunk below, which performs **dynamic variable assignment** as it reads in each of the files. Your task is to add a comment to each line of code to describe what that line does.
 > Your answer in the code chunk as comments.
 
-
 ```{r, message=FALSE, warning=FALSE}
-#filepath <- "~/Desktop/hospitals_current_data/"
-filepath <- file.path(Sys.getenv("USERPROFILE"), "Desktop", "hospitals_current_data") #Creates "filepath," a vector object linking to the folder of hospital data placed outside of the local repo as it is too large to push to github. IMPORTANT: This was changed by NL to address an issue he was experiencing. This should be universal, but if you encounter an error, replace it with the commented out line above.
+#file.choose()
+# Re-place with your file path
+filepath <- "/Users/krishabugajski/Desktop/Healthcare+Life Sci Analytics/Module_01/hospitals_current_data/" # added by KB on a Mac
+
+#filepath <- file.path(Sys.getenv("USERPROFILE"), "Desktop", "hospitals_current_data") #Creates "filepath," a vector object linking to the folder of hospital data placed outside of the local repo as it is too large to push to github. IMPORTANT: This was changed by NL to address an issue he was experiencing. This should be universal, but if you encounter an error, replace it with the commented out line above.
+
 files <- list.files(path = filepath, pattern = "Hospital.csv") #Creates "files," an object listing the different files contained within the folder described by filepath. The pattern function describes the file name pattern for the data files, functionally filtering out non-data files, like the readme.txt.
 
 for(f in 1:length(files)) { #Sets up a for loop looping from 1 to the length of the files object, representing a count of the number of data files.
-    dat <- clean_names(read_csv(file.path(filepath, files[f]), #within the loop, cleans the name of the selected file, standardizing special characters to underscores. IMPORTANT: file.path() in line 98 was originally paste0(). This was changed by NL to address an issue. If you encounter an error, replace file.path with paste0.
+    dat <- clean_names(read_csv(file.path(filepath, files[f]), #within the loop, cleans the name of the selected file, standardizing special characters to underscores. IMPORTANT: file.path() in line 102 was originally paste0(). This was changed by NL to address an issue. If you encounter an error, replace file.path with paste0.
                                 show_col_types = FALSE), #Hides column types
                        case = "upper_camel") #Enforces a capitalization setting, in this case capitalizing the first letter of each word, without spaces between.
     filename <- gsub(".Hospital\\.csv", "", files[f]) #Removes the Hospital.csv extension from the file in the loop and assigns the output to the filename object
@@ -116,9 +120,11 @@ files %>%
   )
 ```
 
+
 ##### **Question 2**: [1 point] - NL
 Take a look at some of the dataframes, e.g., `HCAHPS` and `FY_2024_Hospital_Readmissions_Reduction_Program`. What do you notice about the format / structure of the data? Does the data have an issue with the dimensionality? 
 **Hint: **Check to see if each row represents a single line of data or not!
+
 
 > The 'HCAHPS' dataframe is in long format, which is the "tidy" format, with every row representing a separate observation. This data does not have an issue with the dimensionality, as the long format results in a reasonable amount of columns. There are a large number of rows, however. 'FY_2025_Hospital_Readmissions_Reduction_Program' follows the same long format, though it has signficantly less rows.
 
@@ -128,6 +134,7 @@ We are going to focus on the dataset `FY_2024_Hospital_Readmissions_Reduction_Pr
 
 ##### **Question 3**: [1 point] - NL
 Take a deeper look at `FY_2024_Hospital_Readmissions_Reduction_Program` at some of the numeric variables in the dataset, e.g., `NumberOfReadmissions`? 
+
 > There are string values in the numeric (actually formatted as a character but should be numeric) variable 'NumberOfReadmissions,' with a value of 'Too Few To Report'. This, combined with the NA values, would make this very difficult to analyze in its current state. 'NumberOfDischarges' (and other columns) have NA values, but they are input as strings literally reading "N/A," rather than the actual NA value.
 
 **Hint: **Columns 5 & 7:10 have problems with the `NA` class.
@@ -149,6 +156,7 @@ Look more closely at the `NumberOfReadmissions` column in the `FY_2024_Hospital_
 
 **Hint: ** Make sure to use the accompanying data dictionary **HOSPITAL_Data_Dictionary.pdf** to also examine **WHY** this problem exists!
 
+
 > As noted above, there is a value in 'NumberOfReadmissions' that is a string reading 'Too Few To Report.' This value is input when there are too few cases to constitute valid data worth reporting. According to the data dictionary, this is intentional suppression of data for privacy or lack of statistical reliability.
 
 
@@ -159,41 +167,84 @@ Investigate the `gsub()` function that is part of base `R` or any other function
 FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions <- gsub(pattern = "Too Few to Report", replacement = 5, FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions)
 ```
 
+
 ##### **Question 7**: [1 point] - NL
 Speculate as to why I asked you to replace the text with a **5** rather than a **0** or an `NA`. Can you think of any other logical choices for the substitution? Do you agree with my choice? (You're free to disagree, but please defend your decision either way!)
 
 > Given the relatively high numbers that are common in the 'NumberOfReadmissions' column, and what we know about readmission rates, it seems unlikely that the number of readmissions for any given hospital would be truly 0 that frequently. 5 is a low number, low enough that it might not be worth reporting, but not low enough for 0 to be likely. The NAs in the column may also represent a readmission number of 0 in some instances. I think this is a fair choice, but I think any other number below the threshold of 11 would be valid. I recognize that 5 is right in the middle of the values below 11, so I think it is as good a choice as any other. I think that making it 0 may be too aggressively skewed toward the lower end of that range.
 
 
-##### **Question 8**: [1 point] 
+##### **Question 8**: [1 point] -KB
 Now, imagine an alternative scenario where instead of replacing it with a **5**, I instead asked you to replace it with a randomly sampled integer from 1 to 10. What would this do? Would `gsub()` work here or would I need to execute it a different way, e.g., with an `lapply()` function or a `for()` loop?
 
-> Your answer here.
+> If you were to replace the "Too Few to Report" values with a randomly sampled integer from 1 to 10, this would introduce randomness into the dataset. This approach would better capture the uncertainty of the missing values so that the analysis would have a more realistic range of outcomes. However, it is imortant to set a seed, otherwise it could reduce reproducibility, as the values would change each time. The gsub() function would not work in this case because it would replace all matching values ("Too Few to Report") with the same replacement, and not a different one per row. To make sure there is a different random value for each row, you would need to use a differet approach, such as ifelse() in a mutate() call from the dplyr package, or a for() loop, or lapply().
 
 
-##### **Question 9**: [3 points] 
+##### **Question 9**: [3 points] - KB
 You probably anticipated this! We just decided that, rather than a **5** we want a randomly sampled integer from 1 to 10. 
 
 **Hint 1: **You might find it easier to read the data in from fresh and, after commenting out your `gsub` from Question 5, pattern match on the problematic text.
 
 **Hint 2: **This is NOT the only way to do this, but I solved this using `gregexpr()`, `regmatches()`, and `lapply()`.
 
+
 ```{r}
-# Your code here.
+# Re-place with your file path
+#file.choose()
+file_path <- "/Users/krishabugajski/Desktop/Healthcare+Life Sci Analytics/Module_01/hospitals_current_data/FY_2025_Hospital_Readmissions_Reduction_Program_Hospital.csv"
+
+# Reading in the data in fresh
+FY_2025_Hospital_Readmissions_Reduction_Program <- janitor::clean_names(readr::read_csv(file_path, show_col_types = FALSE),
+                                                                         case = "upper_camel")
+# Replace all NA again
+FY_2025_Hospital_Readmissions_Reduction_Program[5]<-replace_with_na_all(FY_2025_Hospital_Readmissions_Reduction_Program[5],condition=~.=="N/A")
+FY_2025_Hospital_Readmissions_Reduction_Program[7:10]<-replace_with_na_all(FY_2025_Hospital_Readmissions_Reduction_Program[7:10],condition=~.=="N/A")
+
+# Set seed or reproducibility
+set.seed(42)
+
+# Finding all the "Too Few to Report" in NumberOfReadmissions
+matches <- gregexpr("Too Few to Report", FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions)
+
+# Extracting the actual matched strings into list
+matched_texts <- regmatches(FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions, matches)
+
+# Using lapply() to replace each "Too Few to Report" with a random number between 1 and 10
+replacements <- lapply(matched_texts, function(match_group) {
+  if(length(match_group) > 0) {   # If this row contains one or more matches
+    sample(1:10, length(match_group), replace = TRUE)  # Replace each match with a random number between 1 and 10
+  } else {
+    character(0) # Otherwise, return an empty character vector
+  }
+})
+
+# Replacing the matched positions with the sampled random values
+for(i in seq_along(replacements)) { # Loop through each row of the data where a match was found
+  if(length(replacements[[i]]) > 0) { # Check if the current row has one or more matches to replace
+    regmatches( # Replace each matched string in the row with the corresponding random number
+      FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions[i], 
+      matches[[i]]
+    ) <- as.character(replacements[[i]])
+  }
+}
+
 ```
 
 
-##### **Question 10**: [1 point] 
+##### **Question 10**: [1 point] -KB
 It is finally time to fix those aberrant character columns by making them  numeric. However, just using `as.numeric()` would require us to do it over and over on each of the columns in multiple lines of code. Instead, investigate the function `mutate_at()` which will allow you to pass it a list of columns you want to convert with the function you want to use.
 ```{r}
-# ?mutate_at
-# Your code here.
+#?mutate_at
+
+FY_2025_Hospital_Readmissions_Reduction_Program <- FY_2025_Hospital_Readmissions_Reduction_Program %>%
+  mutate_at(vars(5, 7:10), as.numeric) # Since we know the columns we want to make numeric are columns 5 and 7 to 10 (like in our previous example)
 ```
+
 
 #### Let's look more closely at Measure Names.
 Notice, that what I have done here first is used the `gsub()` function to `mutate()` the `MeasureName` column to remove the text that flanked the medical conditions.
 ```{r}
-FY_2024_Hospital_Readmissions_Reduction_Program <-  FY_2024_Hospital_Readmissions_Reduction_Program %>%
+FY_2025_Hospital_Readmissions_Reduction_Program <-  FY_2025_Hospital_Readmissions_Reduction_Program %>%
   mutate(MeasureName = gsub("READM-30-", "", MeasureName)) %>% 
   mutate(MeasureName = gsub("-HRRP", "", MeasureName)) 
 ```
@@ -220,8 +271,22 @@ dict %>%
 
 It's important to understand that these medical conditions are the **ones that Medicaid/Medicare tracks for hospital readmissions**. These are not the only conditions in which a patient might be readmitted, but these are the ones that the agency uses to keep track of hospital performance.
 
-##### **Question 11**: [1 point] 
+##### **Question 11**: [1 point] - KB
 Investigate the function `pivot_wider()` or `spread()` from the `tidyr` package, which comes bundled with `tidyverse`. Try pivoting the `FY_2024_Hospital_Readmissions_Reduction_Program` dataset wider. Make sure you correctly identify the `names_from` and `values_from` column(s). **Make sure to save it as a separate dataframe called `wideDF`. Use the `dim()` function to prove to me that you successfully pivoted wider.
+
+
+```{r}
+# Pivot wider so each MeasureName becomes its own column
+wideDF <- FY_2025_Hospital_Readmissions_Reduction_Program %>%
+  pivot_wider(
+    names_from = MeasureName,
+    values_from = NumberOfReadmissions
+  )
+
+# Show the new dimensions of wider dataset
+dim(wideDF)
+```
+
 
 **Note:** If at this point you've had any issues with any of the previous problems 2-10, you can load the cleaned readmissions data, `readmissionsClean.Rdata`.
 ```{r}
@@ -260,7 +325,8 @@ I start you out with something I find helpful when joining together dataframes t
 
 Also, as I was writing my own function, I found that the `Payment and Value of Care` table must be separated into two tables to join well, at least with how I wrote my function. So, I also do that for you below. I also clean up `HCAHPS` to make it easier to work for the function I wrote, so it may also be useful for you. Note that what I'm doing in these cases is making sure that `MeasureName` is the title of the column **I will want to join on**. 
 
-##### **Question 12**: [5 points] 
+
+##### **Question 12**: [5 points] - KB
 Write a function that will (1) fix any issues identified previously, e.g., issues with the `NA` class or pivoting, if needed; (2) join any number of a list of dataframes you give it; and (3) filters the data for given condition(s) prior to pivoting. 
 
 For full credit, make sure that your function can clean up and join together at least three of the dataframes. **Note**: Make sure to join with `readmissionsClean` at the end!
@@ -306,11 +372,118 @@ hospitalInfo <- Payment_and_Value_of_Care %>%
 ```
 
 Okay, take a stab at it!
+
+
 ```{r}
-# Your function here.
+
+# Function: join_clean_datasets
+
+# Purpose: Clean, filter, pivot, and merge a list of hospital-related dataframes
+
+# Inputs:
+#   - df_list: A list of dataframes to clean and join
+#   - condition: An vector of MeasureName values to filter on, for example in this case "PN" for pneumonia)
+
+# Output: A fully merged and cleaned dataframe
+
+
+join_clean_datasets <- function(df_list, condition = NULL) {
+  
+  # Defining the columns that need to be dropped if they exist
+  drop_cols <- c("StartDate", "EndDate", "Footnote", "MeasureId")
+  
+  # Cleaning, filtering, and pivoting each dataframe in the list
+  cleaned_list <- lapply(df_list, function(df) {
+    
+    # Dropping columns that are not necessary if they exist
+    df <- df %>% select(-any_of(drop_cols))
+    
+    # Filtering for MeasureName if present
+    if (!is.null(condition) && "MeasureName" %in% names(df)) {
+      df <- df %>% filter(str_detect(MeasureName, paste(condition, collapse = "|")))
+    }
+    
+    # Pivoting wider using "MeasureName"
+    if ("MeasureName" %in% names(df)) { 
+  
+      value_col <- setdiff(names(df), c("FacilityId", "MeasureName"))
+      if (length(value_col) == 1 && is.character(df[[value_col]])) { # if there is exactly one value column and it’s character type
+        df[[value_col]] <- suppressWarnings(as.numeric(gsub("[\\$,]", "", df[[value_col]]))) # remove $ and commas from the value column and convert it to numeric
+      }
+      df <- df %>%
+        pivot_wider(names_from = MeasureName, values_from = all_of(value_col))
+    }
+    
+    return(df)
+  })
+  
+  # Starting with hospitalInfo
+  merged_df <- hospitalInfo
+  
+  # Joining all cleaned datasets on FacilityId
+  for (df in cleaned_list) {
+    merged_df <- full_join(merged_df, df, by = "FacilityId")
+  }
+  
+  # Joining with readmissionsClean 
+  merged_df <- full_join(merged_df, readmissionsClean, by = "FacilityId")
+  
+ # Merging duplicate columns for .x and .y versions
+base_names <- unique(gsub("\\.(x|y)$", "", grep("\\.(x|y)$", names(merged_df), value = TRUE)))
+for (name in base_names) {
+  x_col <- paste0(name, ".x")
+  y_col <- paste0(name, ".y")
+  if (x_col %in% names(merged_df) && y_col %in% names(merged_df)) {
+    merged_df[[name]] <- coalesce(merged_df[[x_col]], merged_df[[y_col]])
+    merged_df[[x_col]] <- NULL
+    merged_df[[y_col]] <- NULL
+  }
+}
+  
+  # Remove duplicate rows
+  merged_df <- distinct(merged_df)
+  
+  # Removing columns that need to be dropped again after joining
+  merged_df <- merged_df %>% select(-any_of(c("StartDate", "EndDate", "Footnote", "MeasureId")))
+  
+  return(merged_df)
+}
 ```
 
+```{r}
+# Using the new function to join datasets for pneumonia
+my_merged_df <- join_clean_datasets(
+  df_list = list(Maternal_Health, Complications_and_Deaths, Unplanned_Hospital_Visits),
+  condition = c("PN")  # merging for pneumonia
+)
 
+# Since after merging, columns contained '_Pneumonia (PN) 30-Day Readmission Rate' I created another function to clean called clean_columns_and_remove_duplicates
+
+clean_columns_and_remove_duplicates <- function(df, pattern = "_Pneumonia \\(PN\\) 30-Day Readmission Rate") {
+  # Removing the pattern from column names
+  new_names <- gsub(pattern, "", names(df))
+  
+  # Finding duplicates created by this renaming
+  duplicated_names <- new_names[duplicated(new_names)]
+  
+  # Keepinf only the first occurrence of each duplicated name, remove others
+  cols_to_keep <- !duplicated(new_names)
+  
+  # Applying the cleaned column names and subset columns
+  df_clean <- df[, cols_to_keep]
+  names(df_clean) <- new_names[cols_to_keep]
+  
+  return(df_clean)
+}
+
+# Applying the function to
+my_merged_df_clean <- clean_columns_and_remove_duplicates(my_merged_df)
+
+# Checking the dimensions
+dim(my_merged_df_clean)
+```
+
+ 
 ### The full, merged, tidied dataset for pneumonia.
 ```{r}
 load("pneumoniaFull.Rdata")
@@ -394,19 +567,40 @@ Additionally, we are going to perform **encoding** to our categorical variables.
 
 Although we ideally could just include these steps (and perhaps you did!) in our tidying & joining function from Question 12, I wanted to make sure we talk about this explicitly. 
 
-##### **Question 13**: [1 point] 
+##### **Question 13**: [1 point] - KB
 Looking through the feature names, you probably notice names like `LowerEstimate_Death rate for pneumonia patients`. We do not need the higher and lower estimates in this case; just the point estimates. Use the `contains()` function to **drop** any columns that contain `LowerEstimate` or `HigherEstimate`. Let's also go ahead and drop any columns containing `Denominator` and `HcahpsAnswerPercent` as well. How many features did you drop? 
-> Your answer here.
+
+> There were 3 features dropped: "LowerEstimate", "HigherEstimate", and "Denominator".
 
 ```{r}
-# Your code here.
+# Identifying features/columns to drop
+columns_to_drop <- my_merged_df_clean %>%
+  select(
+    contains("LowerEstimate"),
+    contains("HigherEstimate"),
+    contains("Denominator"),
+    contains("HcahpsAnswerPercent")
+  ) %>%
+  names()
+
+# Print the column names that will be dropped
+#print(columns_to_drop)
+
+# Drop those columns from the dataset
+my_merged_df_clean <- my_merged_df_clean %>%
+  select(-all_of(columns_to_drop))
 ```
+
 
 **Note:** Please drop `FacilityName`, `TelephoneNumber`, `Address`, & `CityTown` at this stage as well, if they're still in your full dataset.
 
 ```{r}
-# Your code here.
+# Dropping FacilityName, TelephoneNumber, Address, and CityTown 
+cols_to_drop <- c("FacilityName", "TelephoneNumber", "Address", "CityTown")
+my_merged_df_clean <- my_merged_df_clean %>% select(-any_of(cols_to_drop))
+
 ```
+
 
 ## Encoding
 
