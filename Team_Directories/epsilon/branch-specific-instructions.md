@@ -1,3 +1,5 @@
+## Mike Steyer is TEAM EPSILON
+
 __GitHub Desktop Instructions:__
 1. Clone our course repo:
 `File` -> `Clone Repository`
