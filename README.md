@@ -15,7 +15,7 @@ Each team is working on their own branch. Remember, branches run in _parallel_ t
 
 But your changes still exist on the remote repo! They just exist on _your team's branch_! To see it on GitHub, simply change your branch from `main` to your team's branch! You may need to refresh your browser.
 
-__GitHub Desktop Instructions:__
+## GitHub Desktop Instructions:
 1. Clone our course repo:
 `File` -> `Clone Repository`
 It should come up automatically once you are a collaborator. It will not be listed under your repos, however.
@@ -33,7 +33,7 @@ __NOTE__: Your team name will be in lower case, so the branch name is also lower
  - c. Commit changes with message.
  - c. Push your changes to your branch on the remote repo by pressing the button.
 
-__Command-line Instructions:__
+## Command-line Instructions:
 
 1. Clone our course repo:
 `git clone https://github.com/ksgeist/Merrimack_DSE6630`
