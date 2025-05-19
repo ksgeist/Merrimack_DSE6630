@@ -121,10 +121,13 @@ You may have to dig through the accompanying data dictionary **HOSPITAL_Data_Dic
 ##### **Question 1**: [1 point] 
 Take a look at the chunk below, which performs **dynamic variable assignment** as it reads in each of the files. Your task is to add a comment to each line of code to describe what that line does.
 
-> Your answer in the code chunk as comments. Make sure to use the `#` sign!
+>MN:
 
-```{r}
-files <- list.files(path = filepath, pattern = "Hospital.csv")
+```{r, message=FALSE, warning=FALSE}
+filepath <- "C:/Users/mnoon/OneDrive/Desktop/Datasets/hospitals_current_data/" # this code assigns the  the file directory to the variable filepath 
+
+files <- list.files(path = filepath, pattern = "Hospital.csv") #this code creates the  files variable, lists the files in path using filepath variable, and is looking for pattern matches of hospital.csv
+
 
 for(f in 1:length(files)) {
     dat <- clean_names(read_csv(paste0(filepath, files[f]),
@@ -132,11 +135,15 @@ for(f in 1:length(files)) {
                        case = "upper_camel")
     filename <- gsub(".Hospital\\.csv", "", files[f])
     assign(filename, dat)
-}
+} # this code loops through each file in files
+#then builds the filepath by combining filepath with files, reads into R, clean_names() will uniform the column names, will not show the column type, then changes the casing of first letter in each word. Assigned to variable dat
+#filename is a new variable. gsub() will perform substitution, in this case, hospital.csv will be replaced with nothing for all files[f] 
+#assign will create a variable called filename and stores in data from dat
 
-files <- gsub(".Hospital\\.csv", "", files) %>% data.frame()
-names(files) <- "File Name"
+files <- gsub(".Hospital\\.csv", "", files) %>% data.frame() #this code will update the files variable using the files variable,  substitute hospital.csv with nothing, or empty space, and create a dataframe. 
+names(files) <- "File Name" #sets the column name to File Name
 ```
+
 
 #### Now, let's look at a list of the files that we've read in:
 ```{r, echo = FALSE}
@@ -152,7 +159,7 @@ files %>%
 Take a look at some of the dataframes, e.g., `HCAHPS` and `FY_2024_Hospital_Readmissions_Reduction_Program`. What do you notice about the format / structure of the data? Does the data have an issue with the dimensionality? 
 **Hint: **Check to see if each row represents a single line of data or not!
 
-> Your answer here.
+> MN: The data is in long form. Each hospital has multiple rows of data
 
 
 ### Tidy the data response variables' dataframe: Fiscal Year 2024 Hospital Readmissions Reduction Program.
@@ -161,16 +168,18 @@ We are going to focus on the dataset `FY_2024_Hospital_Readmissions_Reduction_Pr
 ##### **Question 3**: [1 point] 
 Take a deeper look at `FY_2024_Hospital_Readmissions_Reduction_Program` at some of the numeric variables in the dataset, e.g., `NumberOfReadmissions`? 
 
-> Your answer here.
+> MN: There are MANY columns of data with N/A values. Also, the columns that should be numeric are labeled as character. NA would be better because R can more easily recognize that as a missing value.
 
 **Hint: **Columns 5 & 7:10 have problems with the `NA` class.
 
 ##### **Question 4**: [1 point] 
 Investigate the `replace_with_na_all()` function that is part of the `naniar` package. Use this function to fix the `NA` class in the aberrant columns in `FY_2024_Hospital_Readmissions_Reduction_Program`.
+>MN:
 
 ```{r}
-# ?replace_with_na_all
-# Your code here.
+?replace_with_na_all
+FY_2025_Hospital_Readmissions_Reduction_Program <- replace_with_na_all(FY_2025_Hospital_Readmissions_Reduction_Program,condition = ~.x == "N/A")
+
 ```
 
 You will notice that this aberrant class of missing value __caused__ the numeric columns to be coerced into character columns when they were imported by `read_csv()`. Although we could try using `as.numeric()` by itself, which would assign `NA` to any non-numeric entry in `FY_2024_Hospital_Readmissions_Reduction_Program`, the problem is that we could lose important information that way. Thus, as annoying as this is, we should fix it a little more specifically...
@@ -180,26 +189,39 @@ Look more closely at the `NumberOfReadmissions` column in the `FY_2024_Hospital_
 
 **Hint: ** Make sure to use the accompanying data dictionary **HOSPITAL_Data_Dictionary.pdf** to also examine **WHY** this problem exists!
 
-> Your answer here.
+> MN: The other problem I am seeing, in regards to Number of Readmissions, is that there is a string "Too Few to Report". If As.numeric() was applied to this, then this value would have also been NA, which isnt true. After digging through the hospital dictionary, and utilizing footnotes 1 nad 5, as listed in the dataset column 6, footnotes 1 and 5 desribe the following:
+Footnote 1 states that the number of cases/patients is too few to report, and is applied when:
+• When the number of cases/patients does not meet the required 
+minimum amount for public reporting; 
+• When the number of cases/patients is too small to reliably tell 
+how well a hospital is performing; and/or 
+• To protect personal health information."
+Footnote 5 states that results are not available for this reporting period, and is applied when: 
+• hospital elected not to submit data for the entire reporting 
+period; or  
+• hospital had no claims data for a particular measure; or  
+• hospital elected to suppress a measure from being 
+publicly reported.
 
 
 ##### **Question 6**: [1 point] 
 Investigate the `gsub()` function that is part of base `R` or any other function of your choosing. Use the function you choose to **replace** the problematic text in  the `NumberOfReadmissions` column in `FY_2024_Hospital_Readmissions_Reduction_Program` with a **5**.
 ```{r}
-# ?gsub
-# Your code here.
+?gsub
+#FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions <-  gsub("Too Few to Report", "5", FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions)
+#commented out this answer to do question 9, ran code chunks above to reset data
 ```
 
 ##### **Question 7**: [1 point] 
 Speculate as to why I asked you to replace the text with a **5** rather than a **0** or an `NA`. Can you think of any other logical choices for the substitution? Do you agree with my choice? (You're free to disagree, but please defend your decision either way!)
 
-> Your answer here.
-
+> MN: My speculation for choosing 5 instead of 0 or NA, is that we aren't certain that the number is 0, or that the data is not available. If it was truly 0, then wouldn't have 0 been entered? Too Few to Report does not necessarily mean 0, it does mean too little to add value to the data. 5 is low enough to not be impactful to skew any data or make findings untrue.
+NA would not work because there does seem to be data available, it simply is not enough, again, to be impactful.
 
 ##### **Question 8**: [1 point] 
 Now, imagine an alternative scenario where instead of replacing it with a **5**, I instead asked you to replace it with a randomly sampled integer from 1 to 10. What would this do? Would `gsub()` work here or would I need to execute it a different way, e.g., with an `lapply()` function or a `for()` loop?
 
-> Your answer here.
+> MN: gsub() would not work in this situation because it will be applying a static unchanging value in place of one other particular value. I believe you would need to create a for loop and or lapply to create random integers and apply them across the values. I think there are many ways to solve this problem, mutate(), ifelse statements to name a few.
 
 
 ##### **Question 9**: [3 points] 
@@ -209,16 +231,22 @@ You probably anticipated this! We just decided that, rather than a **5** we want
 
 **Hint 2: **This is NOT the only way to do this, but I solved this using `gregexpr()`, `regmatches()`, and `lapply()`.
 
+>MN: 
+
 ```{r}
-# Your code here.
+FY_2025_Hospital_Readmissions_Reduction_Program <- FY_2025_Hospital_Readmissions_Reduction_Program %>% mutate(NumberOfReadmissions = ifelse(NumberOfReadmissions == "Too Few to Report", sample(1:10, nrow(FY_2025_Hospital_Readmissions_Reduction_Program), replace = TRUE), NumberOfReadmissions))
+#I am updating the current dataset by sending it into a mutate function effecting just the Number of Readmissions column, if too few to report is detected, then a random number 1:10 will be assigned and replaced. Nrow() and replace  = true makes sure that each row is a different number. I had to do a lot of searching for that.
 ```
 
 
 ##### **Question 10**: [1 point] 
 It is finally time to fix those aberrant character columns by making them  numeric. However, just using `as.numeric()` would require us to do it over and over on each of the columns in multiple lines of code. Instead, investigate the function `mutate_at()` which will allow you to pass it a list of columns you want to convert with the function you want to use.
+
+>MN: 
+
 ```{r}
-# ?mutate_at
-# Your code here.
+?mutate_at
+FY_2025_Hospital_Readmissions_Reduction_Program <- FY_2025_Hospital_Readmissions_Reduction_Program %>% mutate_at(vars(NumberOfDischarges, ExcessReadmissionRatio, PredictedReadmissionRate, ExpectedReadmissionRate, NumberOfReadmissions), as.numeric)
 ```
 
 #### Let's look more closely at Measure Names.
@@ -236,13 +264,15 @@ load(file = "readmissionsClean.Rdata")
 ```
 
 ##### **Question 11**: [1 point] 
-Investigate the function `pivot_wider()` or `spread()` from the `tidyr` package, which comes bundled with `tidyverse`. Try pivoting the `FY_2024_Hospital_Readmissions_Reduction_Program` dataset wider. Make sure you correctly identify the `names_from` and `values_from` column(s). **Make sure to save it as a separate dataframe called `wideDF`.** Use the `dim()` function to prove to me that you successfully pivoted wider.
+Investigate the function `pivot_wider()` or `spread()` from the `tidyr` package, which comes bundled with `tidyverse`. Try pivoting the `FY_2024_Hospital_Readmissions_Reduction_Program` dataset wider. Make sure you correctly identify the `names_from` and `values_from` column(s). **Make sure to save it as a separate dataframe called `wideDF`. Use the `dim()` function to prove to me that you successfully pivoted wider.
+
+>MN:
 
 ```{r}
-# Your code here.
+wideDF <- pivot_wider(FY_2025_Hospital_Readmissions_Reduction_Program, names_from = "MeasureName", values_from = c("NumberOfDischarges","ExcessReadmissionRatio","PredictedReadmissionRate","ExpectedReadmissionRate", "NumberOfReadmissions"))
+dim(wideDF)
 
-#wideDF <- FY_2024_Hospital_Readmissions_Reduction_Program %>% pivot_wider(...) or spread(...)
-#dim(wideDF)
+load(file = "readmissionsClean.Rdata")
 ```
 
 ### Filtering for specific conditions.
@@ -414,7 +444,28 @@ tidyNjoin <- function(datList, filterList, hospitalInfo) {
 Okay, take a stab at it!
 
 ```{r}
-# Your function here.
+#took me (MN) awhile to even come up with this, not my strong suit
+clean_filter <- function(df, ...) {
+  
+  tidy_data <- function(df) {
+  df <- df %>%
+    select(-any_of(c("StartDate", "EndDate", "Footnote"))) %>%
+    replace_with_na_all( condition = ~.x %in% c("Not Available", "Not Applicable", "Missing Data"))
+  }
+  
+  filter_data <- function(df, ... ) {
+  df <- df %>%
+    filter(...)
+  }
+  df <- tidy_data(df)
+  df <- filter_data(df, ...)
+  
+}
+
+Maternal_Health <- clean_filter(Maternal_Health) #testing the function
+
+#pivot_data <- function(df, names_from, values_from) {
+#join_data <- function(df,)
 ```
 
 ##### **Question 13**: [1 point] 
@@ -517,16 +568,16 @@ Although we ideally could just include these steps (and perhaps you did!) in our
 ##### **Question 14**: [1 point] 
 Looking through the feature names, you probably notice names like `LowerEstimate_Death rate for pneumonia patients`. We do not need the higher and lower estimates in this case; just the point estimates. Use the `contains()` function to **drop** any columns that contain `LowerEstimate` or `HigherEstimate`. Let's also go ahead and drop any columns containing `Denominator` and `HcahpsAnswerPercent` as well. How many features did you drop? 
 
-> Your answer here.
+> MN: 25 dropped
 
 ```{r}
-# Your code here.
+pneumoniaFull <- select(pneumoniaFull, -contains("LowerEstimate"), -contains("HigherEstimate"), -contains("Denominator"), -contains("HcahpsAnswerPercent"))
 ```
 
 **Note:** Please drop `FacilityName`, `TelephoneNumber`, `Address`, & `CityTown` at this stage as well, if they're still in your full dataset.
 
 ```{r}
-# Your code here.
+pneumoniaFull <- select(pneumoniaFull, -contains("FacilityName"), -contains("TelephoneNumber"), -contains("Address"), -contains("CityTown"))
 ```
 
 ## Encoding
@@ -553,7 +604,7 @@ You probably expected this - attempt to encode those columns the method you sele
 
 * **Hint 3: **You may want to create a temporary dataframe that you execute the changes on and then replace the original columns from there. That way, you don't have to keep reloading the original data if you make mistakes!
 
-* **Hint 3: **For full credit, don't forget to double check that you managed to preserve all the data! The `table()` function is sufficient here.
+* **Hint 4: **For full credit, don't forget to double check that you managed to preserve all the data! The `table()` function is sufficient here.
 
 ```{r}
 # Your code here.
