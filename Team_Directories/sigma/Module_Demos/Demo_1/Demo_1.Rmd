@@ -1,4 +1,4 @@
----
+y---
 title: 'Demo 1: Biomedical & Clinical Informatics'
 author: "Katherine S. Geist, PhD"
 date: "12 May 2025"
@@ -209,7 +209,7 @@ publicly reported.
 Investigate the `gsub()` function that is part of base `R` or any other function of your choosing. Use the function you choose to **replace** the problematic text in  the `NumberOfReadmissions` column in `FY_2024_Hospital_Readmissions_Reduction_Program` with a **5**.
 ```{r}
 ?gsub
-#FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions <-  gsub("Too Few to Report", "5", FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions)
+#FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions <-  gsub("Too Few to Report", "5", #FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions)
 #commented out this answer to do question 9, ran code chunks above to reset data
 ```
 
@@ -253,7 +253,7 @@ FY_2025_Hospital_Readmissions_Reduction_Program <- FY_2025_Hospital_Readmissions
 #### Let's look more closely at Measure Names.
 Notice, that what I have done here first is used the `gsub()` function to `mutate()` the `MeasureName` column to remove the text that flanked the medical conditions.
 ```{r}
-FY_2024_Hospital_Readmissions_Reduction_Program <-  FY_2024_Hospital_Readmissions_Reduction_Program %>%
+FY_2025_Hospital_Readmissions_Reduction_Program <-  FY_2025_Hospital_Readmissions_Reduction_Program %>%
   mutate(MeasureName = gsub("READM-30-", "", MeasureName)) %>% 
   mutate(MeasureName = gsub("-HRRP", "", MeasureName)) 
 ```
@@ -446,7 +446,7 @@ Okay, take a stab at it!
 
 ```{r}
 #took me (MN) awhile to even come up with this, not my strong suit
-clean_filter <- function(df, ...) {
+clean_filter <- function(df, ...) { 
   
   tidy_data <- function(df) {
   df <- df %>%
@@ -472,7 +472,7 @@ Maternal_Health <- clean_filter(Maternal_Health) #testing the function
 ##### **Question 13**: [1 point] 
 Why do you think I just made you work through this function? (**Hint**: What are you going to be asked to do in Project 1?)
 
-> Your answer here.
+> MN: I feel that we were made to work thorugh this function because Project 1 will be using many datasets that will need to be clean in an efficient manner, for one. Secondly, there may be a need to filter through many "conditions", possibly for comparisons. Also, we could use this function we created to do those tasks without re-creating the wheel, because the function should be flexible enough to take any dataset, or filter.
 
 ### The full, merged, tidied dataset for pneumonia. 
 
@@ -608,7 +608,64 @@ You probably expected this - attempt to encode those columns the method you sele
 * **Hint 4: **For full credit, don't forget to double check that you managed to preserve all the data! The `table()` function is sufficient here.
 
 ```{r}
-# Your code here.
+#created a temp_df in my local RMD to try out code, did not include it here to preserve tidiness
+#tables created to get a "before" of counts for data preservation comparison
+results_before <- list(
+  pneumonia = table(pneumoniaFull$`ComparedToNational_Death rate for pneumonia patients`),
+  respiratory_failure = table(pneumoniaFull$`ComparedToNational_Postoperative respiratory failure rate`),
+  embolism_DVT = table(pneumoniaFull$`ComparedToNational_Perioperative pulmonary embolism or deep vein thrombosis rate`),
+  patient_safety = table(pneumoniaFull$`ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`),
+  MRSA = table(pneumoniaFull$`ComparedToNational_MRSA Bacteremia`),
+  payment_pneumonia = table(pneumoniaFull$`PaymentCategory_Payment for pneumonia patients`)
+)
+
+#Encoding Ordinal Values
+pneumoniaFull <- pneumoniaFull %>%
+  mutate(across(everything(), ~ ifelse(str_detect(.x, "Greater Than"), 1, .x)))
+
+pneumoniaFull <- pneumoniaFull %>%
+  mutate(across(everything(), ~ ifelse(str_detect(.x, "No Different"), 0, .x)))
+
+pneumoniaFull <- pneumoniaFull %>%
+  mutate(across(everything(), ~ ifelse(str_detect(.x, "Worse Than"), -1, .x)))
+
+pneumoniaFull <- pneumoniaFull %>%
+  mutate(across(everything(), ~ ifelse(str_detect(.x, "Better Than"), 1, .x)))
+
+pneumoniaFull <- pneumoniaFull %>%
+  mutate(across(everything(), ~ ifelse(str_detect(.x, "Better than"), 1, .x)))
+
+pneumoniaFull <- pneumoniaFull %>%
+  mutate(across(everything(), ~ ifelse(str_detect(.x, "Worse than"), -1, .x)))
+
+pneumoniaFull <- pneumoniaFull %>%
+  mutate(across(everything(), ~ ifelse(str_detect(.x, "Less Than"), -1, .x)))
+
+
+#Recheck tables post encoding
+results_after <- list(
+  pneumonia = table(pneumoniaFull$`ComparedToNational_Death rate for pneumonia patients`),
+  respiratory_failure = table(pneumoniaFull$`ComparedToNational_Postoperative respiratory failure rate`),
+  embolism_DVT = table(pneumoniaFull$`ComparedToNational_Perioperative pulmonary embolism or deep vein thrombosis rate`),
+  patient_safety = table(pneumoniaFull$`ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`),
+  MRSA = table(pneumoniaFull$`ComparedToNational_MRSA Bacteremia`),
+  payment_pneumonia = table(pneumoniaFull$`PaymentCategory_Payment for pneumonia patients`)
+)
+
+
+#change column to numeric
+pneumoniaFull <- pneumoniaFull %>% 
+  mutate_at(vars(`ComparedToNational_Death rate for pneumonia patients`,  `ComparedToNational_Postoperative respiratory failure rate` , `ComparedToNational_Perioperative pulmonary embolism or deep vein thrombosis rate`  , `ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`   , `ComparedToNational_MRSA Bacteremia`, `PaymentCategory_Payment for pneumonia patients`), as.numeric)
+
+#check table after numeric change
+results_after <- list(
+  pneumonia = table(pneumoniaFull$`ComparedToNational_Death rate for pneumonia patients`),
+  respiratory_failure = table(pneumoniaFull$`ComparedToNational_Postoperative respiratory failure rate`),
+  embolism_DVT = table(pneumoniaFull$`ComparedToNational_Perioperative pulmonary embolism or deep vein thrombosis rate`),
+  patient_safety = table(pneumoniaFull$`ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`),
+  MRSA = table(pneumoniaFull$`ComparedToNational_MRSA Bacteremia`),
+  payment_pneumonia = table(pneumoniaFull$`PaymentCategory_Payment for pneumonia patients`)
+)
 ```
 
 
