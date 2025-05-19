@@ -446,24 +446,71 @@ Okay, take a stab at it!
 
 ```{r}
 #took me (MN) awhile to even come up with this, not my strong suit
-clean_filter <- function(df, ...) { 
+clean_filter <- function(df, ...) { #main function
   
-  tidy_data <- function(df) {
+  tidy_data <- function(df) { #tidy up datasets by removing columns, and handling values to NA
   df <- df %>%
     select(-any_of(c("StartDate", "EndDate", "Footnote"))) %>%
     replace_with_na_all( condition = ~.x %in% c("Not Available", "Not Applicable", "Missing Data"))
   }
   
-  filter_data <- function(df, ... ) {
+  filter_data <- function(df, ... ) { #filter for specific condition
   df <- df %>%
     filter(...)
   }
-  df <- tidy_data(df)
+  df <- tidy_data(df) #applying changes to dataset
   df <- filter_data(df, ...)
   
 }
 
 Maternal_Health <- clean_filter(Maternal_Health) #testing the function
+
+#My next option for this question is similar to above, but instead of a large multi-function, will create individual functions to use as arguments for a master function.
+test_List <- list(Healthcare_Associated_Infections,
+                paymentOnly,
+                Outpatient_Imaging_Efficiency,
+                Complications_and_Deaths,
+                Medicare_Hospital_Spending_Per_Patient 
+                )
+#Initially applying to my test_list, took several minutes and stopped process
+
+#first attempt to make function run faster...fail
+tidy_clean <- function(df_list) {
+  all_cols <- unique(unlist(lapply(df_list, names)))  #extract and remove duplicate column names
+  cols_to_remove <- intersect(all_cols, c("StartDate", "EndDate", "Footnote","MeasureID")) #remove the columns of interest 
+  df_list <- lapply(df_list, function(df) {#apply across all dataframes in list
+    df <- df %>% 
+      select(-all_of(cols_to_remove)) %>% 
+      replace_with_na_all(~ .x %in% c("Not Available", "Not Applicable", "Missing Data"))
+    return(df)
+  })
+  
+  return(df_list)  # Ensure function returns modified list
+}
+
+#attempt 2
+tidy_clean_2 <- function(df) { #tidy up datasets by removing columns, and handling values to NA
+  df <- df %>%
+    select(-any_of(c("StartDate", "EndDate", "Footnote"))) %>%
+    replace_with_na_all( condition = ~.x %in% c("Not Available", "Not Applicable", "Missing Data"))
+  #df <- tidy_clean_2(df)
+  return(df)
+}
+  
+FY_2025_Hospital_Readmissions_Reduction_Program <-  tidy_clean_2(FY_2025_Hospital_Readmissions_Reduction_Program)#even trying on one dataset is taking several minutes. I can get it to work if I only use return, but if I try to assign the changes within the function itself it just keeps processing. Assigning outside of the function itself worked much faster. But alas, is not applying to multiple sets. 
+
+#attempt 3
+tidy_clean_3 <- function(df_list) { 
+  df_list <- lapply(df_list, function(df) {
+    df <- df %>%
+      select(-any_of(c("StartDate", "EndDate", "Footnote"))) %>%
+      replace_with_na_all(~ .x %in% c("Not Available", "Not Applicable", "Missing Data"))
+    return(df)
+  })
+  return(df_list)  # Return the entire modified list
+}
+
+tidy_clean_3(test_List) #this actually takes way too long as well
 
 #pivot_data <- function(df, names_from, values_from) {
 #join_data <- function(df,)
