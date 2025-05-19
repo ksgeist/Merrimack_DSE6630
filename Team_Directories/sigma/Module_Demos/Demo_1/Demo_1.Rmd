@@ -588,13 +588,14 @@ pneumoniaFull <- select(pneumoniaFull, -contains("FacilityName"), -contains("Tel
 ##### **Question 15**: [1 point] 
 We need to perform encoding on all of the categorical columns, ultimately. However, we will focus first on the columns that begin with ``ComparedToNational_`, e.g., `ComparedToNational_Death rate for pneumonia patients`. What kind of encoding should we perform on these columns? Why? 
 
-> Your answer here.
+> MN:  The data in these columns are ordered, no different, better than or worse than national average. Ordinal coding would work best to preserve the weight of each label. We would use 0, 1, and -1 respectively. 
 
 
 ##### **Question 16**: [1 point] 
 What other column do we also need to perform this kind of encoding on?
+>MN: In addition to the "ComparedToNational_" columns, "PaymentCategory_Payment for pneumonia patients" needs to be encoded.
 
-> Your answer here.
+
 
 ##### **Question 17**: [3 points] 
 You probably expected this - attempt to encode those columns the method you selected. It's okay if you can only think of a way to brute-force this for now; I will show you code to help you do it faster after the assignment. :)
@@ -606,6 +607,8 @@ You probably expected this - attempt to encode those columns the method you sele
 * **Hint 3: **You may want to create a temporary dataframe that you execute the changes on and then replace the original columns from there. That way, you don't have to keep reloading the original data if you make mistakes!
 
 * **Hint 4: **For full credit, don't forget to double check that you managed to preserve all the data! The `table()` function is sufficient here.
+
+>MN: 
 
 ```{r}
 #created a temp_df in my local RMD to try out code, did not include it here to preserve tidiness
@@ -620,6 +623,7 @@ results_before <- list(
 )
 
 #Encoding Ordinal Values
+#only the columns I intended to encode had the strings of interest, otherwise I may have needed to use contains() to only effect columns of interest. 
 pneumoniaFull <- pneumoniaFull %>%
   mutate(across(everything(), ~ ifelse(str_detect(.x, "Greater Than"), 1, .x)))
 
@@ -684,27 +688,27 @@ We also decide that we want a way to try to preserve and analyze the geographic 
 
 Go through the **frequency encoding** code chunk below and comment each line. What does it do? *Make sure to comment why you think the choice was made*, if appropriate.
 
-> Your answer in comments in the code chunk.
+> MN: 
 
 ```{r}
 cols2encode <- c("State", 
-               "CountyParish")
+               "CountyParish") #creating values of only encoding columns
 
-temp <- pneumoniaFullEncoded[, names(pneumoniaFullEncoded) %in% cols2encode]
+temp <- pneumoniaFullEncoded[, names(pneumoniaFullEncoded) %in% cols2encode] #creating a temporary variable from encoded dataset that has the names and matching to the cols2encode values
 
-add_freq <- function(data, column_name) {
-  frequency_map <- table(data[[column_name]], useNA = "always")
-  data[[column_name]] <- frequency_map[match(data[[column_name]],
+add_freq <- function(data, column_name) { #function creation that takes a dataset and column name
+  frequency_map <- table(data[[column_name]], useNA = "always") #variable created by taking given data and column, and always have NA included
+  data[[column_name]] <- frequency_map[match(data[[column_name]], #variable created from frequency map, matching and extracting column names
                                              names(frequency_map))]
-  return(data)
+  return(data) #returns the data variable
+} 
+
+for (col in names(temp)) { #a for loop over the column names in temp
+  temp <- add_freq(temp, col)# applying the function over each column 
 }
 
-for (col in names(temp)) {
-  temp <- add_freq(temp, col)
-}
-
-for (c in 1:length(cols2encode)) {
-  pneumoniaFullEncoded[, cols2encode[c]] <- temp[, cols2encode[c]]
+for (c in 1:length(cols2encode)) { #a for loop going through the length of each column in  cols2encode
+  pneumoniaFullEncoded[, cols2encode[c]] <- temp[, cols2encode[c]] #from the temp data, copying or extracting cols2encode, adding it to fullencoded data
 }
 ```             
 
