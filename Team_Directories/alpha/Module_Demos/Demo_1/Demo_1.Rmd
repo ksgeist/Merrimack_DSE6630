@@ -469,55 +469,56 @@ Okay, take a stab at it!
 
 
 ```{r}
-# This function takes a list of dataframes, a filter list, and a hospital info dataframe, and performs 
-# a series of data cleaning and merging operations to produce a tidy, merged dataset.
+# This function takes a list of dataframes, a filter list, and a hospital info dataframe, and performs a series of data cleaning and merging operations to produce a tidy, merged dataset.
+
 tidyNjoin <- function(datList, filterList, hospitalInfo) {
   
   # Step 1: Clean each dataframe by dropping unnecessary columns, case-insensitive
   clean_datList <- lapply(datList, function(df) {
     # Define the names of columns that are not needed
     cols_to_remove <- c("startdate", "enddate", "footnote", "measureid")
-    
     # Convert all column names to lowercase to ensure case-insensitivity
     colnames(df) <- tolower(colnames(df))  # Convert column names to lowercase
-    
     # Remove the unnecessary columns from the dataframe
     df <- df %>% select(-any_of(cols_to_remove))  # Drop the columns in the 'cols_to_remove' list
     return(df)  # Return the cleaned dataframe
   })
   
+  
+  
   # Step 2: Join the dataframes in the list on FacilityId and MeasureName
   # Start by taking the first dataframe from the cleaned list
   merged_df <- clean_datList[[1]]  # Use the first cleaned dataframe as the base for merging
-  
-  # Loop through the remaining dataframes in the cleaned list and merge them one by one
-  # Use a full join to retain all records from both dataframes
+  # Loop through the remaining dataframes in the cleaned list and merge them one by     one, using a full join to retain all records from both dataframes
   for (i in 2:length(clean_datList)) {
     merged_df <- full_join(merged_df, clean_datList[[i]], by = c("facilityid", "measurename"))
   }
   
+  
+  
   # Step 3: Filter the merged dataframe based on the provided filterList
-  # Here we filter the dataframe to only include rows where the 'MeasureName' matches
-  # the values in the 'filterList'. This helps us focus on specific measures of interest.
   merged_df <- merged_df %>%
-    filter(measurename %in% unlist(filterList))  # Only keep rows that match the 'MeasureNames' in filterList
+    filter(measurename %in% unlist(filterList))  # Only keep rows that match the        'MeasureNames' in filterList
+  
+  
   
   # Step 4: Remove duplicate rows
   merged_df <- merged_df %>%
     distinct()  # Remove duplicate rows
   
-  # Step 5: Clean up column names by removing the .x, .y, etc.
-  # When we merge dataframes, R adds suffixes (like .x, .y) to column names to differentiate
-  # between similarly-named columns from the different dataframes. We clean up these column names.
-  colnames(merged_df) <- gsub("\\.x$|\\.y$|\\.x\\.x$", "", colnames(merged_df))
   
-  # Step 6: Merge with hospitalInfo to get hospital-related information
+  
+  # Step 5: Merge with hospitalInfo to get hospital-related information
   # This is done using a full join on the 'facilityid' column, so that we retain all information from both dataframes.
   final_df <- full_join(merged_df, hospitalInfo, by = "facilityid")
   
-  # Step 7: Merge with the readmissionsClean dataset
-  #  we merge with the 'readmissionsClean' dataset, again on 'facilityid' and 'measurename'.
+  
+  
+  # Step 6: Merge with the readmissionsClean dataset
+  #  we merge with the 'readmissionsClean' dataset, again on 'facilityid' and           'measurename'
   final_df <- full_join(final_df, readmissionsClean, by = c("facilityid", "measurename"))
+  
+  
   
   # Return the cleaned and merged dataframe
   return(final_df)
@@ -537,8 +538,6 @@ str(final_dataset)
 Why do you think I just made you work through this function? (**Hint**: What are you going to be asked to do in Project 1?)
 
 > The reason we just worked through this funtion was to start getting ideas and getting the skills/ strategies to efficiently manage, clean, and prepare several datasets so we are prepared to work and analyze them in Project 1. This type of function that we just worked on can help us practice using skills such as merging data, cleaning data and removing unnecessary columns, and preparing a final dataset that can carry out a more complex analyses for Project 1. Also, this can potentially help prepare a function that, in Project 1, we may need to reuse to handle these large datasets and join several tables.
-
-The main reason you're working through this function is to build the skills and techniques necessary to efficiently manage, clean, and prepare multiple datasets for analysis in Project 1. The function you just worked on helps practice tasks like merging data, removing unnecessary columns, and preparing datasets in a structured and scalable way—skills you'll need to carry out complex analyses in your project.
 
 ### The full, merged, tidied dataset for pneumonia. 
 
