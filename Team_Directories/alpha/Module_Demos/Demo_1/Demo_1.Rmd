@@ -47,7 +47,7 @@ if (interactive()) {
 
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
-# Turn off scientific notation
+# Turn off scientific notationy
 options(scipen=999)
 
 # Set seed
@@ -110,7 +110,10 @@ Our objective for the patient advocacy watchdog is clean, merge, explore, and pr
 
 ```{r}
 ## Make sure to adjust your path!
-filepath <- "~/Desktop/hospitals_current_data/"
+#file.choose()
+# Re-place with your file path
+filepath <- "/Users/krishabugajski/Desktop/Healthcare+Life Sci Analytics/Module_01/hospitals_current_data/" # added by KB on a Mac
+
 ```
 
 
@@ -124,16 +127,13 @@ Take a look at the chunk below, which performs **dynamic variable assignment** a
 > Your answer in the code chunk as comments. Make sure to use the `#` sign!
 
 ```{r, message=FALSE, warning=FALSE}
-#file.choose()
-# Re-place with your file path
-filepath <- "/Users/krishabugajski/Desktop/Healthcare+Life Sci Analytics/Module_01/hospitals_current_data/" # added by KB on a Mac
 
 #filepath <- file.path(Sys.getenv("USERPROFILE"), "Desktop", "hospitals_current_data") #Creates "filepath," a vector object linking to the folder of hospital data placed outside of the local repo as it is too large to push to github. IMPORTANT: This was changed by NL to address an issue he was experiencing. This should be universal, but if you encounter an error, replace it with the commented out line above.
 
 files <- list.files(path = filepath, pattern = "Hospital.csv") #Creates "files," an object listing the different files contained within the folder described by filepath. The pattern function describes the file name pattern for the data files, functionally filtering out non-data files, like the readme.txt.
 
 for(f in 1:length(files)) { #Sets up a for loop looping from 1 to the length of the files object, representing a count of the number of data files.
-    dat <- clean_names(read_csv(file.path(filepath, files[f]), #within the loop, cleans the name of the selected file, standardizing special characters to underscores. IMPORTANT: file.path() in line 102 was originally paste0(). This was changed by NL to address an issue. If you encounter an error, replace file.path with paste0.
+    dat <- clean_names(read_csv(file.path(filepath, files[f]), #within the loop, cleans the name of the selected file, standardizing special characters to underscores. IMPORTANT: file.path() in line 133 was originally paste0(). This was changed by NL to address an issue. If you encounter an error, replace file.path with paste0.
                                 show_col_types = FALSE), #Hides column types
                        case = "upper_camel") #Enforces a capitalization setting, in this case capitalizing the first letter of each word, without spaces between.
     filename <- gsub(".Hospital\\.csv", "", files[f]) #Removes the Hospital.csv extension from the file in the loop and assigns the output to the filename object
@@ -272,7 +272,7 @@ FY_2025_Hospital_Readmissions_Reduction_Program <- FY_2025_Hospital_Readmissions
 #### Let's look more closely at Measure Names.
 Notice, that what I have done here first is used the `gsub()` function to `mutate()` the `MeasureName` column to remove the text that flanked the medical conditions.
 ```{r}
-FY_2024_Hospital_Readmissions_Reduction_Program <-  FY_2024_Hospital_Readmissions_Reduction_Program %>%
+FY_2025_Hospital_Readmissions_Reduction_Program <-  FY_2025_Hospital_Readmissions_Reduction_Program %>%
   mutate(MeasureName = gsub("READM-30-", "", MeasureName)) %>% 
   mutate(MeasureName = gsub("-HRRP", "", MeasureName)) 
 ```
@@ -406,6 +406,7 @@ datList <- list(Healthcare_Associated_Infections,
                 HCAHPS)
 ```
 
+
 3. Filters the data for given criteria and condition(s) prior to pivoting. For example, for the 8 tables listed above, perhaps to filter for these possible measures before pivoting, so that I'm not pivoting ALL of those measures! (That would likely crash R!). Notice that what we're filtering for - is really a selection criteria, but because the data are in **wide format**, we are selecting them by row (i.e., "filter") rather than selection by column (i.e., "select"). 
 
 ```{r}
@@ -466,119 +467,78 @@ tidyNjoin <- function(datList, filterList, hospitalInfo) {
 
 Okay, take a stab at it!
 
+
 ```{r}
-
-# Function: join_clean_datasets
-
-# Purpose: Clean, filter, pivot, and merge a list of hospital-related dataframes
-
-# Inputs:
-#   - df_list: A list of dataframes to clean and join
-#   - condition: An vector of MeasureName values to filter on, for example in this case "PN" for pneumonia)
-
-# Output: A fully merged and cleaned dataframe
-
-
-join_clean_datasets <- function(df_list, condition = NULL) {
+# This function takes a list of dataframes, a filter list, and a hospital info dataframe, and performs 
+# a series of data cleaning and merging operations to produce a tidy, merged dataset.
+tidyNjoin <- function(datList, filterList, hospitalInfo) {
   
-  # Defining the columns that need to be dropped if they exist
-  drop_cols <- c("StartDate", "EndDate", "Footnote", "MeasureId")
-  
-  # Cleaning, filtering, and pivoting each dataframe in the list
-  cleaned_list <- lapply(df_list, function(df) {
+  # Step 1: Clean each dataframe by dropping unnecessary columns, case-insensitive
+  clean_datList <- lapply(datList, function(df) {
+    # Define the names of columns that are not needed
+    cols_to_remove <- c("startdate", "enddate", "footnote", "measureid")
     
-    # Dropping columns that are not necessary if they exist
-    df <- df %>% select(-any_of(drop_cols))
+    # Convert all column names to lowercase to ensure case-insensitivity
+    colnames(df) <- tolower(colnames(df))  # Convert column names to lowercase
     
-    # Filtering for MeasureName if present
-    if (!is.null(condition) && "MeasureName" %in% names(df)) {
-      df <- df %>% filter(str_detect(MeasureName, paste(condition, collapse = "|")))
-    }
-    
-    # Pivoting wider using "MeasureName"
-    if ("MeasureName" %in% names(df)) { 
-  
-      value_col <- setdiff(names(df), c("FacilityId", "MeasureName"))
-      if (length(value_col) == 1 && is.character(df[[value_col]])) { # if there is exactly one value column and it’s character type
-        df[[value_col]] <- suppressWarnings(as.numeric(gsub("[\\$,]", "", df[[value_col]]))) # remove $ and commas from the value column and convert it to numeric
-      }
-      df <- df %>%
-        pivot_wider(names_from = MeasureName, values_from = all_of(value_col))
-    }
-    
-    return(df)
+    # Remove the unnecessary columns from the dataframe
+    df <- df %>% select(-any_of(cols_to_remove))  # Drop the columns in the 'cols_to_remove' list
+    return(df)  # Return the cleaned dataframe
   })
   
-  # Starting with hospitalInfo
-  merged_df <- hospitalInfo
+  # Step 2: Join the dataframes in the list on FacilityId and MeasureName
+  # Start by taking the first dataframe from the cleaned list
+  merged_df <- clean_datList[[1]]  # Use the first cleaned dataframe as the base for merging
   
-  # Joining all cleaned datasets on FacilityId
-  for (df in cleaned_list) {
-    merged_df <- full_join(merged_df, df, by = "FacilityId")
+  # Loop through the remaining dataframes in the cleaned list and merge them one by one
+  # Use a full join to retain all records from both dataframes
+  for (i in 2:length(clean_datList)) {
+    merged_df <- full_join(merged_df, clean_datList[[i]], by = c("facilityid", "measurename"))
   }
   
-  # Joining with readmissionsClean 
-  merged_df <- full_join(merged_df, readmissionsClean, by = "FacilityId")
+  # Step 3: Filter the merged dataframe based on the provided filterList
+  # Here we filter the dataframe to only include rows where the 'MeasureName' matches
+  # the values in the 'filterList'. This helps us focus on specific measures of interest.
+  merged_df <- merged_df %>%
+    filter(measurename %in% unlist(filterList))  # Only keep rows that match the 'MeasureNames' in filterList
   
- # Merging duplicate columns for .x and .y versions
-base_names <- unique(gsub("\\.(x|y)$", "", grep("\\.(x|y)$", names(merged_df), value = TRUE)))
-for (name in base_names) {
-  x_col <- paste0(name, ".x")
-  y_col <- paste0(name, ".y")
-  if (x_col %in% names(merged_df) && y_col %in% names(merged_df)) {
-    merged_df[[name]] <- coalesce(merged_df[[x_col]], merged_df[[y_col]])
-    merged_df[[x_col]] <- NULL
-    merged_df[[y_col]] <- NULL
-  }
-}
+  # Step 4: Remove duplicate rows
+  merged_df <- merged_df %>%
+    distinct()  # Remove duplicate rows
   
-  # Remove duplicate rows
-  merged_df <- distinct(merged_df)
+  # Step 5: Clean up column names by removing the .x, .y, etc.
+  # When we merge dataframes, R adds suffixes (like .x, .y) to column names to differentiate
+  # between similarly-named columns from the different dataframes. We clean up these column names.
+  colnames(merged_df) <- gsub("\\.x$|\\.y$|\\.x\\.x$", "", colnames(merged_df))
   
-  # Removing columns that need to be dropped again after joining
-  merged_df <- merged_df %>% select(-any_of(c("StartDate", "EndDate", "Footnote", "MeasureId")))
+  # Step 6: Merge with hospitalInfo to get hospital-related information
+  # This is done using a full join on the 'facilityid' column, so that we retain all information from both dataframes.
+  final_df <- full_join(merged_df, hospitalInfo, by = "facilityid")
   
-  return(merged_df)
+  # Step 7: Merge with the readmissionsClean dataset
+  #  we merge with the 'readmissionsClean' dataset, again on 'facilityid' and 'measurename'.
+  final_df <- full_join(final_df, readmissionsClean, by = c("facilityid", "measurename"))
+  
+  # Return the cleaned and merged dataframe
+  return(final_df)
 }
 ```
+
 
 ```{r}
-# Using the new function to join datasets for pneumonia
-my_merged_df <- join_clean_datasets(
-  df_list = list(Maternal_Health, Complications_and_Deaths, Unplanned_Hospital_Visits),
-  condition = c("PN")  # merging for pneumonia
-)
-
-# Since after merging, columns contained '_Pneumonia (PN) 30-Day Readmission Rate' I created another function to clean called clean_columns_and_remove_duplicates
-
-clean_columns_and_remove_duplicates <- function(df, pattern = "_Pneumonia \\(PN\\) 30-Day Readmission Rate") {
-  # Removing the pattern from column names
-  new_names <- gsub(pattern, "", names(df))
-  
-  # Finding duplicates created by this renaming
-  duplicated_names <- new_names[duplicated(new_names)]
-  
-  # Keepinf only the first occurrence of each duplicated name, remove others
-  cols_to_keep <- !duplicated(new_names)
-  
-  # Applying the cleaned column names and subset columns
-  df_clean <- df[, cols_to_keep]
-  names(df_clean) <- new_names[cols_to_keep]
-  
-  return(df_clean)
-}
-
-# Applying the function to
-my_merged_df_clean <- clean_columns_and_remove_duplicates(my_merged_df)
-
-# Checking the dimensions
-dim(my_merged_df_clean)
+# Using the function to create the cleaned and merged dataframe
+final_dataset <- tidyNjoin(datList, filterList, hospitalInfo)
+str(final_dataset)
 ```
+
+
 
 ##### **Question 13**: [1 point] 
 Why do you think I just made you work through this function? (**Hint**: What are you going to be asked to do in Project 1?)
 
-> Your answer here.
+> The reason we just worked through this funtion was to start getting ideas and getting the skills/ strategies to efficiently manage, clean, and prepare several datasets so we are prepared to work and analyze them in Project 1. This type of function that we just worked on can help us practice using skills such as merging data, cleaning data and removing unnecessary columns, and preparing a final dataset that can carry out a more complex analyses for Project 1. Also, this can potentially help prepare a function that, in Project 1, we may need to reuse to handle these large datasets and join several tables.
+
+The main reason you're working through this function is to build the skills and techniques necessary to efficiently manage, clean, and prepare multiple datasets for analysis in Project 1. The function you just worked on helps practice tasks like merging data, removing unnecessary columns, and preparing datasets in a structured and scalable way—skills you'll need to carry out complex analyses in your project.
 
 ### The full, merged, tidied dataset for pneumonia. 
 
