@@ -407,6 +407,7 @@ datList <- list(Healthcare_Associated_Infections,
 ```
 
 
+
 3. Filters the data for given criteria and condition(s) prior to pivoting. For example, for the 8 tables listed above, perhaps to filter for these possible measures before pivoting, so that I'm not pivoting ALL of those measures! (That would likely crash R!). Notice that what we're filtering for - is really a selection criteria, but because the data are in **wide format**, we are selecting them by row (i.e., "filter") rather than selection by column (i.e., "select"). 
 
 ```{r}
@@ -469,69 +470,108 @@ Okay, take a stab at it!
 
 
 ```{r}
-# This function takes a list of dataframes, a filter list, and a hospital info dataframe, and performs a series of data cleaning and merging operations to produce a tidy, merged dataset.
+library(dplyr)
+library(tidyr)
+library(purrr)
 
-tidyNjoin <- function(datList, filterList, hospitalInfo) {
+
+# Wide Join and Tidying Function for Hospital Data
+ 
+# This function takes a list of long-format dataframes, pivots them wide, joins with hospital demographics and readmission data, and returns a clean, wide-format dataframe with only the desired columns.
+
+
+tidyNjoin <- function(datList, filterList, hospitalInfo, readmissionsClean) {
+
+  # Define columns to drop across datasets, case-insensitive
+  drop_cols <- c("startDate", "endDate", "footnote", "MeasureId")
   
-  # Step 1: Clean each dataframe by dropping unnecessary columns, case-insensitive
-  clean_datList <- lapply(datList, function(df) {
-    # Define the names of columns that are not needed
-    cols_to_remove <- c("startdate", "enddate", "footnote", "measureid")
-    # Convert all column names to lowercase to ensure case-insensitivity
-    colnames(df) <- tolower(colnames(df))  # Convert column names to lowercase
-    # Remove the unnecessary columns from the dataframe
-    df <- df %>% select(-any_of(cols_to_remove))  # Drop the columns in the 'cols_to_remove' list
-    return(df)  # Return the cleaned dataframe
+  # Extract all unique MeasureName values from all dataframes, helps ensure all possible measures are present for consistency
+  all_measures <- unique(unlist(lapply(datList, function(df) unique(df$MeasureName))))
+  
+  # Identify all columns that hold scores/values, not identifiers or metadata
+  # this ensures consistent column structure across datasets
+  all_valuecols <- unique(unlist(lapply(datList, function(df) setdiff(
+    names(df),
+    c("FacilityId", "FacilityName", "Address", "CityTown", "State", "ZipCode", 
+      "CountyParish", "TelephoneNumber", "MeasureName", drop_cols)
+  ))))
+  
+  # Process each dataframe individually to clean, filter, and pivot it
+  wide_list <- purrr::imap(datList, function(df, i) {
+    
+    # Get corresponding filters for this dataframe, if present
+    filters <- if (i <= length(filterList)) filterList[[i]] else NULL
+    
+    # Drop non-essential columns that vary across datasets, case-insensitive
+    cols_to_drop <- names(df)[tolower(names(df)) %in% tolower(drop_cols)]
+    df <- df %>% select(-any_of(cols_to_drop))
+    
+    # Filter for relevant measures only
+    if (!is.null(filters) && length(filters) > 0) {
+      df <- df %>% filter(MeasureName %in% filters)
+    }
+    
+    # Remove duplicate rows, just in case
+    df <- df %>% distinct()
+    
+    # Ensure all expected value columns are present in the current dataframe
+    # Missing ones are created with NA to preserve consistent structure for joining
+    for (col in all_valuecols) {
+      if (!(col %in% names(df))) df[[col]] <- NA
+    }
+
+    # Ensure all measures are represented — even if they're missing in the current df
+    # This prevents problems during pivoting and helps ensure uniformity across datasets
+    missing_measures <- setdiff(all_measures, unique(df$MeasureName))
+    if (length(missing_measures) > 0 && nrow(df) > 0) {
+      add_df <- expand.grid(FacilityId = unique(df$FacilityId), MeasureName = missing_measures, stringsAsFactors = FALSE)
+      for (col in all_valuecols) add_df[[col]] <- NA
+      df <- bind_rows(df, add_df)
+    }
+    
+    # Pivot the dataframe from long to wide format
+    # Each combination of value column and MeasureName becomes a unique column
+    df %>%
+      pivot_wider(
+        id_cols = c("FacilityId"),
+        names_from = "MeasureName",
+        values_from = all_of(all_valuecols),
+        names_glue = "{.value}_{MeasureName}"  # E.g., Score_Death rate, etc.
+      )
   })
   
+  # Merge all pivoted dataframes together using a full join on FacilityId
+  mergedDF <- purrr::reduce(wide_list, function(x, y) {
+    full_join(x, y, by = "FacilityId")
+  })
   
+  # Join with hospitalInfo 
+  mergedDF <- mergedDF %>% left_join(hospitalInfo, by = "FacilityId")
   
-  # Step 2: Join the dataframes in the list on FacilityId and MeasureName
-  # Start by taking the first dataframe from the cleaned list
-  merged_df <- clean_datList[[1]]  # Use the first cleaned dataframe as the base for merging
-  # Loop through the remaining dataframes in the cleaned list and merge them one by     one, using a full join to retain all records from both dataframes
-  for (i in 2:length(clean_datList)) {
-    merged_df <- full_join(merged_df, clean_datList[[i]], by = c("facilityid", "measurename"))
-  }
+  # Join with readmissionsClean last
+  mergedDF <- mergedDF %>% left_join(readmissionsClean, by = "FacilityId")
   
+  # Remove any duplicated rows that might have come in during joins
+  mergedDF <- mergedDF %>% distinct()
+
+  # Remove duplicate columns from merges (for example: col.x, col.y...)
+  mergedDF <- mergedDF %>% select(-matches("\\.y$|\\.x$|\\.x\\.x$|\\.y\\.y$"))
+
+  # Drop any leftover unnecessary columns (case-insensitive again)
+  # Includes rechecking for MeasureName
+  drop_cols_final <- c(drop_cols, "MeasureName")
+  cols_to_drop_final <- names(mergedDF)[tolower(names(mergedDF)) %in% tolower(drop_cols_final)]
+  mergedDF <- mergedDF %>% select(-any_of(cols_to_drop_final))
   
-  
-  # Step 3: Filter the merged dataframe based on the provided filterList
-  merged_df <- merged_df %>%
-    filter(measurename %in% unlist(filterList))  # Only keep rows that match the        'MeasureNames' in filterList
-  
-  
-  
-  # Step 4: Remove duplicate rows
-  merged_df <- merged_df %>%
-    distinct()  # Remove duplicate rows
-  
-  
-  
-  # Step 5: Merge with hospitalInfo to get hospital-related information
-  # This is done using a full join on the 'facilityid' column, so that we retain all information from both dataframes.
-  final_df <- full_join(merged_df, hospitalInfo, by = "facilityid")
-  
-  
-  
-  # Step 6: Merge with the readmissionsClean dataset
-  #  we merge with the 'readmissionsClean' dataset, again on 'facilityid' and           'measurename'
-  final_df <- full_join(final_df, readmissionsClean, by = c("facilityid", "measurename"))
-  
-  
-  
-  # Return the cleaned and merged dataframe
-  return(final_df)
+  # Return the cleaned, joined, and wide-format dataset
+  return(mergedDF)
 }
 ```
 
-
 ```{r}
-# Using the function to create the cleaned and merged dataframe
-final_dataset <- tidyNjoin(datList, filterList, hospitalInfo)
-str(final_dataset)
+finalDF <- tidyNjoin(datList, filterList, hospitalInfo, readmissionsClean)
+dim(finalDF)
 ```
-
 
 
 ##### **Question 13**: [1 point] 
