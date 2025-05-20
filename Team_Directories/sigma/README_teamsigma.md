@@ -11,4 +11,4 @@ This is the directory for Team Sigma in the Merrimack College DSE6630 Healthcare
 # File Structure
 This team directory contains two folders, __`Module_Demos`__ and __`Module_Projects`__. 
 - `Module_Demos`: This directory contains our Demo submissions in `RMarkdown` and `HTML` formats for each of the four course demos.
-- `Module_Projects`: This directory contains our Demo submissions in `RMarkdown` and `HTML` formats for each of the four course projects.
+- `Module_Projects`: This directory contains our Project submissions in `RMarkdown` and `HTML` formats for each of the four course projects.
