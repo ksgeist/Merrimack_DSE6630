@@ -1,19 +1,17 @@
 ---
 title: 'Demo 1: Biomedical & Clinical Informatics'
-author: "Collins Njagi"
-date: "12 May 2025"
+author: "Stephanie Garofalo, Sharon Singh, & Jason Cicero"
+date: "2025-05-15"
 output:
   html_document:
     toc: true
     toc_float: true
     theme: flatly
+  pdf_document:
+    toc: true
 always_allow_html: true
 subtitle: 'Merrimack College DSE6630: Healthcare & Life Sciences Analytics'
-bibliography: references.bib
-nocite: '@*'
 ---
-
-
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE,
@@ -22,29 +20,6 @@ knitr::opts_chunk$set(echo = TRUE,
                       cache = FALSE,
                       cache.comments = FALSE,
                       size = 13)
-```
-
-```{r, echo = FALSE, message=TRUE, include=FALSE}
-## ====== SAFETY WARNING ======
-## This script will clear your environment if you answer 'YES' to the prompt. 
-## This only applies to interactive sessions, not knitting.
-
-## Prompt user for confirmation in interactive sessions
-if (interactive()) {
-  message("This script will clear your environment. Proceed with caution.")
-  confirm <- readline(prompt = "Type Y to clear the environment: ")
-  if (toupper(confirm) == "Y") {
-    rm(list = ls())
-    gc()  ## Garbage collector - frees up memory
-    cat("Environment cleared.\n")
-  } else {
-    #cat("Environment NOT cleared.\n")
-  }
-} else {
-  ## In non-interactive sessions (e.g., RMarkdown), assume clean start is intended
-  rm(list = ls())
-  gc()
-}
 ```
 
 
@@ -111,8 +86,27 @@ Our objective for the patient advocacy watchdog is clean, merge, explore, and pr
 **WARNING!** Do not try to put these data onto GitHub. They are too large to push. If you need help adjusting your path or have questions, please let me know.
 
 ```{r}
-## Make sure to adjust your path!
-filepath <- "~/Desktop/school/Healthcare/Week1/Demo1_NotGitHub/hospitals_current_data/"
+# Set your local folder path where all the CSVs live
+filepath <- "/Users/sharonsingh/Downloads/hospitals_current_data/"
+
+# List all CSV files in the folder and assign to 'files'
+files <- list.files(filepath, pattern = "\\.csv$")
+
+# Loop through each file and read it in with cleaned column names
+for (f in 1:length(files)) {
+  dat <- clean_names(
+    read_csv(file.path(filepath, files[f]), show_col_types = FALSE),
+    case = "upper_camel"
+  )
+  filename <- gsub(".Hospital\\.csv", "", files[f])
+  assign(filename, dat)
+}
+
+# Create a summary table of file names
+files <- gsub(".Hospital\\.csv", "", files) %>% data.frame()
+names(files) <- "File Name"
+print(files)
+
 ```
 
 
@@ -126,20 +120,24 @@ Take a look at the chunk below, which performs **dynamic variable assignment** a
 > Your answer in the code chunk as comments. Make sure to use the `#` sign!
 
 ```{r}
-# Greg A.
+# List all CSV files in the folder and assign to 'files'
+files <- list.files(filepath, pattern = "\\.csv$")
 
-files <- list.files(path = filepath, pattern = "Hospital.csv") # Creates a variable which stores the names of the hospital datafiles as a list
+# Loop through each file and read it in with cleaned column names
+for (f in 1:length(files)) {
+  dat <- clean_names(read_csv(paste0(filepath, files[f]), show_col_types = FALSE), 
+                     case = "upper_camel")
+  filename <- gsub(".Hospital\\.csv", "", files[f])
+  assign(filename, dat)
+}
 
-for(f in 1:length(files)) { # Starts a for loop, for each entry in the files list
-    dat <- clean_names(read_csv(paste0(filepath, files[f]), # Clean each column name in the file, start by reading in the column names
-                                show_col_types = FALSE), # Do not print out the names as they are read in
-                       case = "upper_camel") # Apply upper camel casing to each column name
-    filename <- gsub(".Hospital\\.csv", "", files[f]) # Remove .Hospital.csv from each file name
-    assign(filename, dat) # Assign the cleaned name to the list
-} # End the for loop
+# Create a summary table of file names
+files <- gsub(".Hospital\\.csv", "", files) %>% data.frame()
+names(files) <- "File Name"
 
-files <- gsub(".Hospital\\.csv", "", files) %>% data.frame() # Remove .Hospital.csv from each file name, convert the list into a dataframe
-names(files) <- "File Name" # Give the column a name of "File Name" to clarify what we are looking at
+# View the summary
+print(files)
+
 ```
 
 #### Now, let's look at a list of the files that we've read in:
@@ -156,17 +154,7 @@ files %>%
 Take a look at some of the dataframes, e.g., `HCAHPS` and `FY_2024_Hospital_Readmissions_Reduction_Program`. What do you notice about the format / structure of the data? Does the data have an issue with the dimensionality? 
 **Hint: **Check to see if each row represents a single line of data or not!
 
-```{r}
-# Greg A
-
-head(HCAHPS) # Look at the first 6 rows of the dataframe
-head(FY_2025_Hospital_Readmissions_Reduction_Program) # Look at the first 6 rows of the dataframe
-```
-
-> Greg A.
-> The data appears to be in long format, as opposed to the desired wide format.
-> This means that each row does not represent a single hospital.
-> Each row instead represents a single measure from a hospital.
+> These dataframes are in long format.
 
 
 ### Tidy the data response variables' dataframe: Fiscal Year 2024 Hospital Readmissions Reduction Program.
@@ -175,23 +163,7 @@ We are going to focus on the dataset `FY_2024_Hospital_Readmissions_Reduction_Pr
 ##### **Question 3**: [1 point] 
 Take a deeper look at `FY_2024_Hospital_Readmissions_Reduction_Program` at some of the numeric variables in the dataset, e.g., `NumberOfReadmissions`? 
 
-```{r}
-#Greg A.
-
-dim(FY_2025_Hospital_Readmissions_Reduction_Program) # Look at the dimensions of the dataframe
-summary(FY_2025_Hospital_Readmissions_Reduction_Program) # Look at the summary statistics of the dataframe
-head(FY_2025_Hospital_Readmissions_Reduction_Program) # Look at the first 6 rows of the dataframe
-```
-
-```{r}
-# Greg A.
-
-FY_2025_Hospital_Readmissions_Reduction_Program # Print the entire dataframe
-```
-
-> Greg A.
-> What should be numerical columns feature NA values written out as character data instead of true NA values.
-> In addition, there is a character value of 'Too Few to Report'.
+> These columns have quite a large amount of NA.
 
 **Hint: **Columns 5 & 7:10 have problems with the `NA` class.
 
@@ -199,13 +171,12 @@ FY_2025_Hospital_Readmissions_Reduction_Program # Print the entire dataframe
 Investigate the `replace_with_na_all()` function that is part of the `naniar` package. Use this function to fix the `NA` class in the aberrant columns in `FY_2024_Hospital_Readmissions_Reduction_Program`.
 
 ```{r}
-# Greg A.
+# Replace all NA values
+FY_2025_Hospital_Readmissions_Reduction_Program <- replace_with_na_all(
+  FY_2025_Hospital_Readmissions_Reduction_Program,
+  condition = ~ .x %in% c("Not Available", "N/A", "", "NA")
+)
 
-?replace_with_na_all # Pull up documentation for replace_with_na_all function
-FY_2025_Hospital_Readmissions_Reduction_Program <- replace_with_na_all( # Apply the replace_with_na_all function on our dataset
-  FY_2025_Hospital_Readmissions_Reduction_Program, condition = ~.x == "N/A") # fill NA values where there is text that reads "N/A"
-
-FY_2025_Hospital_Readmissions_Reduction_Program # Print the data so we can verify changes
 ```
 
 You will notice that this aberrant class of missing value __caused__ the numeric columns to be coerced into character columns when they were imported by `read_csv()`. Although we could try using `as.numeric()` by itself, which would assign `NA` to any non-numeric entry in `FY_2024_Hospital_Readmissions_Reduction_Program`, the problem is that we could lose important information that way. Thus, as annoying as this is, we should fix it a little more specifically...
@@ -215,46 +186,30 @@ Look more closely at the `NumberOfReadmissions` column in the `FY_2024_Hospital_
 
 **Hint: ** Make sure to use the accompanying data dictionary **HOSPITAL_Data_Dictionary.pdf** to also examine **WHY** this problem exists!
 
-> Greg A.
-> As noted earlier, there is another character entry of 'Too Few to Report'.
-> This is causing the should-be numeric columns to be considered character.
-> Looking at the data dictionary, and remembering that each row represents a single measure,
-> we can see why this kind of entry is made.
-> According to the data dictionary, this message is added for the following reasons:
-> 1. When the number of cases is too few for public reporting
-> 2. When the number of cases is too small to reliably tell performance
-> 3. To protect personal health information
+> The other issue that is coercing it to the character type is that it contains "Too Few to Report" as entries as well as numerical values. In the Data Dictionary it also states that the data type for 'NumberOfReadmissions' is character. 
 
 
 ##### **Question 6**: [1 point] 
 Investigate the `gsub()` function that is part of base `R` or any other function of your choosing. Use the function you choose to **replace** the problematic text in  the `NumberOfReadmissions` column in `FY_2024_Hospital_Readmissions_Reduction_Program` with a **5**.
 ```{r}
-?gsub # Pull up documentation for gsub function 
-FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions <- gsub( # Apply the gsub function to the NumberofReadmissions column
-  'Too Few to Report', 5, FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions) # Replace 'Too Few to Report' with 5
-
-FY_2025_Hospital_Readmissions_Reduction_Program # Print the data so we can verify changes
+# Replace 'Too Few to Report' in 'NumberOfReadmissions' column with a **5**.
+FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions <- 
+  gsub("Too Few to Report", "5", FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions)
 ```
 
 ##### **Question 7**: [1 point] 
 Speculate as to why I asked you to replace the text with a **5** rather than a **0** or an `NA`. Can you think of any other logical choices for the substitution? Do you agree with my choice? (You're free to disagree, but please defend your decision either way!)
 
-> Greg A.
-> One reason to why a 5 was selected was so that we can later identify the value.
-> Since 5 is a low value outside of the normal value range, it will not be confused for a legitimate entry.
-> A 0 or NA might be confused as there being no value, which would cause a loss of information.
-> Beyond a five, any small integer value above 0 could work, so long as it is outside of the normal value range.
+> 5 is a conservative estimate that keeps the data usable without falsely implying zero or losing the row as NA. It acknowledges there were readmissions, just not enough to report precisely. I agree with this choice.
 
 
 ##### **Question 8**: [1 point] 
 Now, imagine an alternative scenario where instead of replacing it with a **5**, I instead asked you to replace it with a randomly sampled integer from 1 to 10. What would this do? Would `gsub()` work here or would I need to execute it a different way, e.g., with an `lapply()` function or a `for()` loop?
 
-> Greg A.
-> gsub() would not work for this application, because it expects a single value.
-> Since it expects a single value, we are unable to apply a randomly sampled integer.
+> You’d need a loop, lapply(), or ifelse() with sample(), because gsub() only applies a single fixed replacement, not random values. This introduces variability but may reduce consistency.
 
 
-##### **Question 9**: [3 points] 
+##### **Question 9**: [3 points] SS
 You probably anticipated this! We just decided that, rather than a **5** we want a randomly sampled integer from 1 to 10. 
 
 **Hint 1: **You might find it easier to read the data in from fresh and, after commenting out your `gsub` from Question 5, pattern match on the problematic text.
@@ -262,55 +217,69 @@ You probably anticipated this! We just decided that, rather than a **5** we want
 **Hint 2: **This is NOT the only way to do this, but I solved this using `gregexpr()`, `regmatches()`, and `lapply()`.
 
 ```{r}
-# Greg A.
-# Before running this code, I reran the previous code, excluding the gsub chunk, as suggested.
+#re read data 
+FY_2025_Hospital_Readmissions_Reduction_Program <- read_csv(
+  file.path(filepath, "FY_2025_Hospital_Readmissions_Reduction_Program_Hospital.csv"),
+  show_col_types = FALSE
+) %>% clean_names(case = "upper_camel")
 
-FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions <- unlist(lapply( # Use lapply to loop through each row in the column
-    FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions, function(x) { # For each row, apply the following
-  if (is.na(x)) {x} # If the value is NA, return the original value
-  else if (x == "Too Few to Report") {sample(1:10, 1)} # If the value is "Too Few to Report", replace it with a random integer between 1 and 10
-  else {x} # If neither, return the original value
-}))
+#replace with integer
+FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions <- 
+  lapply(FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions, function(x) {
+    if (grepl("Too Few to Report", x)) {
+      sample(1:10, 1)  # Random integer from 1 to 10
+    } else {
+      x
+    }
+  }) %>% unlist()
 
-FY_2025_Hospital_Readmissions_Reduction_Program # Print the data so we can verify changes
+#convert to numeric
+FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions <- 
+  as.numeric(FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions)
+
 ```
 
 
 ##### **Question 10**: [1 point] 
 It is finally time to fix those aberrant character columns by making them  numeric. However, just using `as.numeric()` would require us to do it over and over on each of the columns in multiple lines of code. Instead, investigate the function `mutate_at()` which will allow you to pass it a list of columns you want to convert with the function you want to use.
 ```{r}
-# Greg A.
-
-?mutate_at # Pull up documentation for mutate_at function
-FY_2025_Hospital_Readmissions_Reduction_Program <- FY_2025_Hospital_Readmissions_Reduction_Program %>% # Apply the following to the dataframe
-  mutate_at(vars(NumberOfDischarges, ExcessReadmissionRatio, PredictedReadmissionRate, # Alter the following columns
-                 ExpectedReadmissionRate, NumberOfReadmissions), as.numeric) # Set the columns as numeric
-
-FY_2025_Hospital_Readmissions_Reduction_Program # Print the data so we can verify changes
+# ?mutate_at
+FY_2025_Hospital_Readmissions_Reduction_Program <- FY_2025_Hospital_Readmissions_Reduction_Program %>%
+  mutate_at(vars(NumberOfDischarges, NumberOfReadmissions, ExcessReadmissionRatio, PredictedReadmissionRate, ExpectedReadmissionRate),
+            ~ as.numeric(.))
 ```
 
-#### Let's look more closely at Measure Names.
-Notice, that what I have done here first is used the `gsub()` function to `mutate()` the `MeasureName` column to remove the text that flanked the medical conditions.
-```{r}
-FY_2024_Hospital_Readmissions_Reduction_Program <-  FY_2024_Hospital_Readmissions_Reduction_Program %>%
-  mutate(MeasureName = gsub("READM-30-", "", MeasureName)) %>% 
-  mutate(MeasureName = gsub("-HRRP", "", MeasureName)) 
-```
+z
 
 **Note:** If at this point you've had any issues with any of the previous problems 2-10, you can load the cleaned readmissions data, `readmissionsClean.Rdata` so that you can proceed with the assignment.
 
 ```{r}
-load(file = "readmissionsClean.Rdata")
+load("~/Downloads/.RData")
 ```
 
 ##### **Question 11**: [1 point] 
 Investigate the function `pivot_wider()` or `spread()` from the `tidyr` package, which comes bundled with `tidyverse`. Try pivoting the `FY_2024_Hospital_Readmissions_Reduction_Program` dataset wider. Make sure you correctly identify the `names_from` and `values_from` column(s). **Make sure to save it as a separate dataframe called `wideDF`.** Use the `dim()` function to prove to me that you successfully pivoted wider.
 
 ```{r}
-# Your code here.
+# Load tidyr
+library(tidyr)
+
+#spread MeasureName into columns - values are the readmission rates 
+wideDF <- FY_2025_Hospital_Readmissions_Reduction_Program %>%
+  pivot_wider(
+    names_from = MeasureName,                  # Each unique measure (e.g., PN, AMI) becomes a column
+    values_from = NumberOfReadmissions         # Fill those columns with readmission counts
+  )
 
 #wideDF <- FY_2024_Hospital_Readmissions_Reduction_Program %>% pivot_wider(...) or spread(...)
 #dim(wideDF)
+wideDF <- FY_2025_Hospital_Readmissions_Reduction_Program %>%
+  pivot_wider(
+    names_from = MeasureName,
+    values_from = NumberOfReadmissions
+  )
+dim(wideDF)
+
 ```
 
 ### Filtering for specific conditions.
@@ -419,6 +388,35 @@ datList <- list(Healthcare_Associated_Infections,
                 Timely_and_Effective_Care, 
                 Unplanned_Hospital_Visits,
                 HCAHPS)
+library(dplyr)
+library(janitor)
+library(naniar)
+library(purrr)
+tidyNjoin <- function(datList, hospitalInfo) {
+  clean_df <- function(df) {
+    df %>%
+      janitor::clean_names(case = "upper_camel") %>%
+      mutate(across(where(is.character), ~ ifelse(.x %in% c("Not Available", "N/A", "", "NA"), NA, .x))) %>%
+      mutate(across(where(is.character), trimws)) %>%
+      distinct()
+  }
+  cleaned_list <- purrr::map(datList, clean_df)
+  merged <- reduce(cleaned_list, function(x, y) {
+    join_keys <- intersect(names(x), names(y))
+    join_keys <- intersect(join_keys, c("FacilityId", "MeasureName"))
+
+    if (length(join_keys) == 0) {
+      full_join(x, y, by = "FacilityId")
+    } else {
+      full_join(x, y, by = join_keys)
+    }
+  })
+  hospitalInfo <- hospitalInfo %>% distinct(FacilityId, .keep_all = TRUE)
+  final <- left_join(merged, hospitalInfo, by = "FacilityId")
+  return(final)
+}
+
+
 ```
 
 3. Filters the data for given criteria and condition(s) prior to pivoting. For example, for the 8 tables listed above, perhaps to filter for these possible measures before pivoting, so that I'm not pivoting ALL of those measures! (That would likely crash R!). Notice that what we're filtering for - is really a selection criteria, but because the data are in **wide format**, we are selecting them by row (i.e., "filter") rather than selection by column (i.e., "select"). 
@@ -461,10 +459,12 @@ filterList <- list("MRSA Bacteremia",
 4. For full credit, make sure that your function can clean up and join together at least three of the dataframes. **Note**: Make sure to join with `readmissionsClean` at the end!
 
 Perhaps you will choose to start your function like this (although you do not have to):
+
 ```{r, eval=FALSE, echo=TRUE}
 tidyNjoin <- function(datList, filterList, hospitalInfo) {
 
 }
+#note for team - do not run
 ```
 
 * **Hint 1: **Feel free to drop the `startDate` and `endDate` columns, as well as the `footnote` column. I would even suggest dropping `MeasureId`.
@@ -482,13 +482,55 @@ tidyNjoin <- function(datList, filterList, hospitalInfo) {
 Okay, take a stab at it!
 
 ```{r}
-# Your function here.
+library(dplyr)
+library(janitor)
+library(naniar)
+library(purrr)
+
+tidyNjoin <- function(datList, filterList, hospitalInfo) {
+  
+  clean_df <- function(df) {
+    df %>%
+      clean_names(case = "upper_camel") %>%
+      mutate(across(where(is.character), ~ ifelse(.x %in% c("Not Available", "N/A", "", "NA"), NA, .x))) %>%
+      mutate(across(where(is.character), trimws)) %>%
+      distinct()
+  }
+  
+  filter_by_measure <- function(df, measures) {
+    if ("MeasureName" %in% names(df)) {
+      df <- df %>% filter(MeasureName %in% measures)
+    }
+    return(df)
+  }
+
+  cleaned_filtered_list <- map2(datList, filterList, function(df, fl) {
+    df %>%
+      clean_df() %>%
+      filter_by_measure(fl) %>%
+      select(-any_of(c("StartDate", "EndDate", "Footnote", "Footnote1", "Footnote2", "MeasureId")))
+  })
+  
+  merged_df <- reduce(cleaned_filtered_list, function(x, y) {
+    join_keys <- intersect(names(x), names(y))
+    join_cols <- intersect(join_keys, c("FacilityId", "MeasureName"))
+    
+    if (length(join_cols) == 0) {
+      full_join(x, y, by = "FacilityId")
+    } else {
+      full_join(x, y, by = join_cols)
+    }
+  })
+    final_df <- left_join(merged_df, hospitalInfo, by = "FacilityId")
+  
+  return(final_df)
+}
 ```
 
 ##### **Question 13**: [1 point] 
 Why do you think I just made you work through this function? (**Hint**: What are you going to be asked to do in Project 1?)
 
-> Your answer here.
+>We worked through this function to prepare us for our team project, where we need to independently clean, filter, and join multiple large hospital datasets based on a selected health condition, like we did with pneumonia in this case. The goal, like with any data set is to build a clean and analysis-ready dataframe that reflects only the most relevant variables for our research question. By writing a reusable function, we can help to streamline this process, adjust inputs easily, and enable preprocessing — all critical skills for real-world data analysis in healthcare informatics.
 
 ### The full, merged, tidied dataset for pneumonia. 
 
@@ -585,16 +627,46 @@ Although we ideally could just include these steps (and perhaps you did!) in our
 ##### **Question 14**: [1 point] 
 Looking through the feature names, you probably notice names like `LowerEstimate_Death rate for pneumonia patients`. We do not need the higher and lower estimates in this case; just the point estimates. Use the `contains()` function to **drop** any columns that contain `LowerEstimate` or `HigherEstimate`. Let's also go ahead and drop any columns containing `Denominator` and `HcahpsAnswerPercent` as well. How many features did you drop? 
 
-> Your answer here.
+> Using the contains() function, I dropped all columns that included "LowerEstimate", "HigherEstimate", "Denominator", and "HcahpsAnswerPercent" in their names. A total of 7 features were removed from the dataset. These columns were not needed for modeling since they either represented duplicate values or unhelpful categorical breakdowns.
 
 ```{r}
-# Your code here.
+# Store original number of features
+original_ncol <- ncol(pneumoniaFull)
+
+# Drop unwanted columns
+pneumoniaFull <- pneumoniaFull %>%
+  select(
+    -contains("LowerEstimate"),
+    -contains("HigherEstimate"),
+    -contains("Denominator"),
+    -contains("HcahpsAnswerPercent")
+  )
+
+# Store new number of features
+new_ncol <- ncol(pneumoniaFull)
+
+# Calculate how many features were dropped
+features_dropped <- original_ncol - new_ncol
+features_dropped
 ```
 
 **Note:** Please drop `FacilityName`, `TelephoneNumber`, `Address`, & `CityTown` at this stage as well, if they're still in your full dataset.
 
 ```{r}
-# Your code here.
+pneumoniaFull <- pneumoniaFull %>%
+  select(
+    -contains("LowerEstimate"),
+    -contains("HigherEstimate"),
+    -contains("Denominator"),
+    -contains("HcahpsAnswerPercent"),
+    -contains("FacilityName"),
+    -contains("TelephoneNumber"),
+    -contains("Address"),
+    -contains("CityTown")
+  )
+
+# Check dimensions after dropping
+dim(pneumoniaFull)
 ```
 
 ## Encoding
@@ -604,13 +676,16 @@ Looking through the feature names, you probably notice names like `LowerEstimate
 ##### **Question 15**: [1 point] 
 We need to perform encoding on all of the categorical columns, ultimately. However, we will focus first on the columns that begin with ``ComparedToNational_`, e.g., `ComparedToNational_Death rate for pneumonia patients`. What kind of encoding should we perform on these columns? Why? 
 
-> Your answer here.
+> I believe should perform ordinal encoding on the ComparedToNational_ columns because the values represent ordered categories (examples are "Worse than the National Benchmark", "No Different than National Benchmark", "Better than the National Benchmark"). These categories have a meaningful rank or order but are not numerical by default, so encoding them as ordinal integers (such as 1 = Worse, 2 = No Different, 3 = Better) preserves that order and allows models to use them effectively.
+
+
 
 
 ##### **Question 16**: [1 point] 
 What other column do we also need to perform this kind of encoding on?
 
-> Your answer here.
+> We also need to perform ordinal encoding on the Score columns from the HCAHPS dataset (ex. "Score_Nurse communication", "Score_Doctor communication"). These scores are typically linear mean scores or ordinal ratings, and should be treated as ordered numerical values with reflecting increasing quality. If they are stored as character or factor, they must be encoded appropriately to reflect their ordinal nature.
+
 
 ##### **Question 17**: [3 points] 
 You probably expected this - attempt to encode those columns the method you selected. It's okay if you can only think of a way to brute-force this for now; I will show you code to help you do it faster after the assignment. :)
@@ -624,7 +699,48 @@ You probably expected this - attempt to encode those columns the method you sele
 * **Hint 3: **For full credit, don't forget to double check that you managed to preserve all the data! The `table()` function is sufficient here.
 
 ```{r}
-# Your code here.
+#Define the ordinal scale mapping
+ordinal_map <- c(
+  "Worse than the National Benchmark" = 1,
+  "No Different than the National Benchmark" = 2,
+  "Better than the National Benchmark" = 3
+)
+
+#Identify all relevant columns
+compared_cols <- names(pneumoniaFull)[grepl("^ComparedToNational_", names(pneumoniaFull))]
+
+#Create a temp df, apply mapping
+temp_compared <- pneumoniaFull[, compared_cols] %>%
+  lapply(function(col) as.integer(ordinal_map[col])) %>%
+  as.data.frame()
+
+#Replace the original columns
+pneumoniaFull[, compared_cols] <- temp_compared
+
+#Double-check encoding worked
+lapply(pneumoniaFull[, compared_cols], table, useNA = "ifany")
+
+#Score columns comparison
+# Step 1: Identify Score columns
+score_cols <- names(pneumoniaFull)[grepl("^Score_", names(pneumoniaFull))]
+
+#Convert Score columns to numeric
+temp_scores <- pneumoniaFull[, score_cols] %>%
+  lapply(function(col) as.numeric(gsub("[^0-9.]", "", col))) %>%
+  as.data.frame()
+
+#Replace original columns
+pneumoniaFull[, score_cols] <- temp_scores
+
+#Double-check Score columns are now numeric
+sapply(pneumoniaFull[, score_cols], class)
+
+#Check some distributions
+lapply(pneumoniaFull[, score_cols], table, useNA = "ifany")
+
+str(pneumoniaFull[, c(compared_cols, score_cols)])
+
+
 ```
 
 
@@ -646,25 +762,39 @@ Go through the **frequency encoding** code chunk below and comment each line. Wh
 > Your answer in comments in the code chunk.
 
 ```{r}
+#Define the categorical columns that we want to frequency encode
 cols2encode <- c("State", 
-               "CountyParish")
+                 "CountyParish")  
+#These are high-cardinality geographic identifiers. 
 
+#Extract only the columns we want to encode from the full dataset
 temp <- pneumoniaFullEncoded[, names(pneumoniaFullEncoded) %in% cols2encode]
+#This holds only the selected columns to be transformed,
 
+#Define a function to perform frequency encoding
 add_freq <- function(data, column_name) {
-  frequency_map <- table(data[[column_name]], useNA = "always")
-  data[[column_name]] <- frequency_map[match(data[[column_name]],
-                                             names(frequency_map))]
-  return(data)
+  frequency_map <- table(data[[column_name]], useNA = "always") 
+  #Create a frequency table counting how many times each category appears (including NAs).
+  
+  data[[column_name]] <- frequency_map[match(data[[column_name]], names(frequency_map))]
+  #For each value in the column, replace it with its frequency count from the table.
+  #match() ensures the correct value is mapped from the frequency table.
+  
+  return(data)  #Return the modified dataframe
 }
 
+#Loop through each column we want to frequency encode
 for (col in names(temp)) {
   temp <- add_freq(temp, col)
+  #add_freq() function to replace category values with their frequency counts
 }
 
+#Replace the original columns in pneumoniaFullEncoded with the frequency-encoded versions
 for (c in 1:length(cols2encode)) {
   pneumoniaFullEncoded[, cols2encode[c]] <- temp[, cols2encode[c]]
+  #This line writes the frequency-encoded values back into the main dataset
 }
+
 ```             
 
 
@@ -679,10 +809,21 @@ Use your finally & freshly encoded version of `pneumoniaFullEncoded` to answer t
 **Hint 3: **If you decide it is ill-advised for either or both columns, make sure to remove those features from the dataset!
 
 ```{r}
-# Your code here.
+state_freqs <- pneumoniaFullEncoded$State
+county_freqs <- pneumoniaFullEncoded$CountyParish
+
+#Count number of unique frequency values
+length(unique(state_freqs))  
+length(unique(county_freqs)) 
+
+# Count how many times each frequency value is repeated
+table(table(state_freqs))      
+table(table(county_freqs))     
+
 ```
 
-> Your answer here.
+> The state feature has 57 unique frequency values so this would be worth keeping for frequency encoding.
+CountyParish has 1549 unique values and 791 counties share the same frequency of 1. It makes sense to drop CountyParish from frequency encoding.
 
 
 ### Finishing touches
@@ -700,10 +841,11 @@ pneumoniaAnalyze <- pneumoniaAnalyze %>%
 
 ```{r}
 pneumoniaAnalyze <- pneumoniaAnalyze %>% 
-  ## arbitrarily chose as the rep as they are identical
+
   mutate(NumberSurveysCompleted = NumberOfCompletedSurveys_Cleanliness,              
-         SurveyResponseRate = SurveyResponseRatePercent_Cleanliness/100) %>%       ## Turned into an actual rate 
-  select(-contains(c("NumberOfCompletedSurveys_", "SurveyResponseRatePercent_")))   ## drop the others
+         SurveyResponseRate = SurveyResponseRatePercent_Cleanliness/100) %>%       
+  
+  select(-contains(c("NumberOfCompletedSurveys_", "SurveyResponseRatePercent_")))   
 ```
 
 Excellent! Now we are down to just 51 features...
@@ -724,13 +866,14 @@ Use `pneumoniaAnalyze` to calculate an  `observed_readmission_rate` as the numbe
 
 **Hint: **Think about (or perhaps try to investigate) why the **predicted** rate exists. What would be the (dis)advantage to using the predicted vs. the newly created `observed_readmission_rate`? 
 
-> Your answer here.
+>ExcessReadmissionRatio is likely PredictedReadmissionRate/ExpectedReadmissionRate. There is likely a high correlation between Predicted and observed readmission rate.
+The best target is probably PredictedReadmissionRate though the main disadvantage of using it is that it may incorporate variables or assumptions that are not fully transparent in our analysis. Also, since it is already a model-derived estimate, using it as a target could amplify any biases or limitations.
 
 ##### **Question 21**: [1 points] 
 
 Why did I have you drop the two columns used to make `observed_readmission_rate`?
 
-> Your answer here.
+> To prevent redundancy and data leakage.
 
 
 # Exploratory Data Analysis
@@ -746,7 +889,37 @@ Full points are awarded for professional plots with axis labels, labeled legends
 Need inspiration that comes with code?!? Check out the [R Graph Gallery](https://r-graph-gallery.com)!
 
 ```{r}
-# Your code here.
+library(ggplot2)
+library(dplyr)
+
+#Rename column for convenience and plot
+pneumoniaAnalyze <- pneumoniaAnalyze %>%
+  rename(Hcahps_NurseComm = `HcahpsLinearMeanValue_Nurse communication`)
+
+pneumoniaAnalyze <- pneumoniaAnalyze %>%
+  mutate(
+    NurseCommGroup = cut(Hcahps_NurseComm,
+                         breaks = c(0, 60, 70, 80, 90, 100),
+                         labels = c("0–60", "61–70", "71–80", "81–90", "91–100"))
+  )
+
+ggplot(pneumoniaAnalyze, aes(x = NurseCommGroup, y = PredictedReadmissionRate)) +
+  geom_violin(fill = "steelblue", color = "gray30") +
+  geom_boxplot(width = 0.1, outlier.shape = NA, alpha = 0.5) +
+  facet_wrap(~ State, ncol = 4) +
+  labs(
+    title = "Predicted Readmission Rate by Nurse Communication (HCAHPS), Faceted by State",
+    x = "Nurse Communication Score Group",
+    y = "Predicted Readmission Rate (%)"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(face = "bold", size = 14),
+    strip.text = element_text(face = "bold")
+  )
+
+
 ```
 
 Lastly, make sure to **interpret** your graphic.
