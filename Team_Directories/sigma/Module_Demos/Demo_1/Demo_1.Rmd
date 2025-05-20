@@ -110,8 +110,8 @@ Our objective for the patient advocacy watchdog is clean, merge, explore, and pr
 
 ```{r}
 ## Make sure to adjust your path!
-# JMLs path = filepath <- "C:/Users/Sean/Documents/00 Merrimack/DSE6630/Week 1/hospital_current_data"
-filepath <- "C:/Users/Sean/Documents/00 Merrimack/DSE6630/Week 1/hospital_current_data"
+# JMLs path = filepath <- "C:/Users/Sean/Documents/00 Merrimack/DSE6630/Week 1/hospital_current_data/"
+filepath <- "C:/Users/Sean/Documents/00 Merrimack/DSE6630/Week 1/hospital_current_data/"
 ```
 
 
@@ -125,7 +125,7 @@ Take a look at the chunk below, which performs **dynamic variable assignment** a
 >MN:
 
 ```{r, message=FALSE, warning=FALSE}
-filepath <- "C:/Users/mnoon/OneDrive/Desktop/Datasets/hospitals_current_data/" # this code assigns the  the file directory to the variable filepath 
+#filepath <- "C:/Users/mnoon/OneDrive/Desktop/Datasets/hospitals_current_data/" # this code assigns the  the file directory to the variable filepath 
 
 files <- list.files(path = filepath, pattern = "Hospital.csv") #this code creates the  files variable, lists the files in path using filepath variable, and is looking for pattern matches of hospital.csv
 
@@ -186,7 +186,7 @@ FY_2025_Hospital_Readmissions_Reduction_Program <- replace_with_na_all(FY_2025_H
 You will notice that this aberrant class of missing value __caused__ the numeric columns to be coerced into character columns when they were imported by `read_csv()`. Although we could try using `as.numeric()` by itself, which would assign `NA` to any non-numeric entry in `FY_2024_Hospital_Readmissions_Reduction_Program`, the problem is that we could lose important information that way. Thus, as annoying as this is, we should fix it a little more specifically...
 
 ##### **Question 5**: [1 point] 
-Look more closely at the `NumberOfReadmissions` column in the `FY_2024_Hospital_Readmissions_Reduction_Program`. What other issue do you see with this specific column that is coercing it to the character type, and why does it exist? 
+Look more closely at the `NumberOfReadmissions` column in the `FY_2025_Hospital_Readmissions_Reduction_Program`. What other issue do you see with this specific column that is coercing it to the character type, and why does it exist? 
 
 **Hint: ** Make sure to use the accompanying data dictionary **HOSPITAL_Data_Dictionary.pdf** to also examine **WHY** this problem exists!
 
@@ -206,7 +206,7 @@ publicly reported.
 
 
 ##### **Question 6**: [1 point] 
-Investigate the `gsub()` function that is part of base `R` or any other function of your choosing. Use the function you choose to **replace** the problematic text in  the `NumberOfReadmissions` column in `FY_2024_Hospital_Readmissions_Reduction_Program` with a **5**.
+Investigate the `gsub()` function that is part of base `R` or any other function of your choosing. Use the function you choose to **replace** the problematic text in  the `NumberOfReadmissions` column in `FY_2025_Hospital_Readmissions_Reduction_Program` with a **5**.
 ```{r}
 ?gsub
 #FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions <-  gsub("Too Few to Report", "5", #FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions)
@@ -223,6 +223,7 @@ NA would not work because there does seem to be data available, it simply is not
 Now, imagine an alternative scenario where instead of replacing it with a **5**, I instead asked you to replace it with a randomly sampled integer from 1 to 10. What would this do? Would `gsub()` work here or would I need to execute it a different way, e.g., with an `lapply()` function or a `for()` loop?
 
 > MN: gsub() would not work in this situation because it will be applying a static unchanging value in place of one other particular value. I believe you would need to create a for loop and or lapply to create random integers and apply them across the values. I think there are many ways to solve this problem, mutate(), ifelse statements to name a few.
+> JML: I read about a different function "multigsub" in the qdap package that might be able to help (but comments from others mention this package requires many dependencies)
 
 
 ##### **Question 9**: [3 points] 
@@ -365,6 +366,20 @@ hospitalInfo <- Payment_and_Value_of_Care %>%
                          State, ZipCode, CountyParish, TelephoneNumber)
 ```
 
+```{r}
+# (JML) FY_2025_HAC_Reduction_Program - not sure if we'll use it but I removed footnote-related columns
+# and the date columns
+FY_2025_HAC_Reduction_Program <- FY_2025_HAC_Reduction_Program %>% 
+  select(-Psi90CompositeValueFootnote, -Psi90WZFootnote, -Psi90StartDate,
+         -Psi90EndDate, -ClabsiSirFootnote, -ClabsiWZFootnote,
+         -CautiSirFootnote, -CautiWZFootnote,
+         -SsiSirFootnote, -SsiWZFootnote,
+         -CdiSirFootnote, -CdiWZFootnote,
+         -MrsaSirFootnote, -MrsaWZFootnote,
+         -HaiMeasuresStartDate, -HaiMeasuresEndDate,
+         -TotalHacScoreFootnote, -PaymentReductionFootnote) 
+```
+
 ##### **Question 12**: [5 points] 
 
 Write a function that will:
@@ -446,11 +461,13 @@ Okay, take a stab at it!
 
 ```{r}
 #took me (MN) awhile to even come up with this, not my strong suit
+#(JML)I added the 2nd set of column drops since that data is in hospitalInfo; also added "MeasureID" to the 1st set of column drops
 clean_filter <- function(df, ...) { #main function
   
   tidy_data <- function(df) { #tidy up datasets by removing columns, and handling values to NA
   df <- df %>%
-    select(-any_of(c("StartDate", "EndDate", "Footnote"))) %>%
+    select(-any_of(c("StartDate", "EndDate", "Footnote","MeasureID"))) %>%
+    select(-any_of(c("FacilityName", "Address", "CityTown", "State", "ZipCode", "CountyParish", "TelephoneNumber"))) %>%
     replace_with_na_all( condition = ~.x %in% c("Not Available", "Not Applicable", "Missing Data"))
   }
   
@@ -526,7 +543,7 @@ Why do you think I just made you work through this function? (**Hint**: What are
 Please load if you are struggling to get a function that performs the task or if you aren't sure if it does what's expected.
 
 ```{r}
-load("pneumoniaFull.Rdata")
+load(file = "pneumoniaFull.Rdata")
 dim(pneumoniaFull)
 ```
 
