@@ -40,8 +40,7 @@
 ###################################
 
 ## Team branches
-#teams=("alpha" "delta" "gamma" "lambda" "sigma" "epsilon" "omega" "kappa" "rho" "theta")
-teams=("alpha" "rho") #"gamma" "lambda" "sigma" "epsilon" "omega" "kappa" "rho" "theta")
+teams=("alpha" "delta" "gamma" "lambda" "sigma" "epsilon" "omega" "kappa" "rho" "theta")
 
 ## Make sure working directory is clean first - will fail if not!
 if ! git diff-index --quiet HEAD --; then
@@ -156,6 +155,9 @@ for branch in "${teams[@]}"; do
   ## Attempt push back onto main:
   git push origin $branch || { echo "$branch push failed!!"; continue; }
 done
+
+## Last step, checkout main:
+git checkout main
 
 echo "###################################################"
 echo "###################################################"
