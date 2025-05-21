@@ -104,21 +104,44 @@ for branch in "${teams[@]}"; do
     ## Create a PR into main
     echo "Creating pull request $temp --> main..."
 	
-	## Create PR from temp branch into main
-	#echo "Creating pull request $temp --> main..."
-	if ! gh pr create --base main --head "$temp" --title "Merge $branch into main" --body "Auto pull request to merge $branch into main"; then
-         echo "Pull request creation for $branch --> main failed. Merge skipped."
+# 	## Create PR from temp branch into main
+# 	#echo "Creating pull request $temp --> main..."
+# 	if ! gh pr create --base main --head "$temp" --title "Merge $branch into main" --body "Auto pull request to merge $branch into main"; then
+#          echo "Pull request creation for $branch --> main failed. Merge skipped."
+# 	else
+# 		echo "Pull request created: $branch --> main."
+# 	fi
+# 
+#     ## Auto-merge the PR
+#     echo "Attempting to auto-merge pull request..."
+# #     if ! gh pr merge --merge --delete-branch --repo ksgeist/Merrimack_DSE6630 "$temp"; then
+# #         echo "Auto-merge failed!! Manual merge required."
+# #     else
+# #         echo "Pull request auto-merged and $temp deleted."
+# #     fi
+
+	## Check if there are new commits to merge
+	if git log main.."$temp" --oneline | grep .; then
+		echo "Creating pull request $temp --> main..."
+		if ! gh pr create --base main --head "$temp" --title "Merge $branch into main" --body "Auto pull request to merge $branch into main"; then
+			echo "Pull request creation for $branch --> main failed. Merge skipped."
+		else
+			echo "Pull request created: $branch --> main."
+	
+			echo "Attempting to auto-merge pull request..."
+			if ! gh pr merge --merge --delete-branch "$temp"; then
+				echo "Auto-merge for $temp failed!! Merge manually."
+			else
+				echo "Pull request auto-merged and $temp deleted."
+			fi
+		fi
 	else
-		echo "Pull request created: $branch --> main."
+		## Delete the temp branch and return to main
+		echo "No new commits from $branch to merge into main. Skipping pull request."
+		git checkout main
+		git branch -D "$temp"
 	fi
 
-    ## Auto-merge the PR
-    echo "Attempting to auto-merge pull request..."
-    if ! gh pr merge --merge --delete-branch --repo ksgeist/Merrimack_DSE6630 "$temp"; then
-        echo "Auto-merge failed!! Manual merge required."
-    else
-        echo "Pull request auto-merged and $temp deleted."
-    fi
 
 # ###### Merge only way for an unprotected main branch with no PR needed.
 # 	## Merge team branch into main
