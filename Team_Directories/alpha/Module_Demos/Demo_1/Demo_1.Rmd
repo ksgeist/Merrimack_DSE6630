@@ -221,7 +221,7 @@ You probably anticipated this! We just decided that, rather than a **5** we want
 # Re-place with your file path
 #file.choose()
 #file_path <- "/Users/krishabugajski/Desktop/Healthcare+Life Sci Analytics/Module_01/hospitals_current_data/FY_2025_Hospital_Readmissions_Reduction_Program_Hospital.csv"
-file_path<-filepath #Added by NL for use on Windows
+file_path<-file.path(Sys.getenv("USERPROFILE"), "Desktop", "hospitals_current_data","FY_2025_Hospital_Readmissions_Reduction_Program_Hospital.csv") #Added by NL for use on Windows
 # Reading in the data in fresh
 FY_2025_Hospital_Readmissions_Reduction_Program <- janitor::clean_names(readr::read_csv(file_path, show_col_types = FALSE),
                                                                          case = "upper_camel")
@@ -387,7 +387,7 @@ hospitalInfo <- Payment_and_Value_of_Care %>%
                          State, ZipCode, CountyParish, TelephoneNumber)
 ```
 
-##### **Question 12**: [5 points] - KB
+##### **Question 12**: [5 points] - KB & NL
 
 Write a function that will:
 
@@ -480,97 +480,49 @@ library(purrr)
 # This function takes a list of long-format dataframes, pivots them wide, joins with hospital demographics and readmission data, and returns a clean, wide-format dataframe with only the desired columns.
 
 
-tidyNjoin <- function(datList, filterList, hospitalInfo, readmissionsClean) {
-
-  # Define columns to drop across datasets, case-insensitive
-  drop_cols <- c("startDate", "endDate", "footnote", "MeasureId")
+tidyNjoin <- function(datList, filterList, hospitalInfo) {
+  #Step 1: Standardize column names to lowercase
+  colnames(hospitalInfo)<-tolower(colnames(hospitalInfo))
   
-  # Extract all unique MeasureName values from all dataframes, helps ensure all possible measures are present for consistency
-  all_measures <- unique(unlist(lapply(datList, function(df) unique(df$MeasureName))))
-  
-  # Identify all columns that hold scores/values, not identifiers or metadata
-  # this ensures consistent column structure across datasets
-  all_valuecols <- unique(unlist(lapply(datList, function(df) setdiff(
-    names(df),
-    c("FacilityId", "FacilityName", "Address", "CityTown", "State", "ZipCode", 
-      "CountyParish", "TelephoneNumber", "MeasureName", drop_cols)
-  ))))
-  
-  # Process each dataframe individually to clean, filter, and pivot it
-  wide_list <- purrr::imap(datList, function(df, i) {
-    
-    # Get corresponding filters for this dataframe, if present
-    filters <- if (i <= length(filterList)) filterList[[i]] else NULL
-    
-    # Drop non-essential columns that vary across datasets, case-insensitive
-    cols_to_drop <- names(df)[tolower(names(df)) %in% tolower(drop_cols)]
-    df <- df %>% select(-any_of(cols_to_drop))
-    
-    # Filter for relevant measures only
-    if (!is.null(filters) && length(filters) > 0) {
-      df <- df %>% filter(MeasureName %in% filters)
+  #Step 2: Clean/filter
+  clean_datList<-mapply(function(df,filters){
+    colnames(df) <- tolower(colnames(df))
+    #Define the columns to be removed
+    cols_to_remove<-c("startdate", "enddate", "footnote", "measureid")
+    #Remove all columns defined by the step above
+    df <- df %>% select(-any_of(cols_to_remove))
+    #Filter measurenames prior to pivoting. Conditional statement to accommodate dataframes that do not have a "measurename" column (i.e., "Promoting_Interoperability").
+    if("measurename"%in%colnames(df)){
+      df<-df %>% filter(measurename %in% filters)
     }
-    
-    # Remove duplicate rows, just in case
-    df <- df %>% distinct()
-    
-    # Ensure all expected value columns are present in the current dataframe
-    # Missing ones are created with NA to preserve consistent structure for joining
-    for (col in all_valuecols) {
-      if (!(col %in% names(df))) df[[col]] <- NA
-    }
-
-    # Ensure all measures are represented — even if they're missing in the current df
-    # This prevents problems during pivoting and helps ensure uniformity across datasets
-    missing_measures <- setdiff(all_measures, unique(df$MeasureName))
-    if (length(missing_measures) > 0 && nrow(df) > 0) {
-      add_df <- expand.grid(FacilityId = unique(df$FacilityId), MeasureName = missing_measures, stringsAsFactors = FALSE)
-      for (col in all_valuecols) add_df[[col]] <- NA
-      df <- bind_rows(df, add_df)
-    }
-    
-    # Pivot the dataframe from long to wide format
-    # Each combination of value column and MeasureName becomes a unique column
-    df %>%
+    #Step 3: Pivot "measurename" column to wide format, with each measurename becoming a column name.
+    df_wide<-df%>%
       pivot_wider(
-        id_cols = c("FacilityId"),
-        names_from = "MeasureName",
-        values_from = all_of(all_valuecols),
-        names_glue = "{.value}_{MeasureName}"  # E.g., Score_Death rate, etc.
+        id_cols=facilityid,
+        names_from = measurename,
+        values_from = setdiff(colnames(df), c("facilityid", "measurename", "facilityname", "address", "citytown", "state", "zipcode", "countyparish", "telephonenumber")),
+        names_glue="{.value}_{measurename}"
       )
-  })
-  
-  # Merge all pivoted dataframes together using a full join on FacilityId
-  mergedDF <- purrr::reduce(wide_list, function(x, y) {
-    full_join(x, y, by = "FacilityId")
-  })
-  
-  # Join with hospitalInfo 
-  mergedDF <- mergedDF %>% left_join(hospitalInfo, by = "FacilityId")
-  
-  # Join with readmissionsClean last
-  mergedDF <- mergedDF %>% left_join(readmissionsClean, by = "FacilityId")
-  
-  # Remove any duplicated rows that might have come in during joins
-  mergedDF <- mergedDF %>% distinct()
-
-  # Remove duplicate columns from merges (for example: col.x, col.y...)
-  mergedDF <- mergedDF %>% select(-matches("\\.y$|\\.x$|\\.x\\.x$|\\.y\\.y$"))
-
-  # Drop any leftover unnecessary columns (case-insensitive again)
-  # Includes rechecking for MeasureName
-  drop_cols_final <- c(drop_cols, "MeasureName")
-  cols_to_drop_final <- names(mergedDF)[tolower(names(mergedDF)) %in% tolower(drop_cols_final)]
-  mergedDF <- mergedDF %>% select(-any_of(cols_to_drop_final))
-  
-  # Return the cleaned, joined, and wide-format dataset
-  return(mergedDF)
+    return(df_wide)
+  }, datList, filterList, SIMPLIFY = FALSE) #end of the mapply() function
+    #Step 4: join pivoted dataframes together
+  merged_df<-clean_datList[[1]]
+  for (i in 2:length(clean_datList)) {
+    merged_df <- full_join(merged_df,clean_datList[[i]], by="facilityid")
+  }
+  final_df <-left_join(hospitalInfo,merged_df,by="facilityid") %>%
+    distinct()
+  return(final_df)
 }
 ```
 
 ```{r}
-finalDF <- tidyNjoin(datList, filterList, hospitalInfo, readmissionsClean)
-dim(finalDF)
+tidyOutput <- tidyNjoin(datList, filterList, hospitalInfo)
+dim(tidyOutput)
+#joining readmissionsClean to tidyOutput to create final data
+colnames(readmissionsClean)<-tolower(colnames(readmissionsClean)) #standardizing readmissions columns first
+final_clean_df<-full_join(readmissionsClean,tidyOutput,by="facilityid")
+dim(final_clean_df) #Checking dimensions to compare against the pneumoniaFull data in question 13. The discrepancy may be explained by differences between 2025 and 2024 data.
 ```
 
 
