@@ -2,7 +2,6 @@
 
 # Team Members:
 - Greg Andriotakis
-- Sue Susman
 - Collins Njagi
 
 # Description
