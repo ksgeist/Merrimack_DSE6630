@@ -1,8 +1,10 @@
 ---
 title: 'Demo 1: Biomedical & Clinical Informatics'
-author: "Collins Njagi"
+author: "Team Gamma, Collins Njagi"
 date: "12 May 2025"
 output:
+  pdf_document:
+    toc: true
   html_document:
     toc: true
     toc_float: true
@@ -112,7 +114,9 @@ Our objective for the patient advocacy watchdog is clean, merge, explore, and pr
 
 ```{r}
 ## Make sure to adjust your path!
-filepath <- "~/Desktop/school/Healthcare/Week1/Demo1_NotGitHub/hospitals_current_data/"
+filepath <- ("C:/data_science/DSE6630OM_SU2025S1/week1_Biomedical and Clinical Informatics, Part 1/hospitals_current_data/")
+  
+  #"~/Desktop/school/Healthcare/Week1/Demo1_NotGitHub/hospitals_current_data/"
 ```
 
 
@@ -133,13 +137,14 @@ files <- list.files(path = filepath, pattern = "Hospital.csv") # Creates a varia
 for(f in 1:length(files)) { # Starts a for loop, for each entry in the files list
     dat <- clean_names(read_csv(paste0(filepath, files[f]), # Clean each column name in the file, start by reading in the column names
                                 show_col_types = FALSE), # Do not print out the names as they are read in
-                       case = "upper_camel") # Apply upper camel casing to each column name
-    filename <- gsub(".Hospital\\.csv", "", files[f]) # Remove .Hospital.csv from each file name
+                       case = "upper_camel")# Apply upper camel casing to each column name
+    filename <- gsub(".Hospital\\.csv", "", files[f]) # Remove .Hospital.csv from each file name ##(".Hospital\\.csv", "", files[f])
     assign(filename, dat) # Assign the cleaned name to the list
 } # End the for loop
 
 files <- gsub(".Hospital\\.csv", "", files) %>% data.frame() # Remove .Hospital.csv from each file name, convert the list into a dataframe
 names(files) <- "File Name" # Give the column a name of "File Name" to clarify what we are looking at
+
 ```
 
 #### Now, let's look at a list of the files that we've read in:
@@ -292,7 +297,7 @@ FY_2025_Hospital_Readmissions_Reduction_Program # Print the data so we can verif
 #### Let's look more closely at Measure Names.
 Notice, that what I have done here first is used the `gsub()` function to `mutate()` the `MeasureName` column to remove the text that flanked the medical conditions.
 ```{r}
-FY_2024_Hospital_Readmissions_Reduction_Program <-  FY_2024_Hospital_Readmissions_Reduction_Program %>%
+FY_2025_Hospital_Readmissions_Reduction_Program <-  FY_2025_Hospital_Readmissions_Reduction_Program %>%
   mutate(MeasureName = gsub("READM-30-", "", MeasureName)) %>% 
   mutate(MeasureName = gsub("-HRRP", "", MeasureName)) 
 ```
@@ -308,9 +313,16 @@ Investigate the function `pivot_wider()` or `spread()` from the `tidyr` package,
 
 ```{r}
 # Your code here.
+#Collins Njagi
 
-#wideDF <- FY_2024_Hospital_Readmissions_Reduction_Program %>% pivot_wider(...) or spread(...)
-#dim(wideDF)
+?pivot_wider #to check the documentation of pivot_wider
+
+
+wideDF <- FY_2025_Hospital_Readmissions_Reduction_Program %>% 
+  pivot_wider(names_from = MeasureName,values_from = c(NumberOfDischarges, Footnote, 
+                                                       ExcessReadmissionRatio, PredictedReadmissionRate,
+                                                       ExpectedReadmissionRate, NumberOfReadmissions)) #converting dataset to wide
+dim(wideDF)
 ```
 
 ### Filtering for specific conditions.
@@ -358,7 +370,7 @@ In a similar vein, we can also perform __dynamic dataframe creation__ when we ne
 
 #### Writing your own function to create objects dynamically.
 
-We are going to take all the cleaning steps we did above that was not specific to the `FY_2024_Hospital_Readmissions_Reduction_Program` dataframe and tidy, pivot, & filter for specific readmission conditions, and iteratively join as many dataframes as needed. The goal is to make something flexible enough that, if you change a set of inputs, it will create a joined table from ANY set of dataframe inputs. There is more than one way to do this; but leveraging some of the existing `tidyverse` and `tidyr` functions will likely help you make this very flexible. Please note, however, that you do not have to use those packages.
+We are going to take all the cleaning steps we did above that was not specific to the `FY_2025_Hospital_Readmissions_Reduction_Program` dataframe and tidy, pivot, & filter for specific readmission conditions, and iteratively join as many dataframes as needed. The goal is to make something flexible enough that, if you change a set of inputs, it will create a joined table from ANY set of dataframe inputs. There is more than one way to do this; but leveraging some of the existing `tidyverse` and `tidyr` functions will likely help you make this very flexible. Please note, however, that you do not have to use those packages.
 
 I start you out with something I find helpful when joining together dataframes that sometimes have *redundant* columns BUT not every column is in every dataframe. I start by making a dataframe called `hospitalInfo` that contains the pertinent information on each hospital in the dataset, so you can drop those columns from the other dataframes to prevent inflation or issues when you later join the dataframes together. You may want to join each of the other dataframes to `hospitalInfo`. 
 
@@ -464,7 +476,7 @@ Perhaps you will choose to start your function like this (although you do not ha
 ```{r, eval=FALSE, echo=TRUE}
 tidyNjoin <- function(datList, filterList, hospitalInfo) {
 
-}
+} #Collins Njagi, my experience with functions is abit wanting! I will have to dig deep
 ```
 
 * **Hint 1: **Feel free to drop the `startDate` and `endDate` columns, as well as the `footnote` column. I would even suggest dropping `MeasureId`.
@@ -488,7 +500,8 @@ Okay, take a stab at it!
 ##### **Question 13**: [1 point] 
 Why do you think I just made you work through this function? (**Hint**: What are you going to be asked to do in Project 1?)
 
-> Your answer here.
+#By Collins Njagi.
+> Your answer here. This function will be very handy in project 1 because we will be focusing on one or two specific conditions to predict hospital readimission 
 
 ### The full, merged, tidied dataset for pneumonia. 
 
@@ -585,16 +598,30 @@ Although we ideally could just include these steps (and perhaps you did!) in our
 ##### **Question 14**: [1 point] 
 Looking through the feature names, you probably notice names like `LowerEstimate_Death rate for pneumonia patients`. We do not need the higher and lower estimates in this case; just the point estimates. Use the `contains()` function to **drop** any columns that contain `LowerEstimate` or `HigherEstimate`. Let's also go ahead and drop any columns containing `Denominator` and `HcahpsAnswerPercent` as well. How many features did you drop? 
 
-> Your answer here.
+> Your answer here. 25 features
 
 ```{r}
 # Your code here.
+# by Collins Njagi
+?contains #checking how this function works in documentation
+
+pneumoniaFull <- pneumoniaFull %>%
+  select(-contains(c("LowerEstimate", "HigherEstimate", "Denominator", "HcahpsAnswerPercent"), ignore.case = TRUE)) #contains() is case sensitive therefore opted to include ignore case sensitivity by setting ignore.case = true
+
+dim(pneumoniaFull)
+
 ```
 
 **Note:** Please drop `FacilityName`, `TelephoneNumber`, `Address`, & `CityTown` at this stage as well, if they're still in your full dataset.
 
 ```{r}
+#Collins Njagi
 # Your code here.
+
+pneumoniaFull <- pneumoniaFull%>%
+  select(-c(FacilityName, TelephoneNumber, Address, CityTown))
+
+dim(pneumoniaFull)
 ```
 
 ## Encoding
@@ -604,13 +631,27 @@ Looking through the feature names, you probably notice names like `LowerEstimate
 ##### **Question 15**: [1 point] 
 We need to perform encoding on all of the categorical columns, ultimately. However, we will focus first on the columns that begin with ``ComparedToNational_`, e.g., `ComparedToNational_Death rate for pneumonia patients`. What kind of encoding should we perform on these columns? Why? 
 
-> Your answer here.
+#Collins Njagi
+
+```{r}
+unique(pneumoniaFull$`PaymentCategory_Payment for pneumonia patients`)
+unique(pneumoniaFull$`ComparedToNational_MRSA Bacteremia`)
+unique(pneumoniaFull$`ComparedToNational_Death rate for pneumonia patients`)
+unique(pneumoniaFull$`ComparedToNational_Postoperative respiratory failure rate`)
+unique(pneumoniaFull$`ComparedToNational_Perioperative pulmonary embolism or deep vein thrombosis rate`)
+unique(pneumoniaFull$`ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`)
+
+```
+
+> Your answer here. I woulod prefer Ordinal Encoding because both features seems to have some order of ranking ie. No different than the national rate, worse than the national rate. Meaning one category is worse off than the other.Ordinal encoding therefore would be the best because it respects this ranking within the categories without implying a quantitative relationship that parctically doesn't exist
 
 
 ##### **Question 16**: [1 point] 
 What other column do we also need to perform this kind of encoding on?
 
-> Your answer here.
+ #Collins Njagi
+> Your answer here. paymentCategory_paymentfor pneumonia patients.
+
 
 ##### **Question 17**: [3 points] 
 You probably expected this - attempt to encode those columns the method you selected. It's okay if you can only think of a way to brute-force this for now; I will show you code to help you do it faster after the assignment. :)
@@ -624,7 +665,20 @@ You probably expected this - attempt to encode those columns the method you sele
 * **Hint 3: **For full credit, don't forget to double check that you managed to preserve all the data! The `table()` function is sufficient here.
 
 ```{r}
+#Collins Njagi
 # Your code here.
+
+pneumoniaFull_encoded <- pneumoniaFull%>%
+  mutate(
+    across(c(contains("ComparedToNational"), "PaymentCategory_Payment for pneumonia patients"), ~case_when(
+      grepl("Better", .)~1,
+      grepl("No Different", .) ~0,
+      grepl("Worse", .) ~ -1,
+      TRUE ~ NA_real_
+    ))
+  )
+
+table(pneumoniaFull_encoded$`ComparedToNational_Death rate for pneumonia patients`, useNA = "ifany")
 ```
 
 
@@ -643,28 +697,29 @@ We also decide that we want a way to try to preserve and analyze the geographic 
 
 Go through the **frequency encoding** code chunk below and comment each line. What does it do? *Make sure to comment why you think the choice was made*, if appropriate.
 
-> Your answer in comments in the code chunk.
+> Your answer in comments in the code chunk. By Collins Njagi
 
 ```{r}
 cols2encode <- c("State", 
-               "CountyParish")
+               "CountyParish") #defines the feactures (columns) to be frequency encoded
 
-temp <- pneumoniaFullEncoded[, names(pneumoniaFullEncoded) %in% cols2encode]
+temp <- pneumoniaFullEncoded[, names(pneumoniaFullEncoded) %in% cols2encode] #creating a temporary dataframe with only state and countyparish columns
 
+#defines a function to add frequency encoding to a dataframe
 add_freq <- function(data, column_name) {
-  frequency_map <- table(data[[column_name]], useNA = "always")
-  data[[column_name]] <- frequency_map[match(data[[column_name]],
+  frequency_map <- table(data[[column_name]], useNA = "always") #creates a frequency map of the values in the specified column
+  data[[column_name]] <- frequency_map[match(data[[column_name]],# Replaces the values in the column with their coresponding frequences
                                              names(frequency_map))]
-  return(data)
-}
+  return(data) #returns the modified dataframe
+} #
 
 for (col in names(temp)) {
   temp <- add_freq(temp, col)
-}
+} #applies the add_freq function to each column in the temp dataframe
 
 for (c in 1:length(cols2encode)) {
   pneumoniaFullEncoded[, cols2encode[c]] <- temp[, cols2encode[c]]
-}
+} #replaces the original columns in pneumoniaFullEncoded withthe frequency encoded columns
 ```             
 
 
@@ -679,11 +734,21 @@ Use your finally & freshly encoded version of `pneumoniaFullEncoded` to answer t
 **Hint 3: **If you decide it is ill-advised for either or both columns, make sure to remove those features from the dataset!
 
 ```{r}
-# Your code here.
+# Your code here. By Collins Njagi
+
+Unique_values <- data.frame(
+  features = c("State", "CountyParish"), unique_values = c(
+    length(unique(pneumoniaFull$State)),
+    length(unique(pneumoniaFull$CountyParish)),
+    length(unique(pneumoniaFullEncoded$State)),
+    length(unique(pneumoniaFullEncoded$CountyParish))
+  )
+)
+
+print(Unique_values)
 ```
-
-> Your answer here.
-
+#Collins Njagi
+> Your answer here. Frequency encoding is justified because the number of unique values in encoded dataframe (pneumoniaFullEncoded, state 50 and CountyParish 36) is less than the unique values in the original dataframe as shown above state 57 and countyParish 1549
 
 ### Finishing touches
 
@@ -711,6 +776,7 @@ Excellent! Now we are down to just 51 features...
 ```{r, echo=FALSE}
 ## We can remove the datasets we are no longer using:
 rm(pneumoniaFull, pneumoniaFullEncoded, Timely_and_Effective_Care, Unplanned_Hospital_Visits, valueOnly, Outpatient_Imaging_Efficiency, Payment_and_Value_of_Care, paymentOnly, readmissionsClean, valueOnly, hospitalInfo, Maternal_Health, Medicare_Hospital_Spending_Per_Patient, FY_2024_HAC_Reduction_Program, FY_2024_Hospital_Readmissions_Reduction_Program, files, HCAHPS, Healthcare_Associated_Infections, Complications_and_Deaths, dat, temp)
+
 ```
 
 
@@ -721,6 +787,19 @@ __Our very, very last steps!__ Your task is to identify the appropriate target v
 ##### **Question 20**: [2 points] 
 
 Use `pneumoniaAnalyze` to calculate an  `observed_readmission_rate` as the number of readmissions divided by the number of discharges, multiplied by 100, then drop the two columns used to make this new one. Now, using the data and the data dictionary, try to understand the relationship between `observed_readmission_rate` that we just created, the `PredictedReadmissionRate`, `ExpectedReadmissionRate`, and the `ExcessReadmissionRatio`. What is the relationship? What is the appropriate target to choose and why? 
+ 
+ Collins Njagi
+In my opinion I would pick observed_readimission_rate as my target variable. This is because observed_readmission is the actual rate and therefore any good model should predict a value close to the actual observed rate.
+
+```{r}
+#Collins Njagi
+# feature engineering to create the new calculated field (feature)
+pneumoniaAnalyze$observed_readmission_rate <- (pneumoniaAnalyze$NumberOfReadmissions / pneumoniaAnalyze$NumberOfDischarges) * 100
+ 
+pneumoniaAnalyze <- pneumoniaAnalyze %>%
+  select(-c("NumberOfReadmissions", "NumberOfDischarges")) #drop the two base columns
+```
+
 
 **Hint: **Think about (or perhaps try to investigate) why the **predicted** rate exists. What would be the (dis)advantage to using the predicted vs. the newly created `observed_readmission_rate`? 
 
@@ -730,7 +809,8 @@ Use `pneumoniaAnalyze` to calculate an  `observed_readmission_rate` as the numbe
 
 Why did I have you drop the two columns used to make `observed_readmission_rate`?
 
-> Your answer here.
+#Collins Njagi
+> Your answer here. By dropping the two base columns used to create`observed_readmission_rate` we reduce the chance of high correlation
 
 
 # Exploratory Data Analysis
@@ -746,12 +826,26 @@ Full points are awarded for professional plots with axis labels, labeled legends
 Need inspiration that comes with code?!? Check out the [R Graph Gallery](https://r-graph-gallery.com)!
 
 ```{r}
-# Your code here.
+# Your code here.By Collins Njagi
+
+ggplot(pneumoniaAnalyze, aes(x = observed_readmission_rate)) +
+  geom_density(alpha = 0.5, fill = "blue") +
+  geom_density(aes(x = PredictedReadmissionRate), alpha = 0.5, fill = "red") +
+  labs(title = "Density Plot of Observed Readmission Rate and Predicted Readmission Rate",
+       x = "Readmission Rate",
+       y = "Density") +
+  theme_classic()
 ```
 
 Lastly, make sure to **interpret** your graphic.
 
+#Collins Njagi
 > Your answer here.
+1. the predicted readmission rate has a narrow range and a higher peak, indicating that the predicted values are more concentrated around the mean
+2. the observed readmission rate (blue) has a wider range and a lower peak, indicating that the actual values are more spread out
+3. the observed readmission rate plot is shifted slightly to the right, indicating that the actual readmission rates tend to be higher than the predicted rates.
+4. There is some overlap between the two plots, indicating that there is some agreement between the predicted and observed readmission rates.
+Therefore, in conclusipn the density plot suggest that the predicted readmission rates tend to be lower and more concentrated than the observed readmission rates.
 
 
 # References
