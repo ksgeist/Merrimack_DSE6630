@@ -77,6 +77,13 @@ for branch in "${teams[@]}"; do
 
 	## Create and checkout temp branch off main; each team branch will get it's own
     temp="merge-${branch}2main"
+    
+    ## Clean up temp branch if it already exists locally (as from a failed run)
+	if git rev-parse --verify "$temp" >/dev/null 2>&1; then
+    	echo "Temporary branch $temp already exists. Deleting it first..."
+    	git branch -D "$temp"
+	fi
+    
     git checkout -b "$temp" main || { echo "Temporary branch $temp creation failed!!"; continue; }
 
     echo "Merging $branch --> main via $temp..."
