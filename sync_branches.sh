@@ -60,6 +60,9 @@ git checkout main || { echo "main checkout failed!!"; exit 1; }
 echo "Pulling latest on main..."
 git pull origin main || { echo "main pull failed!!"; exit 1; }
 
+echo "###################################################"
+echo "###################################################"
+
 ## Loop through each of the team branches:
 for branch in "${teams[@]}"; do
     echo "###################################################"
@@ -103,24 +106,47 @@ for branch in "${teams[@]}"; do
 
     ## Create a PR into main
     echo "Creating pull request $temp --> main..."
+
+################ CODE SAVE:
+# 	## Create PR from temp branch into main
+# 	#echo "Creating pull request $temp --> main..."
+# 	if ! gh pr create --base main --head "$temp" --title "Merge $branch into main" --body "Auto pull request to merge $branch into main"; then
+#          echo "Pull request creation for $branch --> main failed. Merge skipped."
+# 	else
+# 		echo "Pull request created: $branch --> main."
+# 	fi
+# 
+#     ## Auto-merge the PR
+#     echo "Attempting to auto-merge pull request..."
+#     if ! gh pr merge --merge --delete-branch --repo ksgeist/Merrimack_DSE6630 "$temp"; then
+#         echo "Auto-merge failed!! Manual merge required."
+#     else
+#         echo "Pull request auto-merged and $temp deleted."
+#     fi
+
+	## Check if there are new commits to merge; prevents failure due to no commits
+	if git log main.."$temp" --oneline | grep .; then
+		echo "Creating pull request $temp --> main..."
+		if ! gh pr create --base main --head "$temp" --title "Merge $branch into main" --body "Auto pull request to merge $branch into main"; then
+			echo "Pull request creation for $branch --> main failed. Merge skipped."
+		else
+			echo "Pull request created: $branch --> main."
 	
-	## Create PR from temp branch into main
-	#echo "Creating pull request $temp --> main..."
-	if ! gh pr create --base main --head "$temp" --title "Merge $branch into main" --body "Auto pull request to merge $branch into main"; then
-         echo "Pull request creation for $branch --> main failed. Merge skipped."
+			echo "Attempting to auto-merge pull request..."
+			if ! gh pr merge --merge --delete-branch "$temp"; then
+				echo "Auto-merge for $temp failed!! Merge manually."
+			else
+				echo "Pull request auto-merged and $temp deleted."
+			fi
+		fi
 	else
-		echo "Pull request created: $branch --> main."
+		echo "No new commits from $branch to merge into main. Skipping pull request."
+		git checkout main
+		git branch -D "$temp"
 	fi
 
-    ## Auto-merge the PR
-    echo "Attempting to auto-merge pull request..."
-    if ! gh pr merge --merge --delete-branch --repo ksgeist/Merrimack_DSE6630 "$temp"; then
-        echo "Auto-merge failed!! Manual merge required."
-    else
-        echo "Pull request auto-merged and $temp deleted."
-    fi
-
-# ###### Merge only way for an unprotected main branch with no PR needed.
+################ CODE SAVE:
+# ###### Merging if you have an unprotected main branch with no PR needed.
 # 	## Merge team branch into main
 #     echo "Merging $branch into main..."
 #     git checkout main
@@ -133,9 +159,12 @@ for branch in "${teams[@]}"; do
 #     fi
 #     ## Attempt push back onto main:
 #     git push origin main || { echo "main push failed!!"; continue; }
+
 done
 echo "Task 1 completed: All team branches merged into main."
-echo "######"
+echo "###################################################"
+echo "###################################################"
+echo "###################################################"
 
 ################
 ## Start task 2:
