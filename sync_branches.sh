@@ -84,6 +84,7 @@ for branch in "${teams[@]}"; do
     	git branch -D "$temp"
 	fi
     
+    ## Now checkout the temp branch:
     git checkout -b "$temp" main || { echo "Temporary branch $temp creation failed!!"; continue; }
 
     echo "Merging $branch --> main via $temp..."
@@ -102,12 +103,6 @@ for branch in "${teams[@]}"; do
 
     ## Create a PR into main
     echo "Creating pull request $temp --> main..."
-#     pr_url=$(gh pr create --base main --head "$temp" --title "Merge $branch into main" --body "Auto pull request to merge $branch into main" --json url -q ".url")
-# 
-#     if [[ -z "$pr_url" ]]; then
-#         echo "Pull request creation for $branch --> main failed. Merge skipped."
-#         continue
-#     fi
 	
 	## Create PR from temp branch into main
 	#echo "Creating pull request $temp --> main..."
@@ -119,9 +114,8 @@ for branch in "${teams[@]}"; do
 
     ## Auto-merge the PR
     echo "Attempting to auto-merge pull request..."
-    if ! gh pr merge "$pr_url" --merge --delete-branch --yes; then
-        echo "Auto-merge for $pr_url failed!!"
-        echo "Merge manually."
+    if ! gh pr merge --merge --delete-branch --repo ksgeist/Merrimack_DSE6630 "$temp"; then
+        echo "Auto-merge failed!! Manual merge required."
     else
         echo "Pull request auto-merged and $temp deleted."
     fi
