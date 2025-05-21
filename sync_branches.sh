@@ -40,7 +40,8 @@
 ###################################
 
 ## Team branches
-teams=("alpha" "delta" "gamma" "lambda" "sigma" "epsilon" "omega" "kappa" "rho" "theta")
+#teams=("alpha" "delta" "gamma" "lambda" "sigma" "epsilon" "omega" "kappa" "rho" "theta")
+teams=("alpha" "rho") #"gamma" "lambda" "sigma" "epsilon" "omega" "kappa" "rho" "theta")
 
 ## Make sure working directory is clean first - will fail if not!
 if ! git diff-index --quiet HEAD --; then
@@ -95,12 +96,20 @@ for branch in "${teams[@]}"; do
 
     ## Create a PR into main
     echo "Creating pull request $temp --> main..."
-    pr_url=$(gh pr create --base main --head "$temp" --title "Merge $branch into main" --body "Auto pull request to merge $branch into main" --json url -q ".url")
-
-    if [[ -z "$pr_url" ]]; then
-        echo "Pull request creation for $branch --> main failed. Merge skipped."
-        continue
-    fi
+#     pr_url=$(gh pr create --base main --head "$temp" --title "Merge $branch into main" --body "Auto pull request to merge $branch into main" --json url -q ".url")
+# 
+#     if [[ -z "$pr_url" ]]; then
+#         echo "Pull request creation for $branch --> main failed. Merge skipped."
+#         continue
+#     fi
+	
+	## Create PR from temp branch into main
+	#echo "Creating pull request $temp --> main..."
+	if ! gh pr create --base main --head "$temp" --title "Merge $branch into main" --body "Auto pull request to merge $branch into main"; then
+         echo "Pull request creation for $branch --> main failed. Merge skipped."
+	else
+		echo "Pull request created: $branch --> main."
+	fi
 
     ## Auto-merge the PR
     echo "Attempting to auto-merge pull request..."
@@ -108,7 +117,7 @@ for branch in "${teams[@]}"; do
         echo "Auto-merge for $pr_url failed!!"
         echo "Merge manually."
     else
-        echo "PR merged and $temp branch deleted."
+        echo "Pull request auto-merged and $temp deleted."
     fi
 
 # ###### Merge only way for an unprotected main branch with no PR needed.
