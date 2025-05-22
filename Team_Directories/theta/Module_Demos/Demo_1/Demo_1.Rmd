@@ -1,7 +1,7 @@
 ---
 title: 'Demo 1: Biomedical & Clinical Informatics'
-author: "Katherine S. Geist, PhD"
-date: "12 May 2025"
+author: "Team Theta: Gregory Andriotakis"
+date: "22 May 2025"
 output:
   html_document:
     toc: true
@@ -110,7 +110,7 @@ Our objective for the patient advocacy watchdog is clean, merge, explore, and pr
 
 ```{r}
 ## Make sure to adjust your path!
-filepath <- "~/Desktop/hospitals_current_data/"
+filepath <- "~/Desktop/school/Healthcare/Week1/Demo1_NotGitHub/hospitals_current_data/"
 ```
 
 
@@ -124,18 +124,20 @@ Take a look at the chunk below, which performs **dynamic variable assignment** a
 > Your answer in the code chunk as comments. Make sure to use the `#` sign!
 
 ```{r}
-files <- list.files(path = filepath, pattern = "Hospital.csv")
+# Greg A.
 
-for(f in 1:length(files)) {
-    dat <- clean_names(read_csv(paste0(filepath, files[f]),
-                                show_col_types = FALSE), 
-                       case = "upper_camel")
-    filename <- gsub(".Hospital\\.csv", "", files[f])
-    assign(filename, dat)
-}
+files <- list.files(path = filepath, pattern = "Hospital.csv") # Creates a variable which stores the names of the hospital datafiles as a list
 
-files <- gsub(".Hospital\\.csv", "", files) %>% data.frame()
-names(files) <- "File Name"
+for(f in 1:length(files)) { # Starts a for loop, for each entry in the files list
+    dat <- clean_names(read_csv(paste0(filepath, files[f]), # Clean each column name in the file, start by reading in the column names
+                                show_col_types = FALSE), # Do not print out the names as they are read in
+                       case = "upper_camel") # Apply upper camel casing to each column name
+    filename <- gsub(".Hospital\\.csv", "", files[f]) # Remove .Hospital.csv from each file name
+    assign(filename, dat) # Assign the cleaned name to the list
+} # End the for loop
+
+files <- gsub(".Hospital\\.csv", "", files) %>% data.frame() # Remove .Hospital.csv from each file name, convert the list into a dataframe
+names(files) <- "File Name" # Give the column a name of "File Name" to clarify what we are looking at
 ```
 
 #### Now, let's look at a list of the files that we've read in:
@@ -152,7 +154,18 @@ files %>%
 Take a look at some of the dataframes, e.g., `HCAHPS` and `FY_2024_Hospital_Readmissions_Reduction_Program`. What do you notice about the format / structure of the data? Does the data have an issue with the dimensionality? 
 **Hint: **Check to see if each row represents a single line of data or not!
 
-> Your answer here.
+```{r}
+# Greg A
+
+head(HCAHPS) # Look at the first 6 rows of the dataframe
+head(FY_2025_Hospital_Readmissions_Reduction_Program) # Look at the first 6 rows of the dataframe
+```
+
+
+> Greg A.
+> The data appears to be in long format, as opposed to the desired wide format.
+> This means that each row does not represent a single hospital.
+> Each row instead represents a single measure from a hospital.
 
 
 ### Tidy the data response variables' dataframe: Fiscal Year 2024 Hospital Readmissions Reduction Program.
@@ -161,7 +174,17 @@ We are going to focus on the dataset `FY_2024_Hospital_Readmissions_Reduction_Pr
 ##### **Question 3**: [1 point] 
 Take a deeper look at `FY_2024_Hospital_Readmissions_Reduction_Program` at some of the numeric variables in the dataset, e.g., `NumberOfReadmissions`? 
 
-> Your answer here.
+```{r}
+#Greg A.
+
+dim(FY_2025_Hospital_Readmissions_Reduction_Program) # Look at the dimensions of the dataframe
+summary(FY_2025_Hospital_Readmissions_Reduction_Program) # Look at the summary statistics of the dataframe
+head(FY_2025_Hospital_Readmissions_Reduction_Program) # Look at the first 6 rows of the dataframe
+```
+
+> Greg A.
+> What should be numerical columns feature NA values written out as character data instead of true NA values.
+> In addition, there is a character value of 'Too Few to Report'.
 
 **Hint: **Columns 5 & 7:10 have problems with the `NA` class.
 
@@ -169,8 +192,13 @@ Take a deeper look at `FY_2024_Hospital_Readmissions_Reduction_Program` at some 
 Investigate the `replace_with_na_all()` function that is part of the `naniar` package. Use this function to fix the `NA` class in the aberrant columns in `FY_2024_Hospital_Readmissions_Reduction_Program`.
 
 ```{r}
-# ?replace_with_na_all
-# Your code here.
+# Greg A.
+
+?replace_with_na_all # Pull up documentation for replace_with_na_all function
+FY_2025_Hospital_Readmissions_Reduction_Program <- replace_with_na_all( # Apply the replace_with_na_all function on our dataset
+  FY_2025_Hospital_Readmissions_Reduction_Program, condition = ~.x == "N/A") # fill NA values where there is text that reads "N/A"
+
+head(FY_2025_Hospital_Readmissions_Reduction_Program) # Print the data so we can verify changes
 ```
 
 You will notice that this aberrant class of missing value __caused__ the numeric columns to be coerced into character columns when they were imported by `read_csv()`. Although we could try using `as.numeric()` by itself, which would assign `NA` to any non-numeric entry in `FY_2024_Hospital_Readmissions_Reduction_Program`, the problem is that we could lose important information that way. Thus, as annoying as this is, we should fix it a little more specifically...
@@ -180,26 +208,48 @@ Look more closely at the `NumberOfReadmissions` column in the `FY_2024_Hospital_
 
 **Hint: ** Make sure to use the accompanying data dictionary **HOSPITAL_Data_Dictionary.pdf** to also examine **WHY** this problem exists!
 
-> Your answer here.
+> Greg A.
+> As noted earlier, there is another character entry of 'Too Few to Report'.
+> This is causing the should-be numeric columns to be considered character.
+> Looking at the data dictionary, and remembering that each row represents a single measure,
+> we can see why this kind of entry is made.
+> According to the data dictionary, this message is added for the following reasons:
+> 1. When the number of cases is too few for public reporting
+> 2. When the number of cases is too small to reliably tell performance
+> 3. To protect personal health information
 
 
 ##### **Question 6**: [1 point] 
 Investigate the `gsub()` function that is part of base `R` or any other function of your choosing. Use the function you choose to **replace** the problematic text in  the `NumberOfReadmissions` column in `FY_2024_Hospital_Readmissions_Reduction_Program` with a **5**.
 ```{r}
-# ?gsub
-# Your code here.
+# Greg A.
+# This code is commented out so that it does not mess with knitting question 9.
+
+?gsub # Pull up documentation for gsub function 
+
+# Apply the gsub function to the NumberofReadmissions column
+# FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions <- gsub(
+#  'Too Few to Report', 5, FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions) # Replace 'Too Few to Report' with 5
+
+# head(FY_2025_Hospital_Readmissions_Reduction_Program) # Print the data so we can verify changes
 ```
 
 ##### **Question 7**: [1 point] 
 Speculate as to why I asked you to replace the text with a **5** rather than a **0** or an `NA`. Can you think of any other logical choices for the substitution? Do you agree with my choice? (You're free to disagree, but please defend your decision either way!)
 
-> Your answer here.
+> Greg A.
+> One reason to why a 5 was selected was so that we can later identify the value.
+> Since 5 is a low value outside of the normal value range, it will not be confused for a legitimate entry.
+> A 0 or NA might be confused as there being no value, which would cause a loss of information.
+> Beyond a five, any small integer value above 0 could work, so long as it is outside of the normal value range.
 
 
 ##### **Question 8**: [1 point] 
 Now, imagine an alternative scenario where instead of replacing it with a **5**, I instead asked you to replace it with a randomly sampled integer from 1 to 10. What would this do? Would `gsub()` work here or would I need to execute it a different way, e.g., with an `lapply()` function or a `for()` loop?
 
-> Your answer here.
+> Greg A.
+> gsub() would not work for this application, because it expects a single value.
+> Since it expects a single value, we are unable to apply a randomly sampled integer.
 
 
 ##### **Question 9**: [3 points] 
@@ -209,16 +259,33 @@ You probably anticipated this! We just decided that, rather than a **5** we want
 
 **Hint 2: **This is NOT the only way to do this, but I solved this using `gregexpr()`, `regmatches()`, and `lapply()`.
 
+
 ```{r}
-# Your code here.
+# Greg A.
+# Before running this code, I reran the previous code, excluding the gsub chunk, as suggested.
+
+FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions <- unlist(lapply( # Use lapply to loop through each row in the column
+    FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions, function(x) { # For each row, apply the following
+  if (is.na(x)) {x} # If the value is NA, return the original value
+  else if (x == "Too Few to Report") {sample(1:10, 1)} # If the value is "Too Few to Report", replace it with a random integer between 1 and 10
+  else {x} # If neither, return the original value
+}))
+
+head(FY_2025_Hospital_Readmissions_Reduction_Program) # Print the data so we can verify changes
 ```
 
 
 ##### **Question 10**: [1 point] 
 It is finally time to fix those aberrant character columns by making them  numeric. However, just using `as.numeric()` would require us to do it over and over on each of the columns in multiple lines of code. Instead, investigate the function `mutate_at()` which will allow you to pass it a list of columns you want to convert with the function you want to use.
 ```{r}
-# ?mutate_at
-# Your code here.
+# Greg A.
+
+?mutate_at # Pull up documentation for mutate_at function
+FY_2025_Hospital_Readmissions_Reduction_Program <- FY_2025_Hospital_Readmissions_Reduction_Program %>% # Apply the following to the dataframe
+  mutate_at(vars(NumberOfDischarges, ExcessReadmissionRatio, PredictedReadmissionRate, # Alter the following columns
+                 ExpectedReadmissionRate, NumberOfReadmissions), as.numeric) # Set the columns as numeric
+
+head(FY_2025_Hospital_Readmissions_Reduction_Program) # Print the data so we can verify changes
 ```
 
 #### Let's look more closely at Measure Names.
