@@ -194,14 +194,13 @@ Look more closely at the `NumberOfReadmissions` column in the `FY_2024_Hospital_
 **Hint: ** Make sure to use the accompanying data dictionary **HOSPITAL_Data_Dictionary.pdf** to also examine **WHY** this problem exists!
 
 > MN: The other problem I am seeing, in regards to Number of Readmissions, is that there is a string "Too Few to Report". If As.numeric() was applied to this, then this value would have also been NA, which isnt true. After digging through the hospital dictionary, and utilizing footnotes 1 nad 5, as listed in the dataset column 6, footnotes 1 and 5 desribe the following:  
-Footnote 1 states that the number of cases/patients is too few to report, and is applied when:   
-• When the number of cases/patients does not meet the required minimum amount for public reporting; 
-• When the number of cases/patients is too small to reliably tell how well a hospital is performing; and/or 
-• To protect personal health information."
-Footnote 5 states that results are not available for this reporting period, and is applied when:  
-• hospital elected not to submit data for the entire reporting 
-period; or  
-• hospital had no claims data for a particular measure; or  
+Footnote 1 states that the number of cases/patients is too few to report, and is applied when:  
+• When the number of cases/patients does not meet the required minimum amount for public reporting;   
+• When the number of cases/patients is too small to reliably tell how well a hospital is performing; and/or   
+• To protect personal health information.    
+Footnote 5 states that results are not available for this reporting period, and is applied when:    
+• hospital elected not to submit data for the entire reporting period; or    
+• hospital had no claims data for a particular measure; or    
 • hospital elected to suppress a measure from being publicly reported.
 
 
@@ -900,85 +899,77 @@ Full points are awarded for professional plots with axis labels, labeled legends
 Need inspiration that comes with code?!? Check out the [R Graph Gallery](https://r-graph-gallery.com)!
 
 ```{r}
-# JML
-# start simple: scatterplot of observed_readmission_rate vs Score_Death rate for pneumonia patients
-ggplot(pneumoniaAnalyze,
-      aes(x=`Score_Death rate for pneumonia patients`, y=observed_readmission_rate)       ) + geom_point(size=1.0)
-
-# scatterplot better? it's easier to see the different values
-# note: need to shorten the "ComparedTo..." label because it is squashing the plot too much
-ggplot(pneumoniaAnalyze,
-  aes(x=`Score_Death rate for pneumonia patients`, y=observed_readmission_rate, 
-  alpha=`ComparedToNational_Death rate for pneumonia patients`)) + 
-  geom_point(aes(size=`ComparedToNational_Death rate for pneumonia patients`), color="darkred") +
-  ggtitle("Transparency") +
-  theme_light()
-
-# scatterplot:lattice - I like this one!
-pneumoniaAnalyze_CtoNDeathRate <- pneumoniaAnalyze  %>%
-  mutate(pneumoniaAnalyze_CtoNDeathRatePhrase = case_when(
+# add'l cols for phrases
+pneumoniaAnalyze <- pneumoniaAnalyze  %>%
+  mutate(CtoNDeathRatePhrase = case_when(
     `ComparedToNational_Death rate for pneumonia patients` == -1 ~ 'Worse than National',
     `ComparedToNational_Death rate for pneumonia patients` == 1 ~ 'Better than National',
     `ComparedToNational_Death rate for pneumonia patients` == 0 ~ 'Equal to National'
-  ))
-# print(pneumoniaAnalyze_CtoNDeathRate)
+  ))  
+```
 
-xyplot(`Score_Death rate for pneumonia patients` ~ observed_readmission_rate | `pneumoniaAnalyze_CtoNDeathRatePhrase`, data = pneumoniaAnalyze_CtoNDeathRate, pch=20, cex=1, col=rgb(0.2,0.4,0.8,0.5) )
+```{r}
+# JML
+# scatterplot:lattice
+xyplot(`Score_Death rate for pneumonia patients` ~ observed_readmission_rate | `CtoNDeathRatePhrase`, 
+       data = pneumoniaAnalyze, 
+       pch=20, cex=1, 
+       xlab="Observed Readmission Rate", 
+       ylab="Hospitals Pneumonia Death Score", 
+       main="Hospitals Pneumonia Death Score by Observed \nReadmission Rate as Compared to National Scores", 
+       col="#1170AA" )
 
-
-# scatterplot matrix - meh
-plot(pneumoniaAnalyze[, c(12, 13, 14, 15, 50)], pch=20, cex=1, col="#F2CA19")
-
-# scatterplot matrix - meh
-plot(pneumoniaAnalyze[, c(12, 13, 14, 15, 50)], pch=20, cex=1, col="darkred")
-
-# basic violin - ick
-ggplot(pneumoniaAnalyze, 
-       aes(x=observed_readmission_rate,
-           y=`Score_Death rate for pneumonia patients`)) +
-  geom_violin()
+# scatterplot of observed_readmission_rate vs Score_Death rate for pneumonia patients
+ggplot(pneumoniaAnalyze,
+  aes(x=observed_readmission_rate, 
+      y=`Score_Death rate for pneumonia patients`, 
+      color = `CtoNDeathRatePhrase`)) + 
+  geom_point(size=1.5) +
+  stat_ellipse() +
+  labs(title="Observed Readmission Rate vs Hospital Death Score",
+       x = "Observed Readmission Rate",
+       y = "Hospitals Pneumonia Death Score") +
+  guides(colour=guide_legend(title = "Hospitals Score\nCompared to National"))
 
 # basic histogram - informative but boring
 ggplot(pneumoniaAnalyze,
-       aes(x=observed_readmission_rate)) + geom_histogram(binwidth=0.1, fill="#69b3a2", color="#e9ecef", alpha=0.9)
+  aes(x=observed_readmission_rate)) + 
+  geom_histogram(binwidth=0.1, fill="#69b3a2", color="#e9ecef", alpha=0.9) +
+  xlab("Observed Readmission Rate") +
+  ylab("n")
 
 # trying a ridgeline - interesting
 library(ggridges)
 
-ggplot(pneumoniaAnalyze_CtoNDeathRate,
+ggplot(pneumoniaAnalyze,
        aes(x=observed_readmission_rate, 
-           y=pneumoniaAnalyze_CtoNDeathRatePhrase,
-           fill=`pneumoniaAnalyze_CtoNDeathRatePhrase`)) +
+           y=CtoNDeathRatePhrase,
+           fill=`CtoNDeathRatePhrase`)) +
   geom_density_ridges() +
+  labs(title="Observed Readmission Rate vs \nComparison to National Death Rates",
+       x = "Observed Readmission Rate",
+       y = "Comparison to National Death Rates") +  
   theme_ridges() +
   theme(legend.position="none")
   
-# can this become a faceted distribution? nope/ick/not right
-# needs work
-library(viridis)
-
-pneumoniaAnalyze_CtoNDeathRate %>%
-  ggplot( aes(x=observed_readmission_rate, 
-           y=pneumoniaAnalyze_CtoNDeathRatePhrase,
-           group=pneumoniaAnalyze_CtoNDeathRatePhrase,
-           fill=`pneumoniaAnalyze_CtoNDeathRatePhrase`)) +
-  geom_area() +
-  scale_fill_viridis(discrete=TRUE) +
-  theme(legend.position = "none") +
-  ggtitle("maybe?") +
-  theme_light()   +
-      theme(
-      legend.position="none",
-      panel.spacing = unit(0, "lines"),
-      strip.text.x = element_text(size = 8),
-      plot.title = element_text(size=13)
-    ) +
-    facet_wrap(~pneumoniaAnalyze_CtoNDeathRatePhrase, scale="free_y")
 ```
 
 Lastly, make sure to **interpret** your graphic.
 
-> Your answer here.
+> (JML) 
+I created 4 plots  
+- lattice  
+**Observed Readmission Rate vs Hospitals Pneumonia Death Score as Compared to National Scores**  
+This is one way to present that most of the hospitals' scores could be classified as similar to the national score, and that a few hospitals' had worse scores and a few had better scores. I think it also shows that the readmission rate didn't directly explain the hospitals' scores nor how those scores compared against the national score.  
+- scatterplot  
+**Observed Readmission Rate vs Hospitals Pneumonia Death Score as Compared to National Scores**  
+This seems to be just another way of presenting the data such that we can see that most of the hospitals' scores could be classified as similar to the national score, and that a few hospitals' had worse scores and a few had better scores.  
+- Basic histogram  
+**Observed Readmission Counts by Rate**  
+Displays the distribution of readmission rates; Appears to be a fairly normal distribution with a right skew  
+- Ridgeline plot  
+*Tried this one out for fun*  
+Comparing Observed Readmission Rate against the national score. This breaks down the distribution of observed readmission rates by the categories assigned to the national scores. Each grouping has a similar, fairly normal distribution with some skew to the right.
 
 
 # References
