@@ -924,7 +924,7 @@ Excellent! Now we are down to just 51 features...
 
 ```{r, echo=FALSE}
 ## We can remove the datasets we are no longer using:
-rm(pneumoniaFull, pneumoniaFullEncoded, Timely_and_Effective_Care, Unplanned_Hospital_Visits, valueOnly, Outpatient_Imaging_Efficiency, Payment_and_Value_of_Care, paymentOnly, readmissionsClean, valueOnly, hospitalInfo, Maternal_Health, Medicare_Hospital_Spending_Per_Patient, FY_2024_HAC_Reduction_Program, FY_2024_Hospital_Readmissions_Reduction_Program, files, HCAHPS, Healthcare_Associated_Infections, Complications_and_Deaths, dat, temp)
+rm(pneumoniaFull, pneumoniaFullEncoded, Timely_and_Effective_Care, Unplanned_Hospital_Visits, valueOnly, Outpatient_Imaging_Efficiency, Payment_and_Value_of_Care, paymentOnly, readmissionsClean, valueOnly, hospitalInfo, Maternal_Health, Medicare_Hospital_Spending_Per_Patient, FY_2025_HAC_Reduction_Program, FY_2025_Hospital_Readmissions_Reduction_Program, files, HCAHPS, Healthcare_Associated_Infections, Complications_and_Deaths, dat, temp)
 ```
 
 
@@ -938,13 +938,58 @@ Use `pneumoniaAnalyze` to calculate an  `observed_readmission_rate` as the numbe
 
 **Hint: **Think about (or perhaps try to investigate) why the **predicted** rate exists. What would be the (dis)advantage to using the predicted vs. the newly created `observed_readmission_rate`? 
 
-> Your answer here.
+```{r}
+# Greg A. 
+
+temp_ana <- pneumoniaAnalyze # Create a temporary dataframe to work with
+
+temp_ana <- temp_ana %>% # Apply the changes to temp_ana
+  mutate(observed_readmission_rate = (NumberOfReadmissions / NumberOfDischarges) * 100) # Create a new column "observed_readmission_rate" that has values calculated as (NumberOfReadmissions / NumberOfDischarges) * 100
+
+head(temp_ana$observed_readmission_rate) # Verify that column exists
+
+pneumoniaAnalyze$observed_readmission_rate <- temp_ana$observed_readmission_rate # Apply this data back to the real dataframe
+
+pneumoniaAnalyze <- pneumoniaAnalyze %>% # Apply changes to dataframe
+  select(-NumberOfReadmissions, -NumberOfDischarges) # Remove listed columns
+
+```
+
+```{r}
+# Observe first 6 rows of potential target variables
+pneumoniaAnalyze %>%
+  select(observed_readmission_rate, PredictedReadmissionRate, ExpectedReadmissionRate, ExcessReadmissionRatio) %>%
+  head()
+```
+
+
+> Greg A.
+> The PredictedReadmissionRate is a calculated measure that predicts the rate of readmissions for a hospital.
+> The ExpectedReadmissionRate is the readmission rate expected at an average hospital.
+> Therefore, by comparing the PredictedReadmissionRate with the ExpectedReadmissionRate, one can judge if the hospital is above or below average performance.
+> The ExcessReadmissionRatio demonstrates this relation.
+> It is the calculated value of the PredictedReadmissionRate divided by the ExpectedReadmissionRate.
+> A value above 1 would suggest the hospital is higher than average, while a value below 1 would suggest that the hospital is lower than average.
+> The newly created observed_readmission_rate looks at the actual number of readmissions divided by the actual number of discharges.
+> Instead of comparing predicted readmissions to a national average, it looks at the actual performance of a specific hospital.
+> When deciding on a target variable, we can immediately rule out two.
+> ExpectedReadmissionRate represents the expected rate if it were an average performing hospital.
+> This does not help us answer our question of predicting readmission, as it already presumes average performance.
+> ExcessReadmissionRatio might seem like a good option, but it is a derived variable.
+> This means that the other variables would likely have to be dropped to avoid data leakage.
+> The main debate now is left between PredictedReadmissionRate and observed_readmission_rate.
+> The predicted rate is a value adjusted to account for several underlying hospital factors.
+> While taking such factors into considertion might be useful, we do not have access to the model used to generate these values.
+> Therefore, it would be more difficult to explain to stakeholder as to what we are predicting.
+> Ultimately, that leaves us with observed_readmission_rate as our target variable.
 
 ##### **Question 21**: [1 points] 
 
 Why did I have you drop the two columns used to make `observed_readmission_rate`?
 
-> Your answer here.
+> Greg A.
+> Keeping the two columns in the data would create a source of data leakage.
+> Since we are going to be predicting observed_readmission_rate, keeping in those columns would give the model an unfair advantage.
 
 
 # Exploratory Data Analysis
@@ -960,12 +1005,81 @@ Full points are awarded for professional plots with axis labels, labeled legends
 Need inspiration that comes with code?!? Check out the [R Graph Gallery](https://r-graph-gallery.com)!
 
 ```{r}
-# Your code here.
+# Greg A.
+
+library(patchwork) # A library used to created faceted plots
+
+# Modify data for plotting
+pneumoniaAnalyze2 <- pneumoniaAnalyze %>% # Create pneumoniaAnalyze2
+  mutate( # Confirm numeric values of columns
+    `Score_Medicare spending per patient` = as.numeric(`Score_Medicare spending per patient`),
+    observed_readmission_rate = as.numeric(observed_readmission_rate),
+    `HcahpsLinearMeanValue_Overall hospital rating` = as.numeric(`HcahpsLinearMeanValue_Overall hospital rating`),
+    `Score_Death rate for pneumonia patients` = as.numeric(`Score_Death rate for pneumonia patients`)
+  ) %>%
+  filter( # Filter out NA values for plotting
+    is.finite(`Score_Medicare spending per patient`),
+    is.finite(observed_readmission_rate),
+    is.finite(`HcahpsLinearMeanValue_Overall hospital rating`),
+    is.finite(`Score_Death rate for pneumonia patients`)
+  ) %>%
+  mutate( # Bin values for plotting
+    rating_cat = cut(`HcahpsLinearMeanValue_Overall hospital rating`, breaks = 4, labels = c("Low", "Mid-Low", "Mid-High", "High")),
+    death_rate_cat = cut(`Score_Death rate for pneumonia patients`, breaks = 4, labels = c("Low", "Mid-Low", "Mid-High", "High"))
+  )
+
+# Plot 1: Density Plot - Medicare Spending v. Observed Readmission Rate
+p1 <- ggplot(pneumoniaAnalyze, aes(x = `Score_Medicare spending per patient`, y = observed_readmission_rate)) +
+  geom_density_2d_filled(alpha = 0.7) +
+  labs( # Define title and axis labels
+    title = "Medicare Spending v. Observed Readmission Rate",
+    x = "Medicare Spending (Per Patient)",
+    y = "Observed Readmission Rate (%)"
+  ) +
+  theme_minimal()
+
+# Plot 2: Box Plot - Hospital Rating v. Observed Readmission Rate
+p2 <- ggplot(pneumoniaAnalyze2, aes(x = rating_cat, y = observed_readmission_rate)) +
+  geom_boxplot(fill = "lightblue") +
+  labs(title = "Hospital Rating v. Observed Readmission Rate", x = "Hospital Rating (Category)", y = "Observed Readmission Rate (%)") + # Define title and axis labels
+  theme_minimal()
+
+# Plot 3: Violin Plot - Pneumonia Death Rate v. Observed Readmission Rate
+p3 <- ggplot(pneumoniaAnalyze2, aes(x = death_rate_cat, y = observed_readmission_rate, fill = death_rate_cat)) +
+  geom_violin() +
+  labs( # Define title and axis labels
+    title = "Pneumonia Death Rate v. Observed Readmission Rate",
+    x = "Pneumonia Death Rate (Category)",
+    y = "Observed Readmission Rate (%)"
+  ) +
+  theme_minimal() +
+  guides(fill = "none")
+
+# Arrange plots together
+p1 | p2 / p3
 ```
 
 Lastly, make sure to **interpret** your graphic.
 
-> Your answer here.
+> Greg A.
+> These three plots compare the target variable to three other variables.
+
+> The desity plot compares our target to Medicare Spending per Patient.
+> This plot would show if higher or lower medicare spending had an impact on the observed readmission rate.
+> However, the density levels all seem to be centered around the 1.0 mark.
+> This might make sense, as we are looking at a single condition (pneumonia) which could simply have similar spending for each patient. 
+
+> The boxplot compares our target to hospital rating categories. 
+> We have divided the ratings into separate categories which group together similar ratings.
+> As one might expect, the low rated hospitals see a higher observed readmission rate than the higher rated hospitals.
+> This would help support the idea that hospitals that are rated higher are better at treating conditions and preventing the need for readmissions.
+> Therefore, it might be useful to compare other statistics between these hospital ratings to see how they differ. 
+
+> The violin plot compares our target to penumonia death rates.
+> We have divided the death rates into separate categories which group together similar rates.
+> All four categories for death rates appear to have similar probabilities for observed readmission rates between 15% and 20%. > The Mid-Low category shows the greatest range across target percentages, but demonstrates these cases in very low amounts.
+> Both the Low and the High categories have majority values slightly higher than the other two categories, bordering closer to 20% than 15%. 
+> Overall, while there are some slight differences, it does not appear as if death rate shows a great difference in observed readmission rate.
 
 
 # References
