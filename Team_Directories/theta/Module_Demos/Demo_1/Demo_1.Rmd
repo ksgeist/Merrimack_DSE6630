@@ -967,16 +967,20 @@ pneumoniaAnalyze %>%
 > The PredictedReadmissionRate is a calculated measure that predicts the rate of readmissions for a hospital.
 > The ExpectedReadmissionRate is the readmission rate expected at an average hospital.
 > Therefore, by comparing the PredictedReadmissionRate with the ExpectedReadmissionRate, one can judge if the hospital is above or below average performance.
+
 > The ExcessReadmissionRatio demonstrates this relation.
 > It is the calculated value of the PredictedReadmissionRate divided by the ExpectedReadmissionRate.
 > A value above 1 would suggest the hospital is higher than average, while a value below 1 would suggest that the hospital is lower than average.
+
 > The newly created observed_readmission_rate looks at the actual number of readmissions divided by the actual number of discharges.
 > Instead of comparing predicted readmissions to a national average, it looks at the actual performance of a specific hospital.
+
 > When deciding on a target variable, we can immediately rule out two.
 > ExpectedReadmissionRate represents the expected rate if it were an average performing hospital.
 > This does not help us answer our question of predicting readmission, as it already presumes average performance.
 > ExcessReadmissionRatio might seem like a good option, but it is a derived variable.
 > This means that the other variables would likely have to be dropped to avoid data leakage.
+
 > The main debate now is left between PredictedReadmissionRate and observed_readmission_rate.
 > The predicted rate is a value adjusted to account for several underlying hospital factors.
 > While taking such factors into considertion might be useful, we do not have access to the model used to generate these values.
@@ -1008,6 +1012,7 @@ Need inspiration that comes with code?!? Check out the [R Graph Gallery](https:/
 # Greg A.
 
 library(patchwork) # A library used to created faceted plots
+library(cowplot)
 
 # Modify data for plotting
 pneumoniaAnalyze2 <- pneumoniaAnalyze %>% # Create pneumoniaAnalyze2
@@ -1036,27 +1041,42 @@ p1 <- ggplot(pneumoniaAnalyze, aes(x = `Score_Medicare spending per patient`, y 
     x = "Medicare Spending (Per Patient)",
     y = "Observed Readmission Rate (%)"
   ) +
-  theme_minimal()
+  theme_minimal() + theme(plot.title = element_text(size = 10))
 
 # Plot 2: Box Plot - Hospital Rating v. Observed Readmission Rate
 p2 <- ggplot(pneumoniaAnalyze2, aes(x = rating_cat, y = observed_readmission_rate)) +
   geom_boxplot(fill = "lightblue") +
   labs(title = "Hospital Rating v. Observed Readmission Rate", x = "Hospital Rating (Category)", y = "Observed Readmission Rate (%)") + # Define title and axis labels
-  theme_minimal()
+  theme_minimal() + theme(plot.title = element_text(size = 9), axis.title.x = element_text(size = 9), axis.title.y = element_text(size = 9))
 
 # Plot 3: Violin Plot - Pneumonia Death Rate v. Observed Readmission Rate
 p3 <- ggplot(pneumoniaAnalyze2, aes(x = death_rate_cat, y = observed_readmission_rate, fill = death_rate_cat)) +
   geom_violin() +
   labs( # Define title and axis labels
-    title = "Pneumonia Death Rate v. Observed Readmission Rate",
+    title = "Death Rate v. Observed Readmission Rate",
     x = "Pneumonia Death Rate (Category)",
     y = "Observed Readmission Rate (%)"
   ) +
-  theme_minimal() +
+  theme_minimal() + theme(plot.title = element_text(size = 9), axis.title.x = element_text(size = 9), axis.title.y = element_text(size = 9)) +
   guides(fill = "none")
 
 # Arrange plots together
-p1 | p2 / p3
+
+# Optionally, add extra left margin to p2 and p3
+p2 <- p2 + theme(plot.margin = unit(c(5.5, 5.5, 5.5, 20), "pt"))
+p3 <- p3 + theme(plot.margin = unit(c(5.5, 5.5, 5.5, 20), "pt"))
+
+# Stack p2 and p3 vertically
+right_side <- plot_grid(p2, p3, ncol = 1, align = "v", rel_heights = c(1, 1))
+
+# Combine p1 and right_side horizontally
+final_plot <- plot_grid(
+  p1, right_side,
+  ncol = 2,
+  rel_widths = c(1, 1) # adjust as needed for your preferred proportions
+)
+
+print(final_plot)
 ```
 
 Lastly, make sure to **interpret** your graphic.
