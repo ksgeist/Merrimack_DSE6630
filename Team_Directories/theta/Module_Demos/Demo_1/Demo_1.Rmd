@@ -291,7 +291,7 @@ head(FY_2025_Hospital_Readmissions_Reduction_Program) # Print the data so we can
 #### Let's look more closely at Measure Names.
 Notice, that what I have done here first is used the `gsub()` function to `mutate()` the `MeasureName` column to remove the text that flanked the medical conditions.
 ```{r}
-FY_2024_Hospital_Readmissions_Reduction_Program <-  FY_2024_Hospital_Readmissions_Reduction_Program %>%
+FY_2025_Hospital_Readmissions_Reduction_Program <-  FY_2025_Hospital_Readmissions_Reduction_Program %>%
   mutate(MeasureName = gsub("READM-30-", "", MeasureName)) %>% 
   mutate(MeasureName = gsub("-HRRP", "", MeasureName)) 
 ```
@@ -306,10 +306,20 @@ load(file = "readmissionsClean.Rdata")
 Investigate the function `pivot_wider()` or `spread()` from the `tidyr` package, which comes bundled with `tidyverse`. Try pivoting the `FY_2024_Hospital_Readmissions_Reduction_Program` dataset wider. Make sure you correctly identify the `names_from` and `values_from` column(s). **Make sure to save it as a separate dataframe called `wideDF`.** Use the `dim()` function to prove to me that you successfully pivoted wider.
 
 ```{r}
-# Your code here.
+# Greg A.
 
-#wideDF <- FY_2024_Hospital_Readmissions_Reduction_Program %>% pivot_wider(...) or spread(...)
-#dim(wideDF)
+?pivot_wider # Pull up documentation for pivot_wider function 
+
+wideDF <- FY_2025_Hospital_Readmissions_Reduction_Program %>% # Create wideDF from FY_2025_Hospital_Readmissions_Reduction_Program
+  pivot_wider( # Pivot to wide format based on the following
+    id_cols = c(FacilityName, FacilityId, State), # These columns are identifiers
+    names_from = MeasureName, # Column names will come from MeasureName
+    values_from = c(ExcessReadmissionRatio, PredictedReadmissionRate, ExpectedReadmissionRate) # Column values will be filled in from ExcessReadmissionRatio, PredictedReadmissionRate, and ExpectedReadmissionRate
+  )
+
+
+dim(wideDF) # Display the dimensions of the wide data
+head(wideDF) # Display the first 6 rows
 ```
 
 ### Filtering for specific conditions.
@@ -481,13 +491,94 @@ tidyNjoin <- function(datList, filterList, hospitalInfo) {
 Okay, take a stab at it!
 
 ```{r}
-# Your function here.
+# Greg A.
+
+tidyNjoin <- function(datList, filterList, hospitalInfo) { # Create the function tidyNjoin with the parameters datList, filterList, and hospitalInfo
+  
+  tidy_one <- function(df, filter_condition) { # Create tidy function
+    
+    df <- df %>% # Drop the following columns if they exist
+      select(-any_of(c("StartDate", "EndDate", "Footnote", "MeasureId")))
+    
+    df <- replace_with_na_all(df, condition = ~.x == "N/A") # Convert NA values to true NA values
+    
+    # Impute "Too Few to Report" if NumberOfReadmissions exists
+    if ("NumberOfReadmissions" %in% names(df)) {
+      df$NumberOfReadmissions <- unlist(lapply(
+        df$NumberOfReadmissions, function(x) { 
+          if (is.na(x)) { x }
+          else if (x == "Too Few to Report") { sample(1:10, 1) }
+          else { x }
+        }
+      ))
+    }
+    
+    num_cols <- intersect( # Convert following columns to numeric type
+      c("NumberOfDischarges", "ExcessReadmissionRatio", 
+        "PredictedReadmissionRate", "ExpectedReadmissionRate", 
+        "NumberOfReadmissions"),
+      names(df)
+    )
+    df <- df %>%
+      mutate(across(all_of(num_cols), as.numeric))
+    
+    if ("MeasureName" %in% names(df)) { # Filter for MeasureName
+      df <- df %>% filter(MeasureName %in% filter_condition)
+    }
+    
+    if (all(c("FacilityId", "MeasureName") %in% names(df))) { # Remove duplicate rows
+      df <- df %>% distinct(FacilityId, MeasureName, .keep_all = TRUE)
+    } else if ("FacilityId" %in% names(df)) {
+      df <- df %>% distinct(FacilityId, .keep_all = TRUE)
+    }
+    
+    if ("MeasureName" %in% names(df)) { # Pivot data into wide format
+      id_cols <- "FacilityId"
+      value_cols <- setdiff(names(df), c("FacilityId", "MeasureName"))
+      df <- df %>%
+        pivot_wider(
+          id_cols = all_of(id_cols),
+          names_from = MeasureName,
+          values_from = all_of(value_cols)
+        )
+    }
+    
+    return(df) # Return tidy data
+  }
+  
+  tidied_dfs <- mapply( # Apply tidying to each dataframe
+    tidy_one, 
+    df = datList, 
+    filter_condition = filterList, 
+    SIMPLIFY = FALSE
+  )
+  
+  joined_df <- Reduce(function(x, y) full_join(x, y, by = "FacilityId"), tidied_dfs) # Full join on FacilityId
+  
+  joined_df <- joined_df %>% distinct(FacilityId, .keep_all = TRUE) # Remove duplicate rows
+  
+  final_df <- left_join(joined_df, hospitalInfo, by = "FacilityId") # Join with hospitalInfo on FacilityId
+  
+  return(final_df) # Return final version of the data
+}
 ```
+
+```{r}
+# Greg A.
+
+datList_small <- lapply(datList, function(hospitalInfo) head(hospitalInfo, 100)) # Create smaller datList for speedy testing
+result <- tidyNjoin(datList_small, filterList, hospitalInfo) # Apply custom function to small datList, filterList, and hospitalInfo 
+head(result) # Display first 6 rows of results
+```
+
 
 ##### **Question 13**: [1 point] 
 Why do you think I just made you work through this function? (**Hint**: What are you going to be asked to do in Project 1?)
 
-> Your answer here.
+> Greg A.
+> This function gives us the ability to tidy, filter, pivot, and join as many tables as necessary.
+> In project 1, we will be selecting which conditions we wish to focus on.
+> Creating this function now will help us in project 1, as it will allow us to easily select what we wish to focus on and transform it in these ways without having to manually go through the coding process.
 
 ### The full, merged, tidied dataset for pneumonia. 
 
@@ -584,16 +675,27 @@ Although we ideally could just include these steps (and perhaps you did!) in our
 ##### **Question 14**: [1 point] 
 Looking through the feature names, you probably notice names like `LowerEstimate_Death rate for pneumonia patients`. We do not need the higher and lower estimates in this case; just the point estimates. Use the `contains()` function to **drop** any columns that contain `LowerEstimate` or `HigherEstimate`. Let's also go ahead and drop any columns containing `Denominator` and `HcahpsAnswerPercent` as well. How many features did you drop? 
 
-> Your answer here.
+> Greg A.
+> 25 features were dropped, as we went from 100 to 75.
 
 ```{r}
-# Your code here.
+# Greg A.
+
+?contains() # Pull up documentation for contains function 
+
+pneumoniaFull <- pneumoniaFull %>% # Apply to pneumoniaFull
+  select(-contains(c('LowerEstimate', 'HigherEstimate', 'Denominator', 'HcahpsAnswerPercent'))) # Select and remove columns containing the phrases listed
+
+dim(pneumoniaFull) # Display dimensions of pneumoniaFull
 ```
 
 **Note:** Please drop `FacilityName`, `TelephoneNumber`, `Address`, & `CityTown` at this stage as well, if they're still in your full dataset.
 
 ```{r}
-# Your code here.
+pneumoniaFull <- pneumoniaFull %>% # Apply to pneumoniaFull
+  select(-contains(c('FacilityName', 'TelephoneNumber', 'Address', 'CityTown'))) # Select and remove columns containing the phrases listed
+
+dim(pneumoniaFull) # Display dimensions of pneumoniaFull
 ```
 
 ## Encoding
@@ -603,13 +705,37 @@ Looking through the feature names, you probably notice names like `LowerEstimate
 ##### **Question 15**: [1 point] 
 We need to perform encoding on all of the categorical columns, ultimately. However, we will focus first on the columns that begin with ``ComparedToNational_`, e.g., `ComparedToNational_Death rate for pneumonia patients`. What kind of encoding should we perform on these columns? Why? 
 
-> Your answer here.
+```{r}
+# Greg A.
+
+head(pneumoniaFull %>% select(contains(c('ComparedToNational_', 'ComparedToNational_Death rate for pneumonia patients')))) # Display the first 6 rows of the selected columns
+
+lapply( pneumoniaFull %>% # Run the following over pneumoniaFull
+    select(matches("ComparedToNational_|ComparedToNational_Death rate for pneumonia patients")),
+  unique # Select all columns that match the requested text options and return their unique values
+) 
+```
+
+> Greg A.
+> We will want to use Ordered Ranking, replacing each category with a numerical rank.
+> This is because the categories have a natural order which they follow.
 
 
 ##### **Question 16**: [1 point] 
 What other column do we also need to perform this kind of encoding on?
 
-> Your answer here.
+```{r}
+# Greg A.
+
+head(pneumoniaFull) # Display the first 6 rows of the data
+
+unique(pneumoniaFull$'Score_Emergency department volume') # Display the unique values for this column
+unique(pneumoniaFull$'PaymentCategory_Payment for pneumonia patients') # Display the unique values for this column
+```
+
+> Greg A.
+> We will also apply this kind of encoding to 'PaymentCategory_Payment for pneumonia patients' and 'Score_Emergency department volume'.
+> They contain the same kind of ordered data.
 
 ##### **Question 17**: [3 points] 
 You probably expected this - attempt to encode those columns the method you selected. It's okay if you can only think of a way to brute-force this for now; I will show you code to help you do it faster after the assignment. :)
@@ -623,7 +749,72 @@ You probably expected this - attempt to encode those columns the method you sele
 * **Hint 3: **For full credit, don't forget to double check that you managed to preserve all the data! The `table()` function is sufficient here.
 
 ```{r}
-# Your code here.
+# Greg A.
+
+pn_temp <- pneumoniaFull # Create a temporary copy of the data
+
+pn_temp <- pn_temp %>% # Apply to pn_temp
+mutate(across( # Alter the following columns
+    matches("ComparedToNational_"), # Alter columns that match the given term
+    ~ case_when( # Apply the following changes based on these cases
+      grepl("^Worse", ., ignore.case = TRUE) ~ -1, # Re-code values containing 'Worse' as -1
+      grepl("^No Different", ., ignore.case = TRUE) ~ 0, # Re-code values containing 'No Different' as 0
+      grepl("^Better", ., ignore.case = TRUE) ~ 1, # Re-code values containing 'Better' as 1
+      grepl("^More Days Than Average", ., ignore.case = TRUE) ~ -1, # Re-code values containing 'More Days Than Average' as -1
+      grepl("^Average Days per 100 Discharges", ., ignore.case = TRUE) ~ 0, # Re-code values containing 'Average Days per 100 Discharges' as 0
+      grepl("^Fewer Days Than Average", ., ignore.case = TRUE) ~ 1, # Re-code values containing 'Fewer Days Than Average' as 1
+      TRUE ~ NA_real_ # Keep NA values as is
+    )
+  ))
+
+pn_temp <- pn_temp %>% # Apply to pn_temp
+mutate(across( # Alter the following columns
+    matches("PaymentCategory_"), # Alter columns that match the given term
+    ~ case_when( # Apply the following changes based on these cases
+      grepl("^Less", ., ignore.case = TRUE) ~ -1, # Re-code values containing 'Less' as -1
+      grepl("^No Different", ., ignore.case = TRUE) ~ 0, # Re-code values containing 'No Different' as 0
+      grepl("^Greater", ., ignore.case = TRUE) ~ 1, # Re-code values containing 'Greater' as 1
+      TRUE ~ NA_real_ # Keep NA values as is
+    )
+  ))
+
+pn_temp <- pn_temp %>% # Apply to pn_temp
+mutate(across( # Alter the following columns
+    matches("Score_Emergency"), # Alter columns that match the given term
+    ~ case_when( # Apply the following changes based on these cases
+      grepl("^low", ., ignore.case = TRUE) ~ -1, # Re-code values containing 'low' as -1
+      grepl("^medium", ., ignore.case = TRUE) ~ 0, # Re-code values containing 'medium' as 0
+      grepl("high", ., ignore.case = TRUE) ~ 1, # Re-code values of 'high' as 1
+      grepl("very high", ., ignore.case = TRUE) ~ 2, # Re-code values of 'very high' as 2
+      TRUE ~ NA_real_ # Keep NA values as is
+    )
+  ))
+
+head(pn_temp) # Display first 6 rows of data
+
+encoded_cols <- c(
+  grep("ComparedToNational_", names(pn_temp), value = TRUE),
+  grep("PaymentCategory_", names(pn_temp), value = TRUE),
+  grep("Score_Emergency", names(pn_temp), value = TRUE)
+)
+
+# Create frequency tables for each column before encoding
+before_tables <- lapply(pneumoniaFull[encoded_cols], table, useNA = "ifany")
+
+# Create frequency tables for each column after encoding
+after_tables <- lapply(pn_temp[encoded_cols], table, useNA = "ifany")
+
+for (col in encoded_cols) {
+  cat("\n=== Column:", col, "===\n")
+  cat("Before encoding:\n")
+  print(before_tables[[col]])
+  cat("After encoding:\n")
+  print(after_tables[[col]])
+}
+
+all(sapply(encoded_cols, function(col)
+  sum(!is.na(pneumoniaFull[[col]])) == sum(!is.na(pn_temp[[col]]))
+))
 ```
 
 
@@ -645,25 +836,36 @@ Go through the **frequency encoding** code chunk below and comment each line. Wh
 > Your answer in comments in the code chunk.
 
 ```{r}
+# Greg A
+
 cols2encode <- c("State", 
-               "CountyParish")
+               "CountyParish") # Select the columns we want to encode
 
-temp <- pneumoniaFullEncoded[, names(pneumoniaFullEncoded) %in% cols2encode]
+temp <- pneumoniaFullEncoded[, names(pneumoniaFullEncoded) %in% cols2encode] # Create temp, a dataframe that contains the selected columns from pneumoniaFullEncoded
 
-add_freq <- function(data, column_name) {
-  frequency_map <- table(data[[column_name]], useNA = "always")
-  data[[column_name]] <- frequency_map[match(data[[column_name]],
-                                             names(frequency_map))]
-  return(data)
+# Creating a temporary dataframe allows us to protect the original data in case there is an error in our process
+# This also gives us a limited version of the data to work with, focused only on the essential columns
+
+add_freq <- function(data, column_name) { # define the newly created function, taking in data and a column name
+  frequency_map <- table(data[[column_name]], useNA = "always") # Calculate the frequency of unique values in the column 
+  data[[column_name]] <- frequency_map[match(data[[column_name]], 
+                                             names(frequency_map))] # Rewrite the column to contain the frequency values
+  return(data) # Return the data
 }
 
-for (col in names(temp)) {
-  temp <- add_freq(temp, col)
+# This function goes through the process of creating the frequency encodings
+# The benefit of writing a function is that it allows us to apply it to multiple cases
+
+for (col in names(temp)) { # Use a for loop over each selected column
+  temp <- add_freq(temp, col) # Rewrite the column to contain the frequency values
 }
 
-for (c in 1:length(cols2encode)) {
-  pneumoniaFullEncoded[, cols2encode[c]] <- temp[, cols2encode[c]]
+for (c in 1:length(cols2encode)) { # Use a for loop over each selected column
+  pneumoniaFullEncoded[, cols2encode[c]] <- temp[, cols2encode[c]] # Rewrite the corresponding columns in pneumoniaFullEncoded with the data in temp
 }
+
+# Here, we use for loops instead of individual lines for each column rewrite
+# In both cases, using a for loop ensures we don't miss a column
 ```             
 
 
@@ -678,10 +880,23 @@ Use your finally & freshly encoded version of `pneumoniaFullEncoded` to answer t
 **Hint 3: **If you decide it is ill-advised for either or both columns, make sure to remove those features from the dataset!
 
 ```{r}
-# Your code here.
+# Greg A.
+
+head(pneumoniaFull)
+head(pneumoniaFullEncoded)
+unique(pneumoniaFull$State)
+unique(pneumoniaFullEncoded$State)
+#unique(pneumoniaFull$CountyParish)
 ```
 
-> Your answer here.
+> Greg A.
+> State and CountyParish have their values replaced with their frequencies
+> For example, the state of AL had a frequency of 88
+> Therefore, in the encoded set, the AL value has been replaced with 88
+> The main concern with keeping these variables is data leakage
+> Since these values now give numerical insight about the whole dataset,
+> the train/test process is compromised, as key information from the whole dataset will be avaiable in the segmented sets
+> Therefore, it is best to remove these variables.
 
 
 ### Finishing touches
