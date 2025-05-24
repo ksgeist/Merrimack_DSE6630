@@ -7,7 +7,7 @@ pacman::p_load(tidyverse,
 
 #########################
 ## Set the file path; you may need to update this on your computer.
-filepath <- "~/Desktop/hospitals_current_data_FY2025/"
+filepath <- "~/Desktop/hospitals_current_data_FY2024/"
 ## Grab just the hospital-level files:
 files <- list.files(path = filepath, pattern = "Hospital.csv")
 
@@ -24,7 +24,7 @@ for(f in 1:length(files)) {
 }
 
 ## Make sure to tidy the MeasureName column:
-FY_2025_Hospital_Readmissions_Reduction_Program <-  FY_2025_Hospital_Readmissions_Reduction_Program %>%
+FY_2024_Hospital_Readmissions_Reduction_Program <-  FY_2024_Hospital_Readmissions_Reduction_Program %>%
   mutate(MeasureName = gsub("READM-30-", "", MeasureName)) %>% 
   mutate(MeasureName = gsub("-HRRP", "", MeasureName)) 
 
@@ -53,7 +53,7 @@ cleanUpReadmissions <- function(df) {
 }
 
 ## Run the function
-readmissionsClean <- cleanUpReadmissions(FY_2025_Hospital_Readmissions_Reduction_Program)
+readmissionsClean <- cleanUpReadmissions(FY_2024_Hospital_Readmissions_Reduction_Program)
 
 ############## This is where you will filter for whatever condition(s) you are choosing to focus on!
 ## Filter for just pneumonia:
@@ -291,7 +291,7 @@ pneumoniaAnalyzeFullyEncoded <- pneumoniaAnalyzeFullyEncoded %>%
   select(-NumberOfDischarges, -NumberOfReadmissions)
 
 ## Also pre-drop `Score_Hospital return days for pneumonia patients` for collinearity purposes
-## Have to use an if/else switch because of variable differences between 2024 and 2025
+## Have to use an if/else switch because of variable differences between 2024 and 2024
 if ("Score_Percentage of healthcare personnel who completed COVID-19 primary vaccination series" %in% names(pneumoniaAnalyzeFullyEncoded)) {
   pneumoniaAnalyzeFullyEncoded <- pneumoniaAnalyzeFullyEncoded %>% 
     select(-`Score_Hospital return days for pneumonia patients`, 
@@ -305,4 +305,4 @@ if ("Score_Percentage of healthcare personnel who completed COVID-19 primary vac
 
 #################################
 ## Save file for students:
-save(pneumoniaAnalyzeFullyEncoded, file = "FY2025_data_files/pneumoniaAnalyzeFullyEncoded2025.Rdata")
+save(pneumoniaAnalyzeFullyEncoded, file = "FY2024_data_files/pneumoniaAnalyzeFullyEncoded2024.Rdata")
