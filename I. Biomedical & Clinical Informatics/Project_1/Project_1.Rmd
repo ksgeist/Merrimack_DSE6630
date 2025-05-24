@@ -1898,7 +1898,7 @@ Let's also make predictions on the testing sets for both the OLS and Elastic Net
 
 ```{r}
 ## Post-resample on OLS
-prOLS <- postResample(pred = predict(mod, newdata = readyTest), 
+prOLS <- postResample(pred = predict(bestMod, newdata = readyTest), 
                       obs = readyTest$bc_PredictedReadmissionRate)
 
 ## Post-resample on Elastic Net
@@ -1911,27 +1911,23 @@ prElastic <- postResample(pred = predict(elasticMod, newdata = readyTest),
 rbind(prOLS, prElastic) %>% 
   kable(digits = 2,
     format = "html",
-    caption = "Table 12. Comparison of Model Performance of OLS and Elastic Net Regressions") %>%
+    caption = "Table 12. Comparison of Model (Test) Performance of OLS and Elastic Net Regressions") %>%
     kable_styling(bootstrap_options = c("striped", full_width = F)
 )
 ```
 
 #### 6.2.3.3 Check for overfitting/underfitting
 
-#### **Question 31**: [1 point]
-
-Using the same method, check for overfitting / underfitting. Make predictions using `readyTrain` rather than `readyTest`, and then check how the RMSE on the training data compares to the RMSE of the training data for the Elastic Net. How do they compare? (Recall what we discussed when we did the gene expression demo: the relationship of the test vs. training accuracy can be used to assess overfitting/underfitting. The same logic applies to RMSE too!) __How do both compare to what we got out of the OLS regression?__ Which would you say is the better predictive model, the OLS regression or the Elastic Net? Why?
-
-> Your answer here.
+Using the same method, check for overfitting / underfitting. Make predictions using `readyTrain` rather than `readyTest`, and then check how the $RMSE$ on the training data compares to the $RMSE$ of the training data for the Elastic Net. How do they compare?  __How do both compare to what we got out of the OLS regression?__ 
 
 ```{r}
 ## Post-resample on OLS
-prOLS <- postResample(pred = predict(mod, newdata = readyTrain), 
-                      obs = readyTest$bc_PredictedReadmissionRate)
+prOLS <- postResample(pred = predict(bestMod, newdata = readyTrain), 
+                      obs = readyTrain$bc_PredictedReadmissionRate)
 
 ## Post-resample on Elastic Net
 prElastic <- postResample(pred = predict(elasticMod, newdata = readyTrain), 
-                      obs = readyTest$bc_PredictedReadmissionRate)
+                      obs = readyTrain$bc_PredictedReadmissionRate)
 ```
 
 ```{r, echo=FALSE}
@@ -1943,6 +1939,11 @@ rbind(prOLS, prElastic) %>%
     kable_styling(bootstrap_options = c("striped", full_width = F)
 )
 ```
+
+#### TAKEAWAY
+When it comes to which performed better, it's obvious that the Elastic Net only marginally (very marginally!) out-performed the OLS regression or the Elastic Net (Table 12). The $R^2$ is a 0.01 higher in the Elastic Net model and both measures of error are a teensy bit lower. But, truthfully, they're performing the same __because they are the same model__. The Elastic Net likely out-performed simply because it was cross-validated!
+
+To interpret $RMSE$ from training (Table 13) vs. testing (Table 12), we're looking first to see if they are the same/balanced. However, we can see that error ($RMSE$, $MAE$) is a bit higher in the testing post-resample vs. the training post-resample. While this could suggest that we have some mild overfitting (our model memorized the training data a little too well leading to poor generalization when it "saw" the testing data), instead I think it is more likely is that we have __underfitting__ due to a lack of complexity! Underfitting error patterns are such that you will see roughly the same error in both the testing and training sets, and both error rates are quite high.
 
 #### 6.2.3.4 Graphical comparison of the two models' predictions
 
