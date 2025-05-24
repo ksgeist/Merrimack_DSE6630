@@ -56,6 +56,7 @@ __NOTE__: Your team name will be in lower case, so the branch name is also lower
  - c. Push your changes to your branch on the remote repo
 `git push`
 
+__NOTE__: The file `sync_branches.sh` is NOT for student use. This is for course instructior/admin use only.
 
 
 
