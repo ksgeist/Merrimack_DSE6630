@@ -56,11 +56,13 @@ pacman::p_load(tidyverse,
 )
 ```
 
+>MN: This was not working for me, so created a new fully encoded hf file from the answers demo file, created new HF answers fully encoded
 
 ```{r}
 ## Make any necessary changes in the R source code
 ## Uncomment to run!
-source(file = "reRunDemoData_hf.R")
+#source(file = "reRunDemoData_hf.R")
+
 ```
 
 # 1 Introduction
@@ -97,12 +99,41 @@ This is the first of your choices in your adventure, and what you choose here co
 **Load data from the end of Demo 1, which includes the ordinal and frequency encoding you did (plus a little bonus cleaning to help).** 
 
 Load my version of the fully cleaned, encoded, & ready-to-proceed dataset from the end of Demo 1. These data are not yet ready for analysis (!) but we would be picking up with that here.
+```{r}
+#Cleaning up mess I made from creating hf_AnalyzeFullyEncoded
+rm(hf_Full, 
+   hf_FullEncoded, 
+   Timely_and_Effective_Care, 
+   Unplanned_Hospital_Visits, 
+   valueOnly, 
+   Outpatient_Imaging_Efficiency, 
+   Payment_and_Value_of_Care, 
+   paymentOnly, 
+   readmissionsClean_hf, 
+   valueOnly, 
+   hospitalInfo, 
+   Maternal_Health, 
+   Medicare_Hospital_Spending_Per_Patient, 
+   FY_2024_HAC_Reduction_Program, 
+   FY_2024_Hospital_Readmissions_Reduction_Program, 
+   files, 
+   HCAHPS, 
+   Healthcare_Associated_Infections, 
+   Complications_and_Deaths, 
+   dat, 
+   temp_hf,
+   columns2encode_hf,
+   datList_hf,
+   filterList_hf,
+   Health_Equity,
+   Promoting_Interoperability,
+   hf_Analyze)      
+```
 
 ```{r}
-#left this as-is, as not running anyways
 ## Uncomment if this is your choice:
-#load("FY2024_data_files/pneumoniaAnalyzeFullyEncoded2024.Rdata")
-#dat2Analyze <- pneumoniaAnalyzeFullyEncoded
+load("FY2024_data_files/hf_AnalyzeFullyEncoded2024.Rdata")
+dat2Analyze_hf <- hf_AnalyzeFullyEncoded
 ```
 
 ## Option 1.3.2 
@@ -110,14 +141,14 @@ Load my version of the fully cleaned, encoded, & ready-to-proceed dataset from t
 
 ```{r}
 ## Comment out if this is NOT your choice:
-load("FY2024_data_files/HF_AnalyzeNoEncoding2024.Rdata")
-HF_dat2Analyze <- HF_AnalyzeNoEncoding
+#load("FY2024_data_files/HF_AnalyzeNoEncoding2024.Rdata")
+#HF_dat2Analyze <- HF_AnalyzeNoEncoding
 ```
 
 #### **Question 1**: [1 point]
 Which dataset do you choose and why?
 
-> MN:Kept with the no encoding dataset for consistency across both conditions
+> MN:As noted above, made a fully encoded dataset from answers demo due to having problems with encoding the no encoding dataset when trying to update for heart failure condition. 
 
 ## 1.4 Helper code: Using `R` like an object-oriented language {#helperCode}
 
@@ -184,7 +215,7 @@ dict %>%
 Now, I know I didn't ask you to do it, but I will actually begin my assessment of which target is most appropriate by constructing a quick summary table. In my assessment of what is an appropriate target, 
 
 ```{r, echo = FALSE}
-HF_sliceData <- HF_dat2Analyze %>% 
+HF_sliceData <- dat2Analyze_hf %>% 
   select(`ComparedToNational_Hospital return days for heart failure patients`, 
          PredictedReadmissionRate,
          observed_readmission_rate, 
@@ -221,7 +252,7 @@ I don't have to store it as a separate data frame (i.e., I can just pipe it dire
 
 ```{r, echo = FALSE}
 ## Make the long-format version of just the possible target variables, with some cleanup of the names, etc. for nicer graphs
-HF_longTargets <- HF_dat2Analyze %>%
+HF_longTargets <- dat2Analyze_hf %>%
   ## Make a shorter name
   rename(NatlComparisonHospitalDays = `ComparedToNational_Hospital return days for heart failure patients`,
          `Predicted Readmission Rate` = PredictedReadmissionRate,
@@ -336,40 +367,43 @@ Does this view confirm or change your decision from Question 3?
 
 > MN: I think this denisty plot I am even more convinced of the Predicted Readmission Rate. There are distinctions among the three groups, and shapes also vary. In the Excess Readmission, there is still seperation, butthe shapes of the plots are more similar.
 
-### 2.4 What is the relationship of pneumonia-related hospital readmissions to the hospital performance metrics?
+### 2.4 What is the relationship of heart failure related hospital readmissions to the hospital performance metrics?
 
 Something else we could do to help us make a decision is compare across predictors to look for the most striking relationships among the proposed target (readmission rate), how well compared to national average hospitals are performing AFTER readmitting pneumonia patients (how long after readmission they are in the hospital), and relationships among other hospital-performance predictors, like Medicaid spending or pneumonia-related deaths. 
 
 So, to do this, I'm going to make another long-format dataset and use this to make a bunch of faceted scatterplots where I put one of the readmission rates (let's started with `Predicted Readmissions`) and look for strength in relationships. Note that doing it this way, through plotting, is a **heuristic way** of choosing a target variable and it isn't the only way to do it!
 
 ```{r, echo = FALSE}
-HF_longScore <- HF_AnalyzeNoEncoding %>%
-  rename(NatlComparisonHospitalDays = `ComparedToNational_Hospital return days for heart failure patients`) %>% 
-  select(contains(c("Score", "NatlComparisonHospitalDays", "readmission"))) %>% 
+HF_longScore <- hf_AnalyzeFullyEncoded %>%
+  rename(NatlComparisonHospitalDays = `ComparedToNational_Hospital return days for heart failure patients`) %>%
+  select(contains(c("Score", "NatlComparisonHospitalDays", "readmission"))) %>%
   ## Flexible handling depending on which dataset students select; changes to better, same, worse
   mutate(NatlComparisonHospitalDays = case_when(
-    (NatlComparisonHospitalDays == 1  | NatlComparisonHospitalDays == "Fewer Days Than Average per 100 Discharges") ~ "Better", 
-    (NatlComparisonHospitalDays == -1 | NatlComparisonHospitalDays == "More Days Than Average per 100 Discharges") ~ "Worse", 
-    (NatlComparisonHospitalDays == 0  | NatlComparisonHospitalDays == "Average Days per 100 Discharges") ~ "Same", 
+    (NatlComparisonHospitalDays == 1  | NatlComparisonHospitalDays == "Fewer Days Than Average per 100 Discharges") ~ "Better",
+    (NatlComparisonHospitalDays == -1 | NatlComparisonHospitalDays == "More Days Than Average per 100 Discharges") ~ "Worse",
+    (NatlComparisonHospitalDays == 0  | NatlComparisonHospitalDays == "Average Days per 100 Discharges") ~ "Same",
     .default = NA),
   NatlComparisonHospitalDays = factor(NatlComparisonHospitalDays, levels = c("Better", "Same", "Worse", "Unknown")),
-  `Score_Emergency department volume` = as.numeric(case_when(`Score_Emergency department volume` == "very high" ~ "5",
-                                                         `Score_Emergency department volume` == "high" ~ "4",
-                                                         `Score_Emergency department volume` == "medium" ~ "3", 
-                                                         `Score_Emergency department volume` == "low"~ "2", 
-                                                         `Score_Emergency department volume` == "very low" ~ "1",
-                                                        .default = `Score_Emergency department volume`))) %>% 
-  pivot_longer(1:12, names_to = "Variable", values_to = "Value") %>% 
-  drop_na() %>% 
-  mutate(Variable = gsub("Score_", "", Variable)) %>% 
+  `Score_Emergency department volume` = as.numeric(case_when(
+    `Score_Emergency department volume` == "very high" ~ "5",
+    `Score_Emergency department volume` == "high" ~ "4",
+    `Score_Emergency department volume` == "medium" ~ "3", 
+    `Score_Emergency department volume` == "low" ~ "2", 
+    `Score_Emergency department volume` == "very low" ~ "1",
+    TRUE ~ as.character(`Score_Emergency department volume`) #changed code here, having immense problems with using same code as pneumonia for some reason
+  ))) %>%
+  pivot_longer(1:12, names_to = "Variable", values_to = "Value") %>%
+  drop_na() %>%
+  mutate(Variable = gsub("Score_", "", Variable)) %>%
   mutate(Variable = case_when(
     Variable == "Average (median) time patients spent in the emergency department before leaving from the visit A lower number of minutes is better"
-                ~"Median time (minutes) patients spent in ED",
-    Variable == "CMS Medicare PSI 90: Patient safety and adverse events composite" ~ "Composite patient safety", 
-    Variable == "Abdomen CT Use of Contrast Material" ~ "Abdomen CT w/ contrast", 
+                ~ "Median time (minutes) patients spent in ED",
+    Variable == "CMS Medicare PSI 90: Patient safety and adverse events composite" ~ "Composite patient safety",
+    Variable == "Abdomen CT Use of Contrast Material" ~ "Abdomen CT w/ contrast",
     Variable == "Perioperative pulmonary embolism or deep vein thrombosis rate" ~ "Perioperative pulmonary embolism/DVT",                     
-    Variable == "Left before being seen" ~ "% left ED before being seen", 
+    Variable == "Left before being seen" ~ "% left ED before being seen",
     .default = Variable))
+
 ```
 
 #### **Question 4**: [1 point]
