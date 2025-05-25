@@ -501,13 +501,17 @@ But remember that what matters most is that we are __matching our question__.
 #### **Question 7**: [1 point]
 
 Do you agree with my choice of target? Why or why not? (You are free to disagree!)
+>MN: I feel that I do agree with choice of target. As stated in some above questions, for one, in the observed data target, there are 600 missing points of data, this could be impactful, and it would be helpful to have those points represented in the data. A close second choice was the expected readmissions target. While this target did show similar linear realtionships like the predicted target, there was less distinction and separation among the three hospital rating categories. In the excess readmission target, while there was separation, there weren't any predictors that jumped out. 
+The predicted readmissions as a target had the best criteria of each possible target, and also did not have missingness. 
 
 ### 2.6 Bias and Limitation
 
 #### **Question 8**: [2 points]
 All studies have bias (introduced or systemic error) and limitations (failure to fully explain something). We could go more deeply into these concepts, but for now I want you to take a stab and just brainstorming either ways we might have bias OR the limitations of using this target variable. You do not need to answer both, but you're welcome to do so. You can read more about bias [here](https://www.ncbi.nlm.nih.gov/books/NBK574513/) or see some deeper explanations of limitations [here](https://www.aje.com/arc/how-to-write-limitations-of-the-study/). You do not need to write a lot; just 2-3 sentences. I am simply asking you to pause and reflect on our choices here before we proceed. 
 
-> Your answer here.
+> MN: After reading the article on bias, and then re-reading the summary of what the predicted readmissions target encompasses, I feel there are definitely some areas that could introduce bias. One area is if a hospital has a history of treating sicker patients or dealing with ongoing care challenges, the target might make those patterns into its predictions. Instead of adjusting for these differences, it could unintentionally keep those disparities going. Predictions using historical data may reinforce healthcare inequities rather than adjust for them, making it harder for hospitals to improve their performance if the model does not properly account for change over time. 
+
+
 
 
 # 3 Pre-processing and Feature Selection
@@ -523,25 +527,25 @@ It's time to say goodbye to the features we know would be far too redundant or n
 #### **Question 9A**: [0.5 points]
 Add your comments to the code as indicated to explain what I was doing at each of the steps.
 
-> Your answer in the comments.
+> MN:
 
 ```{r}
 dat2Analyze <- dat2Analyze %>% 
-  ## COMMENT HERE
+  ## Here we are un-selecting the features we no longer want using sample and number of patients. Also, taking out the other targets,
   select(-ExpectedReadmissionRate, 
          -ExcessReadmissionRatio,
          -observed_readmission_rate, 
          -contains(c("Sample_", "NumberOfPatients")),
          -NumberSurveysCompleted) %>% 
-  ## COMMENT HERE
+  ## Here we are changing some column names for conciseness
   rename(`Median time (minutes) patients spent in ED` = 
          `Score_Average (median) time patients spent in the emergency department before leaving from the visit A lower number of minutes is better`,
          `Composite patient safety` = `Score_CMS Medicare PSI 90: Patient safety and adverse events composite`,
          `ComparedToNational_Composite patient safety` = `ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`) %>% 
-  ## COMMENT HERE
+  ## Here we are moving our target variable to the front of the dataset and keeping everything else in place
   select(PredictedReadmissionRate, everything())
 
-## COMMENT HERE
+## Here were are taking the column names in our dataset and subbing anythign with score, HcahpsLinear.., and payment to be space or nothing
 colnames(dat2Analyze) <- gsub('Score_|HcahpsLinearMeanValue_|_Payment', '', colnames(dat2Analyze))
 ```
 
@@ -553,7 +557,8 @@ Next, we are going to take advantage of the `nearZeroVar()` function that is par
 #### **Question 9B**: [0.5 points]
 If you are not familiar yet with the concept of __zero or near-zero variance__, do a little digging. Based on what you read, try to explain for your naive advocacy group stakeholders, why it's important to remove the features with little variance.
 
-> Your answer here.
+> MN: Removing zero or near-zero variance features is important because they don’t add any useful information for analysis or predictions. If a column has almost the same value for every row, it can’t help a model distinguish between different cases. Keeping these features can slow down processing, clutter your dataset, and sometimes even confuse the model. By filtering them out, you make your analysis more efficient and focused on the variables that actually matter.
+
 
 ```{r, echo = F}
 ## Identify the columns with near-zero variance
@@ -577,12 +582,13 @@ dat2Analyze <- dat2Analyze[, -nearZeroVar(dat2Analyze)]
 #### **Question 9C**: [0.5 points]
 You may or may not have noticed that I moved `FacilityID` to our rownames in the datasets you loaded today. Why did I choose to do that? Why do I want to make sure unique identifiers, like `FacilityID`, are out of the dataframe before I either (a) run `nearZeroVar()` or (b) proceed with the rest of the analysis?
 
-> Your answer here.
+> MN: FacilityID does not have predictive value, it is just a label that helps distinguish individual hospitals. If left in the dataset, functions like nearZeroVar() might misinterpret them as meaningful features rather than identifiers, which could distort variance assessments.
+Additionally, keeping FacilityID as a column can clutter the analysis by introducing unnecessary data that doesn’t contribute to patient outcomes or hospital performance. By moving it to rownames, you ensure that only relevant variables are considered in statistical modeling, improving efficiency and accuracy.
 
 #### **Question 9D**: [1 point]
 Do some research on, or lean into your previous knowledge, about the **curse of dimensionality** or the **big-P, little-N (n >> P) problem**. Using whatever you find or remember, can you justify why we likely do NOT have a **big-P, little-N (n >> P) problem** here? Make sure to explain. 
 
-> Your answer here.
+> MN: Our dataset currently has 31 predictors (p) and 4816 observations(n). We do not meet the big-P, little-n problem here with these numbers, which will help to avoid overfitting when you have many more predictors than observations. 
 
 ## 3.2 Assess missingness & devise an imputation plan
 
@@ -590,20 +596,32 @@ We are going to deal with imputation in a rather quick and elegant way that requ
 
 #### **Question 10**: [1 point]
 Write some code that will quickly tally the number of columns in the dataset that contain missing values. You will find `colSums()` and `is.na()` functions likely useful here. **What percent of the features have at least some level of missingness?**
+>MN:
 
 ```{r}
-# Your code here.
+missing <- colSums(is.na(dat2Analyze))#count missing values per column
+
+missing_cols <- sum(missing > 0)#columns with at least one missing value
+
+percent_missing <- (missing_cols / ncol(dat2Analyze)) * 100
+missing
+missing_cols
+percent_missing
+
 ```
 
-> Your answer here.
+> MN: 31 columns have missing data, and 100% of the features have some sort of missingness.
 
 **Which column(s) are not missing any data?**
 
-> Your answer here.
+> MN: Every column is missing data
 
 **How many complete observations do we have in the dataset?** You may find `nrow()` with `complete.cases()` or `drop_na()` useful!
+>MN: 644 observations have complete data
+
 ```{r}
-# Your code here.
+sum(complete.cases(dat2Analyze))
+
 ```
 
 
@@ -652,7 +670,7 @@ Similarly, `miceMatrix$mm[i, j]` gives us the number of cases where both variabl
 #### **Question 11A**: [0.5 points]
 Explain what you think the number in cell $[6,1]$ means. Out of all the observations in the dataset, does this feel like a high degree of co-missingness?
 
-> Your answer here.
+> MN: To me this means that 1788 values are missing. Postop respiratory failure rate has a missing value, and predicted readmission has a missing value in 1788 instances, which is almost half of our observations. This does seem like a high degree of co-missingness, which could indicate the pattern is not just random.
 
 Lastly, we can calculate a **proportion of missingness vs. response** between any two variables $i$ and $j$ such that:
 
@@ -713,7 +731,21 @@ p[1, ] %>%
 
 What columns seem to be most correlated in terms of missingness to our target, `PredictedReadmissionRate`? Does this give you any cause for concern? Feel free to speculate as to why you might see this.
 
-> Your answer here.
+> MN: The columns that seem to be most correlated with missingness are:
+- MRSA Bacteremia
+- ComparedToNational MRSA Bacteremia
+- Postop respiratory failure rate
+- Medicare spending per patient
+- Perioperative pulmonary embolism or DVT
+- Composite patient safety
+Could consider these too as well:
+- ComparedToNational Composite patient safety
+- PaymentCategory for pneumonia patients
+- Payment for pneumonia patients
+- Staff responsivenes
+Yes this could cause concern as this pattern of missingness suggests non-random gaps in the data, which could introduce bias. If these specific variables are frequently missing when readmission rates are observed, it might mean that hospitals with certain characteristics or reporting standards are disproportionately affected. If hospitals with high readmission rates also tend not to report certain metrics, that could skew the data, making it harder to get an accurate idea of what’s driving readmissions.
+
+
 
 ## 3.3 Drop rows that are missing from the target variable. 
 
@@ -730,7 +762,7 @@ paste0(c("Rows: ", "Columns: "), dim(dat2Analyze))
 #### **Question 12**: [0.5 points]
 Thinking back to your answer to Question 12, do you feel any differently given these dimensions of the dataset?
 
-> Your answer here.
+> MN: Not sure which question I am supposed to reference here for comparison?
 
 ## 3.4 Do the splits! 
 
