@@ -1,7 +1,7 @@
 ---
 title: "Project 1: Biomedical & Clinical Informatics"
 subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
-author: "Katherine S. Geist, PhD"
+author: "Gregory Andriotakis"
 date: "20 May 2025"
 output:
   html_document:
@@ -109,7 +109,10 @@ dat2Analyze <- pneumoniaAnalyzeNoEncoding
 #### **Question 1**: [1 point]
 Which dataset do you choose and why?
 
-> Explain your selection here.
+> I decided to select the data without encoding.
+> This is because Demo 1 performs encoding before a train/test split.
+> If we were to then split the data, it is possible that data leakage would occur.
+> Therefore, it is best to load the unencoded data and then re-encoding after making the split.
 
 ## 1.4 Helper code: Using `R` like an object-oriented language {#helperCode}
 
@@ -175,6 +178,11 @@ dict %>%
 
 Now, I know I didn't ask you to do it, but I will actually begin my assessment of which target is most appropriate by constructing a quick summary table. In my assessment of what is an appropriate target, 
 
+```{r}
+install.packages("gtsummary")
+```
+
+
 ```{r, echo = FALSE}
 sliceData <- dat2Analyze %>% 
   select(`ComparedToNational_Hospital return days for pneumonia patients`, 
@@ -192,13 +200,14 @@ sliceData <- dat2Analyze %>%
                                                       ifelse(`National Comparison Return Hospital Days` == 0, "Same as average", "Worse than average")))) %>% 
   mutate(`National Comparison Return Hospital Days` = factor(`National Comparison Return Hospital Days`, levels = c( "Better than average", "Same as average", "Worse than average", "Unknown")))
 
-sliceData %>% 
-  tbl_summary(statistic = list(
-      all_continuous() ~ "{mean} ({sd}), {median}",
-      all_categorical() ~ "{n} / {N} ({p}%)"
-    ), missing_text = "(Missing)") %>% 
-  modify_caption("**Table 2. Possible target measure summaries**") %>%
-  bold_labels()
+# Can't get this to work on my computer, so I am commenting it out.
+#sliceData %>% 
+#  tbl_summary(statistic = list(
+#      all_continuous() ~ "{mean} ({sd}), {median}",
+#      all_categorical() ~ "{n} / {N} ({p}%)"
+#    ), missing_text = "(Missing)") %>% 
+#  modify_caption("**Table 2. Possible target measure summaries**") %>%
+#  bold_labels()
 ```
 
 We can see right away that we lose nearly **600 more data points** if we opt to use our calculated `observed_readmission_ratio` (NOTE: nearly 500 if using the 2025 FY data), which is going to be a by-product of the fact that the `Predicted` and `Expected` readmission ratios are using prior information and information about patient mixes to generate these values. Our `observed_readmission_ratio` is crude and unadjusted any way - which could present problems when it comes to true comparability. **So, off the bat it feels as if the constructed target is possibly not a good choice despite its simplicity for stakeholders to understand.** 
@@ -268,9 +277,10 @@ If you have never encountered [violin plots](https://en.wikipedia.org/wiki/Violi
 > Make sure to comment your line to call attention to it:
 
 ```{r, fig.cap = "Figure 2. Readmission Rates vs. readmitted hospital LOS", fig.width=8, fig.height=6, echo = FALSE, include=FALSE}
-longTargets %>% 
+editedplot <- longTargets %>% 
   ggplot(aes(x = Value, y = NatlComparisonHospitalDays, fill = NatlComparisonHospitalDays)) +
   geom_violin(alpha = 0.7) +
+  geom_boxplot(width = 0.1) + # THIS IS WHERE I AM PLACING THE LINE OF CODE!
   labs(title = "Which target to use?",
        subtitle = "By readmitted LOS in hospital compared to national average",
         x = "",
@@ -289,11 +299,16 @@ longTargets %>%
              ncol = 2)
 ```
 
+```{r}
+editedplot # Display the plot
+```
+
+
 #### **Question 2B**: [0.5 points]
 Now that you can compare these groups more easily, what we're looking for is a balance between **clear difference** between hospital ordinality relative to the national average (i.e., "Are better hospitals really better in pneumonia readmission rates?").
 
 Which target(s) appear the most distinct to you?
-> Your answer here.
+> Observed Readmission Rate appears to have the least amount of overlap between the categories.
 
 #### 2.3.2 Example with `geom_density()`:
 We could also choose to overlay density plots instead of violin or boxplots, as this can sometimes help us see subtler separation of groups than we can see otherwise. This time, I am also going to ignore the "Unknown" (i.e., missing) class of hospitals to prevent things from getting too messy!
@@ -322,9 +337,16 @@ longTargets %>%
 ```
 
 #### **Question 3**: [0.5 points]
-Does this view confirm or change your decision from Question 3?
+Does this view confirm or change your decision from Question 2?
 
-> Your answer here.
+> Once again looking at Observed Readmission Rate,
+> there appears to be three clear "peaks" for each category.
+> However, there is considerable overlap outside of the peaks,
+> which are rather close together.
+> Looking at Predicted Readmission Rate,
+> the "Worse" category is much more distinct compared to the other options.
+> This might be significant for answering our research question.
+> Therefore, I am now leaning more towards selecting this as the target. 
 
 ### 2.4 What is the relationship of pneumonia-related hospital readmissions to the hospital performance metrics?
 
@@ -371,6 +393,36 @@ Change the __y-axis__ out for _each of the four readmission rates. `Predicted Re
 **HINT 1**: What does higher medicare spending per patient tell you about the underlying population of a hospital?
 
 **HINT 2**: Venous thrombolisms and deep vein thromboses (DVTs) are often "sneakier" conditions that have "silent" symptoms until the patient is in crisis. What would having higher scores at providing prophylaxis for these conditions potentially suggest about a hospital's performance?
+
+
+```{r, fig.width=7, fig.height=8, echo = FALSE, message=FALSE, fig.cap="Figure 4. Readmission rate by hospital performance and readmitted patient LOS"}
+longScore %>%  
+  ggplot(aes(y = ExpectedReadmissionRate,  ## <-- CHANGE THIS!
+             x = Value)) +
+    geom_point(alpha = 0.25) + 
+    geom_smooth(aes(fill = as.factor(NatlComparisonHospitalDays), color = as.factor(NatlComparisonHospitalDays)), 
+                method = "lm", 
+                se = T, 
+                show.legend = T) + 
+    ## CHANGE THE TITLE FOR FULL CREDIT!
+    labs(title = "Relationship of _fill in this blank_ pneumonia-related hospital \nreadmissions to each performance metric",
+        x = "Rate or Score",
+        y = "Predicted Pneumonia-related Readmissions",
+        color = "Pneumonia-related Readmission Compared to National Average") +
+  scale_fill_manual(values = c("gold", "cadetblue", "maroon")) + 
+  scale_color_manual(values = c("gold", "cadetblue", "maroon"),
+                    labels = c("Better", "Same", "Worse")) + 
+  guides(fill = "none", color = guide_legend(override.aes = list(fill=NA))) +    ## To override the filled SE boxes from geom_smooth() in the legend
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        strip.text = element_text(size=8),
+        legend.text = element_text(size = 8),
+        legend.title = element_text(size = 10),
+        title = element_text(size = 12, color = "maroon")) + 
+  facet_wrap(~Variable, 
+             scales = "free_x",
+             ncol = 2)
+```
 
 
 ```{r, fig.width=7, fig.height=8, echo = FALSE, message=FALSE, fig.cap="Figure 4. Readmission rate by hospital performance and readmitted patient LOS"}
@@ -523,21 +575,21 @@ Add your comments to the code as indicated to explain what I was doing at each o
 
 ```{r}
 dat2Analyze <- dat2Analyze %>% 
-  ## COMMENT HERE
+  # Remove the following columns from the data
   select(-ExpectedReadmissionRate, 
          -ExcessReadmissionRatio,
          -observed_readmission_rate, 
          -contains(c("Sample_", "NumberOfPatients")),
          -NumberSurveysCompleted) %>% 
-  ## COMMENT HERE
+  # Rename columns to have shorter names
   rename(`Median time (minutes) patients spent in ED` = 
          `Score_Average (median) time patients spent in the emergency department before leaving from the visit A lower number of minutes is better`,
          `Composite patient safety` = `Score_CMS Medicare PSI 90: Patient safety and adverse events composite`,
          `ComparedToNational_Composite patient safety` = `ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`) %>% 
-  ## COMMENT HERE
+  # Move target variable to front of dataset
   select(PredictedReadmissionRate, everything())
 
-## COMMENT HERE
+# Rename columns to remove unneeded parts that lengthen names
 colnames(dat2Analyze) <- gsub('Score_|HcahpsLinearMeanValue_|_Payment', '', colnames(dat2Analyze))
 ```
 
@@ -549,7 +601,21 @@ Next, we are going to take advantage of the `nearZeroVar()` function that is par
 #### **Question 9B**: [0.5 points]
 If you are not familiar yet with the concept of __zero or near-zero variance__, do a little digging. Based on what you read, try to explain for your naive advocacy group stakeholders, why it's important to remove the features with little variance.
 
-> Your answer here.
+> When a feature has variance, it means that values differ between cases.
+> Having zero variance would mean that every value for that feature is the same.
+> Likewise, near-zero variance would be a feature with very little difference between cases.
+> If we want to build a predictive model to inform about readmission,
+> then we want to train the model on features that help distinguish between levels of readmission.
+> Features with zero or near-zero variance will contribute little to this,
+> and may actually make things more confusing for our model.
+> Therefore, we want to remove these features.  
+
+```{r}
+#library(caret)
+#library(dplyr)
+#library(kableExtra)
+```
+
 
 ```{r, echo = F}
 ## Identify the columns with near-zero variance
@@ -570,15 +636,42 @@ dat2Analyze <- dat2Analyze[, -nearZeroVar(dat2Analyze)]
 
 **Take note** of the number of features here.
 
+> 2 columns were dropped:
+
+> 1. ComparedToNational_Postoperative respiratory failure rate
+
+> 2. ComparedToNational_Perioperative pulmonary embolism or deep vein thrombosis rate
+
 #### **Question 9C**: [0.5 points]
 You may or may not have noticed that I moved `FacilityID` to our rownames in the datasets you loaded today. Why did I choose to do that? Why do I want to make sure unique identifiers, like `FacilityID`, are out of the dataframe before I either (a) run `nearZeroVar()` or (b) proceed with the rest of the analysis?
 
-> Your answer here.
+> Unique identifiers give a unique value to every row in the data.
+> This means that the feature would be calculated as having the highest possible variance.
+> However, these features do not contribute to the predictive abilities of our models,
+> as they do not give meaningful information to be generalized to our target variable.
+> In addition, they can cause data leakage if the model learns to associate target outcomes
+> with particular IDs. 
+> Therefore, they need to be removed before proceeding. 
 
 #### **Question 9D**: [1 point]
 Do some research on, or lean into your previous knowledge, about the **curse of dimensionality** or the **big-P, little-N (n >> P) problem**. Using whatever you find or remember, can you justify why we likely do NOT have a **big-P, little-N (n >> P) problem** here? Make sure to explain. 
 
-> Your answer here.
+```{r}
+dim(dat2Analyze)
+```
+
+
+> The "curse of dimensionality" refers to problems that arise when your data has too many features.
+> Increasing dimensionality can cause data to become more sparce,
+> making it harder for models to find patterns within the data.
+> In turn, models are more likely to become overfit, resulting is worse generalization.
+> This can also be described by the "big-P, little-N" problem.
+> Here, P refers to the number of features and N refers to the number of observations.
+> When P is big, it takes many more observations to make a reliable model.
+> If N is small when P is big, you will run into the problems described above.
+> While we have a great number of features (31 features),
+> we have a much greater number of observations (4816 rows).
+> Therefore, it is unlikely that we will face this problem. 
 
 ## 3.2 Assess missingness & devise an imputation plan
 
@@ -588,20 +681,26 @@ We are going to deal with imputation in a rather quick and elegant way that requ
 Write some code that will quickly tally the number of columns in the dataset that contain missing values. You will find `colSums()` and `is.na()` functions likely useful here. **What percent of the features have at least some level of missingness?**
 
 ```{r}
-# Your code here.
+sum(colSums(is.na(dat2Analyze)) > 0)
 ```
 
-> Your answer here.
+> All 31 columns are missing some data.
 
 **Which column(s) are not missing any data?**
 
-> Your answer here.
+```{r}
+sum(colSums(is.na(dat2Analyze)) == 0) # Just to confirm
+```
+
+> There are no columns that are not missing any data. 
 
 **How many complete observations do we have in the dataset?** You may find `nrow()` with `complete.cases()` or `drop_na()` useful!
 ```{r}
-# Your code here.
+complete_ob <- nrow(dat2Analyze[complete.cases(dat2Analyze), ])
+print(complete_ob)
 ```
 
+> We have 644 complete observations in the dataset.
 
 ### 3.2.1 Use the `md.pairs()` function from the `mice` package to assess the extent of missing values before imputing. 
 
@@ -648,7 +747,13 @@ Similarly, `miceMatrix$mm[i, j]` gives us the number of cases where both variabl
 #### **Question 11A**: [0.5 points]
 Explain what you think the number in cell $[6,1]$ means. Out of all the observations in the dataset, does this feel like a high degree of co-missingness?
 
-> Your answer here.
+> The number in cell $[6,1]$ means that there are 1788 observations where
+> values for both Postoperative respiratory failure rate and PredictedReadmissionRate are missing.
+> Considering that there are 4816 records in total, that means about 37% of the data
+> for this relation is missing. 
+> This seems to be a high level of co-missingness, but is less than several other relations
+> demonstrated within the calculated table. 
+
 
 Lastly, we can calculate a **proportion of missingness vs. response** between any two variables $i$ and $j$ such that:
 
@@ -709,7 +814,9 @@ p[1, ] %>%
 
 What columns seem to be most correlated in terms of missingness to our target, `PredictedReadmissionRate`? Does this give you any cause for concern? Feel free to speculate as to why you might see this.
 
-> Your answer here.
+> Some of the highest correlated missingness include MRSA Bacteremia, 
+> Postoperative respiratory failure rate, and Medicare spending per patient.
+> 
 
 ## 3.3 Drop rows that are missing from the target variable. 
 
