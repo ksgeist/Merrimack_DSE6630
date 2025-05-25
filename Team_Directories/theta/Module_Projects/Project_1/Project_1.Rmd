@@ -816,7 +816,19 @@ What columns seem to be most correlated in terms of missingness to our target, `
 
 > Some of the highest correlated missingness include MRSA Bacteremia, 
 > Postoperative respiratory failure rate, and Medicare spending per patient.
-> 
+> MRSA Bacteremia tracks the rate in which patients develop specific
+> bloodstream infections. 
+> Postoperative respiratory failure rate tracks the rate in which
+> patients experience breathing problems after surgery.
+> The missingness in this data is concerning as both would be key signs for
+> hospital performance and the need to readmit. 
+> Medicare spending might also indicate how often a patient is in the hospital,
+> as higher spendings could indicate more time in the hospital.
+> This information could be missing for a number of possible reasons.
+> Poor data tracking might be one possibility.
+> Another possibility, moreso for the first two identified,
+> is that both of these values are very small in the hospital overall,
+> and therefore were not properly measured.
 
 ## 3.3 Drop rows that are missing from the target variable. 
 
@@ -833,7 +845,9 @@ paste0(c("Rows: ", "Columns: "), dim(dat2Analyze))
 #### **Question 12**: [0.5 points]
 Thinking back to your answer to Question 12, do you feel any differently given these dimensions of the dataset?
 
-> Your answer here.
+> While the number of rows has nearly been cut in half,
+> our observations still greatly outnumber our features.
+> Therefore, I still do not believe there will be a problem with dimensionality.
 
 ## 3.4 Do the splits! 
 
@@ -842,7 +856,19 @@ At this stage, we are almost ready to __impute__ - but not until we have done ou
 #### **Question 13**: [1 point]
 Explain to your stakeholder, in simpler language, (1) why we partition data into testing and training sets and (2) what data leakage is. You do not need to go into great detail, but it should explain enough that they understand the basic ideas.
 
-> Your answer here.
+> The purpose of having a predictive model is so that it will be able to accurately classify
+> new, previously unseen cases.
+> If we train the model on the entire data, we will not be sure if it can generalize
+> its predictions to unseen cases.
+> Therefore, we partition the data into train and test sets so that we can test
+> the model on data it was not trained on to validate its accuracy. 
+
+> Data leakage is when information from our training data contaminates the test data.
+> This can happen when feature engineering is performed before splitting the data.
+> If new features are calculated from existing features, then information can carry
+> over into the test set if calculated before splitting. 
+> Data leakage harms model integrity, as it will have an unfair advantage at
+> predicting the test cases. 
 
 You may recall that I mentioned that the optimal ratio is has been argued to be $\sqrt{p} : 1$, where $p$ is the number of parameters (which may or may not equal your predictors depending on your planned analysis). Note that you do not have to split only a single time; you could make different splits for different analyses, if needed. However, we are going to use a single split here for convenience. 
 
@@ -862,45 +888,49 @@ calcSplitRatio <- function(p = NA, df) {
   ## @p  = the number of parameters. by default, if none are provided, the number of columns (predictors) in the dataset are used
   ## @df = the dataframe that will be used for the analysis
   
-  ## COMMENT HERE
+  # If p is not defined, set p to the number of predictors
   if(is.na(p)) {
-    p <- ncol(df) -1   ## COMMENT HERE
+    p <- ncol(df) -1   # Remove the target variable from the pool of predictors
   }
   
-  ## COMMENT HERE
+  # Calculate the optimal split ratio (test set)
   test_N <- (1/sqrt(p))*nrow(dat2Analyze)
-  ## COMMENT HERE
+  # 
   test_prop <- round((1/sqrt(p))*nrow(dat2Analyze)/nrow(dat2Analyze), 2)
-  ## COMMENT HERE
+  # Subtract optimal test proportion to find optimal train 
   train_prop <- 1-test_prop
   
-  ## COMMENT HERE
+  # Print the optimal split ratio
   print(paste0("The ideal split ratio is ", train_prop, ":", test_prop, " training:testing"))
   
-  ## COMMENT HERE
+  # Return the optimal train proportion
   return(train_prop)
 }
 
 ## Fill in the blanks to run:
-# train_prop <- ___(df = ___)
+train_prop <- calcSplitRatio(df = dat2Analyze)
 ```
 
 **Hint**: One important note here is that if the number of parameters are not provided (which is true for the starter code I gave you to run it - it does NOT pass any parameters to that argument!), then by default our function is designed to take the number of columns of the dataframe and subtract one for the target variable. Neat, huh?
 
 Now, uncomment this code and fill it out to run it. 
 ```{r}
-# ind <- createDataPartition(dat2Analyze$___,   ## Put the target here!
-#                            p = ___,           ## Use the object you just made!
-#                            list = FALSE)
-# 
-# train <- dat2Analyze[___, ]
-# test <- dat2Analyze[-c(ind), ]
+ind <- createDataPartition(dat2Analyze$PredictedReadmissionRate,   ## Put the target here!
+                            p = train_prop,           ## Use the object you just made!
+                            list = FALSE)
+ 
+train <- dat2Analyze[ind, ]
+test <- dat2Analyze[-c(ind), ]
 ```
 
 #### **Question 14B**: [0.5 points]
 What split ratio did you get? Is it close to the canonical 80-20 split? Why do you think that happened?
 
-> Your answer here.
+> Our exact split is 82-18.
+> The split is relatively close to the canonical 80-20 split.
+> Considering the fact that we are working with a large set of data,
+> we do not need to dedicate a large percentage of the total data to the test set
+> in order to have a sufficiently large enough pool. 
 
 
 __Did you get stuck somewhere?__ If so, load the `test` and `train` data in case you struggled with Question 18 so you can proceed:
