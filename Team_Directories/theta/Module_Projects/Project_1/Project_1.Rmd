@@ -949,7 +949,7 @@ We are going to take advantage of the `missForest()` function from the `missFore
 
 The way I have chosen to do this is to separate the data so that I can turn the encoded categories back into categories temporarily, then stitch them back together into a temporary dataframe so that I can run `missForest`. Notice that I temporarily drop the `State` and target features; I drop `State` to spare ourselves a little computational time and I drop `PredictedReadmissionRate` to prevent __data leakage__. **Be patient!!**. Since this is randomForest, it could take a minute or two to run. **NOTE:** _If your machine fails to run this, there are data you can load. Some computers may struggle to run this._
 
-```{r, include = TRUE}
+```{r, include = FALSE}
 # Remove encoded categorical variables for imputation, plus the target and state (which have no missing)
 data_sans_encoded = train %>% 
   select(-PredictedReadmissionRate,
@@ -1000,7 +1000,25 @@ data.frame(imputedTrain$OOBerror, names(temp)) %>%
 #### **Question 15**: [1 point]
 What does `MSE` (Mean Squared Error) and `PCF` (Proportion of Falsely Classified) indicate here? You may find looking at the `missForest` [Vignette](https://stat.ethz.ch/education/semesters/ss2012/ams/paper/missForest_1.2.pdf) helpful. Which variable(s) had the highest OOB error?
 
-> Your answer here.
+> Mean Squared Error (MSE) and Proportion of Falsely Classified (PCF) are measures of 
+> quality for the imputed values.
+
+> MSE is used to measure the continuous variables.
+> A lower MSE suggests a lower amount of error, meaning the values are closer to
+> actual values. A higher MSE suggests a greater degree of inaccuracy in the
+> imputed variables.
+
+> PCF is used to measure the categorical variables.
+> PCF is measured on a scale of 0 to 1, representing how many cases were
+> incorrectly imputed. 
+> A PCF of 0 would suggest that there is no error in the imputation.
+> A greater PCF suggests more imputed values are incorrect.
+
+> The variable with the highest OOB error for MSE was Payment for pneumonia patients,
+> with a score of 948452.73.
+
+> The variable with the highest OOB error for PCF was Emergency department volume,
+> with a score of 0.46.
 
 **NOTE 1**: If the OOB error (either MSE or PCF) from `missForest` is really high, it’s a red flag that the imputation for those variables is untrustworthy. This could be do to too much missingness, weak relationships among the variables making it hard to predict, or low quality data (e.g., noisy, sparse). In such cases, we want to **DROP** any variables with extremely high OOB error because they add noise. A general rule of thumb is that if the PCF > ~0.3 (30% of the imputed values are wrong) or if there is especially high MSE (inflation) relative to the variance of the variable, we should drop it. Let's set those aside so we can drop them from `test` and `train` both downstream! 
 
@@ -1018,7 +1036,20 @@ cols2drop <- c("Payment for pneumonia patients", "Emergency department volume")
 #### **Question 16**: [1 point]
 Alternatively, we could use MICE (Multivariate Imputation with Chained Equations), which is a method that will model uncertainty along with the variables. Do a little research. How does MICE work? Include a citation to a source.
 
-> Your answer here.
+> MICE is a method that iteratively models missing values with a regression model,
+> using the other variables for the regression.
+
+> MICE starts by filling in the missing values with guesses.
+> The guess could be anything like the mean value or the most common value. 
+> Then, one variable at a time, MICE removes the temporary guess values and then
+> builds a regression model for that variable using the other completed variables.
+> MICE proceeds through this process for each variable in the dataset.
+
+> MICE accounts for uncertainty by generating multiple versions of the dataset.
+> Each version uses slightly different guess values in the beginning, so that
+> the outcome of the regressions will change to account for the uncertainty.
+
+> Source: https://pmc.ncbi.nlm.nih.gov/articles/PMC3074241/
 
 #### 3.5.4 Putting it alllllll back together...
 
@@ -1035,7 +1066,7 @@ imputedTrain <- imputedTrain$ximp %>%
 
 ##### 3.5.4.2 Now do the imputation for `test`
 
-```{r}
+```{r, include = FALSE}
 # Remove encoded categorical variables for imputation, plus the target and state (which have no missing)
 data_sans_encoded = test %>% 
   select(-PredictedReadmissionRate,
@@ -1082,10 +1113,45 @@ imputedTest  <- imputedTest[, !(names(imputedTest) %in% cols2drop), drop = FALSE
 Quickly explore how well the imputation did by choosing at least one numeric variable and one of the categorical variables. Did the distributions or frequencies change drastically? You may find the `summary()` and `table()` functions to be fastest here. 
 
 ```{r}
-# Your code here.
+# Check "MRSA Bacteremia" distributions
+
+summary(imputedTrain[["MRSA Bacteremia"]])
+summary(imputedTest[["MRSA Bacteremia"]])
+
+print("-------------")
+
+summary(train[["MRSA Bacteremia"]])
+summary(test[["MRSA Bacteremia"]])
 ```
 
-> Your answer here.
+```{r}
+# Check "ComparedToNational_Death rate for pneumonia patients" distributions
+
+table(imputedTrain[["ComparedToNational_Death rate for pneumonia patients"]])
+table(imputedTest[["ComparedToNational_Death rate for pneumonia patients"]])
+
+print("-------------")
+
+table(train[["ComparedToNational_Death rate for pneumonia patients"]])
+table(test[["ComparedToNational_Death rate for pneumonia patients"]])
+```
+
+
+> First, we will look at "MRSA Bacteremia".
+
+> Looking at the Train data, the first quartile and median are off by about 1000
+> from the original train set to the imputed set. 
+> The difference in the mean and third quartile are much less, but still 
+> several hundred off.
+> The test sets are similarly off when comparing the first quartile,
+> but otherwise are relatively the same (especially when compare to the train sets).
+
+> Next, we will look at "ComparedToNational_Death rate for pneumonia patients".
+
+> Overall, the distributions are similar when comparing the train/test sets
+> before imputation and after imputation.
+> The only differences are within the 0 class, where the difference is always
+> less than 10. 
 
 ## 3.6 Another Fork in the Road
 It's time, yet again, to make a choice. If you opted to load the __fully encoded__ dataset and everything has been done on that, you will run the first chunk. But if you decided that you wanted to __wait to encode__ the TIME HAS FINALLY COME!
@@ -1135,7 +1201,23 @@ if(!is.numeric(imputedTrain$State)) {
 #### **Question 18**: [1 point]
 Because we are now frequency encoding AFTER data partitioning (we did ordinal encoding BEFORE the split for convenience), we absolutely __must__ apply the same encoding map to the `test` set that we did to the `train` set. Explain why, and what should we do if some classes of the variable end up in the `train` that is not in the `test` or vice versa? (**HINT**: Look at the source code!)
 
-> Your answer here. 
+> When doing frequency encoding, our encodings are calculated from the frequencies
+> of the provided original values.
+> This means that if we do not apply the same mapping from the train set
+> to the test set, each set will likely end up with different frequency encodings.
+
+> If some classes end up in the train set that are not in the test set, there
+> is no significant problem. The model simply will not encounter those values
+> when looking at the data from the test set.
+
+> If some classes end up in the test set that are not in the train set,
+> then the model will struggle to handle the value unless there is a default
+> value to fall back on.
+
+> Looking at the source code for the encoding function,
+> it can be seen that the function tries to test each value to the map.
+> If the value is not found in the map, the value is marked as NA.
+> Then, the code converts all NA values into 0s. 
 
 ## 3.7  Transformation & Scaling
 
@@ -1157,15 +1239,26 @@ ggplot(readyTrain, aes(x = PredictedReadmissionRate)) +
 #### **Question 19A**: [1 point]
 Why is a histogram, or even a Q-Q plot, an insufficient way to assess whether a distribution is approximately normal?
 
-> Your answer here.
+> Both methods suffer the problem of subjectivity.
+> It is up to the viewer to decide if the plot(s) show a shape that is close
+> enough to normal or not.
+> For example, the plot above ALMOST looks normal, but has a slight skew to the right.
 
 Now Apply a [Shapiro-Wilk test](https://biostats.w.uib.no/test-for-normality-shapiro-wilks-test/) for normality using the `shapiro.test()` function. What does it indicate about your distribution? (**Note**: Shapiro tests are only reliable for $N < 5000$, but it is fine to perform here.)
 
 ```{r}
-# Your code here.
+# Normality Test
+
+shapiro.test(readyTrain$PredictedReadmissionRate)
 ```
 
-> Your answer here.
+> The W value is 0.98544, which is very close to 1.
+> W values close to 1 suggest a fit closer to normal.
+> However, the p-value is the more significant factor to read.
+
+> The p-value is 3.085e-14, which is far less than 0.05.
+> A value less than 0.05 tells us to reject the null hypothesis.
+> This this case, that means that our data is not normally distributed.
 
 ### 3.7.1 Box-Cox Transformation
 
@@ -1215,12 +1308,38 @@ Can you see what it did to the distribution? __look closely__, if not. It's subt
 #### **Question 19B**: [1.5 points]
 Now repeat all of the steps to perform a Box-Cox transform on your own to the `imputedTest` data. Why must we (1) also transform the test data and (2) __use the same $\lambda$ as the training data__?
 
-> Your answer here.
+> Since we will be training the model on a certain scale 
+> (being the newly transformed distribution), the model will expect data on
+> the same scale when given new data to predict.
+> Therefore, we need to apply the same transformation to the test data.
+
+> Using the same lambda as the train data is important, as it ensures that
+> the test data will be on the same scale as the train data.
+> In addition, calculating a new lambda will give the model information about
+> the distribution of the test set, causing a source of data leakage. 
+
 
 ```{r}
-# Your code here.
+# Test transformation
 
-# Make sure to check that your transform looks successful!
+readyTest$bc_PredictedReadmissionRate <- predict(bc_data, readyTest$PredictedReadmissionRate)
+
+
+# Check that transform looks successful
+
+ggplot(readyTest, aes(x = bc_PredictedReadmissionRate)) +
+  geom_histogram(alpha = 0.6, 
+                 fill = "hotpink",
+                 color = "hotpink") +
+  theme_minimal() +
+  labs(title = "Box-Cox Transformed Predicted Readmission Ratio, N = 2,726 hospitals",
+       y = "Frequency",
+       x = "Predicted Readmission Ratio")
+
+
+qqnorm(readyTest$bc_PredictedReadmissionRate)
+qqline(readyTest$bc_PredictedReadmissionRate, 
+       col = "hotpink", lty = 2, lwd = 2)
 ```
 
 **NOTE** At this point, you have both an non-transformed (`PredictedReadmissionRate`) and Box-Cox transformed (`bc_PredictedReadmissionRate`) version of the target in your data.
@@ -1246,7 +1365,13 @@ readyTrain <- readyTrain %>%
 Do the same for your test data. Make sure to use `readyTest` and overwrite it. 
 
 ```{r}
-## Your code here.
+# Test set centering
+
+readyTest <- readyTest %>%
+  select(-PredictedReadmissionRate) %>%
+  mutate_if(is.factor, as.numeric) %>%
+  scale(center = TRUE, scale = TRUE) %>%
+  data.frame()
 ```
 
 **Hint**: Make sure to turn your centered, scaled __matrix__ back into a dataframe! By default, it creates a matrix.
@@ -1283,11 +1408,35 @@ heatmap(corrMat,
 #### **Question 20A**: [1 point]
 Where do you see the highest potential for multicollinearity? Why do you say that?
 
-> Your answer here.
+> The relationships demonstrated in the top left corner show some potential for
+> multicollinearity. As described above, blue represents positive correlations.
+> The darker the square, the more correlated the variables.
+> This corner has a great amount of moderately dark squares.
+> We see this as well in the bottom right corner. 
+
+> There are a few even darker blue square scattered around the heatmap.
+> Many of which somewhat are branching off of the red diagonal.
+
+> The variables that fall upon the red diagonal demonstrate high correlation, however
+> that diagonal represents the correlation of variables against themselves.
+> Therefore, it is not meaningful for this analysis.
 
 Which variable(s) seem to be most correlated with our target, `bc_PredictedReadmissionRate`?
 
-> Your answer here.
+> The variable the seems to be most correlated with our target is 
+> ComparedToNational_Hospital.return.days.
+
+> Other variables that also seem to be decently correlated include (but are not limited to):
+
+> SurveyResponseRate
+
+> Cleanliness
+
+> Quietness
+
+> Recommend.hospital
+
+> Staff.responsiveness
 
 ## 4.2 Fitting a model to estimate VIF
 
@@ -1329,11 +1478,27 @@ Does multicollinearity seem to be an issue in this dataset and, if so, among whi
 
 **HINT 2**: Is, for example,`Payment Category for pneumonia patients` created from `Payment for pneumonia patients`? [These are Medicare payments]? Which one do you think we should keep amd why?
 
-> Your answer here.
+> Multicollinearity appears to be an issue, as many variables are 
+> calculated from other variables.
+> For example, "Overall Hospital Rating" is calculated from five other measures,
+> including readmissions!
+
+> Another example, "Payment Category for pneumonia patients" is created from
+> "Payment for pneumonia patients". 
+> "Payment for pneumonia patients" records the actual amount paid,
+> while "Payment Category for pneumonia patients" bins these values into
+> similar groups to create a categorical measure. 
+> Keeping the continuous original data would be more valuable,
+> as it allows for a greater degree of flexibility and subtleness when 
+> making a prediction.
 
 Which variable(s) seem to be most highly correlated with our target? Is it a positive or negative correlation? Does it make sense?
 
-> Your answer here.
+> Overall.hospital.rating, Recommend.hospital, and Nurse.communication are among
+> the most highly correlated variables with our target. 
+> These variables are positively correlated with the target based on the heatmap.
+> This is not intuitive, as you would expect higher hospital ratings and greater
+> communication to result in less readmissions. 
 
 
 ### 4.3 Dropping the most collinear variables
@@ -1384,7 +1549,8 @@ First, we apply a PCA on the data and display the principal components. Note tha
 
 1. At what principal component do we surpass 80% of explained variance? (**HINT**: look at the cumulative variance row rather than tha proportion of variance row).
 
-> Your answer here.
+> We surpass 80% of explained variance at PC11.
+> At this point, the cumulative proportion is 0.83983.
 
 ```{r}
 pca <- prcomp(readyTrain)
@@ -1393,7 +1559,11 @@ summary(pca)
 
 2. You may also notice that this is always ordered from most proportion of variance on the left (thus is PC1 defined) to our final principal component on the right. What percent of variance is explained by just PC1? What percent by the final PC? Is the attributable portion of the variance in PC1 high, medium, or low based on some quick research or prior knowledge?
 
-> Your answer here.
+> The percent of variance explained by PC1 is 22.41%.
+> The percent of variance explained by PC18 is 1.056%.
+> PC1 alone containing aprox. 22% of the variance is high. (REVIEW THIS?)
+
+
 
 3. We use scree plots to graphically determine how many principal components to retain and how many principal components best explain the variance of the data. The $x$-axis displays the principal components (PC1, PC2, etc.), while the $y$-axis shows the eigenvalues (or proportion of variance explained) for each component. The **elbow method** we discussed in class is the point where the slope starts to flatten or the point at which the percentage of variance explained seems to level off. If we were doing this for feature reduction, we might think of this as approximately how many principal components would be needed to explain the total variation in the training data.  However, it is a **heuristic** method, so it can sometimes be a little uncertain from the plot alone what the optimal number of PCs is. Let's take a look at the top-15 PCs on a scree plot now:
 
@@ -1410,11 +1580,13 @@ fviz_screeplot(pca,
 
 How many PCs appear optimal to you based on the scree plot?
 
-> Your answer here.
+> To me, it appears as if the elbow is at PC6. 
 
 4. People often mis-write scree (I've even accidentally done it) as SCREE, as if it's an acronym like AUROC or ROC or even PCA. But it's not. Why is it called a scree plot? (**Hint**: It may not be what you expect!)
 
-> Your answer here. 
+> In nature, a scree slope refers to a loose pile of rocks at the base of a mountain.
+> A scree plot resembles this (from a certain angle) and therefore gets its name
+> from this natural formation.
 
 ### 5.1.2 Variable loadings and contributions
 
