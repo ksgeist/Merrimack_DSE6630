@@ -1,8 +1,13 @@
 ---
 title: "Project 1: Biomedical & Clinical Informatics"
 subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
+<<<<<<< Updated upstream
 author: "Alourdes Joseph, June Lemieux, Melissa Nooney"
 date: "20 May 2025"
+=======
+author: "Team Sigma: Alourdes Joseph, June Lemieux, Melissa Nooney"
+date: "`r Sys.Date()`"
+>>>>>>> Stashed changes
 output:
   html_document:
     toc: true
@@ -52,7 +57,8 @@ pacman::p_load(tidyverse,
                stargazer,
                glmnet,
                forcats,
-               snakecase
+               snakecase,
+               dplyr
 )
 ```
 
@@ -176,15 +182,15 @@ dict %>%
 Now, I know I didn't ask you to do it, but I will actually begin my assessment of which target is most appropriate by constructing a quick summary table. In my assessment of what is an appropriate target, 
 
 ```{r, echo = FALSE}
-sliceData <- dat2Analyze %>% 
-  select(`ComparedToNational_Hospital return days for pneumonia patients`, 
+sliceData <- dat2Analyze %>%
+  select(`ComparedToNational_Hospital return days for pneumonia patients`,
          PredictedReadmissionRate,
-         observed_readmission_rate, 
+         observed_readmission_rate,
          ExcessReadmissionRatio,
-         ExpectedReadmissionRate) %>% 
+         ExpectedReadmissionRate) %>%
   rename(`National Comparison Return Hospital Days` = `ComparedToNational_Hospital return days for pneumonia patients`,
-         `Predicted Readmission Rate` = PredictedReadmissionRate, 
-         `Observed Readmission Rate` = observed_readmission_rate, 
+         `Predicted Readmission Rate` = PredictedReadmissionRate,
+         `Observed Readmission Rate` = observed_readmission_rate,
          `ExcessReadmissionRatio` = ExcessReadmissionRatio,
          `Expected Readmission Rate` = ExpectedReadmissionRate) %>% 
   mutate(`National Comparison Return Hospital Days` = ifelse(is.na(`National Comparison Return Hospital Days`), "Unknown", 
@@ -998,7 +1004,7 @@ Ultimately, we need to turn the factor features back into numbers for our next a
 # readyTrain <- imputedTrain %>%
 #   mutate_if(is.factor, as.character) %>% 
 #   mutate_if(is.character, as.numeric)
-# 
+ 
 # readyTest <- imputedTest %>%
 #   mutate_if(is.factor, as.character) %>% 
 #   mutate_if(is.character, as.numeric)
@@ -1061,7 +1067,7 @@ Why is a histogram, or even a Q-Q plot, an insufficient way to assess whether a 
 Now Apply a [Shapiro-Wilk test](https://biostats.w.uib.no/test-for-normality-shapiro-wilks-test/) for normality using the `shapiro.test()` function. What does it indicate about your distribution? (**Note**: Shapiro tests are only reliable for $N < 5000$, but it is fine to perform here.)
 
 ```{r}
-# Your code here.
+shapiro.test(readyTrain$PredictedReadmissionRate)
 ```
 
 > Your answer here.
@@ -1437,7 +1443,7 @@ grid.arrange(p6, p7, p8, p9, nrow = 2)
 #### **Question 23A**: [0.5 points]
 Which number of clusters, $k$, do you think has the best explanatory power? Why? Is it is hard to tell?
 
-> Your answer here
+> (JML) Maybe 3 is good? With any more than that, the clusters seem to pile one on top of the other (and make interpretibility challenging)?
 
 ### 5.2.3 Within-sum-of-squares (WSS) elbow method
 
@@ -1456,7 +1462,7 @@ fviz_nbclust(readyTrain,
 
 What is the __within sum of squares__ and what exactly is it measuring here? By the elbow method, which $k$ is the optimal number of clusters? Did it agree with your choice from the other heuristic method?
 
-> Your answer here
+> (JML) The within sum of squares (assuming this is also called "Within Cluster Sum of Squares") is the sum of the variance between observations in each cluster (1), measuring the distance between each observation and the cluster center and performs a calculation. Looking at the elbos method, I believe that 2 is the optimal number of clusters, because the "bend" starts occurring there. No, this doesn't match my answer to Q23A, but it's not far off either.(1)https://365datascience.com/tutorials/python-tutorials/k-means-clustering/
 
 ### 5.2.3 Silhouette method
 
@@ -1477,7 +1483,7 @@ fviz_nbclust(readyTrain, kmeans, method = "silhouette",
 
 Are you surprised at the optimal $k$ from the silhouette method? Does it seem to agree with what you've seen with the WSS elbow method? (**Hint**: agreement generally suggests evidence that you have found the optimal $k$).
 
-> Your answer here
+> (JML)The silhouette method does agree with the elbow method, identifying that the best number of clusters is 2. 
 
 Lastly, let's extract the optimal $k$ from the silhouette method.
 
@@ -1497,23 +1503,23 @@ As we said before, the goal of segmentation analysis is to broadly cluster our h
 Let's explore the clusters - segments - of the hospitals based on their average values from the __original__ dataset (we start from `imputedTrain`, which hadn't yet been transformed, centered, or scaled, BUT the multicollinear variables also haven't been dropped either). Your task is to add comments to this code chunk. 
 
 ```{r, echo = TRUE, fig.height = 8, fig.width=6, fig.cap="Figure 16. Boxplot Comparisons of Important Variables by Cluster"}
-## COMMENT HERE
+## Gives a cluster assignment to each record in readyTrain
 kmeansResult <- kmeans(readyTrain, 	
-                         centers = k,      ## COMMENT HERE
+                         centers = k,      ## k=2 and is the optimal # of clusters based on silouette method
                          nstart = 50,      
                          iter.max = 1000,  
                          algorithm = "MacQueen")
-## COMMENT HERE
+## creates df from imputedTrain for next steps
 kmeansTrain <- imputedTrain %>% 
   ## Rename the column we want to keep
   rename(Pneumonia.Hospital.Return.Days = `ComparedToNational_Hospital return days for pneumonia patients`) %>% 
-  ## COMMENT HERE
+  ## Drops cols with VIF>5 or containing Compared or Payment Category in var name, and the SurveyResponseRate col
   select(-any_of(vifOver5), -contains("Compared"), -contains("PaymentCategory"), -SurveyResponseRate) %>% 
-  ## COMMENT HERE 
+  ## Brings cluster assignment from diff table to kmeansTrain, converts non-numeric days data to numeric 
   mutate(Cluster = kmeansResult$cluster,
          Pneumonia.Hospital.Return.Days = as.numeric(if_else(Pneumonia.Hospital.Return.Days == "1", 1,
                                                      if_else(Pneumonia.Hospital.Return.Days == "0", 0, -1)))) %>% 
-  ## COMMENT HERE
+  ## Updates col names to have only letters, numbers, and underscore character
   clean_names()
 
 ## Using % contribution graph, the order of the top 10:
@@ -1528,25 +1534,25 @@ pcaImportantVars <- factor(c("Communication.about.medicines",
                        "Predicted.Readmission.Rate",
                        "Pneumonia.Hospital.Return.Days"))
 
-## COMMENT HERE
+## Changes variable names to all lowercase characters
 pcaImportantVars <- tolower(pcaImportantVars)
-## COMMENT HERE
+## in the important variable factor, replace dot(.) with underscore character
 pcaImportantVars <- gsub("\\.", "_", pcaImportantVars) %>% 
-## COMMENT HERE
+## converts variable names to capitalize 1st letter of title and all abbreviations are also cap'd
   to_any_case("title")
 
-## COMMENT HERE
+## Add'l changes made from kmeansTrain df to prep for plotting
 kmeansTrain %>% 
-  ## COMMENT HERE
+  ## replace dot(.) with underscore character in column names
   rename(Predicted.Readmission.Rate = predicted_readmission_rate,
          Periop.Rate.Of.Embolism.Or.Thrombosis = perioperative_pulmonary_embolism_or_deep_vein_thrombosis_rate) %>% 
-  ## COMMENT HERE
+  ## converts variable names to capitalize 1st letter of title and all abbreviations are also cap'd
   clean_names(case = "title") %>% 
-  ## COMMENT HERE
+  ## gets records' cluster assignment and any columns id'd in the pcaImportantVars factor
   select(Cluster, any_of(pcaImportantVars)) %>% 
-  ## COMMENT HERE
+  ## keeping 1st column as is, make col "Measure" into records, differentiated by data in col "Value"
   pivot_longer(-1, names_to = "Measure", values_to = "Value") %>% 
-  ## COMMENT HERE
+  ## create grouping of records by imp features, with reformatted names
   # filter(Measure %in% pcaImportantVars) %>% 
    mutate(Measure = factor(Measure, levels = to_any_case(c("Communication.about.medicines",
                         "Doctor.communication", 
@@ -1558,7 +1564,7 @@ kmeansTrain %>%
                         "Periop.Rate.Of.Embolism.Or.Thrombosis",
                         "Predicted.Readmission.Rate",
                         "Pneumonia.Hospital.Return.Days"), case="title"))) %>% 
-  ## COMMENT HERE
+  ## Use the above info to create faceted plots
     ggplot(aes(x = Cluster, y = Value, fill = as.factor(Cluster))) +
     geom_boxplot(alpha=0.75) +
     scale_fill_manual(values = c(skittles[1], skittles[6])) +
@@ -1571,23 +1577,23 @@ kmeansTrain %>%
         legend.text = element_text(size = 8),
         legend.title = element_text(size = 10),
         title = element_text(size = 12, color = "maroon")) + 
-    ## COMMENT HERE
+    ## show measure/values by value group, with 2 cols and y axis having independent ranges
     facet_wrap(~ Measure, 
              scales = "free_y",
              ncol = 2)
 
-## COMMENT HERE
+## Use/modify data from kmeansTrain for a table
 kmeansTrain %>% 
-  ## COMMENT HERE
+  ## rename 2 columns
   rename(Predicted.Readmission.Rate = predicted_readmission_rate,
          Periop.Rate.Of.Embolism.Or.Thrombosis = perioperative_pulmonary_embolism_or_deep_vein_thrombosis_rate) %>% 
-  ## COMMENT HERE
+  ## format col names with cap 1st letter
   clean_names(case = "title") %>% 
-  ## COMMENT HERE
+  ## gets records' cluster assignment and any columns id'd in the pcaImportantVars factor
   select(Cluster, any_of(pcaImportantVars)) %>% 
-  ## COMMENT HERE
+  ## create table id'ing cluster assignment, broken down by variable, id mean and pct of sample
   tbl_summary(by = "Cluster",
-              statistic = list(all_continuous() ~ c("{mean} ({median})"))) %>% 
+              statistic = list(all_continuous() ~ c("{mean} ({median}) {var}"))) %>% 
   modify_header(label ~ "Variable",
                 all_stat_cols() ~ "**Cluster {level}**") %>% 
   modify_caption("Table 8. Summary Statistics of Important Cluster Variables")
@@ -1608,20 +1614,20 @@ dict <- tribble(
 ~`Top Defining Attributes`, ~`Description`,
 "Predicted Pneumonia-related hospital readmissions", "These hospitals have a lower readmission rate, suggesting that hospitals in this cluster may be better at diagnosing and treating pneumonia",
 "Return hospital days due to pneumonia", "Readmitted patients spend below the national average number of days in hospital, suggesting these hospitals are able to more quickly treat and stabilize pnuemonia patients", 
-"FILL ME IN", "FILL ME IN",
-"FILL ME IN", "FILL ME IN",
-"FILL ME IN", "FILL ME IN",
-"FILL ME IN", "FILL ME IN",
-"FILL ME IN", "FILL ME IN",
-"FILL ME IN", "FILL ME IN"
+"Postoperative respiratory failure rate", "These hospitals have a lower rate of postoperative respiratory failure, suggesting that these hospitals may be better prepared to handle respiratory crises",
+"Serious blood clots after surgery", "These hospitals have a lower rate of post-surgical blood clot complications, suggesting these hospitals work hard to prevent these events",
+"Doctor communication", "Patients rank communication with doctors at these hospitals as above average, suggesting that level of engagement plays a role in positive patient outcomes.",
+"Discharge communication", "Patients being discharged from these hospitals rank the discharge communication as above average, suggesting that patients are well-prepared to continue their recovery without hospital intervention.",
+"Patient safety scores", "These hospitals have safety scores on par with national averages, suggesting that they follow established safety protocols successfully",
+"Cleanliness", "Patients report that these hospitals are clean, suggesting that the hospitals value hospital environment",
 )
 
 dict %>% 
   kable(
     format = "html",
     caption = "Table 9. Hospital segmentation analysis: three types of broad groupings identified.") %>%
-    pack_rows("1: Highest Performing Hospitals", 1, 4) %>%
-    pack_rows("2: NAME ME!", 5, 8) %>%
+    pack_rows("1: Highest Performing Hospitals ", 1, 4) %>%
+    pack_rows("2: Hospitals with strong patient feedback", 5, 8) %>%
     kable_styling(bootstrap_options = c("striped", full_width = F)
   )
 ```
@@ -1633,7 +1639,7 @@ We don't technically have to stop our segmentation analysis here, but we will so
 #### **Question 26**: [1 point]
 Make a recommendation for our client for 1-2 machine learning analyses __your team__ would choose to use to test whether these clusters can be used for robust predictions of hospital performance for pneumonia patients. How would you know whether or not your predictions were robust? What would you look for or compare?
 
-> Your answer here.
+> (JML) My thoughts would be 1) decision-tree modeling because it is very easy to communicate the findings with non-data scientists and 2) xgboost because it is flexible and comprehensive.
 
 # 6 Supervised Learning Methods
 
@@ -1672,7 +1678,7 @@ plot(mod, 4)
 
 What is your general assessment of our OLS assumptions? Met or unmet? Why? 
 
-> Your answer here.
+> (JML)My impression is that the OLS assumptions are close to being met but aren't met. The residuals are normally distributed according the the Q-Q plot. There is almost a linear relationship betwee residuals and fitted values. There isn't obvious heteroscedacity in that neither ends of that plot are flared, but there is a clumping of values in the middle. There are at least 3 observations that should be reviewed for high influence/leverage.
 
 **Note:** If you are not entirely sure about the Q-Q plot, you can run a Shapiro-Wilk test on the residuals using the following code:
 
@@ -1684,7 +1690,7 @@ The **most important** OLS assumption for Elastic Net is __linearity of the rela
 
 **Do you find support for linearity here**? Why or why not?
 
-> Your answer here.
+> (JML) This is so close to being linear, I'm not sure "how" close is good enough, though.
 
 2. Let's now assess how well our model fits with the adjusted $R^2$.
 
@@ -1696,7 +1702,7 @@ summary(mod)$adj.r.squared
 #### **Question 27B**: [1 point] {#rmse}
 It is a surprisingly high (although it isn't stellar). You may need to do some outside research, but explain in a sentence or two why, generally speaking, we use **adjusted** $R^2$ and not the unadjusted one (confusingly labeled as `multiple r-squared` in the `summary()` output below). 
 
-> Your answer here.
+> (JML) The unadjusted R-squared value is the proportion of variance for a dependent variable explained by an independent variable. The adjusted R-squared adjusts for add'l independent variables that are not significant to the model.  https://corporatefinanceinstitute.com/resources/data-science/adjusted-r-squared/
 
 3. Find the best model. 
 
@@ -1734,7 +1740,7 @@ Can you interpret what the RMSE tells your client here? Why or why not? What abo
 
 **Hint 2**: Is it practical to undo both transformations? How does that hinder our ability to make an interpretation for our client?
 
-> Your answer here.
+> (JML)Yes, I believe we need to undo the Box-Cox transformation to assess the RSME and R^2. Sorry I'm not sure about the answer to the rest of this question.
 
 Lastly, let's graph the effect predictive ability of our OLS model by comparing the relationship between the **true** values of `bc_PredictedReadmissionRate` from the `readyTest` dataset to the predictions we made using the model on the testing data.
 
@@ -1819,8 +1825,7 @@ Explain what we are doing here. You may want to look up the parameters of the `t
 
 **Hint 2**: What does $\lambda = 0$ mean? How about $\alpha = 0$? 
 
-> Your answer here.
-
+> (JML)We are doing cross validation to test the model against validation data and flag overfitting. The repeatedcv method splits the data into 5 folds and repeats the process 5 times to generate a more accurate estimate of model performance. We are using the grid search (default) method. Lambda = 0 means no shrinkage and is equivalent to OLS regression. Alpha = 0 means the regression is equivalent to OLS regression.
 
 ### 6.2.3 Elastic Net Results
 
@@ -1855,7 +1860,7 @@ elasticMod$bestTune$lambda
 #### **Question 29**: [1 point]
 Check the values of $\alpha$ and $\lambda$ here. What do they suggest about the optimal regularization that is being fit here? (Recall that when both $\alpha$ and $\lambda$ are zero, it's an OLS regression!)
 
-> Your answer here.
+> (JML)Both hyperparameters indicate that that elastic net is performing like an OLS regression model.The type of tuning search is grid and this can be seen from the plot in Figure 19.
 
 Let's also plot the results of the tuning search. Can you figure out the type of tuning search you did? (**Hint**: the visual pattern should confirm your answer from earlier!) The diamond denotes the best combination of hyperparameters!
 
@@ -1912,7 +1917,7 @@ important %>%
 
 Which of the features were most important? How does this compare to the most important features out of OLS regression? Make sure you're looking at the __absolute value of the beta coefficients to assess importance in OLS regression__. 
 
-> Your answer here.
+> (JML) Per the feature importance plot, `Hospital return dayes for pneumonia patients` is the most important feature. The most important feature per OLS regression was Communication About Medicines (per the contributions of variables to Dmin 1-2 plot). I think.
 
 How about about of PCA? You may have already noticed that importance almost seems inverted! Why?!
 
@@ -1922,7 +1927,7 @@ How about about of PCA? You may have already noticed that importance almost seem
 
 **Hint 3**: What does the sign of the loadings mean in a PCA? Are they actual or arbitrary?
 
-> Your answer here.
+> (JML) Difference between PCA and regression is that PCA is unsupervised and subjective but regression is supervised and calculable.Importance in PCA identifies how much a component explains the variance but importance in regression involves determining how a change in a variable value changes in the model's coefficient values. Regarding the signs, they are not arbitrary. A positive loading value indicates that an increase in the feature value will increase the principal component, whereas a negative loading value indicates that an increase in feature value will decrease the principal component. 
 
 #### 6.2.3.2 Check model performance
 
@@ -1958,7 +1963,7 @@ rbind(prOLS, prElastic) %>%
 
 Using the same method, check for overfitting / underfitting. Make predictions using `readyTrain` rather than `readyTest`, and then check how the RMSE on the training data compares to the RMSE of the training data for the Elastic Net. How do they compare? (Recall what we discussed when we did the gene expression demo: the relationship of the test vs. training accuracy can be used to assess overfitting/underfitting. The same logic applies to RMSE too!) __How do both compare to what we got out of the OLS regression?__ Which would you say is the better predictive model, the OLS regression or the Elastic Net? Why?
 
-> Your answer here.
+> (JML)I'm not sure but I think I'd choose the OLS regression because it is simpler?
 
 ```{r}
 ## Post-resample on OLS
@@ -2015,7 +2020,7 @@ What conclusions do you make at this point about whether to make predictions wit
 
 **HINT**: Make sure to ask yourself whether these data appear linear or not. Could non-linearity be a cause for a low $R^2$? If not, what other causes are there and how will that impact your recommendations?
 
-> Your answer here.
+> (JML)Since it appears that OLS regression and Elastic Net are performing similarly, I'd recommend using the OLS regression because it is simpler to compute. Although tuning isn't done on the OLS regression model, the results are very similar to Elastic Net but has the benefit of not having the additional steps.
 
 # 7 Choose Your Own Adventure
 
