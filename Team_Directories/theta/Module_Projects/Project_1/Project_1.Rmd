@@ -1609,12 +1609,12 @@ fviz_pca_biplot(pca,
              geom = "point",
              geom.var = "text",
              addEllipses = TRUE,
-             ellipse.alpha = 0.5,              ## Change alpha 0-1
+             ellipse.alpha = 0.2,              ## Change alpha 0-1
              col = "black",
              col.var = "black",
              habillage = returnHospitalComparison,
-             select.var = list(contrib = 1),   ## Try changing the number
-             repel = T)                        ## Try switching to FALSE
+             select.var = list(contrib = 8),   ## Try changing the number
+             repel = F)                        ## Try switching to FALSE
 ```
 
 This biplot (Figure above) shows that, on principal components 1 and 2 (the PCs that account for the __most__ variance in the training data) there is subtle but noticeable grouping of hospitals in terms of how long their readmitted pneumonia patients stayed in the hospital. I have chosen to display the __#1__ feature that contributes to that variance, `Communication.about.medicines`. 
@@ -1647,7 +1647,13 @@ Each quadrant on a PCA biplot corresponds to a different directional influence o
 
 Play around with the graphical parameters in the biplot, especially those I've marked with comments. Try adding, for example, more variables to display rather than just the top contributor. **NOTE** that if you find variables in the same quadrant together, this means that they are correlated. What variable(s) can you find that **contrast** with `Communication.about.medicines`?
 
-> Your answer here.
+> Some variables that contrast with Communication.about.medicines include:
+
+> Perioperative.pulmonary.embolism.or.deep.vein.thrombosis.rate
+
+> Postoperative.respiratory.failure.rate
+
+> Composite.patient.safety
 
 Now, look at the contributions to PCs 1 and 2 (Figure Below) from the variables in the training dataset. Anything above the dotted red-line contributes **significantly** to the overall explanation of variance, and anything below the dotted line does not. Does anything about this plot stand out to you?
 
@@ -1655,7 +1661,9 @@ Now, look at the contributions to PCs 1 and 2 (Figure Below) from the variables 
 
 **HINT 2**: Where does the target, `PredictedReasmissionRate`, fall among the significant variables?
 
-> Your answer here.
+> A majority of the top contributing variables come from the HCAHPS data.
+
+> The target falls at the very end of the significant variables.
 
 ```{r, echo=FALSE, fig.width=8, fig.height=8, fig.cap="Figure 12. Variables that Significantly Explain Variance."}
 fviz_contrib(pca, 
@@ -1710,7 +1718,23 @@ grid.arrange(p6, p7, p8, p9, nrow = 2)
 #### **Question 23A**: [0.5 points]
 Which number of clusters, $k$, do you think has the best explanatory power? Why? Is it is hard to tell?
 
-> Your answer here
+> Telling which value of k has the best explanatory power is difficult
+> because a heuristic method like this really requires an understanding of the data.
+> Just looking at the produced cluster plots alone, many of the clusters feel like
+> valid potential options.
+> The difficultly in deciding also comes from the fact that our data is mostly
+> clumped together, and does not form visible distinct clusters.
+
+> To rule some out, the higher values of k (those >4) seem to be a stretch.
+> Many of the "clusters" overlap one another and seem to exist due to the
+> algorithm having to identify a certain number of clusters.
+
+> While k = 4 suffers less from this issue, it still looks less natural than
+> k = 2 and k = 3.
+> k = 2 demonstrates a clear split in half of the clump of data,
+> which possibly makes the most sense. 
+> From the plot alone, it is hard to justify any other kind of split,
+> as there are no naturally occuring groups to see. 
 
 ### 5.2.3 Within-sum-of-squares (WSS) elbow method
 
@@ -1729,7 +1753,12 @@ fviz_nbclust(readyTrain,
 
 What is the __within sum of squares__ and what exactly is it measuring here? By the elbow method, which $k$ is the optimal number of clusters? Did it agree with your choice from the other heuristic method?
 
-> Your answer here
+> Within sum of squares is a measure that looks at how closely packed together
+> data points are within their clusters.
+> A lower WSS tells us that points are more close together within the cluster.
+
+> The most visible elbow appears to be a k = 2.
+> This agrees with my answer from the other method. 
 
 ### 5.2.3 Silhouette method
 
@@ -1750,7 +1779,7 @@ fviz_nbclust(readyTrain, kmeans, method = "silhouette",
 
 Are you surprised at the optimal $k$ from the silhouette method? Does it seem to agree with what you've seen with the WSS elbow method? (**Hint**: agreement generally suggests evidence that you have found the optimal $k$).
 
-> Your answer here
+> The silhouette method agrees with my answers from the other two methods.
 
 Lastly, let's extract the optimal $k$ from the silhouette method.
 
@@ -1770,23 +1799,23 @@ As we said before, the goal of segmentation analysis is to broadly cluster our h
 Let's explore the clusters - segments - of the hospitals based on their average values from the __original__ dataset (we start from `imputedTrain`, which hadn't yet been transformed, centered, or scaled, BUT the multicollinear variables also haven't been dropped either). Your task is to add comments to this code chunk. 
 
 ```{r, echo = TRUE, fig.height = 8, fig.width=6, fig.cap="Figure 16. Boxplot Comparisons of Important Variables by Cluster"}
-## COMMENT HERE
+# Run k-means on the train data
 kmeansResult <- kmeans(readyTrain, 	
-                         centers = k,      ## COMMENT HERE
+                         centers = k,      # set k to our optimal number (2)
                          nstart = 50,      
                          iter.max = 1000,  
                          algorithm = "MacQueen")
-## COMMENT HERE
+# Clean data, add clusters
 kmeansTrain <- imputedTrain %>% 
   ## Rename the column we want to keep
   rename(Pneumonia.Hospital.Return.Days = `ComparedToNational_Hospital return days for pneumonia patients`) %>% 
-  ## COMMENT HERE
+  # Remove columns with VIF over 5, that contains "Compared", that contains "PaymentCategory", and SurveyResponseRate
   select(-any_of(vifOver5), -contains("Compared"), -contains("PaymentCategory"), -SurveyResponseRate) %>% 
-  ## COMMENT HERE 
+  # Add in clusters and recode Pneumonia.Hospital.Return.Days as numerical rankings
   mutate(Cluster = kmeansResult$cluster,
          Pneumonia.Hospital.Return.Days = as.numeric(if_else(Pneumonia.Hospital.Return.Days == "1", 1,
                                                      if_else(Pneumonia.Hospital.Return.Days == "0", 0, -1)))) %>% 
-  ## COMMENT HERE
+  # Standardize column names to snake case
   clean_names()
 
 ## Using % contribution graph, the order of the top 10:
@@ -1801,25 +1830,25 @@ pcaImportantVars <- factor(c("Communication.about.medicines",
                        "Predicted.Readmission.Rate",
                        "Pneumonia.Hospital.Return.Days"))
 
-## COMMENT HERE
+# Covert variable names to lower case
 pcaImportantVars <- tolower(pcaImportantVars)
-## COMMENT HERE
+# Replace periods with underscores
 pcaImportantVars <- gsub("\\.", "_", pcaImportantVars) %>% 
-## COMMENT HERE
+# Convert variable names to title case
   to_any_case("title")
 
-## COMMENT HERE
+# Create box-plots for variable distributions
 kmeansTrain %>% 
-  ## COMMENT HERE
+  # Manually rename variables for consistency
   rename(Predicted.Readmission.Rate = predicted_readmission_rate,
          Periop.Rate.Of.Embolism.Or.Thrombosis = perioperative_pulmonary_embolism_or_deep_vein_thrombosis_rate) %>% 
-  ## COMMENT HERE
+  # Clean and convert to title case
   clean_names(case = "title") %>% 
-  ## COMMENT HERE
+  # Select the cluster values and our identified important variables
   select(Cluster, any_of(pcaImportantVars)) %>% 
-  ## COMMENT HERE
+  # Pivot data to long format
   pivot_longer(-1, names_to = "Measure", values_to = "Value") %>% 
-  ## COMMENT HERE
+  # Set variable ordering
   # filter(Measure %in% pcaImportantVars) %>% 
    mutate(Measure = factor(Measure, levels = to_any_case(c("Communication.about.medicines",
                         "Doctor.communication", 
@@ -1831,7 +1860,7 @@ kmeansTrain %>%
                         "Periop.Rate.Of.Embolism.Or.Thrombosis",
                         "Predicted.Readmission.Rate",
                         "Pneumonia.Hospital.Return.Days"), case="title"))) %>% 
-  ## COMMENT HERE
+  # Create box-plots by cluster
     ggplot(aes(x = Cluster, y = Value, fill = as.factor(Cluster))) +
     geom_boxplot(alpha=0.75) +
     scale_fill_manual(values = c(skittles[1], skittles[6])) +
@@ -1844,21 +1873,21 @@ kmeansTrain %>%
         legend.text = element_text(size = 8),
         legend.title = element_text(size = 10),
         title = element_text(size = 12, color = "maroon")) + 
-    ## COMMENT HERE
+    # Facet the plots 
     facet_wrap(~ Measure, 
              scales = "free_y",
              ncol = 2)
 
-## COMMENT HERE
+# Create a summary table for our important variables
 kmeansTrain %>% 
-  ## COMMENT HERE
+  # Manually rename variables for consistency
   rename(Predicted.Readmission.Rate = predicted_readmission_rate,
          Periop.Rate.Of.Embolism.Or.Thrombosis = perioperative_pulmonary_embolism_or_deep_vein_thrombosis_rate) %>% 
-  ## COMMENT HERE
+  # Clean and convert to title case
   clean_names(case = "title") %>% 
-  ## COMMENT HERE
+  # Select the cluster values and our identified important variables
   select(Cluster, any_of(pcaImportantVars)) %>% 
-  ## COMMENT HERE
+  # Group the table data by cluster, list the mean and median values
   tbl_summary(by = "Cluster",
               statistic = list(all_continuous() ~ c("{mean} ({median})"))) %>% 
   modify_header(label ~ "Variable",
@@ -1943,9 +1972,32 @@ plot(mod, 4)
 
 #### **Question 27A**: [1 point]
 
-What is your general assessment of our OLS assumptions? Met or unmet? Why? 
+What is your general assessment of our OLS assumptions? Met or unmet? Why?
 
-> Your answer here.
+> The OLS assumptions appear to be met. 
+
+> The Residuals vs Fitted plot shows the points mostly randomly scatted along
+> the center line.
+> The line is nearly horizontal at 0,
+> although features a slight curve upwards.
+> However, this might be interpreted as close enough to normal
+> as the points do not seem to form any real pattern. 
+
+> The distribution appears to be almost normal.
+> The Q-Q plot shows some points on both ends diverging from the diagonal.
+> However, most of the points do in fact fall in line with the normal pattern.
+> In addition, the p-value of the Shapiro-Wilk test is 0.06735,
+> which is above 0.05.
+> This tells us that we cannot reject the null hypothesis,
+> suggesting that the data is at least somewhat close to normal.
+
+> The Residuals vs Fitted plot shows the points mostly randomly scatted along
+> the center line.
+> In addition, the Scale-Location plot shows an aproximately horizontal fit. 
+> This suggests that there is omosecadasticity in the residuals.
+
+> All Cook's distances appear to be below 1, and never much higher than 0.30.
+> This suggests that there are no significant outliers.
 
 **Note:** If you are not entirely sure about the Q-Q plot, you can run a Shapiro-Wilk test on the residuals using the following code:
 
@@ -1957,7 +2009,12 @@ The **most important** OLS assumption for Elastic Net is __linearity of the rela
 
 **Do you find support for linearity here**? Why or why not?
 
-> Your answer here.
+> As stated above, the support for linearity is most likely there.
+> There is a slight curve in the Residuals vs Fitted plot,
+> however it is not to a great extent.
+> The points also do not form a clear pattern
+> and are mostly balanced around the red line.
+> Therefore, it is arguable that there is support for linearity.
 
 2. Let's now assess how well our model fits with the adjusted $R^2$.
 
@@ -1969,7 +2026,13 @@ summary(mod)$adj.r.squared
 #### **Question 27B**: [1 point] {#rmse}
 It is a surprisingly high (although it isn't stellar). You may need to do some outside research, but explain in a sentence or two why, generally speaking, we use **adjusted** $R^2$ and not the unadjusted one (confusingly labeled as `multiple r-squared` in the `summary()` output below). 
 
-> Your answer here.
+> The unadjusted R-squared value is prone to inflation whenever more predictors are added.
+> This value will rise even if the predictors do not add any extra significance
+> to the model.
+
+> Adjusted R-squared penalizes predictors which fail to add extra significance.
+> This provides us with a more accurate, meaningful value to interpret.
+> Therefore, we use it over the unadjusted value. 
 
 3. Find the best model. 
 
@@ -2007,7 +2070,29 @@ Can you interpret what the RMSE tells your client here? Why or why not? What abo
 
 **Hint 2**: Is it practical to undo both transformations? How does that hinder our ability to make an interpretation for our client?
 
-> Your answer here.
+```{r}
+# Calculate RMSE
+rmse <- sqrt(mean((readyTest$bc_PredictedReadmissionRate - predictions)^2)) 
+rmse # Print results
+```
+
+
+
+> We obtained a RMSE of 0.8102472.
+> However, the RMSE is suppose to be interpreted within the original units
+> of our target variable.
+> Since the data is transformed, this value is not truly comparable to our target.
+
+> Undoing both transformations, while technically possible, is not practical for
+> our purposes. 
+> Considering that the model was made to predict within the transformed space,
+> interpretation would become extremely complex if we were to try and judge its
+> performance in the original space. 
+
+> The R-squared value still tells us how well the model fits the data.
+> However, it is telling us how well the model fits the transformed data.
+> This must be kept in mind when interpreting the R-squared value.
+
 
 Lastly, let's graph the effect predictive ability of our OLS model by comparing the relationship between the **true** values of `bc_PredictedReadmissionRate` from the `readyTest` dataset to the predictions we made using the model on the testing data.
 
