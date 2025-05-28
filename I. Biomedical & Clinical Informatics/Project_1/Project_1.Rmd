@@ -1,8 +1,8 @@
 ---
 title: "Project 1: Biomedical & Clinical Informatics"
 subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
-author: "Katherine S. Geist, PhD"
-date: "20 May 2025"
+author: "Stephanie Garofalo, Sharon Singh, & Jason Cicero"
+date: "28 May 2025"
 output:
   html_document:
     toc: true
@@ -93,8 +93,8 @@ Load my version of the fully cleaned, encoded, & ready-to-proceed dataset from t
 
 ```{r}
 ## Uncomment if this is your choice:
-# load("FY2024_data_files/pneumoniaAnalyzeFullyEncoded2024.Rdata")
-# dat2Analyze <- pneumoniaAnalyzeFullyEncoded
+load("/Users/stephgarofalo/Documents/GitHub/Merrimack_DSE6630/I. Biomedical & Clinical Informatics/Project_1/FY2024_data_files/pneumoniaAnalyzeFullyEncoded2024.Rdata")
+dat2Analyze <- pneumoniaAnalyzeFullyEncoded
 ```
 
 ## Option 1.3.2 
@@ -103,13 +103,13 @@ Load my version of the fully cleaned, encoded, & ready-to-proceed dataset from t
 ```{r}
 ## Comment out if this is NOT your choice:
 load("FY2024_data_files/pneumoniaAnalyzeNoEncoding2024.Rdata")
-dat2Analyze <- pneumoniaAnalyzeNoEncoding
+##dat2Analyze <- pneumoniaAnalyzeNoEncoding
 ```
 
 #### **Question 1**: [1 point]
 Which dataset do you choose and why?
 
-> Explain your selection here.
+> I chose this dataset because it has already been fully encoded and includes the ordinal and frequency encoding applied in Demo 1. This means it is ready for analysis with minimal additional preprocessing required, which will save time and ensure consistency with the work we did in Demo 1.  Additionally, using this pre-encoded dataset minimizes the risk of introducing errors or inconsistencies in encoding. If I had chosen the unencoded dataset (Option 1.3.2), I would have had to repeat the encoding process manually, which could lead to inconsistencies or errors. Therefore, using the fully-encoded dataset ensures we build on the previous work efficiently and accurately.
 
 ## 1.4 Helper code: Using `R` like an object-oriented language {#helperCode}
 
@@ -267,10 +267,10 @@ If you have never encountered [violin plots](https://en.wikipedia.org/wiki/Violi
 
 > Make sure to comment your line to call attention to it:
 
-```{r, fig.cap = "Figure 2. Readmission Rates vs. readmitted hospital LOS", fig.width=8, fig.height=6, echo = FALSE, include=FALSE}
+```{r, fig.cap = "Figure 2. Readmission Rates vs. readmitted hospital LOS", fig.width=8, fig.height=6, echo = FALSE, include=TRUE}
 longTargets %>% 
   ggplot(aes(x = Value, y = NatlComparisonHospitalDays, fill = NatlComparisonHospitalDays)) +
-  geom_violin(alpha = 0.7) +
+  geom_boxplot(width = 0.1) +
   labs(title = "Which target to use?",
        subtitle = "By readmitted LOS in hospital compared to national average",
         x = "",
@@ -293,7 +293,7 @@ longTargets %>%
 Now that you can compare these groups more easily, what we're looking for is a balance between **clear difference** between hospital ordinality relative to the national average (i.e., "Are better hospitals really better in pneumonia readmission rates?").
 
 Which target(s) appear the most distinct to you?
-> Your answer here.
+> The Predicted Readmission Rate target appears the most distinct, as it shows the clearest separation between hospital categories ("Better," "Same," "Worse") in both the boxplots and violin plots. This suggests it is the best target for capturing differences in pneumonia readmission rates across hospitals.
 
 #### 2.3.2 Example with `geom_density()`:
 We could also choose to overlay density plots instead of violin or boxplots, as this can sometimes help us see subtler separation of groups than we can see otherwise. This time, I am also going to ignore the "Unknown" (i.e., missing) class of hospitals to prevent things from getting too messy!
@@ -324,7 +324,7 @@ longTargets %>%
 #### **Question 3**: [0.5 points]
 Does this view confirm or change your decision from Question 3?
 
-> Your answer here.
+> This view confirms my decision to choose Predicted Readmission Rate as the target. It shows the clearest separation between hospital groups, while the Observed Readmission Rate has more overlap, especially between "Same" and "Worse" categories. Therefore, Predicted Readmission Rate is the most distinct and appropriate target for modeling pneumonia readmissions.
 
 ### 2.4 What is the relationship of pneumonia-related hospital readmissions to the hospital performance metrics?
 
@@ -366,7 +366,15 @@ longScore <- pneumoniaAnalyzeNoEncoding %>%
 
 Change the __y-axis__ out for _each of the four readmission rates. `Predicted Readmission Rates` has been started for you. Re-run the chunk and compare the results. **FOR FULL CREDIT** you must leave the graph on the choice you feel most strongly about AND update the title of the graph with which of the four possible readmission rates you chose. Explain below why you chose this one. 
 
-> Your answer here.
+```{r}
+ggplot(longScore, aes(x = Value, y = observed_readmission_rate, color = NatlComparisonHospitalDays)) +
+  geom_point() +
+  facet_wrap(~ Variable, scales = "free_y") +
+  labs(title = "Observed Readmission Rate vs. Hospital Performance Metrics")
+
+```
+
+> After comparing the scatterplots for each readmission rate, I chose Observed Readmission Rate as the best target. The scatterplots with this y-axis showed clearer groupings and more consistent trends with hospital performance metrics like ED wait time, pneumonia death rate, and Medicare spending. This stronger visual separation suggests that Observed Readmission Rate best reflects hospital-level differences in pneumonia care outcomes. The other readmission rates (Excess, Expected, Predicted) showed more overlap and less distinct relationships, making them less useful for modeling.
 
 **HINT 1**: What does higher medicare spending per patient tell you about the underlying population of a hospital?
 
@@ -375,7 +383,7 @@ Change the __y-axis__ out for _each of the four readmission rates. `Predicted Re
 
 ```{r, fig.width=7, fig.height=8, echo = FALSE, message=FALSE, fig.cap="Figure 4. Readmission rate by hospital performance and readmitted patient LOS"}
 longScore %>%  
-  ggplot(aes(y = PredictedReadmissionRate,  ## <-- CHANGE THIS!
+  ggplot(aes(y = observed_readmission_rate,  ## <-- CHANGE THIS!
              x = Value)) +
     geom_point(alpha = 0.25) + 
     geom_smooth(aes(fill = as.factor(NatlComparisonHospitalDays), color = as.factor(NatlComparisonHospitalDays)), 
@@ -383,7 +391,7 @@ longScore %>%
                 se = T, 
                 show.legend = T) + 
     ## CHANGE THE TITLE FOR FULL CREDIT!
-    labs(title = "Relationship of _fill in this blank_ pneumonia-related hospital \nreadmissions to each performance metric",
+    labs(title = "Relationship of Observed Readmission Rate and pneumonia-related hospital \nreadmissions to each performance metric",
         x = "Rate or Score",
         y = "Predicted Pneumonia-related Readmissions",
         color = "Pneumonia-related Readmission Compared to National Average") +
@@ -429,7 +437,7 @@ longHCAHPS <- pneumoniaAnalyzeNoEncoding %>%
 
 Again, you task is to change the __y-axis__ out for _each of the four readmission rates. `Predicted Readmission Rates` has been started for you. Re-run the chunk and compare the results. **FOR FULL CREDIT** you must leave the graph on the choice you feel most strongly about AND update the title of the graph with which of the four possible readmission rates you chose. Explain below why you chose this one. 
 
-> Your answer here.
+> After comparing all four readmission rate options, I decided to use the Observed Readmission Rate as the target variable. The scatterplots reveal a stronger relationship between observed readmissions and patient satisfaction metrics like doctor and nurse communication, where higher communication scores are associated with lower readmissions. The patterns across categories (Better, Same, Worse) also remain clearer in observed readmissions compared to other targets, helping us identify actionable insights. This choice aligns with the goal of capturing real-world performance and how it relates to patient care.
 
 **HINT 1**: What does higher nurse and doctor communication mean for improved patient outcomes, including readmission?
 
@@ -464,13 +472,40 @@ longHCAHPS %>%
              ncol = 2)
 ```
 
+```{r}
+longHCAHPS %>%
+  ggplot(aes(y = observed_readmission_rate,  ## <-- change here
+             x = Value)) +
+    geom_point(alpha = 0.25) + 
+    geom_smooth(aes(fill = as.factor(NatlComparisonHospitalDays), color = as.factor(NatlComparisonHospitalDays)),
+                method = "lm", se = T, show.legend = T) + 
+    labs(title = "Relationship of Observed Readmission Rate and pneumonia-related hospital \nreadmissions to each patient satisfaction metric",
+         x = "Rate or Score",
+         y = "Observed Pneumonia-related Readmissions",
+         color = "Pneumonia-related Readmission Compared to National Average") +
+    scale_fill_manual(values = c("gold", "cadetblue", "maroon")) + 
+    scale_color_manual(values = c("gold", "cadetblue", "maroon"),
+                       labels = c("Better", "Same", "Worse")) + 
+    guides(fill = "none", color = guide_legend(override.aes = list(fill=NA))) + 
+    theme_minimal() + 
+    theme(legend.position = "bottom",
+          strip.text = element_text(size=8),
+          legend.text = element_text(size = 8),
+          legend.title = element_text(size = 10),
+          title = element_text(size = 12, color = "maroon")) + 
+    facet_wrap(~Variable, scales = "free_x", ncol = 2)
+
+```
+
 **HINT 3**: Here's how I would interpret the __relationship between PREDICTED pneumonia readmissions and overall hospital rating, looking at whether hospitals performed better, same, or worse in terms of length-of-stay after readmission__. What I notice immediately is a pretty substantial negative slope for hospitals with worse readmitted lengths of stay (LOS) [maroon line], moderate negative slope for hospitals with the same readmitted LOS [blue line], and slightly decreasing slope for hospitals with better readmitted LOS better [yellow line]. So what this implies is that hospitals with high ratings tend to have lower pneumonia-related readmissions, even among the hospitals with worse readmitted length-of-stays. This relationships is strongest when hospitals have longer LOS; maybe having a long readmission LOS stay **actually implies a form of quality**, like "Well, we got it wrong the first time, let's make darn sure we get it right the second?" But hospitals that were already getting it pretty right don't have as steep of slope because they were already doing well at readmissions to begin with, hence the almost flat line.
 
 
 #### **Question 6**: [2 points]
 What relationships do you find most compelling from these scatterplots and why? Also, name one outstanding question you have at this point, whether it is about the data, the data collection, or something more speculative.
 
-> Your answer here.
+> From the scatterplots, the most compelling relationships are between Observed Readmission Rate and metrics like doctor communication and nurse communication—higher communication ratings tend to align with lower readmission rates, suggesting that strong provider-patient communication may help prevent unnecessary readmissions. Conversely, cleanliness and quietness show minimal impact, highlighting that while these factors are important for overall patient experience, they may not directly influence pneumonia-related readmissions.
+
+One outstanding question I have is: How is the national average for pneumonia-related hospital days calculated, and is it adjusted for hospital size, geographic location, or patient demographics?
 
 Although there is certainly more EDA we could do, we are going to wrap that up here for the sake of moving on - but, as always, I encourage you to think about or even explore what else you would like to know about your data that we did not do!
 
@@ -498,12 +533,14 @@ But remember that what matters most is that we are __matching our question__.
 
 Do you agree with my choice of target? Why or why not? (You are free to disagree!)
 
+> I agree with your choice of Predicted Readmission Rate as the target. It provides a hospital-specific, adjusted measure that aligns with the stakeholder’s interest in readmission rates. While the Observed Readmission Rate showed stronger alignment with readmitted hospital LOS, it’s not adjusted, and as you noted, using that as a target could shift the focus of the analysis. The Predicted Readmission Rate also retains more data points, which is valuable for model robustness. I appreciate the balance of statistical rigor and stakeholder relevance in your choice, and I agree that matching the analysis to the question is key. 
+
 ### 2.6 Bias and Limitation
 
 #### **Question 8**: [2 points]
 All studies have bias (introduced or systemic error) and limitations (failure to fully explain something). We could go more deeply into these concepts, but for now I want you to take a stab and just brainstorming either ways we might have bias OR the limitations of using this target variable. You do not need to answer both, but you're welcome to do so. You can read more about bias [here](https://www.ncbi.nlm.nih.gov/books/NBK574513/) or see some deeper explanations of limitations [here](https://www.aje.com/arc/how-to-write-limitations-of-the-study/). You do not need to write a lot; just 2-3 sentences. I am simply asking you to pause and reflect on our choices here before we proceed. 
 
-> Your answer here.
+> One potential bias is modeling bias—the algorithm used to adjust for hospital differences may not fully capture all the factors influencing readmission rates, such as socioeconomic status, staffing, or regional differences. A key limitation is that this variable reflects a modeled estimate, not direct observations, which may oversimplify complex relationships between hospitals, patients, and outcomes.
 
 
 # 3 Pre-processing and Feature Selection
@@ -523,21 +560,21 @@ Add your comments to the code as indicated to explain what I was doing at each o
 
 ```{r}
 dat2Analyze <- dat2Analyze %>% 
-  ## COMMENT HERE
+## Drop columns we no longer need—this includes the other readmission target variables we aren't using, sample size columns, and number of surveys completed.
   select(-ExpectedReadmissionRate, 
          -ExcessReadmissionRatio,
          -observed_readmission_rate, 
          -contains(c("Sample_", "NumberOfPatients")),
          -NumberSurveysCompleted) %>% 
-  ## COMMENT HERE
+## Rename columns for clarity—make long and unwieldy column names shorter and easier to work with.
   rename(`Median time (minutes) patients spent in ED` = 
          `Score_Average (median) time patients spent in the emergency department before leaving from the visit A lower number of minutes is better`,
          `Composite patient safety` = `Score_CMS Medicare PSI 90: Patient safety and adverse events composite`,
          `ComparedToNational_Composite patient safety` = `ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`) %>% 
-  ## COMMENT HERE
+ ## Reorder columns so that our target variable, PredictedReadmissionRate, comes first for convenience.
   select(PredictedReadmissionRate, everything())
 
-## COMMENT HERE
+## Clean up column names by removing unnecessary prefixes from the names.
 colnames(dat2Analyze) <- gsub('Score_|HcahpsLinearMeanValue_|_Payment', '', colnames(dat2Analyze))
 ```
 
@@ -549,7 +586,7 @@ Next, we are going to take advantage of the `nearZeroVar()` function that is par
 #### **Question 9B**: [0.5 points]
 If you are not familiar yet with the concept of __zero or near-zero variance__, do a little digging. Based on what you read, try to explain for your naive advocacy group stakeholders, why it's important to remove the features with little variance.
 
-> Your answer here.
+> If a column has zero or near-zero variance, it means that almost all the values in that column are the same (or very close to each other). This makes the feature unhelpful for predicting outcomes, because it doesn't provide meaningful information to distinguish between different cases. Keeping these low-variance features in our model can actually confuse or slow down the algorithm, so it's important to remove them. By dropping them, we help our models focus only on the features that can really help make accurate predictions.
 
 ```{r, echo = F}
 ## Identify the columns with near-zero variance
@@ -573,12 +610,12 @@ dat2Analyze <- dat2Analyze[, -nearZeroVar(dat2Analyze)]
 #### **Question 9C**: [0.5 points]
 You may or may not have noticed that I moved `FacilityID` to our rownames in the datasets you loaded today. Why did I choose to do that? Why do I want to make sure unique identifiers, like `FacilityID`, are out of the dataframe before I either (a) run `nearZeroVar()` or (b) proceed with the rest of the analysis?
 
-> Your answer here.
+> We moved FacilityID to the row names because it is a unique identifier, not a feature that provides meaningful information for our analysis. If we left it in the dataframe, functions like nearZeroVar() might mistakenly keep it (since each value is unique), or it could affect the analysis by introducing noise that doesn’t relate to hospital performance. Unique IDs don’t help predict readmission rates; they just label each hospital. Removing them from the feature set ensures our model focuses on real predictors, not arbitrary labels.
 
 #### **Question 9D**: [1 point]
 Do some research on, or lean into your previous knowledge, about the **curse of dimensionality** or the **big-P, little-N (n >> P) problem**. Using whatever you find or remember, can you justify why we likely do NOT have a **big-P, little-N (n >> P) problem** here? Make sure to explain. 
 
-> Your answer here.
+> We likely do not have a big-P, little-N problem because our dataset has many more observations (hospitals) than features (predictor variables). A big-P, little-N problem occurs when we have a large number of predictors (P) and relatively few observations (N), which increases the risk of overfitting and makes the model struggle to generalize. In our case, the number of features is manageable compared to the total number of hospitals in the dataset, so we are not at high risk of overfitting due to too many variables.
 
 ## 3.2 Assess missingness & devise an imputation plan
 
@@ -588,18 +625,29 @@ We are going to deal with imputation in a rather quick and elegant way that requ
 Write some code that will quickly tally the number of columns in the dataset that contain missing values. You will find `colSums()` and `is.na()` functions likely useful here. **What percent of the features have at least some level of missingness?**
 
 ```{r}
-# Your code here.
+## Count columns with missing values
+missing_cols <- sum(colSums(is.na(dat2Analyze)) > 0)
+missing_cols
+
+## Total number of columns
+total_cols <- ncol(dat2Analyze)
+
+## Calculate percent of features with missingness
+percent_missing <- (missing_cols / total_cols) * 100
+percent_missing
+
 ```
 
-> Your answer here.
+> 96.66%
 
 **Which column(s) are not missing any data?**
 
-> Your answer here.
+> State.
 
 **How many complete observations do we have in the dataset?** You may find `nrow()` with `complete.cases()` or `drop_na()` useful!
 ```{r}
-# Your code here.
+# Count complete cases
+sum(complete.cases(dat2Analyze))
 ```
 
 
@@ -648,7 +696,7 @@ Similarly, `miceMatrix$mm[i, j]` gives us the number of cases where both variabl
 #### **Question 11A**: [0.5 points]
 Explain what you think the number in cell $[6,1]$ means. Out of all the observations in the dataset, does this feel like a high degree of co-missingness?
 
-> Your answer here.
+> The number in cell [6,1] (1,292) means there are 1,292 rows where both variables—PredictedReadmissionRate and ComparedToNational_Death rate for pneumonia patients—are missing. Given our dataset has over 4,800 rows, this indicates a moderate level of co-missingness that may impact our model’s performance and needs to be addressed.
 
 Lastly, we can calculate a **proportion of missingness vs. response** between any two variables $i$ and $j$ such that:
 
@@ -709,7 +757,7 @@ p[1, ] %>%
 
 What columns seem to be most correlated in terms of missingness to our target, `PredictedReadmissionRate`? Does this give you any cause for concern? Feel free to speculate as to why you might see this.
 
-> Your answer here.
+> The most correlated columns in terms of missingness with PredictedReadmissionRate are MRSA Bacteremia, ComparedToNational_MRSA Bacteremia, Postoperative respiratory failure rate, and Medicare spending per patient. This suggests a potential bias in our data—hospitals with missing values here may also have higher readmission risks. We should consider if the missingness itself is informative or due to data quality issues.
 
 ## 3.3 Drop rows that are missing from the target variable. 
 
@@ -726,7 +774,7 @@ paste0(c("Rows: ", "Columns: "), dim(dat2Analyze))
 #### **Question 12**: [0.5 points]
 Thinking back to your answer to Question 12, do you feel any differently given these dimensions of the dataset?
 
-> Your answer here.
+> Given the dataset now has 2,726 rows and 30 columns, I feel more confident that we do not have a big-P, little-N problem—meaning we have more observations (N) than features (P). This is a good sign for model stability. However, the drop from over 4,800 rows to 2,700 after filtering for non-missing targets indicates that missingness may still affect our model and should be considered in further analysis.
 
 ## 3.4 Do the splits! 
 
@@ -735,7 +783,7 @@ At this stage, we are almost ready to __impute__ - but not until we have done ou
 #### **Question 13**: [1 point]
 Explain to your stakeholder, in simpler language, (1) why we partition data into testing and training sets and (2) what data leakage is. You do not need to go into great detail, but it should explain enough that they understand the basic ideas.
 
-> Your answer here.
+> We split the data into training and testing sets so we can build and train our model on one set of data (the training set) and then test how well it performs on data it has never seen before (the testing set). This helps us get a realistic picture of how the model would perform in the real world, on new data. Data leakage happens when information from the testing set accidentally influences the training process—kind of like giving the model the answers before the test. If this happens, our model might look great during testing, but it won’t actually generalize well in the real world. That’s why we have to keep the testing set separate and untouched until the very end.
 
 You may recall that I mentioned that the optimal ratio is has been argued to be $\sqrt{p} : 1$, where $p$ is the number of parameters (which may or may not equal your predictors depending on your planned analysis). Note that you do not have to split only a single time; you could make different splits for different analyses, if needed. However, we are going to use a single split here for convenience. 
 
@@ -752,48 +800,51 @@ There are three parts to this question to get it to all come together correctly.
 
 ```{r}
 calcSplitRatio <- function(p = NA, df) {
-  ## @p  = the number of parameters. by default, if none are provided, the number of columns (predictors) in the dataset are used
-  ## @df = the dataframe that will be used for the analysis
+  ## @p  = the number of parameters (predictor variables). If not specified, it defaults to the number of predictors in the dataset.
+  ## @df = the dataframe to use for analysis
   
-  ## COMMENT HERE
+  ## If p is not provided, set p to the number of columns in df minus 1 (for the target column)
   if(is.na(p)) {
-    p <- ncol(df) -1   ## COMMENT HERE
+    p <- ncol(df) - 1   ## Assuming the last column is the target, we subtract 1
   }
   
-  ## COMMENT HERE
-  test_N <- (1/sqrt(p))*nrow(dat2Analyze)
-  ## COMMENT HERE
-  test_prop <- round((1/sqrt(p))*nrow(dat2Analyze)/nrow(dat2Analyze), 2)
-  ## COMMENT HERE
-  train_prop <- 1-test_prop
+  ## Calculate the ideal number of observations to set aside for testing, based on the number of predictors
+  test_N <- (1/sqrt(p)) * nrow(dat2Analyze)
   
-  ## COMMENT HERE
+  ## Calculate the proportion of the dataset to set aside for testing
+  test_prop <- round(test_N / nrow(dat2Analyze), 2)
+  
+  ## Calculate the proportion for training by subtracting the test proportion from 1
+  train_prop <- 1 - test_prop
+  
+  ## Print the recommended train:test split ratio
   print(paste0("The ideal split ratio is ", train_prop, ":", test_prop, " training:testing"))
   
-  ## COMMENT HERE
+  ## Return the training proportion (for use in createDataPartition())
   return(train_prop)
 }
+train_prop <- calcSplitRatio(df = dat2Analyze)
 
-## Fill in the blanks to run:
-# train_prop <- ___(df = ___)
 ```
 
 **Hint**: One important note here is that if the number of parameters are not provided (which is true for the starter code I gave you to run it - it does NOT pass any parameters to that argument!), then by default our function is designed to take the number of columns of the dataframe and subtract one for the target variable. Neat, huh?
 
 Now, uncomment this code and fill it out to run it. 
 ```{r}
-# ind <- createDataPartition(dat2Analyze$___,   ## Put the target here!
-#                            p = ___,           ## Use the object you just made!
-#                            list = FALSE)
-# 
-# train <- dat2Analyze[___, ]
-# test <- dat2Analyze[-c(ind), ]
+ind <- createDataPartition(dat2Analyze$PredictedReadmissionRate,   ## Put the target here!
+                           p = train_prop,                         ## Use the object you just made!
+                           list = FALSE)
+
+train <- dat2Analyze[ind, ]                                        ## Use the index created by createDataPartition()
+test <- dat2Analyze[-c(ind), ]                                     ## Complementary index for test set
+
+
 ```
 
 #### **Question 14B**: [0.5 points]
 What split ratio did you get? Is it close to the canonical 80-20 split? Why do you think that happened?
 
-> Your answer here.
+> Yes, the split ratio is close to the canonical 80-20 split, which is a common starting point for partitioning data into training and testing sets. This happened because the formula we used is designed to balance the number of predictors (p) with the total sample size (n), and in this case, the relationship between the number of predictors and the total observations resulted in a split near 80-20. This balance helps ensure that there are enough observations in both sets for effective modeling while avoiding overfitting.
 
 
 __Did you get stuck somewhere?__ If so, load the `test` and `train` data in case you struggled with Question 18 so you can proceed:
@@ -863,7 +914,7 @@ data.frame(imputedTrain$OOBerror, names(temp)) %>%
 #### **Question 15**: [1 point]
 What does `MSE` (Mean Squared Error) and `PCF` (Proportion of Falsely Classified) indicate here? You may find looking at the `missForest` [Vignette](https://stat.ethz.ch/education/semesters/ss2012/ams/paper/missForest_1.2.pdf) helpful. Which variable(s) had the highest OOB error?
 
-> Your answer here.
+> MSE and PCF show how much error or misclassification occurred when filling in missing data. The variable with the highest MSE was Payment for pneumonia patients, followed by Healthcare workers given influenza vaccination and Venous Thromboembolism Prophylaxis, meaning these were the hardest to predict accurately. The highest PCF (classification error) was for Emergency department volume, showing it had the most classification mistakes. These variables may have complex or missing patterns that made imputation challenging.
 
 **NOTE 1**: If the OOB error (either MSE or PCF) from `missForest` is really high, it’s a red flag that the imputation for those variables is untrustworthy. This could be do to too much missingness, weak relationships among the variables making it hard to predict, or low quality data (e.g., noisy, sparse). In such cases, we want to **DROP** any variables with extremely high OOB error because they add noise. A general rule of thumb is that if the PCF > ~0.3 (30% of the imputed values are wrong) or if there is especially high MSE (inflation) relative to the variance of the variable, we should drop it. Let's set those aside so we can drop them from `test` and `train` both downstream! 
 
@@ -881,7 +932,9 @@ cols2drop <- c("Payment for pneumonia patients", "Emergency department volume")
 #### **Question 16**: [1 point]
 Alternatively, we could use MICE (Multivariate Imputation with Chained Equations), which is a method that will model uncertainty along with the variables. Do a little research. How does MICE work? Include a citation to a source.
 
-> Your answer here.
+> MICE (Multiple Imputation by Chained Equations) is a technique used to handle missing data. It works by building a model using the other variables to predict the missing values. This process is repeated multiple times, and the results are combined to give a final estimate that accounts for uncertainty. This approach is helpful because it provides a more accurate and robust way of handling missing data compared to just filling in one value.
+Citation:
+DataScience+ (2015). Imputing Missing Data with R MICE Package. Retrieved from https://datascienceplus.com/imputing-missing-data-with-r-mice-package/
 
 #### 3.5.4 Putting it alllllll back together...
 
@@ -945,10 +998,14 @@ imputedTest  <- imputedTest[, !(names(imputedTest) %in% cols2drop), drop = FALSE
 Quickly explore how well the imputation did by choosing at least one numeric variable and one of the categorical variables. Did the distributions or frequencies change drastically? You may find the `summary()` and `table()` functions to be fastest here. 
 
 ```{r}
-# Your code here.
+# Check numeric variable: Medicare spending per patient
+summary(imputedTrain$`Medicare spending per patient`)
+
+# Check categorical variable: ComparedToNational_MRSA Bacteremia
+table(imputedTrain$`ComparedToNational_MRSA Bacteremia`)
 ```
 
-> Your answer here.
+> The distributions for both the numeric and categorical variables after imputation appear reasonable. For the numeric variable Medicare spending per patient, the range remains plausible (0.49 to 1.60) with a median close to 1, suggesting no drastic changes. For the categorical variable ComparedToNational_MRSA Bacteremia, most hospitals remain at the national average (0), with fewer hospitals classified as better (-1) or worse (1). Overall, the distributions did not change drastically, indicating that the imputation process was successful and did not introduce major distortions in the data.
 
 ## 3.6 Another Fork in the Road
 It's time, yet again, to make a choice. If you opted to load the __fully encoded__ dataset and everything has been done on that, you will run the first chunk. But if you decided that you wanted to __wait to encode__ the TIME HAS FINALLY COME!
@@ -959,13 +1016,12 @@ Ultimately, we need to turn the factor features back into numbers for our next a
 
 ```{r}
 ## Uncomment if this is your choice!
-# readyTrain <- imputedTrain %>%
-#   mutate_if(is.factor, as.character) %>% 
-#   mutate_if(is.character, as.numeric)
-# 
-# readyTest <- imputedTest %>%
-#   mutate_if(is.factor, as.character) %>% 
-#   mutate_if(is.character, as.numeric)
+readyTrain <- imputedTrain %>%
+mutate_if(is.factor, as.character) %>% 
+mutate_if(is.character, as.numeric)
+readyTest <- imputedTest %>%
+mutate_if(is.factor, as.character) %>% 
+mutate_if(is.character, as.numeric)
 ```
 
 ### 3.6.2 The Right Fork - Frequency Encoding
@@ -998,7 +1054,7 @@ if(!is.numeric(imputedTrain$State)) {
 #### **Question 18**: [1 point]
 Because we are now frequency encoding AFTER data partitioning (we did ordinal encoding BEFORE the split for convenience), we absolutely __must__ apply the same encoding map to the `test` set that we did to the `train` set. Explain why, and what should we do if some classes of the variable end up in the `train` that is not in the `test` or vice versa? (**HINT**: Look at the source code!)
 
-> Your answer here. 
+> It’s important to apply the same encoding map to the test set as we did for the train set to maintain consistency between the two datasets. If we create the encoding map using only the train data, we avoid leaking information from the test data into the model, ensuring fair evaluation of the model’s performance. If some categories are present in the train but not the test (or vice versa), we should map any unseen categories in the test to a default value like 0 or NA, rather than introducing new encodings or re-fitting the map. This keeps the model aligned with the training data's structure and avoids data leakage or inconsistencies. 
 
 ## 3.7  Transformation & Scaling
 
@@ -1020,15 +1076,15 @@ ggplot(readyTrain, aes(x = PredictedReadmissionRate)) +
 #### **Question 19A**: [1 point]
 Why is a histogram, or even a Q-Q plot, an insufficient way to assess whether a distribution is approximately normal?
 
-> Your answer here.
+> A histogram or a Q-Q plot can give a visual sense of the distribution’s shape, but they aren’t precise or formal tests for normality. Histograms can be affected by bin width choices, and Q-Q plots can look normal even when there are subtle deviations from normality that could impact analysis. Also, they don’t provide a quantitative measure of how well the data fit a normal distribution. Formal tests like the Shapiro-Wilk test are more reliable for detecting non-normality because they provide statistical evidence, not just a visual impression.
 
 Now Apply a [Shapiro-Wilk test](https://biostats.w.uib.no/test-for-normality-shapiro-wilks-test/) for normality using the `shapiro.test()` function. What does it indicate about your distribution? (**Note**: Shapiro tests are only reliable for $N < 5000$, but it is fine to perform here.)
 
 ```{r}
-# Your code here.
+shapiro.test(imputedTrain$PredictedReadmissionRate)
 ```
 
-> Your answer here.
+> W = 0.98544, p-value = 0.00000000000003085
 
 ### 3.7.1 Box-Cox Transformation
 
@@ -1078,12 +1134,26 @@ Can you see what it did to the distribution? __look closely__, if not. It's subt
 #### **Question 19B**: [1.5 points]
 Now repeat all of the steps to perform a Box-Cox transform on your own to the `imputedTest` data. Why must we (1) also transform the test data and (2) __use the same $\lambda$ as the training data__?
 
-> Your answer here.
+> We need to transform the test data so that it matches the format and scaling of the training data, ensuring the model sees the same type of data when making predictions. We must use the same lambda because it defines the specific shape of the Box-Cox transformation, and applying a different lambda to the test data would create inconsistencies, leading to unreliable model results.
 
 ```{r}
-# Your code here.
+# Apply the Box-Cox transformation to imputedTest using the lambda from training data
+imputedTest$bc_PredictedReadmissionRate <- predict(bc_data, imputedTest$PredictedReadmissionRate)
 
-# Make sure to check that your transform looks successful!
+# Histogram
+ggplot(imputedTest, aes(x = bc_PredictedReadmissionRate)) +
+  geom_histogram(alpha = 0.6, 
+                 fill = "blue",
+                 color = "blue") +
+  theme_minimal() +
+  labs(title = "Box-Cox Transformed Predicted Readmission Ratio - Test Data",
+       y = "Frequency",
+       x = "Predicted Readmission Ratio (Box-Cox Transformed)")
+
+# Q-Q Plot
+qqnorm(imputedTest$bc_PredictedReadmissionRate)
+qqline(imputedTest$bc_PredictedReadmissionRate, col = "blue", lty = 2, lwd = 2)
+
 ```
 
 **NOTE** At this point, you have both an non-transformed (`PredictedReadmissionRate`) and Box-Cox transformed (`bc_PredictedReadmissionRate`) version of the target in your data.
@@ -1109,7 +1179,12 @@ readyTrain <- readyTrain %>%
 Do the same for your test data. Make sure to use `readyTest` and overwrite it. 
 
 ```{r}
-## Your code here.
+readyTest <- readyTest %>%
+  select(-PredictedReadmissionRate) %>%  # Drop the original target
+  mutate_if(is.factor, as.numeric) %>%   # Convert any remaining factors to numeric
+  scale(center = TRUE, scale = TRUE) %>% # Center and scale the data
+  data.frame()                           # Convert to dataframe
+
 ```
 
 **Hint**: Make sure to turn your centered, scaled __matrix__ back into a dataframe! By default, it creates a matrix.
@@ -1146,11 +1221,11 @@ heatmap(corrMat,
 #### **Question 20A**: [1 point]
 Where do you see the highest potential for multicollinearity? Why do you say that?
 
-> Your answer here.
+> The highest potential for multicollinearity appears in the cluster of variables related to hospital experience metrics (e.g., Nurse communication, Doctor communication, Overall hospital rating, Recommend hospital, Care transition, etc.). These variables are clustered together and show high correlations (bright red squares), suggesting they are closely related and may provide overlapping information.
 
 Which variable(s) seem to be most correlated with our target, `bc_PredictedReadmissionRate`?
 
-> Your answer here.
+> The variable most correlated with bc_PredictedReadmissionRate appears to be staff responsiveness and nurse communication. 
 
 ## 4.2 Fitting a model to estimate VIF
 
@@ -1192,11 +1267,11 @@ Does multicollinearity seem to be an issue in this dataset and, if so, among whi
 
 **HINT 2**: Is, for example,`Payment Category for pneumonia patients` created from `Payment for pneumonia patients`? [These are Medicare payments]? Which one do you think we should keep amd why?
 
-> Your answer here.
+> Yes, multicollinearity is an issue in this dataset, especially for variables like Overall hospital rating, Recommend hospital, and Nurse communication, which have high VIF values. This makes sense because Overall hospital rating is likely calculated using other patient experience variables, like communication and staff responsiveness, causing overlap. For the payment variables, Payment Category for pneumonia patients is derived from Payment for pneumonia patients, so it would make sense to keep the continuous Payment for pneumonia patients for better granularity in modeling.
 
 Which variable(s) seem to be most highly correlated with our target? Is it a positive or negative correlation? Does it make sense?
 
-> Your answer here.
+> Based on the correlation matrix you previously shared, Nurse communication and Staff responsiveness appear to have the strongest correlations with the target variable bc_PredictedReadmissionRate. The correlations are negative, meaning that better communication and responsiveness are associated with lower readmission rates, which makes sense: when patients feel heard and cared for, they are less likely to return to the hospital.
 
 
 ### 4.3 Dropping the most collinear variables
