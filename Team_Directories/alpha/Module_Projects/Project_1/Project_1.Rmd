@@ -157,6 +157,8 @@ Notice that I am also including a variable we didn't look at previously called `
 You may be wondering - could we use it as a target? Sure - but it's not for the question we were posed by our stakeholder! Note that, if we did, we would need to perform a multinomial classification analysis. So, instead, let's use this category to help us contextualize our hospitals as we choose between `Predicted`, `Observed`, and `Expected` readmission rates, as well as `Excess Readmission Ratio`. 
 
 ```{r, echo = FALSE, collapse=TRUE}
+library(kableExtra)
+
 dict <- tribble(
 ~`Possible Target`, ~`Description`,
 "ComparedToNational_Hospital return days for pneumonia patients", "Hospital return days measures the number of days patients spent back in the hospital (in the emergency department, under
@@ -264,17 +266,18 @@ longTargets %>%
              ncol = 2)
 ```
 
-#### **Question 2A**: [0.5 points]
+#### **Question 2A**: [0.5 points]   TT
 If you have never encountered [violin plots](https://en.wikipedia.org/wiki/Violin_plot) before, they are honestly a wonderful way to assess the **symmetry** and **skew** of a distribution while more easily enabling comparisons between groups. They're effectively a hybrid between a histogram and a boxplot, and we can even opt to overlay the boxplot quartiles in the plots as well, which is particularly handy!
 
 **Your task** is to do just that by adding `geom_boxplot(width = 0.1)` (yes, just that one line!) in the appropriate place. Also change `include = FALSE` to `include = TRUE` in the R chunk header so that it shows up when you knit!
 
 > Make sure to comment your line to call attention to it:
 
-```{r, fig.cap = "Figure 2. Readmission Rates vs. readmitted hospital LOS", fig.width=8, fig.height=6, echo = FALSE, include=FALSE}
+```{r, fig.cap = "Figure 2. Readmission Rates vs. readmitted hospital LOS", fig.width=8, fig.height=6, echo = FALSE, include=TRUE}
 longTargets %>% 
   ggplot(aes(x = Value, y = NatlComparisonHospitalDays, fill = NatlComparisonHospitalDays)) +
   geom_violin(alpha = 0.7) +
+  geom_boxplot(width = 0.1)           ## <--------- THIS IS WHERE I ADDED THE LINE 
   labs(title = "Which target to use?",
        subtitle = "By readmitted LOS in hospital compared to national average",
         x = "",
@@ -293,11 +296,14 @@ longTargets %>%
              ncol = 2)
 ```
 
-#### **Question 2B**: [0.5 points]
+#### **Question 2B**: [0.5 points]   TT
 Now that you can compare these groups more easily, what we're looking for is a balance between **clear difference** between hospital ordinality relative to the national average (i.e., "Are better hospitals really better in pneumonia readmission rates?").
 
 Which target(s) appear the most distinct to you?
 > Your answer here.
+The target 'Better' appears to be the most distinct, due to its lack of outliers and a more consistent (compact) shape of the violen plot centered around the mean from the boxplot. The 'Unknown' target is also distinct, in thata its pattern is noticably different than the three other targets (which makes sense given our lack of data).
+
+
 
 #### 2.3.2 Example with `geom_density()`:
 We could also choose to overlay density plots instead of violin or boxplots, as this can sometimes help us see subtler separation of groups than we can see otherwise. This time, I am also going to ignore the "Unknown" (i.e., missing) class of hospitals to prevent things from getting too messy!
@@ -325,10 +331,11 @@ longTargets %>%
              ncol = 2)
 ```
 
-#### **Question 3**: [0.5 points]
+#### **Question 3**: [0.5 points]     TT
 Does this view confirm or change your decision from Question 3?
 
 > Your answer here.
+It changes my decision, as the Excess Readmission Ratio is the one graph that has a clear delineation between the 'Better', 'Same', and 'Worse' variables. 
 
 ### 2.4 What is the relationship of pneumonia-related hospital readmissions to the hospital performance metrics?
 
@@ -366,20 +373,19 @@ longScore <- pneumoniaAnalyzeNoEncoding %>%
     .default = Variable))
 ```
 
-#### **Question 4**: [1 point]
+#### **Question 4**: [1 point]    TT
 
 Change the __y-axis__ out for _each of the four readmission rates. `Predicted Readmission Rates` has been started for you. Re-run the chunk and compare the results. **FOR FULL CREDIT** you must leave the graph on the choice you feel most strongly about AND update the title of the graph with which of the four possible readmission rates you chose. Explain below why you chose this one. 
 
 > Your answer here.
+When comparing the graphs from the four variables, only the PredictedRatio and the ExcessReadmissionRatio have slopes that appear orderly and consistent enough to view a clear relationship. From these two, these graphs reiterate that ExcessReadmissionRatio has the best separation between the variables.
 
-**HINT 1**: What does higher medicare spending per patient tell you about the underlying population of a hospital?
+```{r, fig.width=7, fig.height=8, echo = FALSE, message=TRUE, fig.cap="Figure 4. Readmission rate by hospital performance and readmitted patient LOS"}
 
-**HINT 2**: Venous thrombolisms and deep vein thromboses (DVTs) are often "sneakier" conditions that have "silent" symptoms until the patient is in crisis. What would having higher scores at providing prophylaxis for these conditions potentially suggest about a hospital's performance?
+## This block has my altered code!!!!!!!
 
-
-```{r, fig.width=7, fig.height=8, echo = FALSE, message=FALSE, fig.cap="Figure 4. Readmission rate by hospital performance and readmitted patient LOS"}
 longScore %>%  
-  ggplot(aes(y = PredictedReadmissionRate,  ## <-- CHANGE THIS!
+  ggplot(aes(y = ExcessReadmissionRatio,  ## <-- CHANGE THIS! done
              x = Value)) +
     geom_point(alpha = 0.25) + 
     geom_smooth(aes(fill = as.factor(NatlComparisonHospitalDays), color = as.factor(NatlComparisonHospitalDays)), 
@@ -387,9 +393,9 @@ longScore %>%
                 se = T, 
                 show.legend = T) + 
     ## CHANGE THE TITLE FOR FULL CREDIT!
-    labs(title = "Relationship of _fill in this blank_ pneumonia-related hospital \nreadmissions to each performance metric",
+    labs(title = "Relationship of ExcessReadmissionRatio to pneumonia-related hospital \nreadmissions to each performance metric",
         x = "Rate or Score",
-        y = "Predicted Pneumonia-related Readmissions",
+        y = "Excess Readmission Ratio",
         color = "Pneumonia-related Readmission Compared to National Average") +
   scale_fill_manual(values = c("gold", "cadetblue", "maroon")) + 
   scale_color_manual(values = c("gold", "cadetblue", "maroon"),
@@ -406,7 +412,13 @@ longScore %>%
              ncol = 2)
 ```
 
+**HINT 1**: What does higher medicare spending per patient tell you about the underlying population of a hospital?
+
+**HINT 2**: Venous thrombolisms and deep vein thromboses (DVTs) are often "sneakier" conditions that have "silent" symptoms until the patient is in crisis. What would having higher scores at providing prophylaxis for these conditions potentially suggest about a hospital's performance?
+
 **HINT 3**: Here's how I would interpret the __relationship between PREDICTED pneumonia readmissions and pneumonia death rates, looking at whether hospitals performed better, same, or worse in terms of length-of-stay after readmission__. What I notice immediately is a moderate slope for hospitals with worse readmitted lengths of stay (LOS) [maroon line] compared to same [blue line] and especially better [yellow line]. This relationship is negative, implying that as the pneumonia-related death rate increases, readmissions __goes down__. Oh! So what this implies is that hospitals with higher deaths from pneumonia tend to have lower readmissions - and this is especially true for the ones who are have longer (worse than average) readmitted patient stays. In other words - these hospitals are __ probably releasing their pneumonia patients too soon from their first hospitalization__, leading to higher readmissions, longer readmitted stays, and even higher pneumonia-related deaths! 
+
+
 
 ### 2.5 What is the relationship of pneumonia-related hospital readmissions to the patient satisfaction metrics?
 
@@ -435,13 +447,19 @@ Again, you task is to change the __y-axis__ out for _each of the four readmissio
 
 > Your answer here.
 
+Hospitals with higher patient satisfaction, especially in nurse/doctor communication, tend to have lower excess readmission ratios. The contact kept with the doctor ensures that any issues that arise are quikcly addressed without the need for readmission.  On the other hand, cleanliness might not show a strong link to pneumonia-related readmissions because these readmissions often relate more to a personal decision to enter and stay at the hospital, as opposed to an infection, which keeps you there.  I still feel most strongly about 'Excess Readmission Ratio' due to how the data fits the plots well and due to the same reasons as above showinf similar patterns in these scatterplots.
+
 **HINT 1**: What does higher nurse and doctor communication mean for improved patient outcomes, including readmission?
 
 **HINT 2**: Why might cleanliness not have much effect here even though pneumonia is a communicable disease?
 
+
 ```{r, fig.width=7, fig.height=8, echo = FALSE, message=FALSE, fig.cap="Figure 5. Readmission rate by patient satisfaction and readmitted patient LOS"}
+
+# Excess Readmission Ratio
+
 longHCAHPS %>%  
-  ggplot(aes(y = PredictedReadmissionRate,  ## <-- CHANGE THIS!
+  ggplot(aes(y = ExcessReadmissionRatio,  ## <-- CHANGE THIS!
              x = Value)) +
     geom_point(alpha = 0.25) + 
     geom_smooth(aes(fill = as.factor(NatlComparisonHospitalDays), color = as.factor(NatlComparisonHospitalDays)), 
@@ -451,7 +469,7 @@ longHCAHPS %>%
     ## CHANGE THE TITLE FOR FULL CREDIT!
     labs(title = "Relationship of _fill in this blank_ pneumonia-related hospital \nreadmissions to each patient satisfaction metric",
         x = "Rate or Score",
-        y = "Predicted Pneumonia-related Readmissions",
+        y = "Excess Readmission Ratio",
         color = "Pneumonia-related Readmission Compared to National Average") +
   scale_fill_manual(values = c("gold", "cadetblue", "maroon")) + 
   scale_color_manual(values = c("gold", "cadetblue", "maroon"),
@@ -466,15 +484,18 @@ longHCAHPS %>%
   facet_wrap(~Variable, 
              scales = "free_x",
              ncol = 2)
+
 ```
 
 **HINT 3**: Here's how I would interpret the __relationship between PREDICTED pneumonia readmissions and overall hospital rating, looking at whether hospitals performed better, same, or worse in terms of length-of-stay after readmission__. What I notice immediately is a pretty substantial negative slope for hospitals with worse readmitted lengths of stay (LOS) [maroon line], moderate negative slope for hospitals with the same readmitted LOS [blue line], and slightly decreasing slope for hospitals with better readmitted LOS better [yellow line]. So what this implies is that hospitals with high ratings tend to have lower pneumonia-related readmissions, even among the hospitals with worse readmitted length-of-stays. This relationships is strongest when hospitals have longer LOS; maybe having a long readmission LOS stay **actually implies a form of quality**, like "Well, we got it wrong the first time, let's make darn sure we get it right the second?" But hospitals that were already getting it pretty right don't have as steep of slope because they were already doing well at readmissions to begin with, hence the almost flat line.
 
 
-#### **Question 6**: [2 points]
+#### **Question 6**: [2 points]     TT 
 What relationships do you find most compelling from these scatterplots and why? Also, name one outstanding question you have at this point, whether it is about the data, the data collection, or something more speculative.
 
 > Your answer here.
+One compelling relationship in teh scatterplots was the relationsihp between 'Excess Readmission Ratio' and recommened hospital because all of the slopes for each of the comparison variabsles is negative. Another compelling relationship from these scatterplots is the relationship between the 'Excess Readmission Ratio' and quietness because of the lack of slope for all these comparison variables. This lack of relationship makes me question why the variable was included in the original dataset and how they measured quietness. 
+
 
 Although there is certainly more EDA we could do, we are going to wrap that up here for the sake of moving on - but, as always, I encourage you to think about or even explore what else you would like to know about your data that we did not do!
 
@@ -486,7 +507,7 @@ Going forward, I have selected `PredictedReadmissionRate` as our target. In a mo
 
 2. Perform experiments with our models to find the best predictive model since that is our ultimate goal. 
 
-However, given that we do not have the option or time for that, let me explain my choice. It's the **best balance** of distinguishing hospitals with better and worse readmitted hospital stays, while still providing an __adjusted, hospital-specific__ measure. Adjusted values will generally always be a better choice than the crude, even if our crude measure captures something interesting about the data, as it did here, or if it's easier for our stakholder to comprehend. Our crude measure, `observed_readmission_rate` did the __best job__ of recapitulating the readmitted hospital LOS (`ComparedToNational_Hospital return days for pneumonia patients`), but if that's really our focus, wouldn't it then be better to switch from a readmission rate to that as our target? Probably. 
+However, given that we do not have the option or time for that, let me explain my choice. It's the **best balance** of distinguishing hospitals with better and worse readmitted hospital stays, while still providing an __adjusted, hospital-specific__ measure. Adjusted values will generally always be a better choice than the crude, even if our crude measure captures something interesting about the data, as it did here, or if it's easier for our stakeholder to comprehend. Our crude measure, `observed_readmission_rate` did the __best job__ of recapitulating the readmitted hospital LOS (`ComparedToNational_Hospital return days for pneumonia patients`), but if that's really our focus, wouldn't it then be better to switch from a readmission rate to that as our target? Probably. 
 
 If you still feel unsure about what is the best choice, you're not alone - so do I! This is where, because we are working with an __imagined stakeholder__, we must make the best decision we can given the question we defined in the Demo. I would defend my choice of `Predicted Readmission Rate` for three key reasons:
 
@@ -498,9 +519,12 @@ If you still feel unsure about what is the best choice, you're not alone - so do
 
 But remember that what matters most is that we are __matching our question__. 
 
-#### **Question 7**: [1 point]
+#### **Question 7**: [1 point]     TT
 
 Do you agree with my choice of target? Why or why not? (You are free to disagree!)
+
+I understand the choice of target when it is looked in comparison to the EDA I conducted in the previous question but I do think that the 'Excess Readmission Ratio' does a better job of representing all of the date and limiting influence from confounding variables by taking into account multiple variables.
+
 
 ### 2.6 Bias and Limitation
 
@@ -508,6 +532,7 @@ Do you agree with my choice of target? Why or why not? (You are free to disagree
 All studies have bias (introduced or systemic error) and limitations (failure to fully explain something). We could go more deeply into these concepts, but for now I want you to take a stab and just brainstorming either ways we might have bias OR the limitations of using this target variable. You do not need to answer both, but you're welcome to do so. You can read more about bias [here](https://www.ncbi.nlm.nih.gov/books/NBK574513/) or see some deeper explanations of limitations [here](https://www.aje.com/arc/how-to-write-limitations-of-the-study/). You do not need to write a lot; just 2-3 sentences. I am simply asking you to pause and reflect on our choices here before we proceed. 
 
 > Your answer here.
+The biggest limitation I can brainstorm for 'Predicted Readmission Rate' is the fact that is is not an actual observed value but a projected one. It is also limited in that it cannot act as a stand-alone variable, in that its performance as a variable is more highly linked to its comparison to other variables (i.e. variables that would affect readmission, such as cleanliness and staff responsiveness).
 
 
 # 3 Pre-processing and Feature Selection
