@@ -545,7 +545,7 @@ The time has finally come to officially move __back__ into pre-processing and fe
 
 It's time to say goodbye to the features we know would be far too redundant or non-informative given our target of `PredictedReadmissionRate`. We don't need any of the `Sample_` columns, for example; these are merely sample sizes. Useful if we were doing standardization, but not necessary for us right now. We also are dropping the other possible target features that are too redundant with `PredictedReadmissionRate`.
 
-#### **Question 9A**: [0.5 points]
+#### **Question 9A**: [0.5 points]    TT
 Add your comments to the code as indicated to explain what I was doing at each of the steps.
 
 > Your answer in the comments.
@@ -553,20 +553,28 @@ Add your comments to the code as indicated to explain what I was doing at each o
 ```{r}
 dat2Analyze <- dat2Analyze %>% 
   ## COMMENT HERE
+  # This code removes unnecessary variables to simplify the data set.
+  
   select(-ExpectedReadmissionRate, 
          -ExcessReadmissionRatio,
          -observed_readmission_rate, 
          -contains(c("Sample_", "NumberOfPatients")),
          -NumberSurveysCompleted) %>% 
   ## COMMENT HERE
+  # This code renames certain variables, giving them shorter, easier to understand names. 
+  
   rename(`Median time (minutes) patients spent in ED` = 
          `Score_Average (median) time patients spent in the emergency department before leaving from the visit A lower number of minutes is better`,
          `Composite patient safety` = `Score_CMS Medicare PSI 90: Patient safety and adverse events composite`,
          `ComparedToNational_Composite patient safety` = `ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`) %>% 
   ## COMMENT HERE
+  # This code selects the variable 'PredictedReadmissionRate' and movesit in front of everything so that is is at the beginning of the data set. 
+  
   select(PredictedReadmissionRate, everything())
 
 ## COMMENT HERE
+# This code is used to clean the column names and replace characters in the columns. 
+
 colnames(dat2Analyze) <- gsub('Score_|HcahpsLinearMeanValue_|_Payment', '', colnames(dat2Analyze))
 ```
 
@@ -575,10 +583,11 @@ colnames(dat2Analyze) <- gsub('Score_|HcahpsLinearMeanValue_|_Payment', '', coln
 
 Next, we are going to take advantage of the `nearZeroVar()` function that is part of the `caret` package. We will drop any of the columns with near-zero variance. This is a way of automating (and thus standardizing) the process for choosing to drop non-informative columns due to zero or nearly zero variance.
 
-#### **Question 9B**: [0.5 points]
+#### **Question 9B**: [0.5 points]      TT
 If you are not familiar yet with the concept of __zero or near-zero variance__, do a little digging. Based on what you read, try to explain for your naive advocacy group stakeholders, why it's important to remove the features with little variance.
 
 > Your answer here.
+Near zero variance is the statistical measure that identifies variables in a dataset as having few or only one output, creating an extremely low variance for the variable. In terms of looking at the data, these features do not show any relationships and are not very useful in answering larger questions. 
 
 ```{r, echo = F}
 ## Identify the columns with near-zero variance
@@ -599,37 +608,62 @@ dat2Analyze <- dat2Analyze[, -nearZeroVar(dat2Analyze)]
 
 **Take note** of the number of features here.
 
-#### **Question 9C**: [0.5 points]
+#### **Question 9C**: [0.5 points]      TT
 You may or may not have noticed that I moved `FacilityID` to our rownames in the datasets you loaded today. Why did I choose to do that? Why do I want to make sure unique identifiers, like `FacilityID`, are out of the dataframe before I either (a) run `nearZeroVar()` or (b) proceed with the rest of the analysis?
 
 > Your answer here.
+'FacilityID' is not a variable with a relationship to be seen but just a variable used to contain identifiers for the observations in the data set. Therefore, it will not be informative as a predictor in analyszing the variables relationships. Additionally, because every ID is different, this column has the most variance present in the data set so 'nearZeroVar()' does not work.
 
-#### **Question 9D**: [1 point]
+
+#### **Question 9D**: [1 point]      TT
 Do some research on, or lean into your previous knowledge, about the **curse of dimensionality** or the **big-P, little-N (n >> P) problem**. Using whatever you find or remember, can you justify why we likely do NOT have a **big-P, little-N (n >> P) problem** here? Make sure to explain. 
 
 > Your answer here.
+The curse of dimensionality is a fun way of naming the problems that arise when you are working with an extremely large data set and a lot of information. One such problem within this curse umbrellanis the 'big-P, little-N (n >> P) problem' , which occurs when there is a significanyly larger amount of predictor variables when compared to the observations. We likely don't have this problem because hospitals collect such large amounts of data that we have large amounts of information (and observations). We lso pre-processed the data, so there are already less predictors than we started with.
+
+
 
 ## 3.2 Assess missingness & devise an imputation plan
 
 We are going to deal with imputation in a rather quick and elegant way that requires minimal effort from us using a model-based approach with `missForest`. You may recall from lecture that I said we are choosing a model-based approached _without uncertainty_ because our ultimate goal is to create a deployable model for our stakeholder.
 
-#### **Question 10**: [1 point]
+#### **Question 10**: [1 point]     TT
 Write some code that will quickly tally the number of columns in the dataset that contain missing values. You will find `colSums()` and `is.na()` functions likely useful here. **What percent of the features have at least some level of missingness?**
 
 ```{r}
 # Your code here.
+#Counting how many columns have at least one NA
+num_missing_cols <- sum(colSums(is.na(dat2Analyze)) > 0)
+
+#Total number of columns in the dataset
+total_cols <- ncol(dat2Analyze)
+
+#Calculating the percentage of columns with missing values
+percent_missing_cols <- (num_missing_cols / total_cols) * 100
+
+num_missing_cols
+total_cols
+percent_missing_cols
+
 ```
 
 > Your answer here.
+All of the columns (100%) havesome level of missingness.
 
 **Which column(s) are not missing any data?**
 
 > Your answer here.
+None.
 
 **How many complete observations do we have in the dataset?** You may find `nrow()` with `complete.cases()` or `drop_na()` useful!
 ```{r}
-# Your code here.
+
+#Getting rid of rows with any NA and counting what's left
+num_complete_obs <- dat2Analyze %>% drop_na() %>% nrow()
+num_complete_obs
+
 ```
+There are 644 complete observations in the data set.
 
 
 ### 3.2.1 Use the `md.pairs()` function from the `mice` package to assess the extent of missing values before imputing. 
@@ -678,6 +712,8 @@ Similarly, `miceMatrix$mm[i, j]` gives us the number of cases where both variabl
 Explain what you think the number in cell $[6,1]$ means. Out of all the observations in the dataset, does this feel like a high degree of co-missingness?
 
 > Your answer here.
+Firstly, the numer in cells [6,1] joins PredictedReadmissionRate vs. Postoperative respiratory failure rate. I believe this number means that in 1788 observations in the data set, PredictedReadmissionRate was missing but Postoperative respiratory failure rate was present. This does seem to be a high degree of co-missingness because it is one of the higher co-missingness numbers with PredictedReadmissionRate.
+
 
 Lastly, we can calculate a **proportion of missingness vs. response** between any two variables $i$ and $j$ such that:
 
@@ -734,11 +770,14 @@ p[1, ] %>%
 ```
 
 
-#### **Question 11B**: [0.5 points]
+#### **Question 11B**: [0.5 points]     TT
 
 What columns seem to be most correlated in terms of missingness to our target, `PredictedReadmissionRate`? Does this give you any cause for concern? Feel free to speculate as to why you might see this.
 
 > Your answer here.
+The variable that seems to be most correlated to missingness with 'PredictedReadmissionRate' is 'MRSA Bacteria'. This does give me cause for concern, as a bacterial infection would likely see readmission. If this data is missing, it's hard to devise a plan that treats and controls form the spread of MRSA bacteria. 
+
+
 
 ## 3.3 Drop rows that are missing from the target variable. 
 
