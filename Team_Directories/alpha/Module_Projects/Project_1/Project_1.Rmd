@@ -1239,14 +1239,14 @@ heatmap(corrMat,
         margins = c(10, 10))
 ```
 
-#### **Question 20A**: [1 point]
+#### **Question 20A**: [1 point] - NL
 Where do you see the highest potential for multicollinearity? Why do you say that?
 
-> Your answer here.
+> I see the highest potential for multicollinearity in the "ComparedToNational_" variables and their associated source variables. They are inherently derived from other variables that are still included in the dataset, which will introduce multicollinearity between these pairs.
 
 Which variable(s) seem to be most correlated with our target, `bc_PredictedReadmissionRate`?
 
-> Your answer here.
+> "ComparedToNational_ReturnDaysForPneumoniaPatients" seems to be the only standout with correlation to "bc_PredictedReadmissionRate," though the survey results variables also have some positive correlation.
 
 ## 4.2 Fitting a model to estimate VIF
 
@@ -1281,18 +1281,22 @@ vifResults %>%
 )
 ```
 
-#### **Question 20B**: [1 point]
+#### **Question 20B**: [1 point] - NL
 Does multicollinearity seem to be an issue in this dataset and, if so, among which variables? Why do you come to this conclusion?
 
 **HINT 1**: What was used to calculate `Overall Hospital Rating`? Does this help us better understand why the VIF is so large?
 
 **HINT 2**: Is, for example,`Payment Category for pneumonia patients` created from `Payment for pneumonia patients`? [These are Medicare payments]? Which one do you think we should keep amd why?
 
-> Your answer here.
+> Multicollinearity is definitely an issue in this dataset. There are 7 variables with a VIF value of >4, suggesting possible multicollinearity issues in them, and two of those values are >10, more strongly suggesting an issue with multicollinearity. "Overall Hospital Rating" and "Recommend Hospital" are the biggest offenders with a VIF of 22.69 and 14.77, respectively. 
 
 Which variable(s) seem to be most highly correlated with our target? Is it a positive or negative correlation? Does it make sense?
 
-> Your answer here.
+```{r}
+summary(mod)
+```
+
+> "ComparedToNational_Hospital.return.days.for.pneumonia.patients" and "Recommend.hospital" have the strongest coefficients, suggesting the strongest correlation with "bc_PredictedReadmissionRate."
 
 
 ### 4.3 Dropping the most collinear variables
@@ -1339,11 +1343,11 @@ Thus, we have opted to undertake a __Segmentation Analysis__ to see if there is 
 
 First, we apply a PCA on the data and display the principal components. Note that we have the same number of **principal components** as we do variables in the data set! The _cumulative proportion_ of variance adds to 100% by our last principal component; but we're really more interested in the portion of variance explained by EACH of the principal components. This can help us figure out just how many PCs are important for explaining the most variance. For example, if we were interested in feature reduction, we could use the top PCs that explain, say, some portion of the variance that we wish to retain.
 
-#### **Question 21**: [2 points]
+#### **Question 21**: [2 points] - NL
 
 1. At what principal component do we surpass 80% of explained variance? (**HINT**: look at the cumulative variance row rather than tha proportion of variance row).
 
-> Your answer here.
+> At the 11th principal component.
 
 ```{r}
 pca <- prcomp(readyTrain)
@@ -1352,7 +1356,7 @@ summary(pca)
 
 2. You may also notice that this is always ordered from most proportion of variance on the left (thus is PC1 defined) to our final principal component on the right. What percent of variance is explained by just PC1? What percent by the final PC? Is the attributable portion of the variance in PC1 high, medium, or low based on some quick research or prior knowledge?
 
-> Your answer here.
+> Principal component 1 captures only 22.41% of the variance. This is a relatively poor amount of variance to capture. In my experience, generally you want a higher percentage for PC1, like 35 - 50%, and a cumulative of 80+% when combining PC1, PC2, and sometimes PC3, in order to consider it an effective reduction in dimensionality. The final PC captures only 1.056% of the variance, which is not atypical, though 18 principal components is quite a few.
 
 3. We use scree plots to graphically determine how many principal components to retain and how many principal components best explain the variance of the data. The $x$-axis displays the principal components (PC1, PC2, etc.), while the $y$-axis shows the eigenvalues (or proportion of variance explained) for each component. The **elbow method** we discussed in class is the point where the slope starts to flatten or the point at which the percentage of variance explained seems to level off. If we were doing this for feature reduction, we might think of this as approximately how many principal components would be needed to explain the total variation in the training data.  However, it is a **heuristic** method, so it can sometimes be a little uncertain from the plot alone what the optimal number of PCs is. Let's take a look at the top-15 PCs on a scree plot now:
 
@@ -1369,11 +1373,11 @@ fviz_screeplot(pca,
 
 How many PCs appear optimal to you based on the scree plot?
 
-> Your answer here.
+> It looks like 5 PCs is a decent cutoff, as that is the last stark dropoff before flattening out, though the overall plot is relatively gradual so the cutoff could be earlier at 3 PCs, though that doesn't capture much variance at all. Though holding out for 80+% variance until the 11th PC is not feasible if you actually want to reduce dimensionality.
 
 4. People often mis-write scree (I've even accidentally done it) as SCREE, as if it's an acronym like AUROC or ROC or even PCA. But it's not. Why is it called a scree plot? (**Hint**: It may not be what you expect!)
 
-> Your answer here. 
+> I think it comes from geology? A scree is a cliff face that drops off quickly then turns into a more gradual decline as the smaller rocks tumble down. 
 
 ### 5.1.2 Variable loadings and contributions
 
@@ -1396,12 +1400,12 @@ fviz_pca_biplot(pca,
              geom = "point",
              geom.var = "text",
              addEllipses = TRUE,
-             ellipse.alpha = 0.5,              ## Change alpha 0-1
+             ellipse.alpha = 0.25,              ## Change alpha 0-1
              col = "black",
              col.var = "black",
              habillage = returnHospitalComparison,
-             select.var = list(contrib = 1),   ## Try changing the number
-             repel = T)                        ## Try switching to FALSE
+             select.var = list(contrib = 15),   ## Try changing the number
+             repel = FALSE)                        ## Try switching to FALSE
 ```
 
 This biplot (Figure above) shows that, on principal components 1 and 2 (the PCs that account for the __most__ variance in the training data) there is subtle but noticeable grouping of hospitals in terms of how long their readmitted pneumonia patients stayed in the hospital. I have chosen to display the __#1__ feature that contributes to that variance, `Communication.about.medicines`. 
@@ -1430,11 +1434,11 @@ Each quadrant on a PCA biplot corresponds to a different directional influence o
   - Thus points here are associated with variables pointing _into_ this quadrant
   - May indicate a contrast with Quadrant II on PC2
 
-#### **Question 22**: [1 point]
+#### **Question 22**: [1 point] - NL
 
 Play around with the graphical parameters in the biplot, especially those I've marked with comments. Try adding, for example, more variables to display rather than just the top contributor. **NOTE** that if you find variables in the same quadrant together, this means that they are correlated. What variable(s) can you find that **contrast** with `Communication.about.medicines`?
 
-> Your answer here.
+> There are a lot that seem to be correlated with "Communication.about.medicines." The two variables that most directly contrast with "Communication.about.medicines" (i.e., have a strong negative loading on PC1 and a slight positive loading on PC2) are "bc_PredictedReadmissionRate," and "MedicareSpendingPerPatient." The contrast with "bc_PredictedReadmissionRate" may suggest that better communication about medicines leads to reduced readmission rates for pneumonia patients (and/or vice versa).
 
 Now, look at the contributions to PCs 1 and 2 (Figure Below) from the variables in the training dataset. Anything above the dotted red-line contributes **significantly** to the overall explanation of variance, and anything below the dotted line does not. Does anything about this plot stand out to you?
 
@@ -1442,7 +1446,7 @@ Now, look at the contributions to PCs 1 and 2 (Figure Below) from the variables 
 
 **HINT 2**: Where does the target, `PredictedReasmissionRate`, fall among the significant variables?
 
-> Your answer here.
+> Many of these top contributors come from the same survey response data, and generally point to patients having a 'good experience' or not. There are surprisingly few concrete, measureable metrics that contribute significantly, like MRSA, veinous thromboembolism prophylaxis, etc. "PreductedReadmissionsRate" falls right on the threshold of significant and insignificant.
 
 ```{r, echo=FALSE, fig.width=8, fig.height=8, fig.cap="Figure 12. Variables that Significantly Explain Variance."}
 fviz_contrib(pca, 
