@@ -708,7 +708,7 @@ miceMatrix$mm[1:6, 1:4] %>%
 
 Similarly, `miceMatrix$mm[i, j]` gives us the number of cases where both variables $i$ and $j$ were co-missing.
 
-#### **Question 11A**: [0.5 points]
+#### **Question 11A**: [0.5 points] - TT
 Explain what you think the number in cell $[6,1]$ means. Out of all the observations in the dataset, does this feel like a high degree of co-missingness?
 
 > Your answer here.
@@ -791,25 +791,25 @@ paste0(c("Rows: ", "Columns: "), dim(dat2Analyze))
 ```
 
 
-#### **Question 12**: [0.5 points]
+#### **Question 12**: [0.5 points] - NL
 Thinking back to your answer to Question 12, do you feel any differently given these dimensions of the dataset?
 
-> Your answer here.
+> When the overall size of the dataset diminishes like that, the number of co-missing and missing-responded data points makes up a more substantial portion of the data. However, since we are removing all data with a missing PredictedReadmissionRate, the co-missing values for concerning data like MRSA Bacteremia will also be removed. Though the number of missing-responded data points with MRSA and PredictedReadmissionRate is still very high, similar to the rate of comissing values prior to removal.
 
 ## 3.4 Do the splits! 
 
 At this stage, we are almost ready to __impute__ - but not until we have done our data partitioning first! In fact, splitting our data into training and testing partitions first is really important to prevent __data leakage__.
 
-#### **Question 13**: [1 point]
+#### **Question 13**: [1 point] - NL
 Explain to your stakeholder, in simpler language, (1) why we partition data into testing and training sets and (2) what data leakage is. You do not need to go into great detail, but it should explain enough that they understand the basic ideas.
 
-> Your answer here.
+> The training data will be used for exactly that, training the model. Think of the test set as data we don't have yet. It's essentially simulating future data collected or future scenarios you would implement this model on. You wouldn't need a model if you could predict the future. Similarly, a model that is told the answer by being given the 'future' (test) data will be worse for your use case. It's like if you're cheating on a test: you don't learn as much when you're given the right answers from the start, so you'll be worse off when you eventually get to something you haven't been given the answers for.
 
 You may recall that I mentioned that the optimal ratio is has been argued to be $\sqrt{p} : 1$, where $p$ is the number of parameters (which may or may not equal your predictors depending on your planned analysis). Note that you do not have to split only a single time; you could make different splits for different analyses, if needed. However, we are going to use a single split here for convenience. 
 
 Now, wouldn't it be nice to have a handy function that could calculate the optimal split ratio for us? So, let's write one! This is something you can use with ANY analysis going forward!
 
-#### **Question 14A**: [1.5 points]
+#### **Question 14A**: [1.5 points] - NL
 There are three parts to this question to get it to all come together correctly. 
 
 1. Comment the function to explain what it does (I've defined the arguments for you)
@@ -823,45 +823,45 @@ calcSplitRatio <- function(p = NA, df) {
   ## @p  = the number of parameters. by default, if none are provided, the number of columns (predictors) in the dataset are used
   ## @df = the dataframe that will be used for the analysis
   
-  ## COMMENT HERE
+  ## This if statement is set up to check if the number of parameters is not provided.
   if(is.na(p)) {
-    p <- ncol(df) -1   ## COMMENT HERE
+    p <- ncol(df) -1   ## The if statement triggers this line if the number of parameters is not provided, defaulting to the number of columns in the dataframe minus 1 (the target variable). This does not account for a rownames column if that is in the dataset, so inputting p manually is best practice.
   }
   
-  ## COMMENT HERE
+  ## This calculates the number of samples contained within the test set by multiplying the proportion of 1: sqrt(p) by the total sample size, represented by the number of rows in the data set.
   test_N <- (1/sqrt(p))*nrow(dat2Analyze)
-  ## COMMENT HERE
+  ## This line calculates the proportion of the sample size that should be ascribed to the test set, rather than the raw number.
   test_prop <- round((1/sqrt(p))*nrow(dat2Analyze)/nrow(dat2Analyze), 2)
-  ## COMMENT HERE
+  ## This subtracts the proportion ascribed to the test set from 1 to get the proportion ascribed to the training set.
   train_prop <- 1-test_prop
   
-  ## COMMENT HERE
+  ## This prints out the proportion values neatly for interpretation sake.
   print(paste0("The ideal split ratio is ", train_prop, ":", test_prop, " training:testing"))
   
-  ## COMMENT HERE
+  ## This outputs the training proportion as a value that can be stored in an object/etc.
   return(train_prop)
 }
 
 ## Fill in the blanks to run:
-# train_prop <- ___(df = ___)
+train_prop <- calcSplitRatio(df = dat2Analyze)
 ```
 
 **Hint**: One important note here is that if the number of parameters are not provided (which is true for the starter code I gave you to run it - it does NOT pass any parameters to that argument!), then by default our function is designed to take the number of columns of the dataframe and subtract one for the target variable. Neat, huh?
 
 Now, uncomment this code and fill it out to run it. 
 ```{r}
-# ind <- createDataPartition(dat2Analyze$___,   ## Put the target here!
-#                            p = ___,           ## Use the object you just made!
-#                            list = FALSE)
-# 
-# train <- dat2Analyze[___, ]
-# test <- dat2Analyze[-c(ind), ]
+ind <- createDataPartition(dat2Analyze$PredictedReadmissionRate,   ## Put the target here!
+                            p = train_prop,           ## Use the object you just made!
+                            list = FALSE)
+ 
+train <- dat2Analyze[ind, ]
+test <- dat2Analyze[-c(ind), ]
 ```
 
-#### **Question 14B**: [0.5 points]
+#### **Question 14B**: [0.5 points] - NL
 What split ratio did you get? Is it close to the canonical 80-20 split? Why do you think that happened?
 
-> Your answer here.
+> I got a 0.82:0.18 training:testing split. This is very close to the 80-20 split. The 80-20 split is 'canonical' for a reason I presume, it is likely close to a lot of the ideal splits for datasets of a 'typical size' which I would argue this set is. I'd expect more deviation from that split as the sample size approaches the extremes.
 
 
 __Did you get stuck somewhere?__ If so, load the `test` and `train` data in case you struggled with Question 18 so you can proceed:
