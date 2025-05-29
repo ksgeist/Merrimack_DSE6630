@@ -1148,14 +1148,30 @@ qqline(readyTrain$bc_PredictedReadmissionRate,
 
 Can you see what it did to the distribution? __look closely__, if not. It's subtle but discernible!!
 
-#### **Question 19B**: [1.5 points]
+#### **Question 19B**: [1.5 points] - NL
 Now repeat all of the steps to perform a Box-Cox transform on your own to the `imputedTest` data. Why must we (1) also transform the test data and (2) __use the same $\lambda$ as the training data__?
 
-> Your answer here.
+> We must transform the test data as well to make sure that the two sets are on the same scale. Otherwise they are inherently no longer comparable and our model will have significant issues when predicting the test set. We cannot derive a new lambda from the test set as that would introduce another avenue for data leakage for the model. 
 
 ```{r}
-# Your code here.
+bc_test <- BoxCoxTrans(readyTest$PredictedReadmissionRate)
+print(paste0("Box-Cox lambda =  ", bc_data$lambda))
 
+readyTest$bc_PredictedReadmissionRate <- predict(bc_data, readyTest$PredictedReadmissionRate)
+
+ggplot(readyTest, aes(x = bc_PredictedReadmissionRate)) +
+  geom_histogram(alpha = 0.6, 
+                 fill = "hotpink",
+                 color = "hotpink") +
+  theme_minimal() +
+  labs(title = "Box-Cox Transformed Predicted Readmission Ratio, N = 2,726 hospitals",
+       y = "Frequency",
+       x = "Predicted Readmission Ratio")
+
+
+qqnorm(readyTest$bc_PredictedReadmissionRate)
+qqline(readyTest$bc_PredictedReadmissionRate, 
+       col = "hotpink", lty = 2, lwd = 2)
 # Make sure to check that your transform looks successful!
 ```
 
@@ -1178,11 +1194,18 @@ readyTrain <- readyTrain %>%
   data.frame()
 ```
 
-#### **Question 19C**: [0.5 points]
+#### **Question 19C**: [0.5 points] - NL
 Do the same for your test data. Make sure to use `readyTest` and overwrite it. 
 
 ```{r}
-## Your code here.
+readyTest <- readyTest %>% 
+  ## Drop the original target variable
+  select(-PredictedReadmissionRate) %>% 
+  ## Make anything that might still be a factor from encoding is back to number
+  mutate_if(is.factor, as.numeric) %>%
+  ## Center and scale everything!
+  scale(center = TRUE, scale = TRUE) %>% 
+  data.frame()
 ```
 
 **Hint**: Make sure to turn your centered, scaled __matrix__ back into a dataframe! By default, it creates a matrix.
