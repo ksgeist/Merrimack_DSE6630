@@ -441,12 +441,11 @@ longHCAHPS <- pneumoniaAnalyzeNoEncoding %>%
 ```
 
 
-#### **Question 5**: [1 point]
+#### **Question 5**: [1 point] 
 
 Again, you task is to change the __y-axis__ out for _each of the four readmission rates. `Predicted Readmission Rates` has been started for you. Re-run the chunk and compare the results. **FOR FULL CREDIT** you must leave the graph on the choice you feel most strongly about AND update the title of the graph with which of the four possible readmission rates you chose. Explain below why you chose this one. 
 
 > Your answer here.
-
 Hospitals with higher patient satisfaction, especially in nurse/doctor communication, tend to have lower excess readmission ratios. The contact kept with the doctor ensures that any issues that arise are quikcly addressed without the need for readmission.  On the other hand, cleanliness might not show a strong link to pneumonia-related readmissions because these readmissions often relate more to a personal decision to enter and stay at the hospital, as opposed to an infection, which keeps you there.  I still feel most strongly about 'Excess Readmission Ratio' due to how the data fits the plots well and due to the same reasons as above showinf similar patterns in these scatterplots.
 
 **HINT 1**: What does higher nurse and doctor communication mean for improved patient outcomes, including readmission?
@@ -1498,10 +1497,10 @@ grid.arrange(p6, p7, p8, p9, nrow = 2)
 
 ##### Figure 13. Biplots showing possible k clusters
 
-#### **Question 23A**: [0.5 points]
+#### **Question 23A**: [0.5 points] -KB
 Which number of clusters, $k$, do you think has the best explanatory power? Why? Is it is hard to tell?
 
-> Your answer here
+> By looking at the Biplots, it seems that K = 2 or K = 3  has the best explanatory power. I think that K = 3 is slightly better than K = 2, there are still another subgroup present and it has a good balance of simplicity and very strong explanitiory power. In our case, we dont need to many subgroups from finding pnemonia readmission rate. K = 3 also avoids overfitting and shows the structure of the data well. 
 
 ### 5.2.3 Within-sum-of-squares (WSS) elbow method
 
@@ -1516,11 +1515,11 @@ fviz_nbclust(readyTrain,
   labs(title = "WSS Elbow Method for Optimal k")
 ```
 
-#### **Question 23B**: [1 point]
+#### **Question 23B**: [1 point] - KB
 
 What is the __within sum of squares__ and what exactly is it measuring here? By the elbow method, which $k$ is the optimal number of clusters? Did it agree with your choice from the other heuristic method?
 
-> Your answer here
+> The 'within sum of square' is a measure of the total distance between each data point and the centroid of the cluster it belongs to (cluster compactness). In measuring terms, it is the sum of squared Euclidean distances from each point to its cluster's center. In the above plot, it is used to apply the elbow method where we are trying to find the point where the decrease in WSS begins to level off (elbow), which suggests that adding more clustters beyond this point would yield diminishing returns in explaining variance. By looking at the plot, the WSS drops from k = 1 to k = 2 or 3, after which the rate of decrease slows down. The "elbow" appears most noticeably at k = 2. This means that adding clusters after this point doesnt reduce the WSS, making K = 2 the optimal number of clusters. Yes, it did agree with my choice from the other heuristic method. 
 
 ### 5.2.3 Silhouette method
 
@@ -1537,11 +1536,12 @@ fviz_nbclust(readyTrain, kmeans, method = "silhouette",
   labs(title = "Silhouette Method for Optimal k")
 ```
 
-#### **Question 23C**: [0.5 points]
+#### **Question 23C**: [0.5 points] - KB
 
 Are you surprised at the optimal $k$ from the silhouette method? Does it seem to agree with what you've seen with the WSS elbow method? (**Hint**: agreement generally suggests evidence that you have found the optimal $k$).
 
-> Your answer here
+> Looking at the silhouette method, the optimal K = 2. I am not suprised by this becuase the results agree with what I was seeing with the WSS elbow method and visual inspection. Looking at our goal, simple with not too much overfitting seems good in our case of looking at pneumonia readmission rates, since we are looking at good and not so good hospitals, and we can get this with K = 2.
+
 
 Lastly, let's extract the optimal $k$ from the silhouette method.
 
@@ -1550,6 +1550,7 @@ Lastly, let's extract the optimal $k$ from the silhouette method.
 clusterData <- fviz_nbclust(readyTrain, kmeans, method = "silhouette")$data
 ## Then extract the maximum y
 k <- as.numeric(clusterData$clusters[which.max(clusterData$y)])
+k
 ```
 
 
@@ -1557,27 +1558,27 @@ k <- as.numeric(clusterData$clusters[which.max(clusterData$y)])
 
 As we said before, the goal of segmentation analysis is to broadly cluster our hospitals by their features to help us characterize them. 
 
-#### **Question 24**: [1 point]
+#### **Question 24**: [1 point] -KB
 Let's explore the clusters - segments - of the hospitals based on their average values from the __original__ dataset (we start from `imputedTrain`, which hadn't yet been transformed, centered, or scaled, BUT the multicollinear variables also haven't been dropped either). Your task is to add comments to this code chunk. 
 
 ```{r, echo = TRUE, fig.height = 8, fig.width=6, fig.cap="Figure 16. Boxplot Comparisons of Important Variables by Cluster"}
-## COMMENT HERE
+## This runs k-means clustering on the transformed dataset
 kmeansResult <- kmeans(readyTrain, 	
-                         centers = k,      ## COMMENT HERE
+                         centers = k,   ## sets the number of clusters
                          nstart = 50,      
                          iter.max = 1000,  
                          algorithm = "MacQueen")
-## COMMENT HERE
+## Creates a new version of the original dataset with clusters attached
 kmeansTrain <- imputedTrain %>% 
   ## Rename the column we want to keep
   rename(Pneumonia.Hospital.Return.Days = `ComparedToNational_Hospital return days for pneumonia patients`) %>% 
-  ## COMMENT HERE
+  ## Drops multicollinear variables, comparison scores, payment categories, and survey response rate
   select(-any_of(vifOver5), -contains("Compared"), -contains("PaymentCategory"), -SurveyResponseRate) %>% 
-  ## COMMENT HERE 
+  ## Adds cluster assignment as a new variable and makes pneumonia return days column numeric
   mutate(Cluster = kmeansResult$cluster,
          Pneumonia.Hospital.Return.Days = as.numeric(if_else(Pneumonia.Hospital.Return.Days == "1", 1,
                                                      if_else(Pneumonia.Hospital.Return.Days == "0", 0, -1)))) %>% 
-  ## COMMENT HERE
+  ## Cleans column names to lowercase with words separated by underscores for easier handling
   clean_names()
 
 ## Using % contribution graph, the order of the top 10:
@@ -1592,25 +1593,25 @@ pcaImportantVars <- factor(c("Communication.about.medicines",
                        "Predicted.Readmission.Rate",
                        "Pneumonia.Hospital.Return.Days"))
 
-## COMMENT HERE
+## Converts variable names to lowercase for consistent formatting
 pcaImportantVars <- tolower(pcaImportantVars)
-## COMMENT HERE
+## Replaces periods with underscores
 pcaImportantVars <- gsub("\\.", "_", pcaImportantVars) %>% 
-## COMMENT HERE
+## Converts to title case for better readability in plots
   to_any_case("title")
 
-## COMMENT HERE
+## Creates boxplots to see important variables across clusters
 kmeansTrain %>% 
-  ## COMMENT HERE
+  ## Renames long variable names to readable format 
   rename(Predicted.Readmission.Rate = predicted_readmission_rate,
          Periop.Rate.Of.Embolism.Or.Thrombosis = perioperative_pulmonary_embolism_or_deep_vein_thrombosis_rate) %>% 
-  ## COMMENT HERE
+  ## Converts column names to title case, clean presentation for plots
   clean_names(case = "title") %>% 
-  ## COMMENT HERE
+  ## Selects only the cluster column and the top 10 important variables
   select(Cluster, any_of(pcaImportantVars)) %>% 
-  ## COMMENT HERE
+  ## Reshapes the data into long format
   pivot_longer(-1, names_to = "Measure", values_to = "Value") %>% 
-  ## COMMENT HERE
+  ## Sets order of the measures so they display consistently in plot
   # filter(Measure %in% pcaImportantVars) %>% 
    mutate(Measure = factor(Measure, levels = to_any_case(c("Communication.about.medicines",
                         "Doctor.communication", 
@@ -1622,7 +1623,7 @@ kmeansTrain %>%
                         "Periop.Rate.Of.Embolism.Or.Thrombosis",
                         "Predicted.Readmission.Rate",
                         "Pneumonia.Hospital.Return.Days"), case="title"))) %>% 
-  ## COMMENT HERE
+  ## Create boxplots to compare distributions of each measure across clusters
     ggplot(aes(x = Cluster, y = Value, fill = as.factor(Cluster))) +
     geom_boxplot(alpha=0.75) +
     scale_fill_manual(values = c(skittles[1], skittles[6])) +
@@ -1635,21 +1636,21 @@ kmeansTrain %>%
         legend.text = element_text(size = 8),
         legend.title = element_text(size = 10),
         title = element_text(size = 12, color = "maroon")) + 
-    ## COMMENT HERE
+    ## Separates the plots by measure, adjusting scales individually and arranging them in 2 columns
     facet_wrap(~ Measure, 
              scales = "free_y",
              ncol = 2)
 
-## COMMENT HERE
+## Making a summary stats table for each cluster with mean and median of each important variable
 kmeansTrain %>% 
-  ## COMMENT HERE
+  ## Renames the key variables to match the clean names
   rename(Predicted.Readmission.Rate = predicted_readmission_rate,
          Periop.Rate.Of.Embolism.Or.Thrombosis = perioperative_pulmonary_embolism_or_deep_vein_thrombosis_rate) %>% 
-  ## COMMENT HERE
+  ## Cleans names to title case for better display
   clean_names(case = "title") %>% 
-  ## COMMENT HERE
+  ## Selects only cluster and important variables
   select(Cluster, any_of(pcaImportantVars)) %>% 
-  ## COMMENT HERE
+  ## Creates a summary table grouped by cluster
   tbl_summary(by = "Cluster",
               statistic = list(all_continuous() ~ c("{mean} ({median})"))) %>% 
   modify_header(label ~ "Variable",
@@ -1660,7 +1661,7 @@ kmeansTrain %>%
 
 **HINT**: If these are back to the _original_ values, this is more interpretable for our stakeholder. We will now read this just like a typical boxplot; for example, median (the middle line) `Doctor Communication` seems higher in **Cluster 1** than it does in **Cluster 2** with only some overlap in the distributions (the boxes and whiskers don't really overlap each other). The table confirms this; the median `Doctor Communication` score is 91% in Cluster 1 but only 88% in Cluster 2.   
 
-#### **Question 25**: [2 points]
+#### **Question 25**: [2 points] -KB
 Notice, for example, that Cluster 1 hospitals seem to include the hospitals that had the __lowest__ pneumonia-related readmission rates, with the average rate ~2% higher in Cluster 2 hospitals. Thus, for our stakeholder, we might decide to rename Cluster 1 as "Highest Performing Hospitals" or something along those lines. Notice also that this cluster had more __below__ national average return hospital days (a "1"). This means that they had more readmitted pneumonia patients who spent less time in the hospital upon readmission than the national average. 
 
 Look at how else you might broadly characterize - or segment - these hospitals. Your job is to make a table for your client, summarizing each of the two clusters with FOUR primary criteria. Make sure to give each cluster an informative name as I did; you're welcome to rename Cluster 1 if you think of a catchier name than I chose!
@@ -1672,12 +1673,12 @@ dict <- tribble(
 ~`Top Defining Attributes`, ~`Description`,
 "Predicted Pneumonia-related hospital readmissions", "These hospitals have a lower readmission rate, suggesting that hospitals in this cluster may be better at diagnosing and treating pneumonia",
 "Return hospital days due to pneumonia", "Readmitted patients spend below the national average number of days in hospital, suggesting these hospitals are able to more quickly treat and stabilize pnuemonia patients", 
-"FILL ME IN", "FILL ME IN",
-"FILL ME IN", "FILL ME IN",
-"FILL ME IN", "FILL ME IN",
-"FILL ME IN", "FILL ME IN",
-"FILL ME IN", "FILL ME IN",
-"FILL ME IN", "FILL ME IN"
+"Doctor communication", "These hospitals have higher provider to patient communication, suggesting that doctors at these hospitals might be better at underdtanding the needs of their patients therefore are able to provid better care",
+"Cleanliness and Quietness", "These hospitals scored higher on cleanliness and quietness, suggesting that they are indicators of a comfortable, sanitary, and overall controlled environment",
+"Predicted Pneumonia-related hospital readmissions", "These hospitals have a higher readmission rate, suggesting that they are less effective at pneumonia treatment and or discharge planning",
+"Return hospital days due to pneumonia", "These hospitals have a greater proportion of patients that spend average or more days in the hospital on readmission, suggesting that they might have more severe complications or less efficient care",
+"Communication about medicines", "These hospitals have less effective communication about medications, which can lead to confusion and inproper treatment",
+"Patient safety indicators", "These hospitals have higher Composite safety scores, suggesting that there are more safety related incidents and or complications"
 )
 
 dict %>% 
@@ -1685,7 +1686,7 @@ dict %>%
     format = "html",
     caption = "Table 9. Hospital segmentation analysis: three types of broad groupings identified.") %>%
     pack_rows("1: Highest Performing Hospitals", 1, 4) %>%
-    pack_rows("2: NAME ME!", 5, 8) %>%
+    pack_rows("2:  Struggling Hospitals", 5, 8) %>%
     kable_styling(bootstrap_options = c("striped", full_width = F)
   )
 ```
@@ -1694,10 +1695,11 @@ dict %>%
 
 We don't technically have to stop our segmentation analysis here, but we will so that we can focus on other analyses. One thing we might choose to do in the future, for example, is to choose a classification machine learning algorithm to test the predictions based on these  clusters. 
 
-#### **Question 26**: [1 point]
+#### **Question 26**: [1 point] -KB
 Make a recommendation for our client for 1-2 machine learning analyses __your team__ would choose to use to test whether these clusters can be used for robust predictions of hospital performance for pneumonia patients. How would you know whether or not your predictions were robust? What would you look for or compare?
 
-> Your answer here.
+> In order to test whether these clusters can be used to make robust predictions of hospital perfomance for pneumonia patients, I would recommend using the following two machine learning classification models: 1. Random Forest Classifier: which can create models that handle nonlinear relationships and high dimensional data, rank feature importance, and help understand which hospital characteristics best differentiate the clusters. 2. Logistic Regression: which acts as a good basline to compare against more complex algorithms, it provides a simple model, and it can be used to identify linear relationships between hospital attributes and clusters. To evaluate robustness of predictions, we would look at Accuracys, Precisions & Recalls, F1 Scores, Confusion Matrixs, do Cross-validation, and looke at the AUC-ROC Curves. We can compare the models by looking at the performance of the Random Forest vs Logistic Regression. We can look at the model stability across cross-validation folds, look at feature importance (for Random Forest) or coefficients (for Logistic Regression) to make sure that the meaningful variables are driving predictions. If both models perform well and generalize across folds, we can be confident the clusters are predictive and actionable!
+
 
 # 6 Supervised Learning Methods
 
@@ -1732,11 +1734,11 @@ plot(mod, 4)
 
 ##### Figure 17. OLS Regression Assumption Diagnostic Plots
 
-#### **Question 27A**: [1 point]
+#### **Question 27A**: [1 point] - KB
 
 What is your general assessment of our OLS assumptions? Met or unmet? Why? 
 
-> Your answer here.
+> My overall assessment of the OLS assumptions are that most OLS assumptions are reasonably met. Linearity is mostly met, with some minor nonlinear patterns. It looks like there is a slight curve upward. Normality is also mostly met, though a few outliers deviate from perfect normality. Homoscedasticity is met, with no clear funnel shape. No high leverage points is partially unmet, due to 3 influential observations.
 
 **Note:** If you are not entirely sure about the Q-Q plot, you can run a Shapiro-Wilk test on the residuals using the following code:
 
@@ -1748,7 +1750,7 @@ The **most important** OLS assumption for Elastic Net is __linearity of the rela
 
 **Do you find support for linearity here**? Why or why not?
 
-> Your answer here.
+> Yes, there is sufficient support for linearity. The Residuals vs Fitted plot shows residuals mainly centered around zero with no strong patterns, suggesting an overall linear relationship. While there are slight deviations, they are minor and not severe enough.
 
 2. Let's now assess how well our model fits with the adjusted $R^2$.
 
@@ -1757,10 +1759,10 @@ The **most important** OLS assumption for Elastic Net is __linearity of the rela
 summary(mod)$adj.r.squared
 ```
 
-#### **Question 27B**: [1 point] {#rmse}
+#### **Question 27B**: [1 point] {#rmse} - KB
 It is a surprisingly high (although it isn't stellar). You may need to do some outside research, but explain in a sentence or two why, generally speaking, we use **adjusted** $R^2$ and not the unadjusted one (confusingly labeled as `multiple r-squared` in the `summary()` output below). 
 
-> Your answer here.
+> We use adjusted R^2 instead of the unadjusted R^2 because adjusted R^2 accounts for the number of predictors in the model and penalizes for adding variables that do not improve model performance. Unlike the regular R^2 , which always increases when more variables are added, adjusted  R^2 can decrease if the new predictors do not contribute meaningfully to explaining the variance in the outcome. This makes it a more reliable metric for comparing models with different numbers of predictors (James et al., Chapter 3, Section 3.1.2 – "Assessing the Accuracy of the Model.").
 
 3. Find the best model. 
 
@@ -1791,14 +1793,14 @@ predictions <- predict(bestMod, newdata = readyTest)
 
 The Root Square Mean Error ($RMSE$) is the square root of the average of the squared differences between predicted and actual value, such that $RMSE = \sqrt{\frac{1}{n}\sum_{i=1}^n\cdot(y_i-\hat{y}_i)^2}$ where $y_i$ is each observed value, $\hat{y}_i$ is each corresponding predicted value, and $n$ is the number of observations. **NOTE**: Recall that a residual is $y_i-\hat{y}_i$ - the distance between every point and its predicted value! It's also important to realize that the $RMSE$ gives more weight to large errors because of squaring. Thus, it's sensitive to outliers.
 
-#### **Question 27C**: [1 point]
+#### **Question 27C**: [1 point] - KB
 Can you interpret what the RMSE tells your client here? Why or why not? What about the $R^2$?
 
 **Hint 1**: Remember that the outcome here is Box-Cox transformed. Would you need to undo the transformation to be able to assess what the RMSE (or $R^2$) is actually telling us? Recall that the Box-Cox $\hat{y} = \frac{1}{y^\lambda}$ where our $\lambda = -0.3$ AND we also centered and scaled these data. 
 
 **Hint 2**: Is it practical to undo both transformations? How does that hinder our ability to make an interpretation for our client?
 
-> Your answer here.
+> No, we cannot clearly interpret the RMSE or R^2 in practical terms for the client without undoing the Box-Cox transformation, centering, and scaling of the outcome variable. The outcome variable predicted readmission rate was Box-Cox transformed with λ = −0.3 and then standardized, so the RMSE reflects error on a transformed scale rather than in the original percentage units, making it uninterpretable. Also, the R^2 value of 0.398 indicates that the model explains about 40% of the variance in the transformed and standardized readmission rate, but this does not directly reflect how much variance is explained in the original, real-world percentage scale. However, we can use them to compare model performance internally across the different models, assuming the outcome remains consistently transformed.
 
 Lastly, let's graph the effect predictive ability of our OLS model by comparing the relationship between the **true** values of `bc_PredictedReadmissionRate` from the `readyTest` dataset to the predictions we made using the model on the testing data.
 
@@ -1876,14 +1878,17 @@ elasticMod <- train(bc_PredictedReadmissionRate ~ .,
                     trControl = ctrl) 
 ```
 
-#### **Question 28**: [1 point]
+#### **Question 28**: [1 point] - KB
 Explain what we are doing here. You may want to look up the parameters of the `trainControl()` and `train()` functions. Make sure to address what type of CV and hyperparameter search is being performed, as well as if both the $\alpha$ and $\lambda$ hyperparameters of elastic net are being tuned. 
 
 **Hint 1**: Why are we doing cross-validation, and specifically why did I choose the one I did?
 
 **Hint 2**: What does $\lambda = 0$ mean? How about $\alpha = 0$? 
 
-> Your answer here.
+> We are using repeated 5-fold cross-validation with grid search to train an Elastic Net regression model, simultaneously tuning both:
+$\alpha$, which balances L1 (LASSO) and L2 (Ridge) penalties, and
+$\lambda$, which controls the overall strength of the regularization.
+This approach helps mitigate overfitting, addresses multicollinearity, and selects the most predictive features, making the final model more robust and interpretable.
 
 
 ### 6.2.3 Elastic Net Results
@@ -1916,10 +1921,10 @@ $\lambda$:
 elasticMod$bestTune$lambda
 ```
 
-#### **Question 29**: [1 point]
+#### **Question 29**: [1 point] - KB
 Check the values of $\alpha$ and $\lambda$ here. What do they suggest about the optimal regularization that is being fit here? (Recall that when both $\alpha$ and $\lambda$ are zero, it's an OLS regression!)
 
-> Your answer here.
+> With the values of $\alpha$ and $\lambda$ both being 0, these values suggest that no regularization is being applied at all. The Elastic Net tuning process confirms that OLS regression performs just as well or better than regularized models in this case under the current transformations and data conditions. So, therefore regularization wasn't necessary but testing for it can still be valuable.
 
 Let's also plot the results of the tuning search. Can you figure out the type of tuning search you did? (**Hint**: the visual pattern should confirm your answer from earlier!) The diamond denotes the best combination of hyperparameters!
 
@@ -1966,17 +1971,18 @@ important %>%
   scale_fill_continuous(low = "#DCCAE3", high = "#C00E50") +
   coord_flip() +
   theme_minimal() +
-  labs(title = "Feature importance as determined by \nElastic Net",
+  labs(title = "forb ",
        x = "",
        y = "Importance", 
        fill = "")
 ```
 
-#### **Question 30**: [1 point]
+#### **Question 30**: [1 point] - KB
 
 Which of the features were most important? How does this compare to the most important features out of OLS regression? Make sure you're looking at the __absolute value of the beta coefficients to assess importance in OLS regression__. 
 
-> Your answer here.
+> The most important features from the Elastic Net were Hospital return days for pneumonia patients, Medicare spending per patient, Death rate for pneumonia patients, State, and Venous Thromboembolism Prophylaxis. The most important features from the from the OLS Regression (looking at the absolute values) were Hospital return days for pneumonia patients: |–0.396|, Medicare spending per patient: |0.167|
+Death rate for pneumonia patients: |–0.154|, Venous Thromboembolism Prophylaxis: |0.101|, State: |0.110|. We can see that the most important features in Elastic Net match exactly with the top 5 in OLS regression, based on the absolute value of the coefficients. This shows that there is a strong consistency between the two models in terms of finding the influential predictors.
 
 How about about of PCA? You may have already noticed that importance almost seems inverted! Why?!
 
@@ -1986,7 +1992,9 @@ How about about of PCA? You may have already noticed that importance almost seem
 
 **Hint 3**: What does the sign of the loadings mean in a PCA? Are they actual or arbitrary?
 
-> Your answer here.
+>  PCA and regression measure importance differently because they have different overall goals. Regression will find features that best predict the outcome (Y), so importance is based on the size of the effect on Y.
+PCA finds features that explain the most variance in the predictors (X), while ignoring the outcome, so importance is based on how much a feature varies across samples. Also, the signs of PCA loadings are arbitrary and don’t indicate direction like regression coefficients do. Because of this, a feature can be very important for predicting the outcome (high regression coefficient) but not vary much (low PCA loading), or the other way around, overall making importance seem inverted between the two methods (Jolliffe, 2002). 
+
 
 #### 6.2.3.2 Check model performance
 
@@ -2018,12 +2026,13 @@ rbind(prOLS, prElastic) %>%
 
 #### 6.2.3.3 Check for overfitting/underfitting
 
-#### **Question 31**: [1 point]
+#### **Question 31**: [1 point] - KB
 
 Using the same method, check for overfitting / underfitting. Make predictions using `readyTrain` rather than `readyTest`, and then check how the RMSE on the training data compares to the RMSE of the training data for the Elastic Net. How do they compare? (Recall what we discussed when we did the gene expression demo: the relationship of the test vs. training accuracy can be used to assess overfitting/underfitting. The same logic applies to RMSE too!) __How do both compare to what we got out of the OLS regression?__ Which would you say is the better predictive model, the OLS regression or the Elastic Net? Why?
 
-> Your answer here.
+> It looks like the training and test RMSE values for both models are almost identical: RMSE = 0.78 on training and RMSE = 0.81 on testing. Since there is such a small difference, it suggests that neither model is overfitting or underfitting. Since both have almost similar performances on both the traing and test sets, I would say that Elastic Net is still preferred. It has built in regularization which can prevent overfitting when the dataset has many features or has multicollinearity. It also produces a more stable and interpretable models where there is more complexity. 
 
+# Original code
 ```{r}
 ## Post-resample on OLS
 prOLS <- postResample(pred = predict(mod, newdata = readyTrain), 
@@ -2032,6 +2041,20 @@ prOLS <- postResample(pred = predict(mod, newdata = readyTrain),
 ## Post-resample on Elastic Net
 prElastic <- postResample(pred = predict(elasticMod, newdata = readyTrain), 
                       obs = readyTest$bc_PredictedReadmissionRate)
+```
+
+
+# Fixed code by Krisha Bugajski, since original was giving NA values. The issue was using the training data as the input (newdata = readyTrain), but still comparing predictions to the test data's observed values (obs = readyTest$bc_PredictedReadmissionRate). 
+```{r}
+## Post-resample on OLS (fixed)
+prOLS <- postResample(pred = predict(mod, newdata = readyTrain), 
+                      obs = readyTrain$bc_PredictedReadmissionRate)
+
+## Post-resample on Elastic Net (fixed)
+prElastic <- postResample(
+  pred = predict(elasticMod, newdata = readyTrain), 
+  obs = readyTrain$bc_PredictedReadmissionRate
+)
 ```
 
 ```{r, echo=FALSE}
@@ -2079,7 +2102,9 @@ What conclusions do you make at this point about whether to make predictions wit
 
 **HINT**: Make sure to ask yourself whether these data appear linear or not. Could non-linearity be a cause for a low $R^2$? If not, what other causes are there and how will that impact your recommendations?
 
-> Your answer here.
+>  We can see that both the OLS and Elastic Net models are performing very similarly. They both show consistent results between the training and testing data, which is a good sign. It means they are not overfitting or underfitting. However, they are only explaining about 35–40% of the variation in readmission rates. That means that while the models are stable, they’re not strong predictors. Between the two models, Elastic Net may still be the better option because it can handle data that is more complex and also reduce noise from the variables that are less useful. Overall, neither model is giving us the level of accuracy we would want to have to have confident predictions.
+There might be a few posibilities for that. One possibility is that the relationship between the predictors and readmission rates isn’t actually linear, and both OLS and Elastic Net assume a linear relationship. As we saw earlier with the OLS Regression Assumption Diagnostic Plots, linearity was mostly met, with some minor nonlinear patterns. There was a slight upward curve in the Residuals vs. Fitted graph. To help with this, using more flexible models like random forests, boosted trees, or other nonlinear models might help to see patterns that are missing. 
+Also, looking further at the data to see if ther might have been important factors that are not be captured in the current model. Expanding the dataset with additional variables that could impact readmission rates could lead to stronger, more accurate predictions.
 
 # 7 Choose Your Own Adventure
 
@@ -2143,4 +2168,8 @@ Alternatively, if you're choosing Adventure 3, maybe you just choose to add on t
 Just make sure to answer the questions well,and make sure to justify the decisions you make. Tell me WHY you're choosing the condition(s) you are in Adventures 1 or 2, or Tell me WHY you're doing the analyses you are in Adventure 3. Other than that, make this your own learning adventure!
 
 # References
+
+James, G., Witten, D., Hastie, T., & Tibshirani, R. (2021). An Introduction to Statistical Learning (2nd ed.). Springer.
+
+Jolliffe, Ian T. Principal Component Analysis. Springer Series in Statistics, 2002.
 
