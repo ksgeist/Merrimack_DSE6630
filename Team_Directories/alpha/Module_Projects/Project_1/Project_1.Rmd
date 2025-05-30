@@ -914,17 +914,17 @@ load(file = "FY2024_data_files/imputedTrain.Rdata")
 
 ```{r, echo = FALSE, include = TRUE}
 # Show a quick summary of the results
-data.frame(imputedTrain$OOBerror, names(temp)) %>% 
-  rename(Variable = `names.temp.`,
-         `OOB Error` = imputedTrain.OOBerror) %>% 
+#data.frame(imputedTrain$OOBerror, names(temp)) %>% 
+#  rename(Variable = `names.temp.`,
+#         `OOB Error` = imputedTrain.OOBerror) %>% 
 ## Print the columns
-  kable(digits = 2,
-    format = "html",
-    caption = "Table 6. missForest OOB Error Rates for the imputed variables, training dataset") %>%
-    pack_rows("MSE", 1, 22) %>%
-    pack_rows("PCF", 23, 28) %>%
-    kable_styling(bootstrap_options = c("striped", full_width = F)
-)
+#  kable(digits = 2,
+#    format = "html",
+#    caption = "Table 6. missForest OOB Error Rates for the imputed variables, training dataset") %>%
+#    pack_rows("MSE", 1, 22) %>%
+#    pack_rows("PCF", 23, 28) %>%
+#    kable_styling(bootstrap_options = c("striped", full_width = F)
+#)
 ```
 
 #### **Question 15**: [1 point] - NL
@@ -2120,24 +2120,31 @@ It's time to choose your adventure! After working through this demo and answerin
 - A natural extension would be to do a Ridge and/or a LASSO; the former would tell you if you should be controlling for multicollinearity more than you currently are, the latter would tell you if you need to further shrink coefficients than you currently are. Additionally, you could consider a regression-based method that incorporates **non-linearity**, such as a random forest. However, you are free to choose anything you think is appropriate here! 
 - Other choices I think you could potentially justify to stakeholders, if you were interested: 
 
-1. Switch to classification-based random forest using `ComparedToNational_Hospital return days for pneumonia patients`
+1. Switch to classification-based random forest using `ComparedToNational_Hospital return days for pneumonia patientsload(file = "FY2024_data_files/readyTrain.Rdata")
+
+load(file = "FY2024_data_files/readyTest.Rdata")`
 
 2. kNN using the 2 clusters we've identified and named in our segmentation analysis
 
 3. Our data are also ready for a neural network analysis (e.g., a feed-forward NN)!
 
+### Data preparation
+```{r}
+shared_cols<-intersect(colnames(readyTrain),colnames(readyTest))
+readyTrain<-readyTrain[,shared_cols]
+readyTest<-readyTest[,shared_cols]
+```
+
+
 ### Ridge Regression
 ```{r}
-#fitting the model matrices
-x <- model.matrix(predictor~., data= )
-x.train <- x[train,]
-y <- College$Apps   #our predictor
-y.train <- y[train]
+x.train <- as.matrix(readyTrain[,-18])
+y.train <- as.matrix(readyTrain[,18])
 
-y_test <- College$Apps[test] 
-
+y.test <- as.matrix(readyTest[,18])
+x.test<- as.matrix(readyTest[,-18])
 #running the ridge model 
-set.seed(7)
+set.seed(42)
 ridge.fit <- glmnet(x.train,y.train,alpha=0)
 cv.ridge.fit <- cv.glmnet(x.train,y.train,alpha=0)
 
@@ -2153,8 +2160,8 @@ bestlam
 
 ```{r}
 #calculating the test error
-ridge.pred <- predict(ridge.fit, s=bestlam, newx=x[test,]) 
-ridge.error <- mean((ridge.pred-y_test)^2)
+ridge.pred <- predict(ridge.fit, s=bestlam, newx=x.test) 
+ridge.error <- mean((ridge.pred-y.test)^2)
 ridge.error
 
 ```
