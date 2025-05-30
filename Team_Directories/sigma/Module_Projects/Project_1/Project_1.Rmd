@@ -653,6 +653,7 @@ What `md.mice()` does is create two pairwise correlation matrices, `mr` and `mm`
 
 Let's take a look at the first 6 rows and 4 columns of the `mr` matrix:
 
+
 ```{r, echo=FALSE}
 miceMatrix$mr[1:6, 1:4] %>% 
   kable(format = "html",
@@ -766,7 +767,7 @@ paste0(c("Rows: ", "Columns: "), dim(dat2Analyze))
 
 
 #### **Question 12**: [0.5 points]
-Thinking back to your answer to Question 12, do you feel any differently given these dimensions of the dataset?
+Thinking back to your answer to Question 9D, do you feel any differently given these dimensions of the dataset?
 
 > MN: Not sure which question I am supposed to reference here for comparison?
 
@@ -777,7 +778,8 @@ At this stage, we are almost ready to __impute__ - but not until we have done ou
 #### **Question 13**: [1 point]
 Explain to your stakeholder, in simpler language, (1) why we partition data into testing and training sets and (2) what data leakage is. You do not need to go into great detail, but it should explain enough that they understand the basic ideas.
 
-> Your answer here.
+> AJ-1.We partition the data into testing and training set so that we can train the model on one portion known as the training set and test how well it performs on new unseen data which is the testing set. It helps to  check whether the model is learning patterns or has memorized the given  data.
+  2.Data leakage is when information from the testing set heavily influences the training process. Thus the model appears to be more accurate than it actually is solely because it is relying on the previously seen answers.
 
 You may recall that I mentioned that the optimal ratio is has been argued to be $\sqrt{p} : 1$, where $p$ is the number of parameters (which may or may not equal your predictors depending on your planned analysis). Note that you do not have to split only a single time; you could make different splits for different analyses, if needed. However, we are going to use a single split here for convenience. 
 
@@ -797,45 +799,51 @@ calcSplitRatio <- function(p = NA, df) {
   ## @p  = the number of parameters. by default, if none are provided, the number of columns (predictors) in the dataset are used
   ## @df = the dataframe that will be used for the analysis
   
-  ## COMMENT HERE
+  ## If no value is provided for p, use  the number of predictors in the dataframe  (excluding the target variable)
   if(is.na(p)) {
-    p <- ncol(df) -1   ## COMMENT HERE
+    p <- ncol(df) -1   ## Subtract 1 assuming the last column is the target variable
   }
   
-  ## COMMENT HERE
+  ## use sqrt(p) rule to calculate the ideal number of test observations 
   test_N <- (1/sqrt(p))*nrow(dat2Analyze)
-  ## COMMENT HERE
+  ## Convert count to a proportion of the dataset
   test_prop <- round((1/sqrt(p))*nrow(dat2Analyze)/nrow(dat2Analyze), 2)
-  ## COMMENT HERE
+  ## Calculate the training proportion
   train_prop <- 1-test_prop
   
-  ## COMMENT HERE
+  ## print the ideal split ratio
   print(paste0("The ideal split ratio is ", train_prop, ":", test_prop, " training:testing"))
   
-  ## COMMENT HERE
+  ## Return the training proportion
   return(train_prop)
 }
 
 ## Fill in the blanks to run:
 # train_prop <- ___(df = ___)
+train_prop <- calcSplitRatio(df = dat2Analyze)
 ```
+
+
+
 
 **Hint**: One important note here is that if the number of parameters are not provided (which is true for the starter code I gave you to run it - it does NOT pass any parameters to that argument!), then by default our function is designed to take the number of columns of the dataframe and subtract one for the target variable. Neat, huh?
 
 Now, uncomment this code and fill it out to run it. 
 ```{r}
-# ind <- createDataPartition(dat2Analyze$___,   ## Put the target here!
-#                            p = ___,           ## Use the object you just made!
-#                            list = FALSE)
-# 
-# train <- dat2Analyze[___, ]
-# test <- dat2Analyze[-c(ind), ]
+
+ind <- createDataPartition(dat2Analyze$PredictedReadmissionRate,   ## Put the target here!
+                           p = train_prop,                         ## Use the object you just made!
+                           list = FALSE)
+
+train <- dat2Analyze[ind, ]        ## Use the index to select training rows
+test <- dat2Analyze[-c(ind), ]     ## Use the complement for testing rows
+
 ```
 
 #### **Question 14B**: [0.5 points]
 What split ratio did you get? Is it close to the canonical 80-20 split? Why do you think that happened?
 
-> Your answer here.
+>AJ- The  split ratio is 82% for training, and 18% for testing which is very close to the canonical 80/20 split. This is because the formula used depends on the  ~ 30 predictors (columns) within the dataset which naturally gives a number close to 80%, leaving the remainder (18%) of the data  to test how well it works.
 
 
 __Did you get stuck somewhere?__ If so, load the `test` and `train` data in case you struggled with Question 18 so you can proceed:
@@ -905,17 +913,24 @@ data.frame(imputedTrain$OOBerror, names(temp)) %>%
 #### **Question 15**: [1 point]
 What does `MSE` (Mean Squared Error) and `PCF` (Proportion of Falsely Classified) indicate here? You may find looking at the `missForest` [Vignette](https://stat.ethz.ch/education/semesters/ss2012/ams/paper/missForest_1.2.pdf) helpful. Which variable(s) had the highest OOB error?
 
-> Your answer here.
+> Since  missForest was used to  fill in missing data, MSE and PCF relects how accurate/innacurate  those imputations are.
+A higher MSE number indicates the guesses for the numerical values were less accurate.The closer PCF is to 0 the better since PCF shows how often the model got it wrong when filling in categorical values, such as labels or groupings.
 
 **NOTE 1**: If the OOB error (either MSE or PCF) from `missForest` is really high, it’s a red flag that the imputation for those variables is untrustworthy. This could be do to too much missingness, weak relationships among the variables making it hard to predict, or low quality data (e.g., noisy, sparse). In such cases, we want to **DROP** any variables with extremely high OOB error because they add noise. A general rule of thumb is that if the PCF > ~0.3 (30% of the imputed values are wrong) or if there is especially high MSE (inflation) relative to the variance of the variable, we should drop it. Let's set those aside so we can drop them from `test` and `train` both downstream! 
 
 **NOTE 2**: Even though the PCF is a bit too high, I am choosing to retain `ComparedToNational_Hospital return days for pneumonia patients` because it is a primary predictor. This could be a poor choice, however! Every decision we make as data scientists can _come with pitfalls_.
 
+
+```{r}
+"Hospital return days for pneumonia patients" %in% names(train)
+
+```
+
 ```{r}
 ## These look okay. Uncomment to see their variances.
 #var(train$`Hospital return days for pneumonia patients`, na.rm = T)
 #var(train$`Median time (minutes) patients spent in ED`, na.rm = T)
-#var(train$`Healthcare workers given influenza vaccination`, na.rm = T)
+var(train$`Healthcare workers given influenza vaccination`, na.rm = T)
 
 cols2drop <- c("Payment for pneumonia patients", "Emergency department volume")
 ```
@@ -923,7 +938,8 @@ cols2drop <- c("Payment for pneumonia patients", "Emergency department volume")
 #### **Question 16**: [1 point]
 Alternatively, we could use MICE (Multivariate Imputation with Chained Equations), which is a method that will model uncertainty along with the variables. Do a little research. How does MICE work? Include a citation to a source.
 
-> Your answer here.
+> MICE (Multivariate Imputation by Chained Equations) is a method for filling in missing data by iteratively modeling each incomplete variable using the others in the dataset. It works by preserving relationships between variables more effectively than simple methods like mean or mode imputation. MICE also accounts for uncertainty in the imputed values and performs well with datasets that contain both numerical and categorical variables.
+van Buuren, S., & Groothuis-Oudshoorn, K. (2011). mice: Multivariate imputation by chained equations in R. Journal of Statistical Software, 45(3), 1–67. https://doi.org/10.18637/jss.v045.i03.
 
 #### 3.5.4 Putting it alllllll back together...
 
@@ -988,9 +1004,17 @@ Quickly explore how well the imputation did by choosing at least one numeric var
 
 ```{r}
 # Your code here.
+# Summary of numeric variable before and after
+summary(train$`Healthcare workers given influenza vaccination`)
+summary(imputedTrain$`Healthcare workers given influenza vaccination`)
+
+# Categorical variable (Frequency table) before and after
+table(train$`ComparedToNational_MRSA Bacteremia`, useNA = "always")
+table(imputedTrain$`ComparedToNational_MRSA Bacteremia`)
+
 ```
 
-> Your answer here.
+> AJ-The numeric variable was well-imputed, with the mean and median values remaining nearly unchanged after imputation, suggesting minimal distortion. However, the categorical variable showed a substantial shift, the imputation process heavily overestimated the neutral category (0) which  significantly altered the balance between the  classes. This suggests that while the numeric imputation performed well, the categorical imputation may have introduced bias and should be interpreted with caution.
 
 ## 3.6 Another Fork in the Road
 It's time, yet again, to make a choice. If you opted to load the __fully encoded__ dataset and everything has been done on that, you will run the first chunk. But if you decided that you wanted to __wait to encode__ the TIME HAS FINALLY COME!
@@ -1001,13 +1025,11 @@ Ultimately, we need to turn the factor features back into numbers for our next a
 
 ```{r}
 ## Uncomment if this is your choice!
-# readyTrain <- imputedTrain %>%
-#   mutate_if(is.factor, as.character) %>% 
-#   mutate_if(is.character, as.numeric)
+readyTrain <- imputedTrain %>%
+mutate_if(is.factor, as.character) %>% 
+mutate_if(is.character, as.numeric)
  
-# readyTest <- imputedTest %>%
-#   mutate_if(is.factor, as.character) %>% 
-#   mutate_if(is.character, as.numeric)
+readyTest <- imputedTest %>% mutate_if(is.factor, as.character) %>%  mutate_if(is.character, as.numeric)
 ```
 
 ### 3.6.2 The Right Fork - Frequency Encoding
@@ -1040,7 +1062,7 @@ if(!is.numeric(imputedTrain$State)) {
 #### **Question 18**: [1 point]
 Because we are now frequency encoding AFTER data partitioning (we did ordinal encoding BEFORE the split for convenience), we absolutely __must__ apply the same encoding map to the `test` set that we did to the `train` set. Explain why, and what should we do if some classes of the variable end up in the `train` that is not in the `test` or vice versa? (**HINT**: Look at the source code!)
 
-> Your answer here. 
+> AJ-FrequencyEncoding() helper function (from source code) builds the frequency map from the training set only.It then applies that map to the test set. If a category exists in the test set but not in the training set, it assigns it a frequency of 1 which is considered to be a safe default.This approach prevents model errors and ensures stability in unseen categories. 
 
 ## 3.7  Transformation & Scaling
 
@@ -1062,7 +1084,8 @@ ggplot(readyTrain, aes(x = PredictedReadmissionRate)) +
 #### **Question 19A**: [1 point]
 Why is a histogram, or even a Q-Q plot, an insufficient way to assess whether a distribution is approximately normal?
 
-> Your answer here.
+> AJ-Histograms and Q-Q plots are helpful tools for data exploring, but they’re not conclusive. For a more objective assessment of normality, visualizations should be paired  with statistical tests and summary measures.These include Shapiro-Wilk test (shapiro.test),Anderson-Darling test, Kolmogorov-Smirnov test (less sensitive), Skewness and kurtosis statistics for shape and Residual analysis in model diagnostics (for regression) and to assess normality assumptions.
+
 
 Now Apply a [Shapiro-Wilk test](https://biostats.w.uib.no/test-for-normality-shapiro-wilks-test/) for normality using the `shapiro.test()` function. What does it indicate about your distribution? (**Note**: Shapiro tests are only reliable for $N < 5000$, but it is fine to perform here.)
 
@@ -1070,7 +1093,7 @@ Now Apply a [Shapiro-Wilk test](https://biostats.w.uib.no/test-for-normality-sha
 shapiro.test(readyTrain$PredictedReadmissionRate)
 ```
 
-> Your answer here.
+> AJ- The Shapiro-Wilk test returned W = 0.985 with a p-value = 0.00000000000003085 which is far below 0.05.The null hypothesis of normalityis rejected because the distribution deviated significantly from normality.
 
 ### 3.7.1 Box-Cox Transformation
 
@@ -1120,10 +1143,12 @@ Can you see what it did to the distribution? __look closely__, if not. It's subt
 #### **Question 19B**: [1.5 points]
 Now repeat all of the steps to perform a Box-Cox transform on your own to the `imputedTest` data. Why must we (1) also transform the test data and (2) __use the same $\lambda$ as the training data__?
 
-> Your answer here.
+> AJ-We apply the Box-Cox transformation to both training and test sets using the same lambda to maintain consistency, to prevent data leakage,and to ensure valid model evaluation.
 
 ```{r}
-# Your code here.
+# # Applying the same Box-Cox transformation (using lambda from training data)
+readyTest$bc_PredictedReadmissionRate <- predict(bc_data, readyTest$PredictedReadmissionRate)
+
 
 # Make sure to check that your transform looks successful!
 ```
@@ -1151,7 +1176,29 @@ readyTrain <- readyTrain %>%
 Do the same for your test data. Make sure to use `readyTest` and overwrite it. 
 
 ```{r}
-## Your code here.
+# Applying the Box-Cox transformation to the test set using the lambda from training
+readyTest$bc_PredictedReadmissionRate <- predict(bc_data, readyTest$PredictedReadmissionRate)
+
+```
+
+```{r}
+readyTrain_scaled <- readyTrain %>%
+  select(-bc_PredictedReadmissionRate) %>%
+  scale() %>%
+  as.data.frame() %>%
+  mutate(bc_PredictedReadmissionRate = readyTrain$bc_PredictedReadmissionRate)
+
+```
+
+```{r}
+# First: extract and scale using training 
+readyTest_scaled <- readyTest %>%
+  select(-bc_PredictedReadmissionRate) %>%
+  scale(center = attr(scale(readyTrain %>% select(-bc_PredictedReadmissionRate)), "scaled:center"),
+        scale  = attr(scale(readyTrain %>% select(-bc_PredictedReadmissionRate)), "scaled:scale")) %>%
+  as.data.frame() %>%
+  mutate(bc_PredictedReadmissionRate = readyTest$bc_PredictedReadmissionRate)
+
 ```
 
 **Hint**: Make sure to turn your centered, scaled __matrix__ back into a dataframe! By default, it creates a matrix.
@@ -1188,11 +1235,20 @@ heatmap(corrMat,
 #### **Question 20A**: [1 point]
 Where do you see the highest potential for multicollinearity? Why do you say that?
 
-> Your answer here.
+> AJ-Nurse communication,Communication about medicines,Staff responsiveness,Doctor communication,Discharge information and Overall hospital rating.
 
 Which variable(s) seem to be most correlated with our target, `bc_PredictedReadmissionRate`?
 
-> Your answer here.
+
+```{r}
+correlations <- cor(readyTrain_scaled, use = "complete.obs")
+target_corr <- correlations[, "bc_PredictedReadmissionRate"]
+sorted_corr <- sort(abs(target_corr), decreasing = TRUE)
+sorted_corr[2:6]  # Exclude the target's self-correlation (value of 1)
+
+```
+
+> AJ-The variable most correlated with the target bc_PredictedReadmissionRate is ComparedToNational_Hospital.return.days.for.pneumonia.patients with a correlation of approximately 0.50, indicating a moderate to strong positive relationship. This suggests that hospitals performing worse than the national average in this metric tend to have higher predicted readmission rates.Patient experience variables such as Staff.responsiveness, Nurse.communication, and Doctor.communication show moderate positive correlations (ranging from ~0.34 to 0.39). This implies that hospitals with poorer patient communication and responsiveness may also experience higher readmission rates. Lastly, PaymentCategory.for.pneumonia.patients also shows notable correlation, possibly reflecting financial or systemic differences that influence outcomes..
 
 ## 4.2 Fitting a model to estimate VIF
 
@@ -1234,7 +1290,7 @@ Does multicollinearity seem to be an issue in this dataset and, if so, among whi
 
 **HINT 2**: Is, for example,`Payment Category for pneumonia patients` created from `Payment for pneumonia patients`? [These are Medicare payments]? Which one do you think we should keep amd why?
 
-> Your answer here.
+> AJ-Multicollinearity does not appear to be a major issue in this dataset, as all of the top Variance Inflation Factors (VIFs) are well below the common thresholds of 5 or 10.Overall hospital rating may have been derived from other HCAHPS items, such as Doctor communication, Staff responsiveness, and Cleanliness which could introduce artificial multicollinearity. If Payment Category for pneumonia patients is derived from 'Payment for pneumonia patients',the original continuous variable (Payment for pneumonia patients) should be kept because  continuous data retains more nuance and predictive signal, while categories can dilute variation and reduce model flexibility.
 
 Which variable(s) seem to be most highly correlated with our target? Is it a positive or negative correlation? Does it make sense?
 
