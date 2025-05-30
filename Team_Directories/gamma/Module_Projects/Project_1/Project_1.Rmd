@@ -34,6 +34,7 @@ pacman::p_unload(pacman::p_loaded(), character.only = TRUE)
 rm(list = ls(all = TRUE))
 
 pacman::p_load(tidyverse,
+               dplyr,
                janitor,
                naniar,
                stringr,
@@ -54,6 +55,7 @@ pacman::p_load(tidyverse,
                forcats,
                snakecase
 )
+
 ```
 
 # 1 Introduction
@@ -632,7 +634,11 @@ To do, I will leverage the `md.pairs()` function from the `mice` package which c
 
 ```{r}
 ## Drop State and analyze the pairwise missingness using the mice package
+library(dplyr)
+library(mice) #  Ihad to load mice here because without it i constantly got md.mce error even after updating it
 miceMatrix <- dat2Analyze %>% select(-State) %>% md.pairs()
+
+sum(is.na(dat2Analyze$State) > 0) # Collins. my first thought was that maybe state has no missingness even though my earlier confirmation revealed that all 31 variables had missingness. my 2nd reasoning was that maybe because state is a character variable but then its not the only character variable. My last opinion is maybe because missingness in state is not important in this specific analysis
 ```
 
 What `md.mice()` does is create two pairwise correlation matrices, `mr` and `mm`, where:
@@ -645,13 +651,14 @@ What `md.mice()` does is create two pairwise correlation matrices, `mr` and `mm`
 Let's take a look at the first 6 rows and 4 columns of the `mr` matrix:
 
 ```{r, echo=FALSE}
+library(kableExtra)
 miceMatrix$mr[1:6, 1:4] %>% 
   kable(format = "html",
     caption = "Table 4. Missing vs. Reponded Matrix Slice") %>%
     kable_styling(bootstrap_options = c("striped", full_width = F))
 ```
 
-Any given cell in a matrix is always of the form $[i, j]$, where $i$ is the row and $j$ is the column - just as you are used to with dataframes! So, in these correlation matrices of our pairwise variables, cell $[1,1]$ is `PredictedReadmissionRate` vs. itself, so the count is 0 - as is every value on the diagonal, like with all correlation matrices. For cell $[1,2]$ `PredictedReadmissionRate` vs. , there are 42 observations where variable `PredictedReadmissionRate` ($i$) is missing but `MRSA Bacteremia` ($j$) was observed. Thus, we can **extract the number of cases where variable $i$ is missing and variable $j$ is observed using** `miceMatrixmr[i, j]`.
+Any given cell in a matrix is always of the form $[i, j]$, where $i$ is the row and $j$ is the column - just as you are used to with dataframes! So, in these correlation matrices of our pairwise variables, cell $[1,1]$ is `PredictedReadmissionRate` vs. itself, so the count is 0 - as is every value on the diagonal, like with all correlation matrices. For cell $[1,2]$ `PredictedReadmissionRate` vs. , there are 48 observations where variable `PredictedReadmissionRate` ($i$) is missing but `MRSA Bacteremia` ($j$) was observed. Thus, we can **extract the number of cases where variable $i$ is missing and variable $j$ is observed using** `miceMatrixmr[i, j]`.
 
 Now, let's take a look at the first 6 rows and 4 columns of the `mm` matrix now:
 
@@ -667,7 +674,7 @@ Similarly, `miceMatrix$mm[i, j]` gives us the number of cases where both variabl
 #### **Question 11A**: [0.5 points]
 Explain what you think the number in cell $[6,1]$ means. Out of all the observations in the dataset, does this feel like a high degree of co-missingness?
 
-> Your answer here.
+> Your answer here.BY Collins. cell $[6,1]$ shows 1788 observations where both Postoperative respiratory failure rate and PredictedReadmissionRate were missing. In my opinion I think this level of missingness is significant enough to be regarded as high degree of co-missingness
 
 Lastly, we can calculate a **proportion of missingness vs. response** between any two variables $i$ and $j$ such that:
 
@@ -728,7 +735,11 @@ p[1, ] %>%
 
 What columns seem to be most correlated in terms of missingness to our target, `PredictedReadmissionRate`? Does this give you any cause for concern? Feel free to speculate as to why you might see this.
 
-> Your answer here.
+> Your answer here. By Collins. 
+MRSA Bacteremia is the most correlated in terms of missingness to our target variable PredictedReadmissionRate.
+yes this gives a reason to be concerned:
+1.  MRSA Bacteremia is a serious disease, therefore this huge correlation may indicate high cases of readmission for this specific disease. This conclusion is backed by the fact that missing data doesn't necessarily mean absense of data. That is, the disease was not diagnosed.
+maybe the patients were readmitted for MRSA Bacteremia but the data was omitted.
 
 ## 3.3 Drop rows that are missing from the target variable. 
 
@@ -745,7 +756,8 @@ paste0(c("Rows: ", "Columns: "), dim(dat2Analyze))
 #### **Question 12**: [0.5 points]
 Thinking back to your answer to Question 12, do you feel any differently given these dimensions of the dataset?
 
-> Your answer here.
+> Your answer here. By Collins
+Yes, considering the fact that we are losing close to half the rows, I think this significant reduction in sample size may affect the representation of the data and the power of any model.
 
 ## 3.4 Do the splits! 
 
@@ -754,7 +766,10 @@ At this stage, we are almost ready to __impute__ - but not until we have done ou
 #### **Question 13**: [1 point]
 Explain to your stakeholder, in simpler language, (1) why we partition data into testing and training sets and (2) what data leakage is. You do not need to go into great detail, but it should explain enough that they understand the basic ideas.
 
-> Your answer here.
+> Your answer here.By Collins
+We partition the data into training and testing sets to train the model and evaluate it performance separately. This separation helps prevent overfitting, where the model becomes to specialized to the training data and unable to generalize and fit new unseen data. By testing on unseen data, we get an unbiased estimate of the models performance and can make necessary adjustments to enable it to generalize well.
+
+> Data leakage happens when the model gets information it shouldn't have, making it perform well on test data but poorly on new data. This can lead to overestimating the model's performance.
 
 You may recall that I mentioned that the optimal ratio is has been argued to be $\sqrt{p} : 1$, where $p$ is the number of parameters (which may or may not equal your predictors depending on your planned analysis). Note that you do not have to split only a single time; you could make different splits for different analyses, if needed. However, we are going to use a single split here for convenience. 
 
@@ -774,46 +789,46 @@ calcSplitRatio <- function(p = NA, df) {
   ## @p  = the number of parameters. by default, if none are provided, the number of columns (predictors) in the dataset are used
   ## @df = the dataframe that will be used for the analysis
   
-  ## COMMENT HERE
+ #By Collins ## COMMENT HERE sets a condition if the number of (p) is not given
   if(is.na(p)) {
-    p <- ncol(df) -1   ## COMMENT HERE
+    p <- ncol(df) -1   ## COMMENT HERE then let (p) be the number of columns (features) minus 1
   }
   
-  ## COMMENT HERE
+  ## COMMENT HERE calculating the optimal number of the testing set
   test_N <- (1/sqrt(p))*nrow(dat2Analyze)
-  ## COMMENT HERE
+  ## COMMENT HERE turning test optimal number into proportion
   test_prop <- round((1/sqrt(p))*nrow(dat2Analyze)/nrow(dat2Analyze), 2)
-  ## COMMENT HERE
+  ## COMMENT HERE calculating training proportion. We do know test proportion plus training proportion equals to 1
   train_prop <- 1-test_prop
   
-  ## COMMENT HERE
+  ## COMMENT HERE printing out the results of each set proportion
   print(paste0("The ideal split ratio is ", train_prop, ":", test_prop, " training:testing"))
   
-  ## COMMENT HERE
+  ## COMMENT HERE returning the size of training proportion
   return(train_prop)
 }
 
-## Fill in the blanks to run:
-# train_prop <- ___(df = ___)
+## Fill in the blanks to run: Here we use the function that we have built and pass it to our df to give us train_prop
+ train_prop <- calcSplitRatio(df = dat2Analyze)
 ```
 
 **Hint**: One important note here is that if the number of parameters are not provided (which is true for the starter code I gave you to run it - it does NOT pass any parameters to that argument!), then by default our function is designed to take the number of columns of the dataframe and subtract one for the target variable. Neat, huh?
 
 Now, uncomment this code and fill it out to run it. 
 ```{r}
-# ind <- createDataPartition(dat2Analyze$___,   ## Put the target here!
-#                            p = ___,           ## Use the object you just made!
-#                            list = FALSE)
-# 
-# train <- dat2Analyze[___, ]
-# test <- dat2Analyze[-c(ind), ]
+ ind <- createDataPartition(dat2Analyze$PredictedReadmissionRate,   ## Put the target here!
+                            p = train_prop,           ## Use the object you just made!
+                            list = FALSE)
+
+train <- dat2Analyze[ind, ]
+ test <- dat2Analyze[-c(ind), ]
 ```
 
 #### **Question 14B**: [0.5 points]
 What split ratio did you get? Is it close to the canonical 80-20 split? Why do you think that happened?
 
-> Your answer here.
-
+> Your answer here.By Collins
+I got split ratio of 82% for train and 18% for test, which technically very close to the canomical 80-20
 
 __Did you get stuck somewhere?__ If so, load the `test` and `train` data in case you struggled with Question 18 so you can proceed:
 
@@ -836,11 +851,12 @@ The way I have chosen to do this is to separate the data so that I can turn the 
 data_sans_encoded = train %>% 
   select(-PredictedReadmissionRate,
          -State,
+         -`PaymentCategory for pneumonia patients`, # this one was missing, its categorical
          -`Emergency department volume`, 
          -contains("ComparedToNational"))
 
 data_cat = train %>% 
-  select(`Emergency department volume`, 
+  select(`Emergency department volume`, `PaymentCategory for pneumonia patients`, 
          contains("ComparedToNational")) %>% 
   mutate_all(as.factor)
 
@@ -882,7 +898,10 @@ data.frame(imputedTrain$OOBerror, names(temp)) %>%
 #### **Question 15**: [1 point]
 What does `MSE` (Mean Squared Error) and `PCF` (Proportion of Falsely Classified) indicate here? You may find looking at the `missForest` [Vignette](https://stat.ethz.ch/education/semesters/ss2012/ams/paper/missForest_1.2.pdf) helpful. Which variable(s) had the highest OOB error?
 
-> Your answer here.
+> Your answer here.By Collins.
+MSE (Mean Squared Error) measures the average squared dufference between predicted and actual values as observed in the dataset. In this case MSE is used as a metric to assess theOOB error rates for imputed variables in training dataset. In my own opinion, i think low MSE indicates a closedness between the predicted and observed value therefore, suggesting the missforest is making accurate predictions for the out-of-bag samples.
+PCF(Proportion of Falsely Classified) values indicates the proportion of falsely classified observations for each variable in random forest model. In short it measures the percentage of times a variable is incorrectely classified as important when actually it is not.
+Variables with the highest OOB error for MSE include: Payment for pneumonia patients, Median time (minutes) patients spent in ED, Healthcare workers given influenza vaccination, Venous Thromboembolism Prophylaxis. For PCF, include: Emergency department volume and ComparedToNational_Hospital return days for pneumonia patients
 
 **NOTE 1**: If the OOB error (either MSE or PCF) from `missForest` is really high, it’s a red flag that the imputation for those variables is untrustworthy. This could be do to too much missingness, weak relationships among the variables making it hard to predict, or low quality data (e.g., noisy, sparse). In such cases, we want to **DROP** any variables with extremely high OOB error because they add noise. A general rule of thumb is that if the PCF > ~0.3 (30% of the imputed values are wrong) or if there is especially high MSE (inflation) relative to the variance of the variable, we should drop it. Let's set those aside so we can drop them from `test` and `train` both downstream! 
 
@@ -890,17 +909,25 @@ What does `MSE` (Mean Squared Error) and `PCF` (Proportion of Falsely Classified
 
 ```{r}
 ## These look okay. Uncomment to see their variances.
-#var(train$`Hospital return days for pneumonia patients`, na.rm = T)
-#var(train$`Median time (minutes) patients spent in ED`, na.rm = T)
-#var(train$`Healthcare workers given influenza vaccination`, na.rm = T)
+#var(train$`Hospital return days for pneumonia patients`, na.rm = T) ByCollins my train doesn't seem to have this feature of Hospital return days
+var(train$`Median time (minutes) patients spent in ED`, na.rm = T)
+var(train$`Healthcare workers given influenza vaccination`, na.rm = T)
 
 cols2drop <- c("Payment for pneumonia patients", "Emergency department volume")
+
 ```
 
 #### **Question 16**: [1 point]
 Alternatively, we could use MICE (Multivariate Imputation with Chained Equations), which is a method that will model uncertainty along with the variables. Do a little research. How does MICE work? Include a citation to a source.
 
-> Your answer here.
+> Your answer here. By Collins
+
+```{r}
+ ? mice 
+#The mice package implements a method to deal with missing data. The package creates multiple imputations (replacement values) for #multivariate missing data. The method is based on Fully Conditional Specification, where each incomplete variable is imputed by a separate #model. The MICE algorithm can impute mixes of continuous, binary, unordered categorical and ordered categorical data. In addition, MICE can #impute continuous two-level data, and maintain consistency between imputations by means of passive imputation. Many diagnostic plots are #implemented to inspect the quality of the imputations.
+
+# Van Buuren, S. (2018). Boca Raton, FL.: Chapman & Hall/CRC Press.
+```
 
 #### 3.5.4 Putting it alllllll back together...
 
@@ -921,11 +948,11 @@ imputedTrain <- imputedTrain$ximp %>%
 # Remove encoded categorical variables for imputation, plus the target and state (which have no missing)
 data_sans_encoded = test %>% 
   select(-PredictedReadmissionRate,
-         -State,
+         -State, -`PaymentCategory for pneumonia patients`, - `Emergency department volume`,
          -contains("ComparedToNational"))
 
 data_cat = test %>% 
-  select(contains("ComparedToNational")) %>% 
+  select(contains("ComparedToNational"), `PaymentCategory for pneumonia patients`, `Emergency department volume`) %>% 
   mutate_all(as.factor)
 
 # Stitch them back together:
@@ -964,7 +991,12 @@ imputedTest  <- imputedTest[, !(names(imputedTest) %in% cols2drop), drop = FALSE
 Quickly explore how well the imputation did by choosing at least one numeric variable and one of the categorical variables. Did the distributions or frequencies change drastically? You may find the `summary()` and `table()` functions to be fastest here. 
 
 ```{r}
-# Your code here.
+# Your code here.By Collins
+
+summary(data.frame(Original = test$`MRSA Bacteremia`, Imputed = imputedTest$`MRSA Bacteremia` ))
+
+table(Original = test$`PaymentCategory for pneumonia patients`, 
+      imputed = imputedTest$`PaymentCategory for pneumonia patients`)
 ```
 
 > Your answer here.
