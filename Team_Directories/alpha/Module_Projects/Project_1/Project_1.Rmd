@@ -2169,112 +2169,72 @@ ridge.error
 
 ### Random Forest
 
-## Random Forest using Class Weights:
-
-### Defining Variables
-```{r Defining Variables, echo=TRUE}
-
-# Class weighting 
-weights <- ifelse(train_y == "Attrited", 5, 1)
-
-
-ctrl <- trainControl(
-  method = "cv",                # 5-fold cross-validation
-  number = 5,
-  classProbs = TRUE,            # Needed for ROC and PR curve evaluation
-  summaryFunction = twoClassSummary  # Evaluates using ROC, Sensitivity, Specificity
-)
-
-
-tunegrid <- expand.grid(
-  mtry = c(2, 5, 10, 15, 20)   # Number of features randomly selected at each split
-)
-
-scale_pos_weight <- neg / pos  # Used to penalize false negatives
+```{r}
+unique(readyTrain$Hospital.return.days.for.pneumonia.patients)
 ```
+```{r}
+# Defining the breakpoints and labels
+breaks <- c(-Inf, -1.34, 0.32, 2.1)
+labels <- c("Low", "Medium", "High")
 
-```{r Random Forest Model Training, echo=TRUE}
-
-# Train Random Forest with class weights and custom hyperparameter grid
-
-set.seed(42)
-rf_weighted <- caret::train(
-  readyTrain,                  # Training data
-  method = "rf",               
-  metric = "ROC",              # Optimize for Area Under ROC Curve
-  trControl = ctrl,            # 5-fold CV setup defined earlier
-  weights = weights,           # Class weights to handle imbalance (e.g., 5:1 for Attrited)
-  tuneGrid = tunegrid          # Grid of mtry values for tuning
+# Creating factor variable
+readyTrain$ReturnDaysCategory <- cut(
+  readyTrain$Hospital.return.days.for.pneumonia.patients,
+  breaks = breaks,
+  labels = labels,
+  right = TRUE,  # include upper bound in interval
+  include.lowest = TRUE
 )
 
-# Train Random Forest
-rf_weighted <- caret::train(
-  x = train_x,
-  y = train_y,
-  method = "rf",
-  metric = "ROC",
-  trControl = ctrl,
-  weights = weights,
-  tuneGrid = tunegrid
-)
-
-# Predict probabilities
-rf_probs <- predict(rf_weighted, newdata = test_x, type = "prob")[, "Attrited"]
-
-# True labels as numeric
-true_labels <- ifelse(test_y == "Attrited", 1, 0)
-
-# Create ROCR prediction object
-rf_pred <- prediction(rf_probs, true_labels)
-
-# Compute F1
-rf_perf_f1 <- performance(rf_pred, measure = "f")
-
-# Extract thresholds and F1 scores
-rf_thresholds <- rf_perf_f1@x.values[[1]]
-rf_f1_scores  <- rf_perf_f1@y.values[[1]]
-
-# Find optimal threshold
-best_idx_rf <- which.max(rf_f1_scores)
-best_thresh_rf <- rf_thresholds[best_idx_rf]
-best_f1_rf <- rf_f1_scores[best_idx_rf]
-
-# Confusion matrix
-#caret::confusionMatrix(rf_pred_class, test_y, positive = "Attrited")
+# Confirm the transformation
+table(readyTrain$ReturnDaysCategory)
+str(readyTrain$ReturnDaysCategory)
 ```
-
 
 ```{r}
-set.seed(42)
-# Reclassify using optimal threshold
-rf_preds_optimal <- ifelse(rf_probs > best_thresh_rf, "Attrited", "Existing")
-rf_preds_optimal <- factor(rf_preds_optimal, levels = c("Attrited", "Existing"))
-test_y_factor <- factor(test_y, levels = c("Attrited", "Existing"))
+# Load required package
+library(randomForest)
 
-# Confusion Matrix for Random Forest
-#caret::confusionMatrix(rf_preds_optimal, test_y_factor, positive = "Attrited")
+# making sure target is a factor
+readyTrain$ReturnDaysCategory <- as.factor(readyTrain$ReturnDaysCategory)
 
-# Create a data frame 
-data <- data.frame(
-  RF = c("Predicted_Attrited", "Predicted_Existing"),
-  Actual_Attrited = c(235, 90),
-  Actual_Existing = c(88, 1612)
+# Defining the target
+target_variable <- "ReturnDaysCategory"
+
+# Exclude numeric version of the return days from predictors
+predictors <- setdiff(names(readyTrain), c("ReturnDaysCategory", "Hospital.return.days.for.pneumonia.patients"))
+
+# Building the formula
+rf_formula <- as.formula(paste(target_variable, "~", paste(predictors, collapse = " + ")))
+
+# Fitting the random forest classification model
+set.seed(123)
+rf_model_classification <- randomForest(
+  formula = rf_formula,
+  data = readyTrain,
+  importance = TRUE,
+  ntree = 500
 )
 
-# HTML table
-kable(data, format = "html", table.attr = "class='table'") %>%
-  kable_styling(full_width = F)
+# View the model summary
+print(rf_model_classification)
+
+# Plot variable importance
+varImpPlot(rf_model_classification)
 ```
 
+```{r}
+# Predictting on training data
+train_preds <- predict(rf_model_classification, newdata = readyTrain)
 
+# Confusion matrix
+confusion_matrix <- table(Predicted = train_preds, Actual = readyTrain$ReturnDaysCategory)
+print(confusion_matrix)
 
-
-
-
-
-
-
-
+# Accuracy
+accuracy <- mean(train_preds == readyTrain$ReturnDaysCategory)
+cat("Training Accuracy:", round(accuracy * 100, 2), "%\n")
+```
 
 
 
