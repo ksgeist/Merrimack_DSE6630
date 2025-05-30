@@ -892,39 +892,38 @@ Need inspiration that comes with code?!? Check out the [R Graph Gallery](https:/
 library(ggplot2)
 library(dplyr)
 
-#Rename column for convenience and plot
+# Recode NurseComm into bins again
 pneumoniaAnalyze <- pneumoniaAnalyze %>%
-  rename(Hcahps_NurseComm = `HcahpsLinearMeanValue_Nurse communication`)
+  mutate(NurseCommGroup = case_when(
+    is.na(Hcahps_NurseComm) ~ "NA",
+    Hcahps_NurseComm >= 91 ~ "91–100",
+    Hcahps_NurseComm >= 81 ~ "81–90",
+    Hcahps_NurseComm >= 71 ~ "71–80",
+    TRUE ~ "Below 71"
+  )) %>%
+  mutate(NurseCommGroup = factor(NurseCommGroup,
+                                 levels = c("Below 71", "71–80", "81–90", "91–100", "NA")))
 
-pneumoniaAnalyze <- pneumoniaAnalyze %>%
-  mutate(
-    NurseCommGroup = cut(Hcahps_NurseComm,
-                         breaks = c(0, 60, 70, 80, 90, 100),
-                         labels = c("0–60", "61–70", "71–80", "81–90", "91–100"))
-  )
-
-ggplot(pneumoniaAnalyze, aes(x = NurseCommGroup, y = PredictedReadmissionRate)) +
-  geom_violin(fill = "steelblue", color = "gray30") +
-  geom_boxplot(width = 0.1, outlier.shape = NA, alpha = 0.5) +
-  facet_wrap(~ State, ncol = 4) +
+# Density plot
+ggplot(pneumoniaAnalyze, aes(x = PredictedReadmissionRate, fill = NurseCommGroup)) +
+  geom_density(alpha = 0.6) +
   labs(
-    title = "Predicted Readmission Rate by Nurse Communication (HCAHPS), Faceted by State",
-    x = "Nurse Communication Score Group",
-    y = "Predicted Readmission Rate (%)"
+    title = "Density of Predicted Readmission Rate by Nurse Communication Score Group",
+    x = "Predicted Readmission Rate (%)",
+    y = "Density",
+    fill = "Nurse Communication"
   ) +
-  theme_minimal() +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    plot.title = element_text(face = "bold", size = 14),
-    strip.text = element_text(face = "bold")
-  )
+  scale_fill_brewer(palette = "Set2") +
+  theme_minimal(base_size = 13)
 
 
 ```
 
 Lastly, make sure to **interpret** your graphic.
 
-> Your answer here.
+> This plot shows that hospitals with higher nurse communication scores tend to have lower predicted readmission rates. Specifically, facilities in the 91–100 score range cluster around 15–17% readmissions, while lower-scoring groups, like 71–80, show higher rates often above 20%. The NA group has a wider spread but generally aligns with poorer-performing groups. Overall, better nurse communication appears to be linked to fewer hospital readmissions.
+
+
 
 
 # References
