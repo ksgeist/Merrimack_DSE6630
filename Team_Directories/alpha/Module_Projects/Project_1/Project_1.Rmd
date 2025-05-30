@@ -2234,16 +2234,33 @@ str(readyTest$ReturnDaysCategory)
 ```
 
 ```{r}
+# Defining weights based on own logic
+class_weights <- c(Low = 2, Medium = 1, High = 5)
+
+# original
+table(readyTrain$ReturnDaysCategory)
+
+# Creating a vector of weights for each row according to its class
+row_weights <- class_weights[as.character(readyTrain$ReturnDaysCategory)]
+
+# Replicating rows by weights
+weighted_train <- readyTrain[rep(seq_len(nrow(readyTrain)), times = row_weights), ]
+
+# New class distribution after replication
+table(weighted_train$ReturnDaysCategory)
+```
+
+```{r}
 # Load required package
 library(randomForest)
 # making sure target is a factor
-readyTrain$ReturnDaysCategory <- as.factor(readyTrain$ReturnDaysCategory)
+weighted_train$ReturnDaysCategory <- as.factor(weighted_train$ReturnDaysCategory)
 
 # Defining the target
 target_variable <- "ReturnDaysCategory"
 
 # Exclude numeric version of the return days from predictors
-predictors <- setdiff(names(readyTrain), c("ReturnDaysCategory", "Hospital.return.days.for.pneumonia.patients"))
+predictors <- setdiff(names(weighted_train), c("ReturnDaysCategory", "Hospital.return.days.for.pneumonia.patients"))
 
 # Building the formula
 rf_formula <- as.formula(paste(target_variable, "~", paste(predictors, collapse = " + ")))
@@ -2251,8 +2268,8 @@ rf_formula <- as.formula(paste(target_variable, "~", paste(predictors, collapse 
 # Fitting the random forest classification model
 set.seed(123)
 rf_model_classification <- randomForest(
-  formula = rf_formula,
-  data = readyTrain,
+  rf_formula,
+  data = weighted_train,
   importance = TRUE,
   ntree = 500,
 )
@@ -2282,22 +2299,7 @@ cat("Training Accuracy:", round(accuracy * 100, 2), "%\n")
 
 
 
-```{r}
-# Defining weights based on own logic
-class_weights <- c(Low = 2, Medium = 1, High = 5)
 
-# original
-table(readyTrain$ReturnDaysCategory)
-
-# Creating a vector of weights for each row according to its class
-row_weights <- class_weights[as.character(readyTrain$ReturnDaysCategory)]
-
-# Replicating rows by weights
-weighted_train <- readyTrain[rep(seq_len(nrow(readyTrain)), times = row_weights), ]
-
-# New class distribution after replication
-table(weighted_train$ReturnDaysCategory)
-```
 
 
 
