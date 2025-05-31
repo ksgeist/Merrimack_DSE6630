@@ -995,11 +995,12 @@ Quickly explore how well the imputation did by choosing at least one numeric var
 
 summary(data.frame(Original = test$`MRSA Bacteremia`, Imputed = imputedTest$`MRSA Bacteremia` ))
 
-table(Original = test$`PaymentCategory for pneumonia patients`, 
-      imputed = imputedTest$`PaymentCategory for pneumonia patients`)
+table(Original = test$`PaymentCategory for pneumonia patients`) 
+table (imputed = imputedTest$`PaymentCategory for pneumonia patients`)
 ```
 
-> Your answer here.
+> Your answer here. By Colllins
+Summary statistics of MRSA Bacteremia shows that the imputed values have a slightly higher median and mean compared to original values, however, the overall distribution hasn't changed drastically. Similarly, the table comparing original and imputed values of categorical variable PaymentCategory for pneumonia patients shows a very similar distribution for both values with only a slight increase in the number of patients with "No Different Than the National Average Payment". Based on this analysis, it appears that the imputation did not drastically change the distributions or frequences of these variables and that the imputation process was reasonably successful.
 
 ## 3.6 Another Fork in the Road
 It's time, yet again, to make a choice. If you opted to load the __fully encoded__ dataset and everything has been done on that, you will run the first chunk. But if you decided that you wanted to __wait to encode__ the TIME HAS FINALLY COME!
@@ -1010,13 +1011,13 @@ Ultimately, we need to turn the factor features back into numbers for our next a
 
 ```{r}
 ## Uncomment if this is your choice!
-# readyTrain <- imputedTrain %>%
-#   mutate_if(is.factor, as.character) %>% 
-#   mutate_if(is.character, as.numeric)
-# 
-# readyTest <- imputedTest %>%
-#   mutate_if(is.factor, as.character) %>% 
-#   mutate_if(is.character, as.numeric)
+ #readyTrain <- imputedTrain %>%
+  #mutate_if(is.factor, as.character) %>% 
+  #mutate_if(is.character, as.numeric)
+ 
+#readyTest <- imputedTest %>%
+ # mutate_if(is.factor, as.character) %>% 
+ # mutate_if(is.character, as.numeric)
 ```
 
 ### 3.6.2 The Right Fork - Frequency Encoding
@@ -1049,7 +1050,8 @@ if(!is.numeric(imputedTrain$State)) {
 #### **Question 18**: [1 point]
 Because we are now frequency encoding AFTER data partitioning (we did ordinal encoding BEFORE the split for convenience), we absolutely __must__ apply the same encoding map to the `test` set that we did to the `train` set. Explain why, and what should we do if some classes of the variable end up in the `train` that is not in the `test` or vice versa? (**HINT**: Look at the source code!)
 
-> Your answer here. 
+> Your answer here. By Collins
+In a case where we have a class or N/As in Train which happens not to be in test, then we have have to replace such a class or N/A with a zero.
 
 ## 3.7  Transformation & Scaling
 
@@ -1071,15 +1073,20 @@ ggplot(readyTrain, aes(x = PredictedReadmissionRate)) +
 #### **Question 19A**: [1 point]
 Why is a histogram, or even a Q-Q plot, an insufficient way to assess whether a distribution is approximately normal?
 
-> Your answer here.
+> Your answer here. By Collins
+Looking at the histogram above, one could be easily mistaken and conclude it somewhat normal. Which I think it is, but from a close look, we can see the distribution is skewed to the right a little bit. Histogram and Q-Q plots are insufficient to assess normality because they majorly depend on visual intrepretation which more often than not is influenced by personal bias. In addition, these plots fails to capture subtle deviations from normality. 
 
 Now Apply a [Shapiro-Wilk test](https://biostats.w.uib.no/test-for-normality-shapiro-wilks-test/) for normality using the `shapiro.test()` function. What does it indicate about your distribution? (**Note**: Shapiro tests are only reliable for $N < 5000$, but it is fine to perform here.)
 
 ```{r}
-# Your code here.
+# Your code here.By Collins
+
+shapiro.test(readyTrain$PredictedReadmissionRate)
 ```
 
-> Your answer here.
+> Your answer here. By Collins
+The null hypothesis of Shapiro-Wilk test is that the data is normally distributed and the alternative hypothesis is that the data is not normally distributed all tested at 0.05 significance level.
+Since p-value = 1.058e-13 is less than 0.05 significance level we reject the null hypothesis that our target variable PredictedReadmissionRate is normally distributed.
 
 ### 3.7.1 Box-Cox Transformation
 
@@ -1129,12 +1136,49 @@ Can you see what it did to the distribution? __look closely__, if not. It's subt
 #### **Question 19B**: [1.5 points]
 Now repeat all of the steps to perform a Box-Cox transform on your own to the `imputedTest` data. Why must we (1) also transform the test data and (2) __use the same $\lambda$ as the training data__?
 
-> Your answer here.
+> Your answer here. By Collins. 
+**Why did we choose to use "imputedTest" dataset rather than "ReadyTest"? Am of the opinion that it should be readyTest dataset
 
 ```{r}
-# Your code here.
+# Your code here. By Collins
+#bc_datatest <- BoxCoxTrans(imputedTest$PredictedReadmissionRate) This plan backfired when it turned out the lambda was -0.9999... compared to -3 found in train
+#print(paste0("Box-cox lambda = ", bc_datatest$lambda))
+
+imputedTest$bc_test_PredictedReadmissionRate <- predict(bc_data, imputedTest$PredictedReadmissionRate)
 
 # Make sure to check that your transform looks successful!
+ggplot(imputedTest, aes(x = bc_test_PredictedReadmissionRate)) +
+  geom_histogram(alpha = 0.6,
+                 fill = "brown",
+                 color = "brown") +
+  theme_minimal() +
+  labs(title = "Box-Cox Transformed imputedTest$Predicted Readmission Ratio, N = 488 hospitals",
+       y = "Frequency",
+       x = "Testset Predicted Readmission Ratio")
+
+qqnorm(imputedTest$bc_test_PredictedReadmissionRate)
+qqline(imputedTest$bc_test_PredictedReadmissionRate,
+       col = "brown", lty = 2, lwd = 2)
+```
+
+repeating all of the steps to perform a Box-Cox transformation on ReadyTest dataset by Collins
+
+```{r}
+readyTest$bc_test_PredictedReadmissionRate <- predict(bc_data, readyTest$PredictedReadmissionRate)
+
+# Make sure to check that your transform looks successful!
+ggplot(readyTest, aes(x = bc_test_PredictedReadmissionRate)) +
+  geom_histogram(alpha = 0.6,
+                 fill = "blue",
+                 color = "blue") +
+  theme_minimal() +
+  labs(title = "Box-Cox Transformed Readytest$Predicted Readmission Ratio, N = 488 hospitals",
+       y = "Frequency",
+       x = "Testset Predicted Readmission Ratio")
+
+qqnorm(readyTest$bc_test_PredictedReadmissionRate)
+qqline(readyTest$bc_test_PredictedReadmissionRate,
+       col = "blue", lty = 2, lwd = 2)
 ```
 
 **NOTE** At this point, you have both an non-transformed (`PredictedReadmissionRate`) and Box-Cox transformed (`bc_PredictedReadmissionRate`) version of the target in your data.
@@ -1161,6 +1205,11 @@ Do the same for your test data. Make sure to use `readyTest` and overwrite it.
 
 ```{r}
 ## Your code here.
+readyTest <- readyTest %>%
+  select(-PredictedReadmissionRate) %>%
+  mutate_if(is.factor, as.numeric) %>%
+  scale(center = TRUE, scale = TRUE) %>%
+  data.frame()
 ```
 
 **Hint**: Make sure to turn your centered, scaled __matrix__ back into a dataframe! By default, it creates a matrix.
@@ -1198,10 +1247,12 @@ heatmap(corrMat,
 Where do you see the highest potential for multicollinearity? Why do you say that?
 
 > Your answer here.
+Top left corner shows a darker blue shade indicating a potential positive correlation. In my opinion, this section is made up of patient experience variables (nurse, doctor communication, information discharge, quiteness etc.,) Vs Hospital performance (predicted readmission rate) and resource variable (medicare spending per patient).. This might be explained by the fact that hospitals that perform well on patient experience may aslo have better perfomance in terms lower readmission rate. Hospitals with high medicare spending per patient may want to invest more in there staff, for example in better communication.
 
 Which variable(s) seem to be most correlated with our target, `bc_PredictedReadmissionRate`?
 
-> Your answer here.
+> Your answer here. By Collins
+ComparedToNational_Hospital Return days for Pneumonia patients, Nurse communication and, staff responsiveness are the variables showing light blue color an indication that they are relatively correlated with our target variable
 
 ## 4.2 Fitting a model to estimate VIF
 
