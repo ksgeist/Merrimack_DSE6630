@@ -1,8 +1,8 @@
 ---
 title: "Project 1: Biomedical & Clinical Informatics"
 subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
-author: "Katherine S. Geist, PhD"
-date: "20 May 2025"
+author: "Team Sigma: Alourdes Joseph, June Lemieux, Melissa Nooney"
+date: "`r Sys.Date()`"
 output:
   html_document:
     toc: true
@@ -42,7 +42,7 @@ pacman::p_load(tidyverse,
                RColorBrewer,
                gridExtra,
                gtsummary,
-               prcomp,
+               #prcomp,
                factoextra,
                ggrepel,
                caret,
@@ -52,7 +52,8 @@ pacman::p_load(tidyverse,
                stargazer,
                glmnet,
                forcats,
-               snakecase
+               snakecase,
+               dplyr
 )
 ```
 
@@ -93,8 +94,8 @@ Load my version of the fully cleaned, encoded, & ready-to-proceed dataset from t
 
 ```{r}
 ## Uncomment if this is your choice:
-# load("FY2024_data_files/pneumoniaAnalyzeFullyEncoded2024.Rdata")
-# dat2Analyze <- pneumoniaAnalyzeFullyEncoded
+#load("FY2024_data_files/pneumoniaAnalyzeFullyEncoded2024.Rdata")
+#dat2Analyze <- pneumoniaAnalyzeFullyEncoded
 ```
 
 ## Option 1.3.2 
@@ -109,7 +110,7 @@ dat2Analyze <- pneumoniaAnalyzeNoEncoding
 #### **Question 1**: [1 point]
 Which dataset do you choose and why?
 
-> Explain your selection here.
+> MN:Initially chose fully encoded because I thought it would save time, but further down the RMD, ran into an issue trying to use the fully encoded dataset, so ultimately went back and went with no encoding. Section 2.4 is where I ran into the problem.
 
 ## 1.4 Helper code: Using `R` like an object-oriented language {#helperCode}
 
@@ -176,15 +177,15 @@ dict %>%
 Now, I know I didn't ask you to do it, but I will actually begin my assessment of which target is most appropriate by constructing a quick summary table. In my assessment of what is an appropriate target, 
 
 ```{r, echo = FALSE}
-sliceData <- dat2Analyze %>% 
-  select(`ComparedToNational_Hospital return days for pneumonia patients`, 
+sliceData <- dat2Analyze %>%
+  select(`ComparedToNational_Hospital return days for pneumonia patients`,
          PredictedReadmissionRate,
-         observed_readmission_rate, 
+         observed_readmission_rate,
          ExcessReadmissionRatio,
-         ExpectedReadmissionRate) %>% 
+         ExpectedReadmissionRate) %>%
   rename(`National Comparison Return Hospital Days` = `ComparedToNational_Hospital return days for pneumonia patients`,
-         `Predicted Readmission Rate` = PredictedReadmissionRate, 
-         `Observed Readmission Rate` = observed_readmission_rate, 
+         `Predicted Readmission Rate` = PredictedReadmissionRate,
+         `Observed Readmission Rate` = observed_readmission_rate,
          `ExcessReadmissionRatio` = ExcessReadmissionRatio,
          `Expected Readmission Rate` = ExpectedReadmissionRate) %>% 
   mutate(`National Comparison Return Hospital Days` = ifelse(is.na(`National Comparison Return Hospital Days`), "Unknown", 
@@ -265,12 +266,13 @@ If you have never encountered [violin plots](https://en.wikipedia.org/wiki/Violi
 
 **Your task** is to do just that by adding `geom_boxplot(width = 0.1)` (yes, just that one line!) in the appropriate place. Also change `include = FALSE` to `include = TRUE` in the R chunk header so that it shows up when you knit!
 
-> Make sure to comment your line to call attention to it:
+> MN: Make sure to comment your line to call attention to it:
 
-```{r, fig.cap = "Figure 2. Readmission Rates vs. readmitted hospital LOS", fig.width=8, fig.height=6, echo = FALSE, include=FALSE}
+```{r, fig.cap = "Figure 2. Readmission Rates vs. readmitted hospital LOS", fig.width=8, fig.height=6, echo = FALSE, include=TRUE}
 longTargets %>% 
   ggplot(aes(x = Value, y = NatlComparisonHospitalDays, fill = NatlComparisonHospitalDays)) +
   geom_violin(alpha = 0.7) +
+  geom_boxplot(width = 0.1)+ #MN boxplot code addition
   labs(title = "Which target to use?",
        subtitle = "By readmitted LOS in hospital compared to national average",
         x = "",
@@ -293,7 +295,7 @@ longTargets %>%
 Now that you can compare these groups more easily, what we're looking for is a balance between **clear difference** between hospital ordinality relative to the national average (i.e., "Are better hospitals really better in pneumonia readmission rates?").
 
 Which target(s) appear the most distinct to you?
-> Your answer here.
+> MN: To me there are two targets that seem the most distinct, those being Observed Readmission Rate and Predicted Readmission Rate. While all 4 targets trend in the same directions, Observed and Predicted appear to have the most seperation between each other. Caveat to this, is that we know we are missing 600 data points in our Observed target, which could casue some bias.
 
 #### 2.3.2 Example with `geom_density()`:
 We could also choose to overlay density plots instead of violin or boxplots, as this can sometimes help us see subtler separation of groups than we can see otherwise. This time, I am also going to ignore the "Unknown" (i.e., missing) class of hospitals to prevent things from getting too messy!
@@ -324,7 +326,7 @@ longTargets %>%
 #### **Question 3**: [0.5 points]
 Does this view confirm or change your decision from Question 3?
 
-> Your answer here.
+> MN: I think this denisty plot further confirms my previous thoughts. There is a distinct seperation between hospital performance among the three categories in the Observed and Predicted targets. Though, Observed is missing 600 points of data, which leads me more to the Predicted target. In the Excess and Expected targets, the distributions appears smoother and overlapping with each other, however, there is some distinction in the Worse than Average category for Excess Readmission. 
 
 ### 2.4 What is the relationship of pneumonia-related hospital readmissions to the hospital performance metrics?
 
@@ -366,7 +368,9 @@ longScore <- pneumoniaAnalyzeNoEncoding %>%
 
 Change the __y-axis__ out for _each of the four readmission rates. `Predicted Readmission Rates` has been started for you. Re-run the chunk and compare the results. **FOR FULL CREDIT** you must leave the graph on the choice you feel most strongly about AND update the title of the graph with which of the four possible readmission rates you chose. Explain below why you chose this one. 
 
-> Your answer here.
+> MN: After much comparison, ultimately my choice was Predicted Readmission Rates. The reason for this choice is that, when compared to the three other possible targets, Predicted Readmission Rates showed the most separation amoung performance categories, while also having clear linear relationships with some predictors, such as Death Rate for pneumonia patients and Medicare spending per patient. There were also clear separation among worse performing hospitals in those araes as compared to same or better performing hospitals. There were also distinctions in separation in DVT and venous thrombolism prophylaxis.
+Higher Medicare spending could potentially indicate a few things, patients could be sicker requiring longer stays, the majority population could be older, and/or hospital located in a lower income area requiring more Medicare spending costs.
+Higher scores in DVT/thrombolysis could indicate that the hospital does not recognize these illnesses until much later, potentially not until more symptoms manifest. If a hospital is increasing medical testing to find the cause of illness, this coould also increase length of stay, which can also increase Mediacre spending. More tests -> longer stays -> more money.
 
 **HINT 1**: What does higher medicare spending per patient tell you about the underlying population of a hospital?
 
@@ -383,7 +387,7 @@ longScore %>%
                 se = T, 
                 show.legend = T) + 
     ## CHANGE THE TITLE FOR FULL CREDIT!
-    labs(title = "Relationship of _fill in this blank_ pneumonia-related hospital \nreadmissions to each performance metric",
+    labs(title = "Relationship of Predicted Readmission Rate pneumonia-related hospital \nreadmissions to each performance metric",
         x = "Rate or Score",
         y = "Predicted Pneumonia-related Readmissions",
         color = "Pneumonia-related Readmission Compared to National Average") +
@@ -429,7 +433,8 @@ longHCAHPS <- pneumoniaAnalyzeNoEncoding %>%
 
 Again, you task is to change the __y-axis__ out for _each of the four readmission rates. `Predicted Readmission Rates` has been started for you. Re-run the chunk and compare the results. **FOR FULL CREDIT** you must leave the graph on the choice you feel most strongly about AND update the title of the graph with which of the four possible readmission rates you chose. Explain below why you chose this one. 
 
-> Your answer here.
+> MN: My choice here was also Predicted Readmission Rate. This target variable showed not only distinct separation among the three hospital categories, but also showed linear relationships across all categories. The expected readmissions target was a close second but there was less distinction among the three rating categories.
+Nurse and doctor communication can have improved patinet outcomes because that patient can be well informed about there condition, and post care protocols, to keep them healthy and out of the hospital. Cleanliness may not have too much of an effect because this could be individual preference among patients. We all have different opionions on what clean is.
 
 **HINT 1**: What does higher nurse and doctor communication mean for improved patient outcomes, including readmission?
 
@@ -445,7 +450,7 @@ longHCAHPS %>%
                 se = T, 
                 show.legend = T) + 
     ## CHANGE THE TITLE FOR FULL CREDIT!
-    labs(title = "Relationship of _fill in this blank_ pneumonia-related hospital \nreadmissions to each patient satisfaction metric",
+    labs(title = "Relationship of Predicted Readmission Rate pneumonia-related hospital \nreadmissions to each patient satisfaction metric",
         x = "Rate or Score",
         y = "Predicted Pneumonia-related Readmissions",
         color = "Pneumonia-related Readmission Compared to National Average") +
@@ -470,7 +475,7 @@ longHCAHPS %>%
 #### **Question 6**: [2 points]
 What relationships do you find most compelling from these scatterplots and why? Also, name one outstanding question you have at this point, whether it is about the data, the data collection, or something more speculative.
 
-> Your answer here.
+> MN: I think what I find most compelling at this moment is the Medicare spending per patient. It seems the most distinct and notable value of all the others. There is a clear difference in the worst performing hospitals when compared to same or better performing hospitals. I think my question, or interest to know more, are the demographics of the Medicare patients. Is there an indicator, whether socioeconomic or demographic-wise metric that can be evaulated in regards to Medicare spending. For example, is a Medicare patient elderly and they can't hear or understand the doctor and nurse instructions? Are they a low-icnome patient and may not have easy access for follow-up care? Not sure if I'm reaching here, but are there relationships with Medicare spending and patient satisfaction metrics?
 
 Although there is certainly more EDA we could do, we are going to wrap that up here for the sake of moving on - but, as always, I encourage you to think about or even explore what else you would like to know about your data that we did not do!
 
@@ -497,13 +502,17 @@ But remember that what matters most is that we are __matching our question__.
 #### **Question 7**: [1 point]
 
 Do you agree with my choice of target? Why or why not? (You are free to disagree!)
+>MN: I feel that I do agree with choice of target. As stated in some above questions, for one, in the observed data target, there are 600 missing points of data, this could be impactful, and it would be helpful to have those points represented in the data. A close second choice was the expected readmissions target. While this target did show similar linear realtionships like the predicted target, there was less distinction and separation among the three hospital rating categories. In the excess readmission target, while there was separation, there weren't any predictors that jumped out. 
+The predicted readmissions as a target had the best criteria of each possible target, and also did not have missingness. 
 
 ### 2.6 Bias and Limitation
 
 #### **Question 8**: [2 points]
 All studies have bias (introduced or systemic error) and limitations (failure to fully explain something). We could go more deeply into these concepts, but for now I want you to take a stab and just brainstorming either ways we might have bias OR the limitations of using this target variable. You do not need to answer both, but you're welcome to do so. You can read more about bias [here](https://www.ncbi.nlm.nih.gov/books/NBK574513/) or see some deeper explanations of limitations [here](https://www.aje.com/arc/how-to-write-limitations-of-the-study/). You do not need to write a lot; just 2-3 sentences. I am simply asking you to pause and reflect on our choices here before we proceed. 
 
-> Your answer here.
+> MN: After reading the article on bias, and then re-reading the summary of what the predicted readmissions target encompasses, I feel there are definitely some areas that could introduce bias. One area is if a hospital has a history of treating sicker patients or dealing with ongoing care challenges, the target might make those patterns into its predictions. Instead of adjusting for these differences, it could unintentionally keep those disparities going. Predictions using historical data may reinforce healthcare inequities rather than adjust for them, making it harder for hospitals to improve their performance if the model does not properly account for change over time. 
+
+
 
 
 # 3 Pre-processing and Feature Selection
@@ -519,25 +528,25 @@ It's time to say goodbye to the features we know would be far too redundant or n
 #### **Question 9A**: [0.5 points]
 Add your comments to the code as indicated to explain what I was doing at each of the steps.
 
-> Your answer in the comments.
+> MN:
 
 ```{r}
 dat2Analyze <- dat2Analyze %>% 
-  ## COMMENT HERE
+  ## Here we are un-selecting the features we no longer want using sample and number of patients. Also, taking out the other targets,
   select(-ExpectedReadmissionRate, 
          -ExcessReadmissionRatio,
          -observed_readmission_rate, 
          -contains(c("Sample_", "NumberOfPatients")),
          -NumberSurveysCompleted) %>% 
-  ## COMMENT HERE
+  ## Here we are changing some column names for conciseness
   rename(`Median time (minutes) patients spent in ED` = 
          `Score_Average (median) time patients spent in the emergency department before leaving from the visit A lower number of minutes is better`,
          `Composite patient safety` = `Score_CMS Medicare PSI 90: Patient safety and adverse events composite`,
          `ComparedToNational_Composite patient safety` = `ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`) %>% 
-  ## COMMENT HERE
+  ## Here we are moving our target variable to the front of the dataset and keeping everything else in place
   select(PredictedReadmissionRate, everything())
 
-## COMMENT HERE
+## Here were are taking the column names in our dataset and subbing anythign with score, HcahpsLinear.., and payment to be space or nothing
 colnames(dat2Analyze) <- gsub('Score_|HcahpsLinearMeanValue_|_Payment', '', colnames(dat2Analyze))
 ```
 
@@ -549,7 +558,8 @@ Next, we are going to take advantage of the `nearZeroVar()` function that is par
 #### **Question 9B**: [0.5 points]
 If you are not familiar yet with the concept of __zero or near-zero variance__, do a little digging. Based on what you read, try to explain for your naive advocacy group stakeholders, why it's important to remove the features with little variance.
 
-> Your answer here.
+> MN: Removing zero or near-zero variance features is important because they don’t add any useful information for analysis or predictions. If a column has almost the same value for every row, it can’t help a model distinguish between different cases. Keeping these features can slow down processing, clutter your dataset, and sometimes even confuse the model. By filtering them out, you make your analysis more efficient and focused on the variables that actually matter.
+
 
 ```{r, echo = F}
 ## Identify the columns with near-zero variance
@@ -573,12 +583,13 @@ dat2Analyze <- dat2Analyze[, -nearZeroVar(dat2Analyze)]
 #### **Question 9C**: [0.5 points]
 You may or may not have noticed that I moved `FacilityID` to our rownames in the datasets you loaded today. Why did I choose to do that? Why do I want to make sure unique identifiers, like `FacilityID`, are out of the dataframe before I either (a) run `nearZeroVar()` or (b) proceed with the rest of the analysis?
 
-> Your answer here.
+> MN: FacilityID does not have predictive value, it is just a label that helps distinguish individual hospitals. If left in the dataset, functions like nearZeroVar() might misinterpret them as meaningful features rather than identifiers, which could distort variance assessments.
+Additionally, keeping FacilityID as a column can clutter the analysis by introducing unnecessary data that doesn’t contribute to patient outcomes or hospital performance. By moving it to rownames, you ensure that only relevant variables are considered in statistical modeling, improving efficiency and accuracy.
 
 #### **Question 9D**: [1 point]
 Do some research on, or lean into your previous knowledge, about the **curse of dimensionality** or the **big-P, little-N (n >> P) problem**. Using whatever you find or remember, can you justify why we likely do NOT have a **big-P, little-N (n >> P) problem** here? Make sure to explain. 
 
-> Your answer here.
+> MN: Our dataset currently has 31 predictors (p) and 4816 observations(n). We do not meet the big-P, little-n problem here with these numbers, which will help to avoid overfitting when you have many more predictors than observations. 
 
 ## 3.2 Assess missingness & devise an imputation plan
 
@@ -586,20 +597,32 @@ We are going to deal with imputation in a rather quick and elegant way that requ
 
 #### **Question 10**: [1 point]
 Write some code that will quickly tally the number of columns in the dataset that contain missing values. You will find `colSums()` and `is.na()` functions likely useful here. **What percent of the features have at least some level of missingness?**
+>MN:
 
 ```{r}
-# Your code here.
+missing <- colSums(is.na(dat2Analyze))#count missing values per column
+
+missing_cols <- sum(missing > 0)#columns with at least one missing value
+
+percent_missing <- (missing_cols / ncol(dat2Analyze)) * 100
+missing
+missing_cols
+percent_missing
+
 ```
 
-> Your answer here.
+> MN: 31 columns have missing data, and 100% of the features have some sort of missingness.
 
 **Which column(s) are not missing any data?**
 
-> Your answer here.
+> MN: Every column is missing data
 
 **How many complete observations do we have in the dataset?** You may find `nrow()` with `complete.cases()` or `drop_na()` useful!
+>MN: 644 observations have complete data
+
 ```{r}
-# Your code here.
+sum(complete.cases(dat2Analyze))
+
 ```
 
 
@@ -625,6 +648,7 @@ What `md.mice()` does is create two pairwise correlation matrices, `mr` and `mm`
 
 Let's take a look at the first 6 rows and 4 columns of the `mr` matrix:
 
+
 ```{r, echo=FALSE}
 miceMatrix$mr[1:6, 1:4] %>% 
   kable(format = "html",
@@ -648,7 +672,7 @@ Similarly, `miceMatrix$mm[i, j]` gives us the number of cases where both variabl
 #### **Question 11A**: [0.5 points]
 Explain what you think the number in cell $[6,1]$ means. Out of all the observations in the dataset, does this feel like a high degree of co-missingness?
 
-> Your answer here.
+> MN: To me this means that 1788 values are missing. Postop respiratory failure rate has a missing value, and predicted readmission has a missing value in 1788 instances, which is almost half of our observations. This does seem like a high degree of co-missingness, which could indicate the pattern is not just random.
 
 Lastly, we can calculate a **proportion of missingness vs. response** between any two variables $i$ and $j$ such that:
 
@@ -709,7 +733,21 @@ p[1, ] %>%
 
 What columns seem to be most correlated in terms of missingness to our target, `PredictedReadmissionRate`? Does this give you any cause for concern? Feel free to speculate as to why you might see this.
 
-> Your answer here.
+> MN: The columns that seem to be most correlated with missingness are:
+- MRSA Bacteremia
+- ComparedToNational MRSA Bacteremia
+- Postop respiratory failure rate
+- Medicare spending per patient
+- Perioperative pulmonary embolism or DVT
+- Composite patient safety
+Could consider these too as well:
+- ComparedToNational Composite patient safety
+- PaymentCategory for pneumonia patients
+- Payment for pneumonia patients
+- Staff responsivenes
+Yes this could cause concern as this pattern of missingness suggests non-random gaps in the data, which could introduce bias. If these specific variables are frequently missing when readmission rates are observed, it might mean that hospitals with certain characteristics or reporting standards are disproportionately affected. If hospitals with high readmission rates also tend not to report certain metrics, that could skew the data, making it harder to get an accurate idea of what’s driving readmissions.
+
+
 
 ## 3.3 Drop rows that are missing from the target variable. 
 
@@ -724,9 +762,9 @@ paste0(c("Rows: ", "Columns: "), dim(dat2Analyze))
 
 
 #### **Question 12**: [0.5 points]
-Thinking back to your answer to Question 12, do you feel any differently given these dimensions of the dataset?
+Thinking back to your answer to Question 9D, do you feel any differently given these dimensions of the dataset?
 
-> Your answer here.
+> MN: Not sure which question I am supposed to reference here for comparison?
 
 ## 3.4 Do the splits! 
 
@@ -735,7 +773,8 @@ At this stage, we are almost ready to __impute__ - but not until we have done ou
 #### **Question 13**: [1 point]
 Explain to your stakeholder, in simpler language, (1) why we partition data into testing and training sets and (2) what data leakage is. You do not need to go into great detail, but it should explain enough that they understand the basic ideas.
 
-> Your answer here.
+> AJ-1.We partition the data into testing and training set so that we can train the model on one portion known as the training set and test how well it performs on new unseen data which is the testing set. It helps to  check whether the model is learning patterns or has memorized the given  data.
+  2.Data leakage is when information from the testing set heavily influences the training process. Thus the model appears to be more accurate than it actually is solely because it is relying on the previously seen answers.
 
 You may recall that I mentioned that the optimal ratio is has been argued to be $\sqrt{p} : 1$, where $p$ is the number of parameters (which may or may not equal your predictors depending on your planned analysis). Note that you do not have to split only a single time; you could make different splits for different analyses, if needed. However, we are going to use a single split here for convenience. 
 
@@ -755,45 +794,51 @@ calcSplitRatio <- function(p = NA, df) {
   ## @p  = the number of parameters. by default, if none are provided, the number of columns (predictors) in the dataset are used
   ## @df = the dataframe that will be used for the analysis
   
-  ## COMMENT HERE
+  ## If no value is provided for p, use  the number of predictors in the dataframe  (excluding the target variable)
   if(is.na(p)) {
-    p <- ncol(df) -1   ## COMMENT HERE
+    p <- ncol(df) -1   ## Subtract 1 assuming the last column is the target variable
   }
   
-  ## COMMENT HERE
+  ## use sqrt(p) rule to calculate the ideal number of test observations 
   test_N <- (1/sqrt(p))*nrow(dat2Analyze)
-  ## COMMENT HERE
+  ## Convert count to a proportion of the dataset
   test_prop <- round((1/sqrt(p))*nrow(dat2Analyze)/nrow(dat2Analyze), 2)
-  ## COMMENT HERE
+  ## Calculate the training proportion
   train_prop <- 1-test_prop
   
-  ## COMMENT HERE
+  ## print the ideal split ratio
   print(paste0("The ideal split ratio is ", train_prop, ":", test_prop, " training:testing"))
   
-  ## COMMENT HERE
+  ## Return the training proportion
   return(train_prop)
 }
 
 ## Fill in the blanks to run:
 # train_prop <- ___(df = ___)
+train_prop <- calcSplitRatio(df = dat2Analyze)
 ```
+
+
+
 
 **Hint**: One important note here is that if the number of parameters are not provided (which is true for the starter code I gave you to run it - it does NOT pass any parameters to that argument!), then by default our function is designed to take the number of columns of the dataframe and subtract one for the target variable. Neat, huh?
 
 Now, uncomment this code and fill it out to run it. 
 ```{r}
-# ind <- createDataPartition(dat2Analyze$___,   ## Put the target here!
-#                            p = ___,           ## Use the object you just made!
-#                            list = FALSE)
-# 
-# train <- dat2Analyze[___, ]
-# test <- dat2Analyze[-c(ind), ]
+
+ind <- createDataPartition(dat2Analyze$PredictedReadmissionRate,   ## Put the target here!
+                           p = train_prop,                         ## Use the object you just made!
+                           list = FALSE)
+
+train <- dat2Analyze[ind, ]        ## Use the index to select training rows
+test <- dat2Analyze[-c(ind), ]     ## Use the complement for testing rows
+
 ```
 
 #### **Question 14B**: [0.5 points]
 What split ratio did you get? Is it close to the canonical 80-20 split? Why do you think that happened?
 
-> Your answer here.
+>AJ- The  split ratio is 82% for training, and 18% for testing which is very close to the canonical 80/20 split. This is because the formula used depends on the  ~ 30 predictors (columns) within the dataset which naturally gives a number close to 80%, leaving the remainder (18%) of the data  to test how well it works.
 
 
 __Did you get stuck somewhere?__ If so, load the `test` and `train` data in case you struggled with Question 18 so you can proceed:
@@ -863,17 +908,24 @@ data.frame(imputedTrain$OOBerror, names(temp)) %>%
 #### **Question 15**: [1 point]
 What does `MSE` (Mean Squared Error) and `PCF` (Proportion of Falsely Classified) indicate here? You may find looking at the `missForest` [Vignette](https://stat.ethz.ch/education/semesters/ss2012/ams/paper/missForest_1.2.pdf) helpful. Which variable(s) had the highest OOB error?
 
-> Your answer here.
+> Since  missForest was used to  fill in missing data, MSE and PCF relects how accurate/innacurate  those imputations are.
+A higher MSE number indicates the guesses for the numerical values were less accurate.The closer PCF is to 0 the better since PCF shows how often the model got it wrong when filling in categorical values, such as labels or groupings.
 
 **NOTE 1**: If the OOB error (either MSE or PCF) from `missForest` is really high, it’s a red flag that the imputation for those variables is untrustworthy. This could be do to too much missingness, weak relationships among the variables making it hard to predict, or low quality data (e.g., noisy, sparse). In such cases, we want to **DROP** any variables with extremely high OOB error because they add noise. A general rule of thumb is that if the PCF > ~0.3 (30% of the imputed values are wrong) or if there is especially high MSE (inflation) relative to the variance of the variable, we should drop it. Let's set those aside so we can drop them from `test` and `train` both downstream! 
 
 **NOTE 2**: Even though the PCF is a bit too high, I am choosing to retain `ComparedToNational_Hospital return days for pneumonia patients` because it is a primary predictor. This could be a poor choice, however! Every decision we make as data scientists can _come with pitfalls_.
 
+
+```{r}
+"Hospital return days for pneumonia patients" %in% names(train)
+
+```
+
 ```{r}
 ## These look okay. Uncomment to see their variances.
 #var(train$`Hospital return days for pneumonia patients`, na.rm = T)
 #var(train$`Median time (minutes) patients spent in ED`, na.rm = T)
-#var(train$`Healthcare workers given influenza vaccination`, na.rm = T)
+var(train$`Healthcare workers given influenza vaccination`, na.rm = T)
 
 cols2drop <- c("Payment for pneumonia patients", "Emergency department volume")
 ```
@@ -881,7 +933,8 @@ cols2drop <- c("Payment for pneumonia patients", "Emergency department volume")
 #### **Question 16**: [1 point]
 Alternatively, we could use MICE (Multivariate Imputation with Chained Equations), which is a method that will model uncertainty along with the variables. Do a little research. How does MICE work? Include a citation to a source.
 
-> Your answer here.
+> MICE (Multivariate Imputation by Chained Equations) is a method for filling in missing data by iteratively modeling each incomplete variable using the others in the dataset. It works by preserving relationships between variables more effectively than simple methods like mean or mode imputation. MICE also accounts for uncertainty in the imputed values and performs well with datasets that contain both numerical and categorical variables.
+van Buuren, S., & Groothuis-Oudshoorn, K. (2011). mice: Multivariate imputation by chained equations in R. Journal of Statistical Software, 45(3), 1–67. https://doi.org/10.18637/jss.v045.i03.
 
 #### 3.5.4 Putting it alllllll back together...
 
@@ -946,9 +999,17 @@ Quickly explore how well the imputation did by choosing at least one numeric var
 
 ```{r}
 # Your code here.
+# Summary of numeric variable before and after
+summary(train$`Healthcare workers given influenza vaccination`)
+summary(imputedTrain$`Healthcare workers given influenza vaccination`)
+
+# Categorical variable (Frequency table) before and after
+table(train$`ComparedToNational_MRSA Bacteremia`, useNA = "always")
+table(imputedTrain$`ComparedToNational_MRSA Bacteremia`)
+
 ```
 
-> Your answer here.
+> AJ-The numeric variable was well-imputed, with the mean and median values remaining nearly unchanged after imputation, suggesting minimal distortion. However, the categorical variable showed a substantial shift, the imputation process heavily overestimated the neutral category (0) which  significantly altered the balance between the  classes. This suggests that while the numeric imputation performed well, the categorical imputation may have introduced bias and should be interpreted with caution.
 
 ## 3.6 Another Fork in the Road
 It's time, yet again, to make a choice. If you opted to load the __fully encoded__ dataset and everything has been done on that, you will run the first chunk. But if you decided that you wanted to __wait to encode__ the TIME HAS FINALLY COME!
@@ -959,13 +1020,11 @@ Ultimately, we need to turn the factor features back into numbers for our next a
 
 ```{r}
 ## Uncomment if this is your choice!
-# readyTrain <- imputedTrain %>%
-#   mutate_if(is.factor, as.character) %>% 
-#   mutate_if(is.character, as.numeric)
-# 
-# readyTest <- imputedTest %>%
-#   mutate_if(is.factor, as.character) %>% 
-#   mutate_if(is.character, as.numeric)
+readyTrain <- imputedTrain %>%
+mutate_if(is.factor, as.character) %>% 
+mutate_if(is.character, as.numeric)
+ 
+readyTest <- imputedTest %>% mutate_if(is.factor, as.character) %>%  mutate_if(is.character, as.numeric)
 ```
 
 ### 3.6.2 The Right Fork - Frequency Encoding
@@ -998,7 +1057,7 @@ if(!is.numeric(imputedTrain$State)) {
 #### **Question 18**: [1 point]
 Because we are now frequency encoding AFTER data partitioning (we did ordinal encoding BEFORE the split for convenience), we absolutely __must__ apply the same encoding map to the `test` set that we did to the `train` set. Explain why, and what should we do if some classes of the variable end up in the `train` that is not in the `test` or vice versa? (**HINT**: Look at the source code!)
 
-> Your answer here. 
+> AJ-FrequencyEncoding() helper function (from source code) builds the frequency map from the training set only.It then applies that map to the test set. If a category exists in the test set but not in the training set, it assigns it a frequency of 1 which is considered to be a safe default.This approach prevents model errors and ensures stability in unseen categories. 
 
 ## 3.7  Transformation & Scaling
 
@@ -1020,15 +1079,16 @@ ggplot(readyTrain, aes(x = PredictedReadmissionRate)) +
 #### **Question 19A**: [1 point]
 Why is a histogram, or even a Q-Q plot, an insufficient way to assess whether a distribution is approximately normal?
 
-> Your answer here.
+> AJ-Histograms and Q-Q plots are helpful tools for data exploring, but they’re not conclusive. For a more objective assessment of normality, visualizations should be paired  with statistical tests and summary measures.These include Shapiro-Wilk test (shapiro.test),Anderson-Darling test, Kolmogorov-Smirnov test (less sensitive), Skewness and kurtosis statistics for shape and Residual analysis in model diagnostics (for regression) and to assess normality assumptions.
+
 
 Now Apply a [Shapiro-Wilk test](https://biostats.w.uib.no/test-for-normality-shapiro-wilks-test/) for normality using the `shapiro.test()` function. What does it indicate about your distribution? (**Note**: Shapiro tests are only reliable for $N < 5000$, but it is fine to perform here.)
 
 ```{r}
-# Your code here.
+shapiro.test(readyTrain$PredictedReadmissionRate)
 ```
 
-> Your answer here.
+> AJ- The Shapiro-Wilk test returned W = 0.985 with a p-value = 0.00000000000003085 which is far below 0.05.The null hypothesis of normalityis rejected because the distribution deviated significantly from normality.
 
 ### 3.7.1 Box-Cox Transformation
 
@@ -1078,10 +1138,12 @@ Can you see what it did to the distribution? __look closely__, if not. It's subt
 #### **Question 19B**: [1.5 points]
 Now repeat all of the steps to perform a Box-Cox transform on your own to the `imputedTest` data. Why must we (1) also transform the test data and (2) __use the same $\lambda$ as the training data__?
 
-> Your answer here.
+> AJ-We apply the Box-Cox transformation to both training and test sets using the same lambda to maintain consistency, to prevent data leakage,and to ensure valid model evaluation.
 
 ```{r}
-# Your code here.
+# # Applying the same Box-Cox transformation (using lambda from training data)
+readyTest$bc_PredictedReadmissionRate <- predict(bc_data, readyTest$PredictedReadmissionRate)
+
 
 # Make sure to check that your transform looks successful!
 ```
@@ -1109,7 +1171,29 @@ readyTrain <- readyTrain %>%
 Do the same for your test data. Make sure to use `readyTest` and overwrite it. 
 
 ```{r}
-## Your code here.
+# Applying the Box-Cox transformation to the test set using the lambda from training
+readyTest$bc_PredictedReadmissionRate <- predict(bc_data, readyTest$PredictedReadmissionRate)
+
+```
+
+```{r}
+readyTrain_scaled <- readyTrain %>%
+  select(-bc_PredictedReadmissionRate) %>%
+  scale() %>%
+  as.data.frame() %>%
+  mutate(bc_PredictedReadmissionRate = readyTrain$bc_PredictedReadmissionRate)
+
+```
+
+```{r, eval=FALSE}
+# First: extract and scale using training 
+readyTest_scaled <- readyTest %>%
+  select(-bc_PredictedReadmissionRate) %>%
+  scale(center = attr(scale(readyTrain %>% select(-bc_PredictedReadmissionRate)), "scaled:center"),
+        scale  = attr(scale(readyTrain %>% select(-bc_PredictedReadmissionRate)), "scaled:scale")) %>%
+  as.data.frame() %>%
+  mutate(bc_PredictedReadmissionRate = readyTest$bc_PredictedReadmissionRate)
+
 ```
 
 **Hint**: Make sure to turn your centered, scaled __matrix__ back into a dataframe! By default, it creates a matrix.
@@ -1146,11 +1230,20 @@ heatmap(corrMat,
 #### **Question 20A**: [1 point]
 Where do you see the highest potential for multicollinearity? Why do you say that?
 
-> Your answer here.
+> AJ-Nurse communication,Communication about medicines,Staff responsiveness,Doctor communication,Discharge information and Overall hospital rating.
 
 Which variable(s) seem to be most correlated with our target, `bc_PredictedReadmissionRate`?
 
-> Your answer here.
+
+```{r}
+correlations <- cor(readyTrain_scaled, use = "complete.obs")
+target_corr <- correlations[, "bc_PredictedReadmissionRate"]
+sorted_corr <- sort(abs(target_corr), decreasing = TRUE)
+sorted_corr[2:6]  # Exclude the target's self-correlation (value of 1)
+
+```
+
+> AJ-The variable most correlated with the target bc_PredictedReadmissionRate is ComparedToNational_Hospital.return.days.for.pneumonia.patients with a correlation of approximately 0.50, indicating a moderate to strong positive relationship. This suggests that hospitals performing worse than the national average in this metric tend to have higher predicted readmission rates.Patient experience variables such as Staff.responsiveness, Nurse.communication, and Doctor.communication show moderate positive correlations (ranging from ~0.34 to 0.39). This implies that hospitals with poorer patient communication and responsiveness may also experience higher readmission rates. Lastly, PaymentCategory.for.pneumonia.patients also shows notable correlation, possibly reflecting financial or systemic differences that influence outcomes..
 
 ## 4.2 Fitting a model to estimate VIF
 
@@ -1192,7 +1285,7 @@ Does multicollinearity seem to be an issue in this dataset and, if so, among whi
 
 **HINT 2**: Is, for example,`Payment Category for pneumonia patients` created from `Payment for pneumonia patients`? [These are Medicare payments]? Which one do you think we should keep amd why?
 
-> Your answer here.
+> AJ-Multicollinearity does not appear to be a major issue in this dataset, as all of the top Variance Inflation Factors (VIFs) are well below the common thresholds of 5 or 10.Overall hospital rating may have been derived from other HCAHPS items, such as Doctor communication, Staff responsiveness, and Cleanliness which could introduce artificial multicollinearity. If Payment Category for pneumonia patients is derived from 'Payment for pneumonia patients',the original continuous variable (Payment for pneumonia patients) should be kept because  continuous data retains more nuance and predictive signal, while categories can dilute variation and reduce model flexibility.
 
 Which variable(s) seem to be most highly correlated with our target? Is it a positive or negative correlation? Does it make sense?
 
@@ -1245,9 +1338,9 @@ First, we apply a PCA on the data and display the principal components. Note tha
 
 #### **Question 21**: [2 points]
 
-1. At what principal component do we surpass 80% of explained variance? (**HINT**: look at the cumulative variance row rather than tha proportion of variance row).
+1. At what principal component do we surpass 80% of explained variance? (**HINT**: look at the cumulative variance row rather than the proportion of variance row).
 
-> Your answer here.
+> (JML) PC11 where the cumulative variance surpasses 80%.
 
 ```{r}
 pca <- prcomp(readyTrain)
@@ -1256,7 +1349,7 @@ summary(pca)
 
 2. You may also notice that this is always ordered from most proportion of variance on the left (thus is PC1 defined) to our final principal component on the right. What percent of variance is explained by just PC1? What percent by the final PC? Is the attributable portion of the variance in PC1 high, medium, or low based on some quick research or prior knowledge?
 
-> Your answer here.
+> (JML) PC1 explains 22% of the variance. PC18 is the final PC and it explains just 1%. I tried to find some information about high v medium v low, but didn't find anything definitive or descriptive.
 
 3. We use scree plots to graphically determine how many principal components to retain and how many principal components best explain the variance of the data. The $x$-axis displays the principal components (PC1, PC2, etc.), while the $y$-axis shows the eigenvalues (or proportion of variance explained) for each component. The **elbow method** we discussed in class is the point where the slope starts to flatten or the point at which the percentage of variance explained seems to level off. If we were doing this for feature reduction, we might think of this as approximately how many principal components would be needed to explain the total variation in the training data.  However, it is a **heuristic** method, so it can sometimes be a little uncertain from the plot alone what the optimal number of PCs is. Let's take a look at the top-15 PCs on a scree plot now:
 
@@ -1273,11 +1366,11 @@ fviz_screeplot(pca,
 
 How many PCs appear optimal to you based on the scree plot?
 
-> Your answer here.
+> (JML) I think PC1 and PC2 are the optimal PCs. PC2 is where the elbow starts to bend.
 
 4. People often mis-write scree (I've even accidentally done it) as SCREE, as if it's an acronym like AUROC or ROC or even PCA. But it's not. Why is it called a scree plot? (**Hint**: It may not be what you expect!)
 
-> Your answer here. 
+> (JML) Yep, not what I expected at all. Scree describes loose rock fragments at the base of a cliff, which would be at a different angle than the cliff itself. 
 
 ### 5.1.2 Variable loadings and contributions
 
@@ -1298,14 +1391,14 @@ fviz_pca_biplot(pca,
              palette = c("maroon", "cadetblue", "gold"),
              label = "var",
              geom = "point",
-             geom.var = "text",
+             geom.var = c("arrow", "text"),
              addEllipses = TRUE,
-             ellipse.alpha = 0.5,              ## Change alpha 0-1
+             ellipse.alpha = 0.2,       ## Change alpha 0-1 #changes transparency of ellipses
              col = "black",
              col.var = "black",
              habillage = returnHospitalComparison,
-             select.var = list(contrib = 1),   ## Try changing the number
-             repel = T)                        ## Try switching to FALSE
+             select.var = list(contrib = 10),   ## Try changing the number # provides labels for top # of loads
+             repel = T)                        ## Try switching to FALSE # avoids text overlap of load labels locations
 ```
 
 This biplot (Figure above) shows that, on principal components 1 and 2 (the PCs that account for the __most__ variance in the training data) there is subtle but noticeable grouping of hospitals in terms of how long their readmitted pneumonia patients stayed in the hospital. I have chosen to display the __#1__ feature that contributes to that variance, `Communication.about.medicines`. 
@@ -1338,7 +1431,8 @@ Each quadrant on a PCA biplot corresponds to a different directional influence o
 
 Play around with the graphical parameters in the biplot, especially those I've marked with comments. Try adding, for example, more variables to display rather than just the top contributor. **NOTE** that if you find variables in the same quadrant together, this means that they are correlated. What variable(s) can you find that **contrast** with `Communication.about.medicines`?
 
-> Your answer here.
+> (JML)I found that changing the ellipse.alpha values changed the transparency of the fill of the ellipse, with lower values being more transparent and higher values being less transparent.  Personally, I liked a value of 0.2 the best. Changing the contrib values higher resulted in more loading labels being present on the biplot. Keeping the repel value set to TRUE helped keep the labels from printing over one another.
+I didn't modify the colors because I thought the combination was different enough to well highlight the groups. I am confused about how the shapes of the "points" are being set. I see the geom="point" so the circles make sense. I also see the habillage being set to the factor variable, but the reading I did for habillage mentioned that the color would be changed by the factors and didn't mention the point styles. Is it that combination that is giving the different groups the triangles & squares for the values? I changed the col.var to hotpink and decided that was just wrong haha. I found I needed to add the arrows into the biplot so I could more easily answer what contrasts with `Communication.about.medicines`. It appears that `bc_PredictedReadmissionRate` is the loading that contrasts with `Communication.about.medicines`
 
 Now, look at the contributions to PCs 1 and 2 (Figure Below) from the variables in the training dataset. Anything above the dotted red-line contributes **significantly** to the overall explanation of variance, and anything below the dotted line does not. Does anything about this plot stand out to you?
 
@@ -1346,7 +1440,7 @@ Now, look at the contributions to PCs 1 and 2 (Figure Below) from the variables 
 
 **HINT 2**: Where does the target, `PredictedReasmissionRate`, fall among the significant variables?
 
-> Your answer here.
+> JML Seven variables contribute to the overall explanation of variance, and five of these came from the HCAHPS data set originally. Most of the contributing variables relate to communication. Based on the definition about the dotted red-line, it looks like bc_PredictedReadmissionRate doesn't contribute to the variance explanation? Is that because it is orthogonal to communication.about.medicines? 
 
 ```{r, echo=FALSE, fig.width=8, fig.height=8, fig.cap="Figure 12. Variables that Significantly Explain Variance."}
 fviz_contrib(pca, 
@@ -1401,7 +1495,7 @@ grid.arrange(p6, p7, p8, p9, nrow = 2)
 #### **Question 23A**: [0.5 points]
 Which number of clusters, $k$, do you think has the best explanatory power? Why? Is it is hard to tell?
 
-> Your answer here
+> (JML) Maybe 3 is good? With any more than that, the clusters seem to pile one on top of the other (and make interpretibility challenging)?
 
 ### 5.2.3 Within-sum-of-squares (WSS) elbow method
 
@@ -1420,7 +1514,7 @@ fviz_nbclust(readyTrain,
 
 What is the __within sum of squares__ and what exactly is it measuring here? By the elbow method, which $k$ is the optimal number of clusters? Did it agree with your choice from the other heuristic method?
 
-> Your answer here
+> (JML) The within sum of squares (assuming this is also called "Within Cluster Sum of Squares") is the sum of the variance between observations in each cluster (1), measuring the distance between each observation and the cluster center and performs a calculation. Looking at the elbos method, I believe that 2 is the optimal number of clusters, because the "bend" starts occurring there. No, this doesn't match my answer to Q23A, but it's not far off either.(1)https://365datascience.com/tutorials/python-tutorials/k-means-clustering/
 
 ### 5.2.3 Silhouette method
 
@@ -1441,7 +1535,7 @@ fviz_nbclust(readyTrain, kmeans, method = "silhouette",
 
 Are you surprised at the optimal $k$ from the silhouette method? Does it seem to agree with what you've seen with the WSS elbow method? (**Hint**: agreement generally suggests evidence that you have found the optimal $k$).
 
-> Your answer here
+> (JML)The silhouette method does agree with the elbow method, identifying that the best number of clusters is 2. 
 
 Lastly, let's extract the optimal $k$ from the silhouette method.
 
@@ -1461,23 +1555,23 @@ As we said before, the goal of segmentation analysis is to broadly cluster our h
 Let's explore the clusters - segments - of the hospitals based on their average values from the __original__ dataset (we start from `imputedTrain`, which hadn't yet been transformed, centered, or scaled, BUT the multicollinear variables also haven't been dropped either). Your task is to add comments to this code chunk. 
 
 ```{r, echo = TRUE, fig.height = 8, fig.width=6, fig.cap="Figure 16. Boxplot Comparisons of Important Variables by Cluster"}
-## COMMENT HERE
+## Gives a cluster assignment to each record in readyTrain
 kmeansResult <- kmeans(readyTrain, 	
-                         centers = k,      ## COMMENT HERE
+                         centers = k,      ## k=2 and is the optimal # of clusters based on silouette method
                          nstart = 50,      
                          iter.max = 1000,  
                          algorithm = "MacQueen")
-## COMMENT HERE
+## creates df from imputedTrain for next steps
 kmeansTrain <- imputedTrain %>% 
   ## Rename the column we want to keep
   rename(Pneumonia.Hospital.Return.Days = `ComparedToNational_Hospital return days for pneumonia patients`) %>% 
-  ## COMMENT HERE
+  ## Drops cols with VIF>5 or containing Compared or Payment Category in var name, and the SurveyResponseRate col
   select(-any_of(vifOver5), -contains("Compared"), -contains("PaymentCategory"), -SurveyResponseRate) %>% 
-  ## COMMENT HERE 
+  ## Brings cluster assignment from diff table to kmeansTrain, converts non-numeric days data to numeric 
   mutate(Cluster = kmeansResult$cluster,
          Pneumonia.Hospital.Return.Days = as.numeric(if_else(Pneumonia.Hospital.Return.Days == "1", 1,
                                                      if_else(Pneumonia.Hospital.Return.Days == "0", 0, -1)))) %>% 
-  ## COMMENT HERE
+  ## Updates col names to have only letters, numbers, and underscore character
   clean_names()
 
 ## Using % contribution graph, the order of the top 10:
@@ -1492,25 +1586,25 @@ pcaImportantVars <- factor(c("Communication.about.medicines",
                        "Predicted.Readmission.Rate",
                        "Pneumonia.Hospital.Return.Days"))
 
-## COMMENT HERE
+## Changes variable names to all lowercase characters
 pcaImportantVars <- tolower(pcaImportantVars)
-## COMMENT HERE
+## in the important variable factor, replace dot(.) with underscore character
 pcaImportantVars <- gsub("\\.", "_", pcaImportantVars) %>% 
-## COMMENT HERE
+## converts variable names to capitalize 1st letter of title and all abbreviations are also cap'd
   to_any_case("title")
 
-## COMMENT HERE
+## Add'l changes made from kmeansTrain df to prep for plotting
 kmeansTrain %>% 
-  ## COMMENT HERE
+  ## replace dot(.) with underscore character in column names
   rename(Predicted.Readmission.Rate = predicted_readmission_rate,
          Periop.Rate.Of.Embolism.Or.Thrombosis = perioperative_pulmonary_embolism_or_deep_vein_thrombosis_rate) %>% 
-  ## COMMENT HERE
+  ## converts variable names to capitalize 1st letter of title and all abbreviations are also cap'd
   clean_names(case = "title") %>% 
-  ## COMMENT HERE
+  ## gets records' cluster assignment and any columns id'd in the pcaImportantVars factor
   select(Cluster, any_of(pcaImportantVars)) %>% 
-  ## COMMENT HERE
+  ## keeping 1st column as is, make col "Measure" into records, differentiated by data in col "Value"
   pivot_longer(-1, names_to = "Measure", values_to = "Value") %>% 
-  ## COMMENT HERE
+  ## create grouping of records by imp features, with reformatted names
   # filter(Measure %in% pcaImportantVars) %>% 
    mutate(Measure = factor(Measure, levels = to_any_case(c("Communication.about.medicines",
                         "Doctor.communication", 
@@ -1522,7 +1616,7 @@ kmeansTrain %>%
                         "Periop.Rate.Of.Embolism.Or.Thrombosis",
                         "Predicted.Readmission.Rate",
                         "Pneumonia.Hospital.Return.Days"), case="title"))) %>% 
-  ## COMMENT HERE
+  ## Use the above info to create faceted plots
     ggplot(aes(x = Cluster, y = Value, fill = as.factor(Cluster))) +
     geom_boxplot(alpha=0.75) +
     scale_fill_manual(values = c(skittles[1], skittles[6])) +
@@ -1535,23 +1629,23 @@ kmeansTrain %>%
         legend.text = element_text(size = 8),
         legend.title = element_text(size = 10),
         title = element_text(size = 12, color = "maroon")) + 
-    ## COMMENT HERE
+    ## show measure/values by value group, with 2 cols and y axis having independent ranges
     facet_wrap(~ Measure, 
              scales = "free_y",
              ncol = 2)
 
-## COMMENT HERE
+## Use/modify data from kmeansTrain for a table
 kmeansTrain %>% 
-  ## COMMENT HERE
+  ## rename 2 columns
   rename(Predicted.Readmission.Rate = predicted_readmission_rate,
          Periop.Rate.Of.Embolism.Or.Thrombosis = perioperative_pulmonary_embolism_or_deep_vein_thrombosis_rate) %>% 
-  ## COMMENT HERE
+  ## format col names with cap 1st letter
   clean_names(case = "title") %>% 
-  ## COMMENT HERE
+  ## gets records' cluster assignment and any columns id'd in the pcaImportantVars factor
   select(Cluster, any_of(pcaImportantVars)) %>% 
-  ## COMMENT HERE
+  ## create table id'ing cluster assignment, broken down by variable, id mean and pct of sample
   tbl_summary(by = "Cluster",
-              statistic = list(all_continuous() ~ c("{mean} ({median})"))) %>% 
+              statistic = list(all_continuous() ~ c("{mean} ({median}) {var}"))) %>% 
   modify_header(label ~ "Variable",
                 all_stat_cols() ~ "**Cluster {level}**") %>% 
   modify_caption("Table 8. Summary Statistics of Important Cluster Variables")
@@ -1572,20 +1666,20 @@ dict <- tribble(
 ~`Top Defining Attributes`, ~`Description`,
 "Predicted Pneumonia-related hospital readmissions", "These hospitals have a lower readmission rate, suggesting that hospitals in this cluster may be better at diagnosing and treating pneumonia",
 "Return hospital days due to pneumonia", "Readmitted patients spend below the national average number of days in hospital, suggesting these hospitals are able to more quickly treat and stabilize pnuemonia patients", 
-"FILL ME IN", "FILL ME IN",
-"FILL ME IN", "FILL ME IN",
-"FILL ME IN", "FILL ME IN",
-"FILL ME IN", "FILL ME IN",
-"FILL ME IN", "FILL ME IN",
-"FILL ME IN", "FILL ME IN"
+"Postoperative respiratory failure rate", "These hospitals have a lower rate of postoperative respiratory failure, suggesting that these hospitals may be better prepared to handle respiratory crises",
+"Serious blood clots after surgery", "These hospitals have a lower rate of post-surgical blood clot complications, suggesting these hospitals work hard to prevent these events",
+"Doctor communication", "Patients rank communication with doctors at these hospitals as above average, suggesting that level of engagement plays a role in positive patient outcomes.",
+"Discharge communication", "Patients being discharged from these hospitals rank the discharge communication as above average, suggesting that patients are well-prepared to continue their recovery without hospital intervention.",
+"Patient safety scores", "These hospitals have safety scores on par with national averages, suggesting that they follow established safety protocols successfully",
+"Cleanliness", "Patients report that these hospitals are clean, suggesting that the hospitals value hospital environment",
 )
 
 dict %>% 
   kable(
     format = "html",
     caption = "Table 9. Hospital segmentation analysis: three types of broad groupings identified.") %>%
-    pack_rows("1: Highest Performing Hospitals", 1, 4) %>%
-    pack_rows("2: NAME ME!", 5, 8) %>%
+    pack_rows("1: Highest Performing Hospitals ", 1, 4) %>%
+    pack_rows("2: Hospitals with strong patient feedback", 5, 8) %>%
     kable_styling(bootstrap_options = c("striped", full_width = F)
   )
 ```
@@ -1597,7 +1691,7 @@ We don't technically have to stop our segmentation analysis here, but we will so
 #### **Question 26**: [1 point]
 Make a recommendation for our client for 1-2 machine learning analyses __your team__ would choose to use to test whether these clusters can be used for robust predictions of hospital performance for pneumonia patients. How would you know whether or not your predictions were robust? What would you look for or compare?
 
-> Your answer here.
+> (JML) My thoughts would be 1) decision-tree modeling because it is very easy to communicate the findings with non-data scientists and 2) xgboost because it is flexible and comprehensive.
 
 # 6 Supervised Learning Methods
 
@@ -1636,7 +1730,7 @@ plot(mod, 4)
 
 What is your general assessment of our OLS assumptions? Met or unmet? Why? 
 
-> Your answer here.
+> (JML)My impression is that the OLS assumptions are close to being met but aren't met. The residuals are normally distributed according the the Q-Q plot. There is almost a linear relationship betwee residuals and fitted values. There isn't obvious heteroscedacity in that neither ends of that plot are flared, but there is a clumping of values in the middle. There are at least 3 observations that should be reviewed for high influence/leverage.
 
 **Note:** If you are not entirely sure about the Q-Q plot, you can run a Shapiro-Wilk test on the residuals using the following code:
 
@@ -1648,7 +1742,7 @@ The **most important** OLS assumption for Elastic Net is __linearity of the rela
 
 **Do you find support for linearity here**? Why or why not?
 
-> Your answer here.
+> (JML) This is so close to being linear, I'm not sure "how" close is good enough, though.
 
 2. Let's now assess how well our model fits with the adjusted $R^2$.
 
@@ -1660,7 +1754,7 @@ summary(mod)$adj.r.squared
 #### **Question 27B**: [1 point] {#rmse}
 It is a surprisingly high (although it isn't stellar). You may need to do some outside research, but explain in a sentence or two why, generally speaking, we use **adjusted** $R^2$ and not the unadjusted one (confusingly labeled as `multiple r-squared` in the `summary()` output below). 
 
-> Your answer here.
+> (JML) The unadjusted R-squared value is the proportion of variance for a dependent variable explained by an independent variable. The adjusted R-squared adjusts for add'l independent variables that are not significant to the model.  https://corporatefinanceinstitute.com/resources/data-science/adjusted-r-squared/
 
 3. Find the best model. 
 
@@ -1698,7 +1792,7 @@ Can you interpret what the RMSE tells your client here? Why or why not? What abo
 
 **Hint 2**: Is it practical to undo both transformations? How does that hinder our ability to make an interpretation for our client?
 
-> Your answer here.
+> (JML)Yes, I believe we need to undo the Box-Cox transformation to assess the RSME and R^2. Sorry I'm not sure about the answer to the rest of this question.
 
 Lastly, let's graph the effect predictive ability of our OLS model by comparing the relationship between the **true** values of `bc_PredictedReadmissionRate` from the `readyTest` dataset to the predictions we made using the model on the testing data.
 
@@ -1783,8 +1877,7 @@ Explain what we are doing here. You may want to look up the parameters of the `t
 
 **Hint 2**: What does $\lambda = 0$ mean? How about $\alpha = 0$? 
 
-> Your answer here.
-
+> (JML)We are doing cross validation to test the model against validation data and flag overfitting. The repeatedcv method splits the data into 5 folds and repeats the process 5 times to generate a more accurate estimate of model performance. We are using the grid search (default) method. Lambda = 0 means no shrinkage and is equivalent to OLS regression. Alpha = 0 means the regression is equivalent to OLS regression.
 
 ### 6.2.3 Elastic Net Results
 
@@ -1819,7 +1912,7 @@ elasticMod$bestTune$lambda
 #### **Question 29**: [1 point]
 Check the values of $\alpha$ and $\lambda$ here. What do they suggest about the optimal regularization that is being fit here? (Recall that when both $\alpha$ and $\lambda$ are zero, it's an OLS regression!)
 
-> Your answer here.
+> (JML)Both hyperparameters indicate that that elastic net is performing like an OLS regression model.The type of tuning search is grid and this can be seen from the plot in Figure 19.
 
 Let's also plot the results of the tuning search. Can you figure out the type of tuning search you did? (**Hint**: the visual pattern should confirm your answer from earlier!) The diamond denotes the best combination of hyperparameters!
 
@@ -1876,7 +1969,7 @@ important %>%
 
 Which of the features were most important? How does this compare to the most important features out of OLS regression? Make sure you're looking at the __absolute value of the beta coefficients to assess importance in OLS regression__. 
 
-> Your answer here.
+> (JML) Per the feature importance plot, `Hospital return days for pneumonia patients` is the most important feature. The most important feature per OLS regression was Communication About Medicines (per the contributions of variables to Dmin 1-2 plot). I think.
 
 How about about of PCA? You may have already noticed that importance almost seems inverted! Why?!
 
@@ -1886,7 +1979,7 @@ How about about of PCA? You may have already noticed that importance almost seem
 
 **Hint 3**: What does the sign of the loadings mean in a PCA? Are they actual or arbitrary?
 
-> Your answer here.
+> (JML) Difference between PCA and regression is that PCA is unsupervised and subjective but regression is supervised and calculable.Importance in PCA identifies how much a component explains the variance but importance in regression involves determining how a change in a variable value changes in the model's coefficient values. Regarding the signs, they are not arbitrary. A positive loading value indicates that an increase in the feature value will increase the principal component, whereas a negative loading value indicates that an increase in feature value will decrease the principal component. 
 
 #### 6.2.3.2 Check model performance
 
@@ -1922,7 +2015,7 @@ rbind(prOLS, prElastic) %>%
 
 Using the same method, check for overfitting / underfitting. Make predictions using `readyTrain` rather than `readyTest`, and then check how the RMSE on the training data compares to the RMSE of the training data for the Elastic Net. How do they compare? (Recall what we discussed when we did the gene expression demo: the relationship of the test vs. training accuracy can be used to assess overfitting/underfitting. The same logic applies to RMSE too!) __How do both compare to what we got out of the OLS regression?__ Which would you say is the better predictive model, the OLS regression or the Elastic Net? Why?
 
-> Your answer here.
+> (JML)I'm not sure but I think I'd choose the OLS regression because it is simpler?
 
 ```{r}
 ## Post-resample on OLS
@@ -1979,7 +2072,7 @@ What conclusions do you make at this point about whether to make predictions wit
 
 **HINT**: Make sure to ask yourself whether these data appear linear or not. Could non-linearity be a cause for a low $R^2$? If not, what other causes are there and how will that impact your recommendations?
 
-> Your answer here.
+> (JML)Since it appears that OLS regression and Elastic Net are performing similarly, I'd recommend using the OLS regression because it is simpler to compute. Although tuning isn't done on the OLS regression model, the results are very similar to Elastic Net but has the benefit of not having the additional steps.
 
 # 7 Choose Your Own Adventure
 
