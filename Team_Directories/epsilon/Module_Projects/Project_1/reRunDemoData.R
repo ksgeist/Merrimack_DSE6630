@@ -67,6 +67,7 @@ cleanUpReadmissions <- function(df) {
   return(df)
 }
 
+
 ## Run the function
 readmissionsClean <- cleanUpReadmissions(FY_2024_Hospital_Readmissions_Reduction_Program)
 ## Save file for students:
@@ -77,11 +78,8 @@ load(file = "FY2024_data_files/readmissionsClean2024.Rdata")
 
 
 #### CHANGE IF NEEDED #################
-## Filter for just pneumonia:
-readmissionsClean <- readmissionsClean %>% 
-  filter(MeasureName == "PN")
-########################################
-
+## Set a list of conditions:
+conditionList <- c("HF", "CABG", "AMI")
 
 
 ########################################
@@ -111,7 +109,8 @@ HCAHPS <- HCAHPS %>%
 ## because it is complete there:
 hospitalInfo <- Payment_and_Value_of_Care %>% 
   select(FacilityId, FacilityName, Address, CityTown, 
-         State, ZipCode, CountyParish, TelephoneNumber)
+         State, ZipCode, CountyParish, TelephoneNumber) %>% 
+  distinct()   ## Get rid of duplicates if it's length(conditionList) > 1
 
 ########################################
 ## Answer to Question 12 here: #########
@@ -169,12 +168,14 @@ filterList <- list("MRSA Bacteremia",
 tidyNjoin <- function(datList = datList, 
                       filterList = filterList, 
                       hospitalInfo = hospitalInfo,
-                      quiet = F) {
+                      quiet = F,
+                      condition = condition) {
   ## ARGUMENTS:
   ## datList = a list of data tables to tidy and join
   ## filterList = a list of MEASURE NAMES to filter from rows before pivoting
   ## hospitalInfo = a new df that contains the basic hospital information that
   ##                serves as my starting df
+  ## condition is the condition being processed
   
   ## Initialize the new df with the hospitalInfo
   df <- hospitalInfo
@@ -185,7 +186,6 @@ tidyNjoin <- function(datList = datList,
     # if(quiet == FALSE) {
     #   print(paste0(datList[i], " processing..."))
     # }
-    
     ## Coerce back to data frame
     dat <- as.data.frame(datList[i])   
     ## Drop start and end dates, plus drop hospital info, if they exist
@@ -211,7 +211,9 @@ tidyNjoin <- function(datList = datList,
   ## Prep for joining
   temp <- readmissionsClean %>%   ## Can pull from global environment
     ## Drop columns we are don't want in the way of the join
-    select(-Footnote, -FacilityName, -State, -StartDate, -EndDate)
+    select(-Footnote, -FacilityName, -State, -StartDate, -EndDate) %>% 
+    ## Filter by the condition
+    filter(MeasureName == condition)
   
   ### Join with the clean readmissions data
   df <- full_join(df, temp, by = "FacilityId") 
@@ -233,21 +235,41 @@ tidyNjoin <- function(datList = datList,
   return(df)
 }
 
-## To run the function
-pneumoniaFull <- tidyNjoin(datList, filterList, hospitalInfo, quiet = F)
+## Initialize an empty dataframe for each condition
+dataFull <- data.frame()
+## To run the function FOR EACH CONDITION
+for(l in 1:length(conditionList)) {
+  if(l == 1) {
+    dfFull <- tidyNjoin(datList, filterList, hospitalInfo, quiet = F, 
+                      condition = conditionList[l]) %>%
+    mutate(Condition = conditionList[l])
+    print(conditionList[l])  
+    dataFull <- dfFull
+  } else {
+    dfFull <- tidyNjoin(datList, filterList, hospitalInfo, quiet = F, 
+                        condition = conditionList[l]) %>%
+      mutate(Condition = conditionList[l])
+    print(conditionList[l]) 
+    ## Store these in dataFull
+    dataFull <- bind_rows(dataFull, dfFull)
+  }
+}
+
+dataFull <- dataFull %>% 
+  arrange(FacilityId)
 
 ## Save file for students:
-save(pneumoniaFull, file = "FY2024_data_files/pneumoniaFull2024.Rdata")
+save(dataFull, file = "FY2024_data_files/dataFull2024.Rdata")
 ## Student load file:
-load("FY2024_data_files/pneumoniaFull2024.Rdata")
+load("FY2024_data_files/dataFull2024.Rdata")
 
 ####################################################
 ## NOTE THIS IS WHERE THE SHIFT HAPPENS FROM DEMO 1!
 ####################################################
-## Now, let's make pneumoniaAnalyze that drops any identifying information, 
+## Now, let's make dataAnalyze that drops any identifying information, 
 ## except for state and all of the ordinal columns that contain 
 ## "ComparedToNational_",  "PaymentCategory", "ValueOfCareCategory", "Score_Emergency department volume"
-pneumoniaAnalyze <- pneumoniaFull %>% 
+dataAnalyze <- dataFull %>% 
   select(-contains(c("LowerEstimate", 
                      "HigherEstimate", 
                      "Denominator", 
@@ -256,19 +278,20 @@ pneumoniaAnalyze <- pneumoniaFull %>%
          -CityTown, -ZipCode, -CountyParish)
 
 ## Move our columns to encode to their own dataframe:
-columns2encode <- pneumoniaAnalyze %>% 
+columns2encode <- dataAnalyze %>% 
   select(State,            
         contains(c("ComparedToNational_", 
                     "PaymentCategory", 
                     "ValueOfCareCategory")),
         `Score_Emergency department volume`)
 
+## Move FacilityId to its own spot:
+facilityId <- dataAnalyze$FacilityId
+
 # Now drop them from the main dataframe too:
-pneumoniaAnalyzeNoEncoding <- pneumoniaAnalyze %>% 
+dataAnalyzeNoEncoding <- dataAnalyze %>% 
   ## Exclude the columns we will eventually want to encode
-  select(-all_of(colnames(columns2encode))) %>% 
-  ## Move our Facility IDs to rowname
-  column_to_rownames("FacilityId") %>% 
+  select(-all_of(colnames(columns2encode)), -FacilityId, -Condition) %>% 
   ## Turn everything that is currently a character into numeric
   mutate(across(where(is.character), as.numeric)) %>% 
   ## arbitrarily chose as the representative as they are identical
@@ -283,36 +306,59 @@ pneumoniaAnalyzeNoEncoding <- pneumoniaAnalyze %>%
   select(-NumberOfDischarges, -NumberOfReadmissions)
 
 ## Now put the columns2encode back onto the dataframe:
-pneumoniaAnalyzeNoEncoding <- cbind(pneumoniaAnalyzeNoEncoding, columns2encode) 
+dataAnalyzeNoEncoding <- cbind(dataAnalyzeNoEncoding, columns2encode, facilityId) 
 
 ###############################################################
 ######## I didn't ask you to do this in the Demo. #############
 ###############################################################
 ## Also pre-drop `Score_Hospital return days for pneumonia patients` for collinearity purposes
 ## Have to use an if/else switch because of variable differences between 2024 and 2024
-if ("Score_Percentage of healthcare personnel who completed COVID-19 primary vaccination series" %in% names(pneumoniaAnalyzeNoEncoding)) {
-  pneumoniaAnalyzeNoEncoding <- pneumoniaAnalyzeNoEncoding %>% 
+if ("Score_Percentage of healthcare personnel who completed COVID-19 primary vaccination series" %in% names(dataAnalyzeNoEncoding)) {
+  dataAnalyzeNoEncoding <- dataAnalyzeNoEncoding %>% 
     select(-`Score_Hospital return days for pneumonia patients`, 
            -`Score_Intensive Care Unit Venous Thromboembolism Prophylaxis`, 
            -`Score_Percentage of healthcare personnel who completed COVID-19 primary vaccination series`)
 } else {
-  pneumoniaAnalyzeNoEncoding <- pneumoniaAnalyzeNoEncoding %>% 
+  dataAnalyzeNoEncoding <- dataAnalyzeNoEncoding %>% 
     select(-`Score_Hospital return days for pneumonia patients`, 
            -`Score_Intensive Care Unit Venous Thromboembolism Prophylaxis`)
 }
 
+
+
+###############################################################
+## Now, if planning to assess multiple conditions simultaneously,
+## we need to aggregate across all fields:
+dataAnalyzeNoEncoding <- dataAnalyzeNoEncoding %>%
+    group_by(facilityId) %>%
+    summarize(across(
+        ## Summarize across all the columns
+        .cols = everything(),
+        ## If it's a numeric column, take the mean; otherwise, take the first()
+        ## on the categorical columns; but retains the REAL NAs (vs conversion)
+        ## to NaN
+        .fns = ~ { if (is.numeric(.)) {
+          if (all(is.na(.))) NA_real_ else mean(., na.rm = TRUE)
+          } else {
+            first(.)
+          }},
+        ## Retain column names
+        .names = "{.col}"), 
+        ## Ungroup
+        .groups = "drop") %>% 
+  ## Move our Facility IDs to rowname
+  column_to_rownames("facilityId") 
+    
 ## Save file for students:
-save(pneumoniaAnalyzeNoEncoding, file = "FY2024_data_files/pneumoniaAnalyzeNoEncoding2024.Rdata")
+save(dataAnalyzeNoEncoding, file = "FY2024_data_files/dataAnalyzeNoEncoding2024.Rdata")
 ## Student load file:
-load(file = "FY2024_data_files/pneumoniaAnalyzeNoEncoding2024.Rdata")
+load(file = "FY2024_data_files/dataAnalyzeNoEncoding2024.Rdata")
 
 
 ## CLEAN UP OUR MESS! We can remove the datasets we are no longer using
-rm(pneumoniaFull, 
-   pneumoniaFullEncoded, 
+rm(dataFull, 
    Timely_and_Effective_Care, 
    Unplanned_Hospital_Visits, 
-   valueOnly, 
    Outpatient_Imaging_Efficiency, 
    Payment_and_Value_of_Care, 
    paymentOnly, 
@@ -328,10 +374,9 @@ rm(pneumoniaFull,
    Healthcare_Associated_Infections, 
    Complications_and_Deaths, 
    dat, 
-   temp,
    columns2encode,
    datList,
    filterList,
-   Health_Equity,
-   Promoting_Interoperability,
-   pneumoniaAnalyze)          
+   dataAnalyze,
+   dfFull,
+   facilityId)          
