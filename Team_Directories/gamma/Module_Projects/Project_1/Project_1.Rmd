@@ -1294,11 +1294,16 @@ Does multicollinearity seem to be an issue in this dataset and, if so, among whi
 
 **HINT 2**: Is, for example,`Payment Category for pneumonia patients` created from `Payment for pneumonia patients`? [These are Medicare payments]? Which one do you think we should keep amd why?
 
-> Your answer here.
+> Your answer here. By Collins
+Yes, I think multicollinearity will be an issue. We have two variables with a vif(variance inflation factors) of around "4" suggesting moderate corelation. However, Overall hospital rating, Recommend Hospital, Nurse communication, care transition and staff responsiveness show high correlation with a vif of more than 5, suggesting they are highly correlated to each other. these vatriables are most likely to cause multicollinearity problem.
+
+>Am speculating that, since Overall hospital rating is a score, its possible it could have been created from weighted average or a combination of various patient experience metrics such as nurse communication, care transition, staff responsivenes, communication about medicines etc., and that is why it has the largest vif and highly correlated with these variables.
+
+> most likely payment category for pneumonia patients was created from payment for pneumonia patients and is likely part of medicare payments. Since our goal is to predict readmission rate, I think retaining payment category for pneumonia patients would be more relevant especially consideraing results interpretation. Personally I would be interested to know what category of pneumonia patients based on their medicare payment suffered the most readmissions.
 
 Which variable(s) seem to be most highly correlated with our target? Is it a positive or negative correlation? Does it make sense?
 
-> Your answer here.
+> Your answer here. Overall hospital rating and Recommend.Hospital both have a vif of more than 10 that is 22.69 and 14.77 concecutively. These variables are in the top left corner area shaded dark blue. This explaines that they are positively correlated with our target variable. I also think the fact that their vif is positive explains their relationship with target variable
 
 
 ### 4.3 Dropping the most collinear variables
@@ -1331,7 +1336,11 @@ readyTest <- readyTest %>%
   ## Rename the column we want to keep
   rename(Hospital.return.days.for.pneumonia.patients = ComparedToNational_Hospital.return.days.for.pneumonia.patients) %>% 
   ## Drop all the other columns 
-  select(-contains("Compared"))
+  select(-contains("Compared")) 
+
+
+#JUST WONDERING WHY IS IT THAT WE DID NOT DROP "PAYMENT CATEGORY AND SURVEY RESPONSE RATE" IN READYTEST? DOES IT MATTER IF THE NUMBER OF FEATURES IN READYTRAIN DIFFER WITH READYTEST?
+
 ```
 
 
@@ -1349,7 +1358,8 @@ First, we apply a PCA on the data and display the principal components. Note tha
 
 1. At what principal component do we surpass 80% of explained variance? (**HINT**: look at the cumulative variance row rather than tha proportion of variance row).
 
-> Your answer here.
+> Your answer here. By Collins 
+principal component (PC11) = 0.83983 (83%)
 
 ```{r}
 pca <- prcomp(readyTrain)
@@ -1358,7 +1368,10 @@ summary(pca)
 
 2. You may also notice that this is always ordered from most proportion of variance on the left (thus is PC1 defined) to our final principal component on the right. What percent of variance is explained by just PC1? What percent by the final PC? Is the attributable portion of the variance in PC1 high, medium, or low based on some quick research or prior knowledge?
 
-> Your answer here.
+> Your answer here. By Collins
+principal component (PC1) =  0.2241 cumulative proportion (22.41%)
+principal component (PC18) =  1.00000 cumulative proportion (100%)
+22.41 % attributable portion of the variance in PC1 is on the lower end of the spectrum and therefore I would classify it as low. Being the first Preincepal component, I would expect it to ex[plain atleast 50% of the variance.
 
 3. We use scree plots to graphically determine how many principal components to retain and how many principal components best explain the variance of the data. The $x$-axis displays the principal components (PC1, PC2, etc.), while the $y$-axis shows the eigenvalues (or proportion of variance explained) for each component. The **elbow method** we discussed in class is the point where the slope starts to flatten or the point at which the percentage of variance explained seems to level off. If we were doing this for feature reduction, we might think of this as approximately how many principal components would be needed to explain the total variation in the training data.  However, it is a **heuristic** method, so it can sometimes be a little uncertain from the plot alone what the optimal number of PCs is. Let's take a look at the top-15 PCs on a scree plot now:
 
@@ -1375,11 +1388,13 @@ fviz_screeplot(pca,
 
 How many PCs appear optimal to you based on the scree plot?
 
-> Your answer here.
+> Your answer here. By Collins
+Am going with five principal components, this cumulatevely explains around 55% of the variance which is well above the 50%
 
 4. People often mis-write scree (I've even accidentally done it) as SCREE, as if it's an acronym like AUROC or ROC or even PCA. But it's not. Why is it called a scree plot? (**Hint**: It may not be what you expect!)
 
-> Your answer here. 
+> Your answer here. By Collins
+After a little digging I found that its refereed as scree plot due to it resemblance to the loose rock debris (scree) at the base of mountain. The plot's shape, with a steep drop-off in eigenvalues, is likened to the accumulation of rocks and debris at the base of a slope.
 
 ### 5.1.2 Variable loadings and contributions
 
@@ -1402,11 +1417,11 @@ fviz_pca_biplot(pca,
              geom = "point",
              geom.var = "text",
              addEllipses = TRUE,
-             ellipse.alpha = 0.5,              ## Change alpha 0-1
+             ellipse.alpha = 0.2,              ## Change alpha 0-1
              col = "black",
              col.var = "black",
              habillage = returnHospitalComparison,
-             select.var = list(contrib = 1),   ## Try changing the number
+             select.var = list(contrib = 10),   ## Try changing the number
              repel = T)                        ## Try switching to FALSE
 ```
 
@@ -1440,7 +1455,8 @@ Each quadrant on a PCA biplot corresponds to a different directional influence o
 
 Play around with the graphical parameters in the biplot, especially those I've marked with comments. Try adding, for example, more variables to display rather than just the top contributor. **NOTE** that if you find variables in the same quadrant together, this means that they are correlated. What variable(s) can you find that **contrast** with `Communication.about.medicines`?
 
-> Your answer here.
+> Your answer here. By Collins
+composite.patients safety, postoperative respiratory failure rate, bc-predicted readmission rate
 
 Now, look at the contributions to PCs 1 and 2 (Figure Below) from the variables in the training dataset. Anything above the dotted red-line contributes **significantly** to the overall explanation of variance, and anything below the dotted line does not. Does anything about this plot stand out to you?
 
@@ -1448,7 +1464,17 @@ Now, look at the contributions to PCs 1 and 2 (Figure Below) from the variables 
 
 **HINT 2**: Where does the target, `PredictedReasmissionRate`, fall among the significant variables?
 
-> Your answer here.
+> Your answer here.By Collins
+The top contributing variables: Communication about medicines
+Doctors communication
+Composite patients safety
+discarge information
+quiteness
+postoperative respiratory failure rate
+cleaniness. 
+All these variables are mostly likely from the same source. They represent patient experience
+PredictedReadmissionRate variable is the last in line of of the  variables that are significantly exlaining variance. We can say it sit on the borderline
+
 
 ```{r, echo=FALSE, fig.width=8, fig.height=8, fig.cap="Figure 12. Variables that Significantly Explain Variance."}
 fviz_contrib(pca, 
@@ -1503,7 +1529,8 @@ grid.arrange(p6, p7, p8, p9, nrow = 2)
 #### **Question 23A**: [0.5 points]
 Which number of clusters, $k$, do you think has the best explanatory power? Why? Is it is hard to tell?
 
-> Your answer here
+> Your answer here. By Collins
+Am going with K4. it shows clearly four cluster which account for close to 8-% of the data. K5 feels like its starting to get a little clouded. The cluster represented by green in K5 feels like a little bit of everything. K2 and K3 on the other hand feels like they are too shallow. clusters represents a very huge area explaining alot of generalizations rather than capture unique patterns or clusters
 
 ### 5.2.3 Within-sum-of-squares (WSS) elbow method
 
@@ -1522,7 +1549,9 @@ fviz_nbclust(readyTrain,
 
 What is the __within sum of squares__ and what exactly is it measuring here? By the elbow method, which $k$ is the optimal number of clusters? Did it agree with your choice from the other heuristic method?
 
-> Your answer here
+> Your answer here By Collins
+Within-sum-of-squares (WSS) measures the quality of clustering, it calculates the sum of squared distances between each data point and itd assigned cluster centroids. A lower wss value suggest better clusting in that the data points are closer to their repsective centroids.
+according to the plot, the optimal number of clusters seems to be leaning towards 5 rather than 4 but i would still feel comfortable settling with 4.
 
 ### 5.2.3 Silhouette method
 
@@ -1543,7 +1572,9 @@ fviz_nbclust(readyTrain, kmeans, method = "silhouette",
 
 Are you surprised at the optimal $k$ from the silhouette method? Does it seem to agree with what you've seen with the WSS elbow method? (**Hint**: agreement generally suggests evidence that you have found the optimal $k$).
 
-> Your answer here
+> Your answer here By Collins
+Honestly am very surprised, because all along i have downplayed the significance of cluster two even though there was compelling evidence. My choice of cluster four is with no doubt not the best, not even the second best but a distance third. Going by the Silhouette scores (average silhouette width) cluster two has the highest score at 0.15. At this point I do agree that this score confirms the consistency shown by WSS, Kmeans and PCA.
+
 
 Lastly, let's extract the optimal $k$ from the silhouette method.
 
@@ -1563,23 +1594,26 @@ As we said before, the goal of segmentation analysis is to broadly cluster our h
 Let's explore the clusters - segments - of the hospitals based on their average values from the __original__ dataset (we start from `imputedTrain`, which hadn't yet been transformed, centered, or scaled, BUT the multicollinear variables also haven't been dropped either). Your task is to add comments to this code chunk. 
 
 ```{r, echo = TRUE, fig.height = 8, fig.width=6, fig.cap="Figure 16. Boxplot Comparisons of Important Variables by Cluster"}
-## COMMENT HERE
+new_imputedTrain <- imputedTrain[rownames(readyTrain),] # I have added this line of code because i was running into errors due to difference in the number of observations between readyTrain and imputedTrain. By Collins
+
+
+## COMMENT HERE calculating k means for each k-classes in readytrain
 kmeansResult <- kmeans(readyTrain, 	
-                         centers = k,      ## COMMENT HERE
-                         nstart = 50,      
-                         iter.max = 1000,  
-                         algorithm = "MacQueen")
-## COMMENT HERE
-kmeansTrain <- imputedTrain %>% 
+                         centers = k, # number of clusters (k)     ## COMMENT HERE
+                         nstart = 50, # number of times to repeat runnining the process    
+                         iter.max = 1000,  # number of iterations to run k-means
+                         algorithm = "MacQueen") # the algorithm we will be using
+## COMMENT HERE create kmeanstrain dataframe with renamed and droped off unwanted variables
+kmeansTrain <- new_imputedTrain %>%  #b4 had imputedTrain updated to new_imputedTrain just to match then number of observations between readyTrain and imputedTrain datasets
   ## Rename the column we want to keep
   rename(Pneumonia.Hospital.Return.Days = `ComparedToNational_Hospital return days for pneumonia patients`) %>% 
-  ## COMMENT HERE
+  ## COMMENT HERE drop the selected variables
   select(-any_of(vifOver5), -contains("Compared"), -contains("PaymentCategory"), -SurveyResponseRate) %>% 
-  ## COMMENT HERE 
+  ## COMMENT HERE this code seeks to encode categorical pneumonia hospital return days into 1, 0 and -1
   mutate(Cluster = kmeansResult$cluster,
          Pneumonia.Hospital.Return.Days = as.numeric(if_else(Pneumonia.Hospital.Return.Days == "1", 1,
                                                      if_else(Pneumonia.Hospital.Return.Days == "0", 0, -1)))) %>% 
-  ## COMMENT HERE
+  ## COMMENT HERE this cleans and standardizes column names
   clean_names()
 
 ## Using % contribution graph, the order of the top 10:
@@ -1594,26 +1628,26 @@ pcaImportantVars <- factor(c("Communication.about.medicines",
                        "Predicted.Readmission.Rate",
                        "Pneumonia.Hospital.Return.Days"))
 
-## COMMENT HERE
+## COMMENT HERE converts pcaImportantVars into lower case
 pcaImportantVars <- tolower(pcaImportantVars)
-## COMMENT HERE
+## COMMENT HERE replaces periods (.) with (_)
 pcaImportantVars <- gsub("\\.", "_", pcaImportantVars) %>% 
-## COMMENT HERE
+## COMMENT HERE converts variable names to title case
   to_any_case("title")
 
-## COMMENT HERE
+## COMMENT HERE performs k-means clustering
 kmeansTrain %>% 
-  ## COMMENT HERE
+  ## COMMENT HERE renames the following variables (columns)
   rename(Predicted.Readmission.Rate = predicted_readmission_rate,
          Periop.Rate.Of.Embolism.Or.Thrombosis = perioperative_pulmonary_embolism_or_deep_vein_thrombosis_rate) %>% 
-  ## COMMENT HERE
+  ## COMMENT HERE clean column names by converting them into case title format
   clean_names(case = "title") %>% 
-  ## COMMENT HERE
+  ## COMMENT HERE selects columns in pcaImportantVars
   select(Cluster, any_of(pcaImportantVars)) %>% 
-  ## COMMENT HERE
+  ## COMMENT HERE converts the data from wide to long and exclude (-1) the first column (cluster column), assigns names_to  measure and values_to value
   pivot_longer(-1, names_to = "Measure", values_to = "Value") %>% 
-  ## COMMENT HERE
-  # filter(Measure %in% pcaImportantVars) %>% 
+  ## COMMENT HERE filters the data to only include the rows with levels where the measure column us present in pcaImportantVars
+   filter(Measure %in% pcaImportantVars) %>% 
    mutate(Measure = factor(Measure, levels = to_any_case(c("Communication.about.medicines",
                         "Doctor.communication", 
                         "Composite.patient.safety",
@@ -1624,7 +1658,7 @@ kmeansTrain %>%
                         "Periop.Rate.Of.Embolism.Or.Thrombosis",
                         "Predicted.Readmission.Rate",
                         "Pneumonia.Hospital.Return.Days"), case="title"))) %>% 
-  ## COMMENT HERE
+  ## COMMENT HERE creates a boxplot to visualize the distribution of values across different clusters
     ggplot(aes(x = Cluster, y = Value, fill = as.factor(Cluster))) +
     geom_boxplot(alpha=0.75) +
     scale_fill_manual(values = c(skittles[1], skittles[6])) +
@@ -1637,21 +1671,21 @@ kmeansTrain %>%
         legend.text = element_text(size = 8),
         legend.title = element_text(size = 10),
         title = element_text(size = 12, color = "maroon")) + 
-    ## COMMENT HERE
+    ## COMMENT HERE facet the plot by measure
     facet_wrap(~ Measure, 
              scales = "free_y",
              ncol = 2)
 
-## COMMENT HERE
+## COMMENT HERE renames columns in the kmeansTrain dataframe
 kmeansTrain %>% 
-  ## COMMENT HERE
+  ## COMMENT HERE renames the following two columns
   rename(Predicted.Readmission.Rate = predicted_readmission_rate,
          Periop.Rate.Of.Embolism.Or.Thrombosis = perioperative_pulmonary_embolism_or_deep_vein_thrombosis_rate) %>% 
-  ## COMMENT HERE
+  ## COMMENT HERE clean column names by converting them into case title format
   clean_names(case = "title") %>% 
-  ## COMMENT HERE
+  ## COMMENT HERE selects columns that match the pattern
   select(Cluster, any_of(pcaImportantVars)) %>% 
-  ## COMMENT HERE
+  ## COMMENT HERE creates a summary table grouped by the clusters
   tbl_summary(by = "Cluster",
               statistic = list(all_continuous() ~ c("{mean} ({median})"))) %>% 
   modify_header(label ~ "Variable",
@@ -1660,7 +1694,8 @@ kmeansTrain %>%
 
 ```
 
-**HINT**: If these are back to the _original_ values, this is more interpretable for our stakeholder. We will now read this just like a typical boxplot; for example, median (the middle line) `Doctor Communication` seems higher in **Cluster 1** than it does in **Cluster 2** with only some overlap in the distributions (the boxes and whiskers don't really overlap each other). The table confirms this; the median `Doctor Communication` score is 91% in Cluster 1 but only 88% in Cluster 2.   
+**HINT**: If these are back to the _original_ values, this is more interpretable for our stakeholder. We will now read this just like a typical boxplot; for example, median (the middle line) `Doctor Communication` seems higher in **Cluster 1** than it does in **Cluster 2** with only some overlap in the distributions (the boxes and whiskers don't really overlap each other). The table confirms this; the median `Doctor Communication` score is 91% in Cluster 1 but only 88% in Cluster 2. 
+#I think you meant higher in clusetr 2 than cluster 1 
 
 #### **Question 25**: [2 points]
 Notice, for example, that Cluster 1 hospitals seem to include the hospitals that had the __lowest__ pneumonia-related readmission rates, with the average rate ~2% higher in Cluster 2 hospitals. Thus, for our stakeholder, we might decide to rename Cluster 1 as "Highest Performing Hospitals" or something along those lines. Notice also that this cluster had more __below__ national average return hospital days (a "1"). This means that they had more readmitted pneumonia patients who spent less time in the hospital upon readmission than the national average. 
@@ -1674,12 +1709,12 @@ dict <- tribble(
 ~`Top Defining Attributes`, ~`Description`,
 "Predicted Pneumonia-related hospital readmissions", "These hospitals have a lower readmission rate, suggesting that hospitals in this cluster may be better at diagnosing and treating pneumonia",
 "Return hospital days due to pneumonia", "Readmitted patients spend below the national average number of days in hospital, suggesting these hospitals are able to more quickly treat and stabilize pnuemonia patients", 
-"FILL ME IN", "FILL ME IN",
-"FILL ME IN", "FILL ME IN",
-"FILL ME IN", "FILL ME IN",
-"FILL ME IN", "FILL ME IN",
-"FILL ME IN", "FILL ME IN",
-"FILL ME IN", "FILL ME IN"
+"Communication About Medicines", "These hospitals excel inclearly explaining medications to patients, ensuring what they are taking and why ",
+"Composite Patients Safety", "Hospitals in this cluster have a strong track record of patients safety, with lower rates of complications and adverse events  ",
+"Discharge Information", "Patients receive comprehensive discarge instructions, including follow-up appointments and medication management plans ",
+"Cleanliness", "Hospitals in this cluster maintain high standards of cleanliness, reducing the risk of hopsital-acquired infections "
+#"FILL ME IN", "FILL ME IN",
+#"FILL ME IN", "FILL ME IN"
 )
 
 dict %>% 
@@ -1687,7 +1722,7 @@ dict %>%
     format = "html",
     caption = "Table 9. Hospital segmentation analysis: three types of broad groupings identified.") %>%
     pack_rows("1: Highest Performing Hospitals", 1, 4) %>%
-    pack_rows("2: NAME ME!", 5, 8) %>%
+    pack_rows("2: Other Notable Features", 5, 6) %>%
     kable_styling(bootstrap_options = c("striped", full_width = F)
   )
 ```
@@ -1699,7 +1734,13 @@ We don't technically have to stop our segmentation analysis here, but we will so
 #### **Question 26**: [1 point]
 Make a recommendation for our client for 1-2 machine learning analyses __your team__ would choose to use to test whether these clusters can be used for robust predictions of hospital performance for pneumonia patients. How would you know whether or not your predictions were robust? What would you look for or compare?
 
-> Your answer here.
+> Your answer here.By collins
+Based on analysis I would recommend Random Forest classifier to test whether these clusters can be used for robust prediction of hospital performance. This is because Random Forest classifiers are known to perform well on complex datasets and can handle high-dimensional data. To evaluate the robustness of the predictions i would look for the following:
+High accuracy (> 0.8)
+High precision (>0.8)
+High recall (>0.8)
+High AUC-ROC (>0.8)
+If the model shows a good performance on these metrics, then it indicates clusters can be used for robust prediction of hospital performance for pneumonia patients.
 
 # 6 Supervised Learning Methods
 
@@ -1738,7 +1779,12 @@ plot(mod, 4)
 
 What is your general assessment of our OLS assumptions? Met or unmet? Why? 
 
-> Your answer here.
+> Your answer here.By Collins
+1. Linearity assumption of Ols. Based on residuals Vs Fitted plot, it appears that the linearity assumption of OLS regression is met. The residuals are randomly distributed around the horizontal axis without any obvious pattern, suggesting that the relationship between the variables can be adequately modeled with a linear equation
+2.Normally distributed residuals. Our Q-Q plot shows residuals that are largely normally distributed with minor deviations at the extremes. This therefore, suggest that the normality assumption is largely met.
+3.Homoscedasticity. Given our scale-location plot shows residuals that are randomly scattered without a clear pattern of changing variance across different levels of fitted values, it suggests that the our assumption of homoscedasticity was met
+4. No high leverage/ influence points. This assumption is measured using cooks distance value. A high value of more than 1 indicates that such points are highly influential. Going by our cooks distance plot, we see some peaks but those peaks are well below one at 0.03, 0.02, and 0.01. We can conclude, therefore, that even though there are some peaks indicating some level of influence the threshold is not signicance enough and thus our no high leverage assumption was met.
+
 
 **Note:** If you are not entirely sure about the Q-Q plot, you can run a Shapiro-Wilk test on the residuals using the following code:
 
