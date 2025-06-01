@@ -914,7 +914,7 @@ data.frame(imputedTrain$OOBerror, names(temp)) %>%
 What does `MSE` (Mean Squared Error) and `PCF` (Proportion of Falsely Classified) indicate here? You may find looking at the `missForest` [Vignette](https://stat.ethz.ch/education/semesters/ss2012/ams/paper/missForest_1.2.pdf) helpful. Which variable(s) had the highest OOB error?
 
 > Since  missForest was used to  fill in missing data, MSE and PCF relects how accurate/innacurate  those imputations are.
-A higher MSE number indicates the guesses for the numerical values were less accurate.The closer PCF is to 0 the better since PCF shows how often the model got it wrong when filling in categorical values, such as labels or groupings.
+A higher MSE number indicates the guesses for the numerical values were less accurate and the closer PCF is to 0 the better since PCF shows how often the model got it wrong when filling in categorical values, such as labels or groupings.
 
 **NOTE 1**: If the OOB error (either MSE or PCF) from `missForest` is really high, it’s a red flag that the imputation for those variables is untrustworthy. This could be do to too much missingness, weak relationships among the variables making it hard to predict, or low quality data (e.g., noisy, sparse). In such cases, we want to **DROP** any variables with extremely high OOB error because they add noise. A general rule of thumb is that if the PCF > ~0.3 (30% of the imputed values are wrong) or if there is especially high MSE (inflation) relative to the variance of the variable, we should drop it. Let's set those aside so we can drop them from `test` and `train` both downstream! 
 
@@ -1003,7 +1003,6 @@ imputedTest  <- imputedTest[, !(names(imputedTest) %in% cols2drop), drop = FALSE
 Quickly explore how well the imputation did by choosing at least one numeric variable and one of the categorical variables. Did the distributions or frequencies change drastically? You may find the `summary()` and `table()` functions to be fastest here. 
 
 ```{r}
-# Your code here.
 # Summary of numeric variable before and after
 summary(train$`Healthcare workers given influenza vaccination`)
 summary(imputedTrain$`Healthcare workers given influenza vaccination`)
@@ -1145,8 +1144,11 @@ Now repeat all of the steps to perform a Box-Cox transform on your own to the `i
 
 > AJ-We apply the Box-Cox transformation to both training and test sets using the same lambda to maintain consistency, to prevent data leakage,and to ensure valid model evaluation.
 
+
+
+
 ```{r}
-# # Applying the same Box-Cox transformation (using lambda from training data)
+#  Applying the same Box-Cox transformation (using lambda from training data)
 readyTest$bc_PredictedReadmissionRate <- predict(bc_data, readyTest$PredictedReadmissionRate)
 
 
@@ -1161,49 +1163,73 @@ Now that we have applied a Box-Cox transform to the target variable, we can cent
 
 It's time to drop the _original_ target, `PredictedReadmissionRate`, and center and scale everything INCLUDING the target! Here it is for the training set:
 
+
 ```{r}
-readyTrain <- readyTrain %>% 
-  ## Drop the original target variable
-  select(-PredictedReadmissionRate) %>% 
-  ## Make anything that might still be a factor from encoding is back to number
+# Save Box-Cox transformed target
+train_target <- readyTrain$bc_PredictedReadmissionRate
+
+# Drop original and transformed target, scale predictors
+readyTrain_scaled <- readyTrain %>%
+  select(-PredictedReadmissionRate, -bc_PredictedReadmissionRate) %>%
   mutate_if(is.factor, as.numeric) %>%
-  ## Center and scale everything!
-  scale(center = TRUE, scale = TRUE) %>% 
-  data.frame()
+  scale(center = TRUE, scale = TRUE) %>%
+  as.data.frame()
+
+# Reattach scaled target (which you now also scale)
+scaled_target <- scale(train_target, center = TRUE, scale = TRUE)
+readyTrain_scaled$bc_PredictedReadmissionRate <- as.vector(scaled_target)
+
 ```
 
 #### **Question 19C**: [0.5 points]
-Do the same for your test data. Make sure to use `readyTest` and overwrite it. 
+Do the same for your test data. Make sure to use `readyTest` and overwrite it.
 
 ```{r}
-# Applying the Box-Cox transformation to the test set using the lambda from training
-readyTest$bc_PredictedReadmissionRate <- predict(bc_data, readyTest$PredictedReadmissionRate)
+# Save the Box-Cox transformed targets before scaling
+train_target <- readyTrain$bc_PredictedReadmissionRate
+test_target  <- readyTest$bc_PredictedReadmissionRate
+
+# Prepare training data for scaling (drop targets and convert to numeric)
+train_scaled_input <- readyTrain %>%
+  select(-PredictedReadmissionRate, -bc_PredictedReadmissionRate) %>%
+  mutate_if(is.factor, as.numeric) %>%
+  mutate_if(is.character, as.numeric)
+
+# Get training scaling parameters
+train_means <- colMeans(train_scaled_input, na.rm = TRUE)
+train_sds   <- apply(train_scaled_input, 2, sd, na.rm = TRUE)
+
+#  Scale the test data using training parameters
+test_scaled_input <- readyTest %>%
+  select(-PredictedReadmissionRate, -bc_PredictedReadmissionRate) %>%
+  mutate_if(is.factor, as.numeric) %>%
+  mutate_if(is.character, as.numeric)
+
+readyTest <- test_scaled_input %>%
+  scale(center = train_means, scale = train_sds) %>%
+  as.data.frame() # ensure it stays a dataframe
+
+# Reattach the Box-Cox transformed targets
+readyTrain <- train_scaled_input %>%
+  scale(center = TRUE, scale = TRUE) %>%
+  as.data.frame # <-FIXED
+
+
+readyTrain$bc_PredictedReadmissionRate <- scale(train_target, center = TRUE, scale = TRUE)[, 1]
+readyTest$bc_PredictedReadmissionRate  <- scale(test_target, 
+                                                 center = mean(train_target), 
+                                                 scale = sd(train_target))[, 1]
+
 
 ```
 
-```{r}
-readyTrain_scaled <- readyTrain %>%
-  select(-bc_PredictedReadmissionRate) %>%
-  scale() %>%
-  as.data.frame() %>%
-  mutate(bc_PredictedReadmissionRate = readyTrain$bc_PredictedReadmissionRate)
 
-```
 
-```{r}
-# First: extract and scale using training 
-readyTest_scaled <- readyTest %>%
-  select(-bc_PredictedReadmissionRate) %>%
-  scale(center = attr(scale(readyTrain %>% select(-bc_PredictedReadmissionRate)), "scaled:center"),
-        scale  = attr(scale(readyTrain %>% select(-bc_PredictedReadmissionRate)), "scaled:scale")) %>%
-  as.data.frame() %>%
-  mutate(bc_PredictedReadmissionRate = readyTest$bc_PredictedReadmissionRate)
-
-```
 
 **Hint**: Make sure to turn your centered, scaled __matrix__ back into a dataframe! By default, it creates a matrix.
 
 ### 3.7.3 To save time, you are welcome to start from here after you've worked through the above steps.
+
 ```{r}
 load(file = "FY2024_data_files/readyTrain.Rdata")
 
@@ -1237,7 +1263,13 @@ Where do you see the highest potential for multicollinearity? Why do you say tha
 
 > AJ-Nurse communication,Communication about medicines,Staff responsiveness,Doctor communication,Discharge information and Overall hospital rating.
 
+
+
 Which variable(s) seem to be most correlated with our target, `bc_PredictedReadmissionRate`?
+
+AJ-  ComparedToNational_Hospital.return.days.for.pneumonia.patients(0.50) due  readmission rates and return days  likely tied to overall patient recovery and discharge effectiveness.
+
+Staff.responsiveness (0.39),Nurse.communication (0.36), Doctor.communication (0.34) — communication and responsiveness variables — suggests better patient interactions may be reducing complications that lead to readmissions.
 
 
 ```{r}
@@ -1294,7 +1326,7 @@ Does multicollinearity seem to be an issue in this dataset and, if so, among whi
 
 Which variable(s) seem to be most highly correlated with our target? Is it a positive or negative correlation? Does it make sense?
 
-> Your answer here.
+> AJ-The variable ComparedToNational_Hospital.return.days.for.pneumonia.patients is the most highly correlated with our target bc_PredictedReadmissionRate, showing a positive correlation of approximately 0.50. If patients are returning to the hospital sooner or more frequently, it's likely indicative of poorer outcomes and higher readmission rates and does make sense. Additionally, communication-related variables such as Staff.responsiveness, Nurse.communication, and Doctor.communication also show moderate positive correlations (ranging from ~0.34 to 0.39), which suggests that better hospital communication may be associated with fewer readmissions.
 
 
 ### 4.3 Dropping the most collinear variables
@@ -1343,9 +1375,10 @@ First, we apply a PCA on the data and display the principal components. Note tha
 
 #### **Question 21**: [2 points]
 
+
 1. At what principal component do we surpass 80% of explained variance? (**HINT**: look at the cumulative variance row rather than tha proportion of variance row).
 
-> Your answer here.
+> AJ-The cumulative explained variance is first surpassed 80% treshold at Principal Component 10. The first 10 components are sufficient to retain most of the variability in the original dataset, and dimensionality could be reduced to these components without significant information loss.
 
 ```{r}
 pca <- prcomp(readyTrain)
@@ -1354,9 +1387,10 @@ summary(pca)
 
 2. You may also notice that this is always ordered from most proportion of variance on the left (thus is PC1 defined) to our final principal component on the right. What percent of variance is explained by just PC1? What percent by the final PC? Is the attributable portion of the variance in PC1 high, medium, or low based on some quick research or prior knowledge?
 
-> Your answer here.
+> PC1 captures the largest chunk of meaningful variation (22.41%) and is thus considered an informative component. However, since it does not exceed 50%, it suggests that the dataset's variance is distributed more evenly across many dimensions and  multivariable datasets for  hospital performance metrics.PC1 explains 22.41% of the variance, while the final principal component explains only 1.06%, The proportion of variance explained by PC1 is considered medium.
 
 3. We use scree plots to graphically determine how many principal components to retain and how many principal components best explain the variance of the data. The $x$-axis displays the principal components (PC1, PC2, etc.), while the $y$-axis shows the eigenvalues (or proportion of variance explained) for each component. The **elbow method** we discussed in class is the point where the slope starts to flatten or the point at which the percentage of variance explained seems to level off. If we were doing this for feature reduction, we might think of this as approximately how many principal components would be needed to explain the total variation in the training data.  However, it is a **heuristic** method, so it can sometimes be a little uncertain from the plot alone what the optimal number of PCs is. Let's take a look at the top-15 PCs on a scree plot now:
+
 
 ```{r, echo= FALSE, fig.cap="Figure 10. Scree Plot of First 15 Principal Components"}
 ## Show the scree plot
@@ -1371,11 +1405,11 @@ fviz_screeplot(pca,
 
 How many PCs appear optimal to you based on the scree plot?
 
-> Your answer here.
+> AJ- 1st drop is at PC2, PC1-PC2 are optimal 
 
 4. People often mis-write scree (I've even accidentally done it) as SCREE, as if it's an acronym like AUROC or ROC or even PCA. But it's not. Why is it called a scree plot? (**Hint**: It may not be what you expect!)
 
-> Your answer here. 
+> It's a geological term, the shape resembles a rocky slope or debris pile (scree) found at the base of a mountain. The steep drop followed by a flattening mirrors how eigenvalues decrease in PCA. 
 
 ### 5.1.2 Variable loadings and contributions
 
@@ -1433,10 +1467,46 @@ Each quadrant on a PCA biplot corresponds to a different directional influence o
   - May indicate a contrast with Quadrant II on PC2
 
 #### **Question 22**: [1 point]
-
 Play around with the graphical parameters in the biplot, especially those I've marked with comments. Try adding, for example, more variables to display rather than just the top contributor. **NOTE** that if you find variables in the same quadrant together, this means that they are correlated. What variable(s) can you find that **contrast** with `Communication.about.medicines`?
 
-> Your answer here.
+
+```{r}
+fviz_pca_biplot(pca, 
+                palette = c("maroon", "cadetblue", "gold"),
+                label = "var",
+                geom = "point",
+                geom.var = "text",
+                addEllipses = TRUE,
+                ellipse.alpha = 0.5,
+                col = "black",
+                col.var = "black",
+                habillage = returnHospitalComparison,
+                select.var = list(contrib = 5),  # ← Shows top 5 contributing variables
+                repel = TRUE)
+
+```
+```{r}
+#  loadings (rotation) matrix
+loadings <- pca$rotation
+
+#  Compute the squared loadings for PC1 and PC2 (contribution to variance)
+squared_loadings <- loadings[, 1:2]^2
+
+#  Sum squared loadings across PC1 and PC2
+contributions <- rowSums(squared_loadings)
+
+# Sort and get the top 5 contributing variables
+top5_vars <- sort(contributions, decreasing = TRUE)[1:10]
+
+#  Print results as a named vector
+print(top5_vars)
+
+```
+
+
+
+
+> AJ- In the biplot, variables such as composite patient safety  and Postoperative.respiratory.failure.rate contrast with Communication.about.medicines. These load heavily in the opposite quadrant, suggesting that hospitals performing poorly on these metrics tend to have worse communication scores and worse pneumonia-related return outcomes. Please see top 10 charts above.
 
 Now, look at the contributions to PCs 1 and 2 (Figure Below) from the variables in the training dataset. Anything above the dotted red-line contributes **significantly** to the overall explanation of variance, and anything below the dotted line does not. Does anything about this plot stand out to you?
 
@@ -1444,7 +1514,9 @@ Now, look at the contributions to PCs 1 and 2 (Figure Below) from the variables 
 
 **HINT 2**: Where does the target, `PredictedReasmissionRate`, fall among the significant variables?
 
-> Your answer here.
+>AJ- For hint #1- The top contributing variables are primarily drawn from patient experience and safety datasets, particularly HCAHPS and the Complications and Deaths datasets. This suggests that patient communication and safety indicators are key drivers of variation among hospitals, reflecting both how patients perceive their care and the prevalence of complications within hospitals. For hint #2- The target variable (PredictedReadmissionRate)is not a direct input into the PCA since it’s an unsupervised method. However, it is likely influenced—directly or indirectly—by communication and safety metrics, suggesting that these features are valuable predictors to include in downstream modeling.
+
+
 
 ```{r, echo=FALSE, fig.width=8, fig.height=8, fig.cap="Figure 12. Variables that Significantly Explain Variance."}
 fviz_contrib(pca, 
