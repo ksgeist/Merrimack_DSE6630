@@ -441,7 +441,7 @@ longHCAHPS <- pneumoniaAnalyzeNoEncoding %>%
 ```
 
 
-#### **Question 5**: [1 point] 
+#### **Question 5**: [1 point] -TT
 
 Again, you task is to change the __y-axis__ out for _each of the four readmission rates. `Predicted Readmission Rates` has been started for you. Re-run the chunk and compare the results. **FOR FULL CREDIT** you must leave the graph on the choice you feel most strongly about AND update the title of the graph with which of the four possible readmission rates you chose. Explain below why you chose this one. 
 
@@ -2110,7 +2110,7 @@ Also, looking further at the data to see if ther might have been important facto
 
 It's time to choose your adventure! After working through this demo and answering the 31 questions, you will choose one of three possible trajectories. The following are some brief hints or tips for each of the choices available to you.
 
-## Adventure 3. 
+## Adventure 3. - KB, NL, TT 
 **[Continue analyzing the pneuomnia data.]**
 
 - Make sure to justify your choice.
@@ -2136,13 +2136,18 @@ readyTest<-readyTest[,shared_cols]
 ```
 
 
-### Ridge Regression
+# Ridge Regression
+
+### Justifying the Ridge Regression Model: 
+We began our analysis with a Ridge regression model due to its effectiveness in handling multicollinearity. Even after preprocessing and feature reduction, our dataset remains fairly large and may still contain correlated predictors. Ridge regression shrinks coefficient estimates, which helps reduce variance, prevent overfitting, and improve model generalization to new data. This approach allows us to retain all predictors while stabilizing the estimates produced from the data set. 
+
 ```{r}
 x.train <- as.matrix(readyTrain[,-18])
 y.train <- as.matrix(readyTrain[,18])
 
 y.test <- as.matrix(readyTest[,18])
 x.test<- as.matrix(readyTest[,-18])
+
 #running the ridge model 
 set.seed(42)
 ridge.fit <- glmnet(x.train,y.train,alpha=0)
@@ -2166,7 +2171,11 @@ ridge.error
 
 ```
 
-### LASSO Regression
+# LASSO Regression
+
+### Justifying the LASSO Model:
+Given that the Ridge regression produced a test error of 0.65, we also applied a LASSO regression model to evaluate whether we could improve performance and model interpretability. Like the ridge regression model, the LASSO model also manages large coefficients, but it also performs feature selection by shrinking some coefficients exactly to zero. This is useful for our data set, as it highlights the most predictive variables for pneumonia-related readmissions while discarding irrelevant or redundant ones.
+
 ```{r}
 x.train <- as.matrix(readyTrain[,-18])
 y.train <- as.matrix(readyTrain[,18])
@@ -2196,19 +2205,25 @@ lasso.error
 
 ```
 
-### Random Forest
+# Random Forest
 
+### Justifying the Random Forest Model: 
+We chose to use the Random Forest model to analyze our data for several important reasons. This model is well-suited for large and complex datasets, like our pneumonia dataset, and is great at handling non-linear relationships that may exist between variables in the data set. Random Forest builds multiple decision trees and aggregates their results, which increases predictive accuracy and reduces overfitting, making the model more robust and reliable. Additionally, it provides an analysis of feature performance by ranking variable importance, offering valuable insights into which factors most influence pneumonia-related hospital readmissions. This combination of flexibility, accuracy, and interpretability makes Random Forest a strong choice for our analysis.
+
+### Defining Target Variable
+We chose to use Hospital.return.days.for.pneumonia.patients as our Target variable. We first need to make it into a Factor. 
 ```{r}
+# Finding the unique values to make the target variable a factor 
 unique(readyTrain$Hospital.return.days.for.pneumonia.patients)
 unique(readyTest$Hospital.return.days.for.pneumonia.patients)
 ```
 
 ```{r}
-# Defining the breakpoints and labels
+# Defining the breakpoints and labels based of the unique values
 breaks <- c(-Inf, -1.34, 0.33, 2.1)
 labels <- c("Low", "Medium", "High")
 
-# Creating factor variable
+# Creating factor variable for Train data
 readyTrain$ReturnDaysCategory <- cut(
   readyTrain$Hospital.return.days.for.pneumonia.patients,
   breaks = breaks,
@@ -2217,6 +2232,7 @@ readyTrain$ReturnDaysCategory <- cut(
   include.lowest = TRUE
 )
 
+# Creating factor variable for Test data
 readyTest$ReturnDaysCategory <- cut(
   readyTest$Hospital.return.days.for.pneumonia.patients,
   breaks = breaks,
@@ -2225,19 +2241,20 @@ readyTest$ReturnDaysCategory <- cut(
   include.lowest = TRUE
 )
 
-# Confirm the transformation
+# Confirming the transformations worked 
 table(readyTrain$ReturnDaysCategory)
 str(readyTrain$ReturnDaysCategory)
 
 table(readyTest$ReturnDaysCategory)
 str(readyTest$ReturnDaysCategory)
 ```
+It looks like the classes are unbalanced. We are going to balance the classes using class weights that we chose based off of our own logic. 
 
 ```{r}
 # Defining weights based on own logic
 class_weights <- c(Low = 2, Medium = 1, High = 5)
 
-# original
+# Original data
 table(readyTrain$ReturnDaysCategory)
 
 # Creating a vector of weights for each row according to its class
@@ -2249,24 +2266,28 @@ weighted_train <- readyTrain[rep(seq_len(nrow(readyTrain)), times = row_weights)
 # New class distribution after replication
 table(weighted_train$ReturnDaysCategory)
 ```
-
+#### Random Forest Model: 
+Now that the classes have a better balance, we will run the Random Forest Model. 
 ```{r}
-# Load required package
+
+# Loading package
 library(randomForest)
-# making sure target is a factor
+
+# Making sure that target is a factor
 weighted_train$ReturnDaysCategory <- as.factor(weighted_train$ReturnDaysCategory)
 
 # Defining the target
 target_variable <- "ReturnDaysCategory"
 
-# Exclude numeric version of the return days from predictors
+# Excluding the numeric version of the return days from the predictors
 predictors <- setdiff(names(weighted_train), c("ReturnDaysCategory", "Hospital.return.days.for.pneumonia.patients"))
 
 # Building the formula
 rf_formula <- as.formula(paste(target_variable, "~", paste(predictors, collapse = " + ")))
 
 # Fitting the random forest classification model
-set.seed(123)
+set.seed(42)
+
 rf_model_classification <- randomForest(
   rf_formula,
   data = weighted_train,
@@ -2274,34 +2295,77 @@ rf_model_classification <- randomForest(
   ntree = 500,
 )
 
-# View the model summary
+# Viewing the model summary
 print(rf_model_classification)
 
-# Plot variable importance
-varImpPlot(rf_model_classification)
-```
+# Predict on test set
+test_predictors <- predict(rf_model_classification, newdata = readyTest)
 
-```{r}
-# Predictting on test data
-
-
-train_preds <- predict(rf_model_classification, newdata = readyTest)
-
-# Confusion matrix
-confusion_matrix <- table(Predicted = train_preds, Actual = readyTest$ReturnDaysCategory)
+# Evaluate performance
+confusion_matrix <- confusionMatrix(test_predictors, readyTest$ReturnDaysCategory)
 print(confusion_matrix)
 
-# Accuracy
-accuracy <- mean(train_preds == readyTest$ReturnDaysCategory)
-cat("Training Accuracy:", round(accuracy * 100, 2), "%\n")
+test_accuracy <- mean(test_predictors == readyTest$ReturnDaysCategory)
+cat("Accuracy on Test Set:", round(test_accuracy * 100, 2), "%\n")
 ```
 
+We can see that on the training data, the model misclassifies about 6.78% of cases, which is really good. However, on on the test data, the accuracy dropped to 65.7%. This is a sign that the model is overfitting. This might be due to the class weighing. This means that we need to take further steps to see what is going on. Mayve some further tuning can get a higher accuracy.
 
 
+### Tune Random Forest Hyperparameters to see if we can get better results
 
+- Cross-validation may prevent overfitting by testing the model on unseen folds during the training.
 
+- Tuning mtry may help find the best trade off between bias and variance.
 
+- Setting automated tuning may help to prevent guessing which parameters to use.
 
+```{r}
+library(caret)
+
+# making sure the numeric target is dropped from train and test sets
+weighted_train_clean <- weighted_train[, !names(weighted_train) %in% "Hospital.return.days.for.pneumonia.patients"]
+readyTest_clean <- readyTest[, !names(readyTest) %in% "Hospital.return.days.for.pneumonia.patients"]
+
+set.seed(42)
+
+# Fitting the newly tuned Random Forest Model using train() function from caret
+tuned_model <- train(
+  ReturnDaysCategory ~ .,
+  data = weighted_train_clean,
+  method = "rf",
+  trControl = trainControl(
+    method = "cv",  # cross validation to evaluate model performance
+    number = 5), # set 5 number of folds in the cross validation
+  tuneLength = 5 # try 5 different values for the 'mtry' hyperparameter
+)
+
+# Viewing the model summary
+print(tuned_model)
+
+# Predict on test set
+test_preds <- predict(tuned_model, newdata = readyTest_clean)
+
+# Evaluate performance
+conf_matrix <- confusionMatrix(test_preds, readyTest$ReturnDaysCategory)
+print(conf_matrix)
+
+test_accuracy <- mean(test_preds == readyTest$ReturnDaysCategory)
+cat("Accuracy on Test Set:", round(test_accuracy * 100, 2), "%\n")
+
+```
+
+It looks like the accuracy increased to 68.02%. This better than before but we can see that the model is still struggling with identifying High values.
+
+## Random Forest Model Summary
+
+We made a Random Forest model where we classified our data into three groups, Low, Medium, and High. We used 17 predictor variables and a total of 3,660 samples. Before doing any training, we applied class weighing where we manually inputted weights based off of our own knowledge of the imbalance data. 
+
+To find the best model settings, we used 5 fold cross validation and tested different values for the parameter mtry. We tried values of 2, 5, 9, 13, and 17. In our results, we found that the model performed best when mtry was set to 2, achieving about 89% accuracy during cross validation. As mtry increased, the performance dropped slightly, meaning the model worked better when it considered fewer variables at each decision point.
+
+When we tested model on the test data, the overall accuracy was around 68%. We can see that the model did a good job identifying the Medium class, but had a hard time identifying the High class, missing all the High cases and confusing them with the Medium group. The Low class was identified reasonably well but sometimes got mixed up with Medium too since it contained the most data. In our case, we are most interested in the Low class and Medium classes. We are wanting to provide the watchdogs with information on the number of days until a patient who was previously hospitalized for pneumonia is readmitted to the hospital. A lower value means that the patient was readmitted to the hospital soon after the discharge, in fewer days, suggesting that there was a quicker relapse and some sort of complication or unresolved issue following the pneumonia treatment. This probably means that there was inadequate recovery or some complications that occurred at that hospital. 
+
+With that being said, the model works pretty well, especially for what we are looking for with the Medium and low class. It still has trouble picking out the High category accurately which could be due to the High class being less common. If we wanted to improve on this models prefomance even more in the future, we could try some balancing techniques, adding new features, or exploring other modeling approaches.
 
 
 ## Deliverables
@@ -2317,18 +2381,4 @@ Just make sure to answer the questions well,and make sure to justify the decisio
 James, G., Witten, D., Hastie, T., & Tibshirani, R. (2021). An Introduction to Statistical Learning (2nd ed.). Springer.
 
 Jolliffe, Ian T. Principal Component Analysis. Springer Series in Statistics, 2002.
-
-
-
-
-Justifying the Ridge Regression Model 
-We began our analysis with a Ridge regression model due to its effectiveness in handling multicollinearity. Even after preprocessing and feature reduction, our dataset remains fairly large and may still contain correlated predictors. Ridge regression shrinks coefficient estimates, which helps reduce variance, prevent overfitting, and improve model generalization to new data. This approach allows us to retain all predictors while stabilizing the estimates produced from the data set. 
-
-Justifying the LASSO Model
-Given that the Ridge regression produced a test error of 0.65, we also applied a LASSO regression model to evaluate whether we could improve performance and model interpretability. Like the ridge regression model, the LASSO model also manages large coefficients, but it also performs feature selection by shrinking some coefficients exactly to zero. This is useful for our data set, as it highlights the most predictive variables for pneumonia-related readmissions while discarding irrelevant or redundant ones. 
-
-Justifying the Random Forest Model 
-We chose to use the Random Forest model to analyze our data for several important reasons. This model is well-suited for large and complex datasets, like our pneumonia dataset, and is great at handling non-linear relationships that may exist between variables in the data set. Random Forest builds multiple decision trees and aggregates their results, which increases predictive accuracy and reduces overfitting, making the model more robust and reliable. Additionally, it provides an analysis of feature performance by ranking variable importance, offering valuable insights into which factors most influence pneumonia-related hospital readmissions. This combination of flexibility, accuracy, and interpretability makes Random Forest a strong choice for our analysis.
-
-
 
