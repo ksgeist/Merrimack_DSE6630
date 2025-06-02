@@ -1,7 +1,7 @@
 ---
 title: "Project 1: Biomedical & Clinical Informatics"
 subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
-author: "Katherine S. Geist, PhD"
+author: "Sue Susman, M.Ed, BSN, RN"
 date: "20 May 2025"
 output:
   html_document: 
@@ -366,7 +366,7 @@ longTargets %>%
 Now that you can compare these groups more easily, what we're looking for is a balance between **clear difference** between hospital ordinality relative to the national average (i.e., "Are better hospitals really better in pneumonia readmission rates?").
 
 Which target(s) appear the most distinct to you?
-\> Your answer here.
+\> *Excess Readmission Ratio and Predicted Readmission Rate*
 
 #### 2.3.2 Example with `geom_density()`:
 
@@ -398,9 +398,9 @@ longTargets %>%
 
 #### **Question 3**: [0.5 points]
 
-Does this view confirm or change your decision from Question 3?
+**Does this view confirm or change your decision from Question 2?**
 
-> Your answer here.
+> *This new view (density plots) confirms my decision from Question 3. The **Excess Readmission Ratio** and **Predicted Readmission Rate** continue to appear the most distinct. The density plots provide an even clearer visual representation of the separation (or lack thereof) between the distributions for the "Better," "Same," and "Worse" hospital groups..*
 
 ### 2.4 What is the relationship of pneumonia-related hospital readmissions to the hospital performance metrics?
 
@@ -410,33 +410,86 @@ So, to do this, I'm going to make another long-format dataset and use this to ma
 Note that doing it this way, through plotting, is a **heuristic way** of choosing a target variable and it isn't the only way to do it!
 
 ```{r, echo = FALSE}
-longScore <- pneumoniaAnalyzeNoEncoding %>%
-  rename(NatlComparisonHospitalDays = `ComparedToNational_Hospital return days for pneumonia patients`) %>% 
-  select(contains(c("Score", "NatlComparisonHospitalDays", "readmission"))) %>% 
+longScore <- pneumoniaAnalyzeFullyEncoded %>%
+  rename(NatlComparisonHospitalDays = `ComparedToNational_Hospital return days for pneumonia patients`) %>%
+  # --- MODIFIED SELECT LINE BELOW ---
+  select(NatlComparisonHospitalDays, # Keep this key grouping variable
+         PredictedReadmissionRate,   # Explicitly select these 4 readmission rates
+         ExcessReadmissionRatio,
+         observed_readmission_rate,
+         ExpectedReadmissionRate,
+         contains("Score")          # Select all columns containing "Score"
+         # IMPORTANT: If you want other specific columns (like 'Medicare spending per patient'),
+         # you must add them here by their EXACT names if they exist in your dataset.
+         # For example: `Your actual column name for Medicare spending`
+         ) %>%
+  # --- END OF MODIFIED SELECT LINE ---
   ## Flexible handling depending on which dataset students select; changes to better, same, worse
   mutate(NatlComparisonHospitalDays = case_when(
-    (NatlComparisonHospitalDays == 1  | NatlComparisonHospitalDays == "Fewer Days Than Average per 100 Discharges") ~ "Better", 
-    (NatlComparisonHospitalDays == -1 | NatlComparisonHospitalDays == "More Days Than Average per 100 Discharges") ~ "Worse", 
-    (NatlComparisonHospitalDays == 0  | NatlComparisonHospitalDays == "Average Days per 100 Discharges") ~ "Same", 
+    (NatlComparisonHospitalDays == 1  | NatlComparisonHospitalDays == "Fewer Days Than Average per 100 Discharges") ~ "Better",
+    (NatlComparisonHospitalDays == -1 | NatlComparisonHospitalDays == "More Days Than Average per 100 Discharges") ~ "Worse",
+    (NatlComparisonHospitalDays == 0  | NatlComparisonHospitalDays == "Average Days per 100 Discharges") ~ "Same",
     .default = NA),
   NatlComparisonHospitalDays = factor(NatlComparisonHospitalDays, levels = c("Better", "Same", "Worse", "Unknown")),
-  `Score_Emergency department volume` = as.numeric(case_when(`Score_Emergency department volume` == "very high" ~ "5",
-                                                         `Score_Emergency department volume` == "high" ~ "4",
-                                                         `Score_Emergency department volume` == "medium" ~ "3", 
-                                                         `Score_Emergency department volume` == "low"~ "2", 
-                                                         `Score_Emergency department volume` == "very low" ~ "1",
-                                                        .default = `Score_Emergency department volume`))) %>% 
-  pivot_longer(1:12, names_to = "Variable", values_to = "Value") %>% 
-  drop_na() %>% 
-  mutate(Variable = gsub("Score_", "", Variable)) %>% 
+  `Score_Emergency department volume` = as.numeric(case_when(
+      `Score_Emergency department volume` == "very high" ~ 5,
+      `Score_Emergency department volume` == "high" ~ 4,
+      `Score_Emergency department volume` == "medium" ~ 3,
+      `Score_Emergency department volume` == "low"~ 2,
+      `Score_Emergency department volume` == "very low" ~ 1,
+      .default = `Score_Emergency department volume`
+    ))) %>%
+  # IMPORTANT: Adjust the pivot_longer range if you added more columns!
+  # A safer way might be to specify columns NOT to pivot (if you have an ID column)
+  # Or list the columns you want to pivot into Variable/Value
+  pivot_longer(
+    cols = -NatlComparisonHospitalDays, # Pivot all columns except NatlComparisonHospitalDays
+    names_to = "Variable",
+    values_to = "Value"
+  ) %>%
+  drop_na() %>%
+  mutate(Variable = gsub("Score_", "", Variable)) %>%
   mutate(Variable = case_when(
     Variable == "Average (median) time patients spent in the emergency department before leaving from the visit A lower number of minutes is better"
-                ~"Median time (minutes) patients spent in ED",
-    Variable == "CMS Medicare PSI 90: Patient safety and adverse events composite" ~ "Composite patient safety", 
-    Variable == "Abdomen CT Use of Contrast Material" ~ "Abdomen CT w/ contrast", 
-    Variable == "Perioperative pulmonary embolism or deep vein thrombosis rate" ~ "Perioperative pulmonary embolism/DVT",                     
-    Variable == "Left before being seen" ~ "% left ED before being seen", 
+                   ~"Median time (minutes) patients spent in ED",
+    Variable == "CMS Medicare PSI 90: Patient safety and adverse events composite" ~ "Composite patient safety",
+    Variable == "Abdomen CT Use of Contrast Material" ~ "Abdomen CT w/ contrast",
+    Variable == "Perioperative pulmonary embolism or deep vein thrombosis rate" ~ "Perioperative pulmonary embolism/DVT",
+    Variable == "Left before being seen" ~ "% left ED before being seen",
     .default = Variable))
+```
+
+```{r, fig.cap = "Figure: Comparison of Readmission Rates by National Performance Categories", fig.width=10, fig.height=8, echo = FALSE}
+
+# Define the four readmission rates we want to plot
+readmission_rates_to_plot <- c(
+  "ExcessReadmissionRatio",
+  "ExpectedReadmissionRate",
+  "observed_readmission_rate",
+  "PredictedReadmissionRate"
+)
+
+longScore %>%
+  # Filter to include only the four specified readmission rate variables
+  filter(Variable %in% readmission_rates_to_plot) %>%
+  ggplot(aes(x = NatlComparisonHospitalDays, y = Value, color = NatlComparisonHospitalDays)) +
+  # Add jittered points to see individual data points within categories
+  geom_point(alpha = 0.3, position = position_jitter(width = 0.2)) +
+  # Overlay boxplots to clearly show quartiles and medians
+  geom_boxplot(width = 0.1, outlier.shape = NA, color = "black") + # outlier.shape = NA hides outlier points from boxplot
+  labs(title = "Distribution of Different Readmission Rates by National Performance Category",
+       subtitle = "Comparing 'Better', 'Same', 'Worse' hospital groups for each Readmission Metric",
+       x = "Pneumonia-related hospital days (compared to national average)",
+       y = "Readmission Rate Value",
+       color = "Comparison Category") +
+  scale_color_manual(values = c("Better" = "gold", "Same" = "cadetblue", "Worse" = "maroon", "Unknown" = "darkgreen")) +
+  theme_minimal() +
+  theme(legend.position = "none", # Legend is redundant with x-axis labels and colors
+        strip.text = element_text(size=10, face="bold"), # Make facet titles bold
+        axis.text.x = element_text(angle = 45, hjust = 1), # Rotate x-axis labels for readability
+        title = element_text(size = 14, color = "maroon")) +
+  # Facet the plots by each readmission rate variable, allowing y-scales to vary freely for better comparison
+  facet_wrap(~ Variable, scales = "free_y", ncol = 2)
 ```
 
 #### **Question 4**: [1 point]
