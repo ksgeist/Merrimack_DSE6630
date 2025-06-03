@@ -3,16 +3,16 @@ title: 'Demo 1: Biomedical & Clinical Informatics'
 author: "Sue Susman M.Ed., BSN, RN"
 date: "12 May 2025"
 output:
+  word_document: 
+    toc: true
+    fig_caption: true
+    keep_md: true
   html_document: 
     toc: true
     toc_float: true
     theme: flatly
     fig_caption: true
     number_sections: true
-    keep_md: true
-  word_document: 
-    toc: true
-    fig_caption: true
     keep_md: true
   pdf_document: 
     toc: true
@@ -40,21 +40,21 @@ knitr::opts_chunk$set(echo = TRUE,
 ## This only applies to interactive sessions, not knitting.
 
 ## Prompt user for confirmation in interactive sessions
-# if (interactive()) {
-#   message("This script will clear your environment. Proceed with caution.")
-#   confirm <- readline(prompt = "Type Y to clear the environment: ")
-#   if (toupper(confirm) == "Y") {
-#     rm(list = ls())
-#     gc()  ## Garbage collector - frees up memory
-#     cat("Environment cleared.\n")
-#   } else {
-#     #cat("Environment NOT cleared.\n")
-#   }
-# } else {
-#   ## In non-interactive sessions (e.g., RMarkdown), assume clean start is intended
-#   rm(list = ls())
-#   gc()
-# }
+if (interactive()) {
+  message("This script will clear your environment. Proceed with caution.")
+  confirm <- readline(prompt = "Type Y to clear the environment: ")
+  if (toupper(confirm) == "Y") {
+    rm(list = ls())
+    gc()  ## Garbage collector - frees up memory
+    cat("Environment cleared.\n")
+  } else {
+    #cat("Environment NOT cleared.\n")
+  }
+} else {
+  ## In non-interactive sessions (e.g., RMarkdown), assume clean start is intended
+  rm(list = ls())
+  gc()
+}
 ```
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
@@ -140,8 +140,6 @@ filepath <- "~/Desktop/Data Science Files/DSE 6630 Healthcare Analytics/Rho/Demo
 
 You may have to dig through the accompanying data dictionary **HOSPITAL_Data_Dictionary.pdf** to get a better handle on what is in the hospital-level files.
 
-------------------------------------------------------------------------
-
 #### **Question 1**: [1 point]
 
 Take a look at the chunk below, which performs **dynamic variable assignment** as it reads in each of the files.
@@ -181,14 +179,12 @@ files %>%
   )
 ```
 
-------------------------------------------------------------------------
-
 #### **Question 2**: [1 point]
 
 Take a look at some of the dataframes, e.g., `HCAHPS` and `FY_2025_Hospital_Readmissions_Reduction_Program`.
 What do you notice about the format / structure of the data?
 Does the data have an issue with the dimensionality?
-Hint: Check to see if each row represents a single line of data or not!
+**Hint:** Check to see if each row represents a single line of data or not!
 
 ```{r}
 dimensions_HCAHPS <- dim(HCAHPS)
@@ -210,11 +206,9 @@ cat("Columns:", dimensions_2025_HRRP[2], "\n")
 ### Tidy the data response variables' dataframe: Fiscal Year 2025 Hospital Re-admissions Reduction Program.
 
 We are going to focus on the dataset `FY_2025_Hospital_Readmissions_Reduction_Program` to work on best practices to [tidy our data](https://vita.had.co.nz/papers/tidy-data.pdf).
-Although I do not personally choose to follow everything that Hadley Wickham and the Tidy Data Movement has espoused, I do think a lot of the best practices are useful principles especially when we are just getting use to working with data.
+Although I do not personally choose to follow everything that Hadley Wickham and the **Tidy Data** Movement has espoused, I do think a lot of the best practices are useful principles especially when we are just getting use to working with data.
 Further, we can leverage a lot of the functions to make our lives MUCH easier!
 And who doesn't like easier?!
-
-------------------------------------------------------------------------
 
 #### **Question 3**: [1 point]
 
@@ -228,77 +222,65 @@ glimpse(FY_2025_Hospital_Readmissions_Reduction_Program)
 
 **Hint:** Columns 5 & 7:10 have problems with the `NA` class.
 
-------------------------------------------------------------------------
-
 #### **Question 4**: [1 point]
 
 Investigate the `replace_with_na_all()` function that is part of the `naniar` package.
 Use this function to fix the `NA` class in the aberrant columns in `FY_2025_Hospital_Readmissions_Reduction_Program`.
 
-```{r}
-# Ensure the naniar package is loaded}
-library(naniar)
+\`\`\`{# Ensure the naniar package is loaded} library(naniar)
 
 # Define the values that represent missing data in your dataset.
+
 # These are common text strings found in such datasets that indicate missing or suppressed data.
-missing_values_to_replace <- c("Not Available", "Too Few to Report", "Suppressed", "", " ")
+
+missing_values_to_replace \<- c("Not Available", "Too Few to Report", "Suppressed", "", " ")
 
 # Apply replace_with_na_all() to the dataframe.
+
 # This function will look for any of the 'missing_values_to_replace' strings across all columns
+
 # of FY_2025_Hospital_Readmissions_Reduction_Program and convert them to NA.
-FY_2025_Hospital_Readmissions_Reduction_Program <- FY_2025_Hospital_Readmissions_Reduction_Program %>%
-  replace_with_na_all(condition = ~.x %in% missing_values_to_replace)
+
+FY_2025_Hospital_Readmissions_Reduction_Program \<- FY_2025_Hospital_Readmissions_Reduction_Program %\>% replace_with_na_all(condition = \~.x %in% missing_values_to_replace)
 
 # --- Verification Steps (Optional, but highly recommended) ---
 
 # 1. Check the structure again. Columns that were character due to these values
-#    should now have proper NA values, even if they remain character type for now.
-cat("Structure of FY 2025_Hospital Readmissions Reduction Program after replacing values with NA:\n")
-str(FY_2025_Hospital_Readmissions_Reduction_Program)
-cat("\n")
+
+# should now have proper NA values, even if they remain character type for now.
+
+cat("Structure of FY_2025_Hospital_Readmissions_Reduction_Program after replacing values with NA:\n") str(FY_2025_Hospital_Readmissions_Reduction_Program) cat("\n")
 
 # 2. Use miss_var_summary() from naniar to see a summary of missing values.
-#    You should see counts for NA where the problematic strings used to be.
-cat("Summary of missing values after replacement:\n")
-miss_var_summary(FY_2025_Hospital_Readmissions_Reduction_Program)
-cat("\n")
+
+# You should see counts for NA where the problematic strings used to be.
+
+cat("Summary of missing values after replacement:\n") miss_var_summary(FY_2025_Hospital_Readmissions_Reduction_Program) cat("\n")
 
 # 3. Inspect unique values for a column like NumberOfReadmissions.
-#    You should no longer see "Not Available", "Too Few to Report", or "Suppressed" if they were present.
-cat("Unique values in NumberOfReadmissions after NA replacement (should be cleaner):\n")
-unique(FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions)
-```
 
-You will notice that this aberrant class of missing value caused the numeric columns to be coerced into character columns when they were imported by `read_csv()`.
+# You should no longer see "Not Available", "Too Few to Report", or "Suppressed" if they were present.
+
+cat("Unique values in NumberOfReadmissions after NA replacement (should be cleaner):\n") unique(FY_2025_Hospital_Readmissions_Reduction_Program\$NumberOfReadmissions)
+
+```         
+
+You will notice that this aberrant class of missing value **caused** the numeric columns to be coerced into character columns when they were imported by `read_csv()`.
 Although we could try using `as.numeric()` by itself, which would assign `NA` to any non-numeric entry in `FY_2025_Hospital_Readmissions_Reduction_Program`, the problem is that we could lose important information that way.
 Thus, as annoying as this is, we should fix it a little more specifically...
-
-------------------------------------------------------------------------
 
 #### **Question 5**: [1 point]
 
 Look more closely at the `NumberOfReadmissions` column in the `FY_2025_Hospital_Readmissions_Reduction_Program`.
 What other issue do you see with this specific column that is coercing it to the character type, and why does it exist?
 
-Hint: Make sure to use the accompanying data dictionary HOSPITAL_Data_Dictionary.pdf to also examine WHY this problem exists!
+**Hint:** Make sure to use the accompanying data dictionary **HOSPITAL_Data_Dictionary.pdf** to also examine **WHY** this problem exists!
 
-```{r}
-cat("FY 2025 Hospital Readmissions Reduction Program: Number of Readmissions:\n")
-
-str(FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions)
-cat("\n")
-
-cat("FY 2025 Hospital Readmissions Reduction Program: Number of Readmissions:\n")
-unique(FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions)
-cat("\n")
-
-cat("FY 2025 Hospital Readmissions Reduction Program: Number of Readmissions:\n")
-table(FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions, useNA = "always")
+```f3175f2a-e8a0-4436-be12-b33925b6d220
+31b8e172-b470-440e-83d8-e6b185028602:dAB5AHAAZQA6AFoAZwBBAHoAQQBEAEUAQQBOAHcAQQAxAEEARwBZAEEATQBnAEIAaABBAEMAMABBAFoAUQBBADQAQQBHAEUAQQBNAEEAQQB0AEEARABRAEEATgBBAEEAegBBAEQAWQBBAEwAUQBCAGkAQQBHAFUAQQBNAFEAQQB5AEEAQwAwAEEAWQBnAEEAegBBAEQATQBBAE8AUQBBAHkAQQBEAFUAQQBZAGcAQQAyAEEARwBRAEEATQBnAEEAeQBBAEQAQQBBAAoAcABvAHMAaQB0AGkAbwBuADoATQBRAEEAegBBAEQARQBBAE4AUQBBADAAQQBBAD0APQAKAHAAcgBlAGYAaQB4ADoACgBzAG8AdQByAGMAZQA6AFkAQQBCAGcAQQBHAEEAQQBlAHcAQgB5AEEASAAwAEEAQwBnAEIAegBBAEgAUQBBAGMAZwBBAG8AQQBFAFkAQQBXAFEAQgBmAEEARABJAEEATQBBAEEAeQBBAEQAVQBBAFgAdwBCAEkAQQBHADgAQQBjAHcAQgB3AEEARwBrAEEAZABBAEIAaABBAEcAdwBBAFgAdwBCAFMAQQBHAFUAQQBZAFEAQgBrAEEARwAwAEEAYQBRAEIAegBBAEgATQBBAGEAUQBCAHYAQQBHADQAQQBjAHcAQgBmAEEARgBJAEEAWgBRAEIAawBBAEgAVQBBAFkAdwBCADAAQQBHAGsAQQBiAHcAQgB1AEEARgA4AEEAVQBBAEIAeQBBAEcAOABBAFoAdwBCAHkAQQBHAEUAQQBiAFEAQQBrAEEARQA0AEEAZABRAEIAdABBAEcASQBBAFoAUQBCAHkAQQBFADgAQQBaAGcAQgBTAEEARwBVAEEAWQBRAEIAawBBAEcAMABBAGEAUQBCAHoAQQBIAE0AQQBhAFEAQgB2AEEARwA0AEEAYwB3AEEAcABBAEEAbwBBAEMAZwBCADEAQQBHADQAQQBhAFEAQgB4AEEASABVAEEAWgBRAEEAbwBBAEUAWQBBAFcAUQBCAGYAQQBEAEkAQQBNAEEAQQB5AEEARABVAEEAWAB3AEIASQBBAEcAOABBAGMAdwBCAHcAQQBHAGsAQQBkAEEAQgBoAEEARwB3AEEAWAB3AEIAUwBBAEcAVQBBAFkAUQBCAGsAQQBHADAAQQBhAFEAQgB6AEEASABNAEEAYQBRAEIAdgBBAEcANABBAGMAdwBCAGYAQQBGAEkAQQBaAFEAQgBrAEEASABVAEEAWQB3AEIAMABBAEcAawBBAGIAdwBCAHUAQQBGADgAQQBVAEEAQgB5AEEARwA4AEEAWgB3AEIAeQBBAEcARQBBAGIAUQBBAGsAQQBFADQAQQBkAFEAQgB0AEEARwBJAEEAWgBRAEIAeQBBAEUAOABBAFoAZwBCAFMAQQBHAFUAQQBZAFEAQgBrAEEARwAwAEEAYQBRAEIAegBBAEgATQBBAGEAUQBCAHYAQQBHADQAQQBjAHcAQQBwAEEAQQBvAEEAQwBnAEIAMABBAEcARQBBAFkAZwBCAHMAQQBHAFUAQQBLAEEAQgBHAEEARgBrAEEAWAB3AEEAeQBBAEQAQQBBAE0AZwBBADEAQQBGADgAQQBTAEEAQgB2AEEASABNAEEAYwBBAEIAcABBAEgAUQBBAFkAUQBCAHMAQQBGADgAQQBVAGcAQgBsAEEARwBFAEEAWgBBAEIAdABBAEcAawBBAGMAdwBCAHoAQQBHAGsAQQBiAHcAQgB1AEEASABNAEEAWAB3AEIAUwBBAEcAVQBBAFoAQQBCADEAQQBHAE0AQQBkAEEAQgBwAEEARwA4AEEAYgBnAEIAZgBBAEYAQQBBAGMAZwBCAHYAQQBHAGMAQQBjAGcAQgBoAEEARwAwAEEASgBBAEIATwBBAEgAVQBBAGIAUQBCAGkAQQBHAFUAQQBjAGcAQgBQAEEARwBZAEEAVQBnAEIAbABBAEcARQBBAFoAQQBCAHQAQQBHAGsAQQBjAHcAQgB6AEEARwBrAEEAYgB3AEIAdQBBAEgATQBBAEwAQQBBAGcAQQBIAFUAQQBjAHcAQgBsAEEARQA0AEEAUQBRAEEAZwBBAEQAMABBAEkAQQBBAGkAQQBHAEUAQQBiAEEAQgAzAEEARwBFAEEAZQBRAEIAegBBAEMASQBBAEsAUQBBAEsAQQBHAEEAQQBZAEEAQgBnAEEAQQA9AD0ACgBzAHUAZgBmAGkAeAA6AA==:31b8e172-b470-440e-83d8-e6b185028602
 ```
 
 > *The NumberOfReadmissions column was converted to a character type primarily because it contained a mix of numeric counts and data suppression threshold values (such as "\<11"). The presence of these non-numeric entries led to R treating the entire column as text, even after using the replace_with_na_all() function to convert those entries to NA. This approach is implemented to protect patient privacy and confidentiality, as outlined in the HOSPITAL_Data_Dictionary.pdf (Footnote #1). It is particularly important in cases where the number of admissions is too low to report exact figures, thereby ensuring that individual patient data remains secure while still providing essential statistical information.*
-
-------------------------------------------------------------------------
 
 #### **Question 6**: [1 point]
 
@@ -343,8 +325,6 @@ cat("Summary of NumberOfReadmissions:\n")
 summary(FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions)
 ```
 
-------------------------------------------------------------------------
-
 #### **Question 7**: [1 point]
 
 Speculate as to why I asked you to replace the text with a **5** rather than a **0** or an `NA`.
@@ -352,23 +332,18 @@ Can you think of any other logical choices for the substitution?
 Do you agree with my choice?
 (You're free to disagree, but please defend your decision either way!)
 
-> *As a new data scientist just starting my career, I support the decision to replace the suppressed text with a value of 5, and here's why:*
->
-> 1.  *Simplicity and Immediate Usability: Substituting with a single, predetermined numeric value like 5 provides a clear and straightforward solution. This enables the NumberOfReadmissions column to be readily converted into a numeric type, allowing for immediate use in calculations and analyses without the complexity of advanced imputation methods or managing missing values.*
->
-> 2.  *Reasonable Midpoint Estimate: Given a suppression threshold of "\<11" (indicating 1 to 10 re-admissions), using 5 is a logical midpoint. This choice acknowledges that re-admissions did occur, avoiding a misleading zero, while offering a credible estimate within the suppressed range. It prevents the risk of artificially lowering the rates that would arise from using a value of 0.*
->
-> 3.  *Preservation of Observations: This approach keeps all observations intact in the dataset, unlike simply converting values to NA, which might lead to dropping rows with missing data. Retaining all records is essential for maintaining sample size, particularly when dealing with multiple hospitals with suppressed information.*
->
-> 4.  *Practicality for Educational/Demonstration Purposes: In educational scenarios or demonstrations, employing 5 exemplifies a direct imputation method clearly. It allows the focus to remain on data cleaning processes and subsequent analysis steps, rather than diverting attention to more complex imputation techniques.*
->
-> *Overall, these reasons support the rationale that using 5 as a replacement is not only practical but also beneficial for accurate data interpretation and analysis as I embark on my journey in the field of data science.*
-
-------------------------------------------------------------------------
+> > *As a new data scientist just starting my career, I support the decision to replace the suppressed text with a value of 5, and here's why:*
+> >
+> > 1.  ***Simplicity and Immediate** Usability: Substituting with a single, predetermined numeric value like 5 provides a clear and straightforward solution. This enables the NumberOfReadmissions column to be readily converted into a numeric type, allowing for immediate use in calculations and analyses without the complexity of advanced imputation methods or managing missing values.*
+> > 2.  ***Reasonable Midpoint Estimate**: Given a suppression threshold of "\<11" (indicating 1 to 10 re-admissions), using 5 is a logical midpoint. This choice acknowledges that re-admissions did occur, avoiding a misleading zero, while offering a credible estimate within the suppressed range. It prevents the risk of artificially lowering the rates that would arise from using a value of 0.*
+> > 3.  ***Preservation of Observations**: This approach keeps all observations intact in the dataset, unlike simply converting values to NA, which might lead to dropping rows with missing data. Retaining all records is essential for maintaining sample size, particularly when dealing with multiple hospitals with suppressed information.*
+> > 4.  ***Practicality for Educational/Demonstration Purposes**: In educational scenarios or demonstrations, employing 5 exemplifies a direct imputation method clearly. It allows the focus to remain on data cleaning processes and subsequent analysis steps, rather than diverting attention to more complex imputation techniques.*
+> >
+> > *Overall, these reasons support the rationale that using 5 as a replacement is not only practical but also beneficial for accurate data interpretation and analysis as I embark on my journey in the field of data science.*
 
 #### **Question 8**: [1 point]
 
-Now, imagine an alternative scenario where instead of replacing it with a 5, I instead asked you to replace it with a randomly sampled integer from 1 to 10.
+Now, imagine an alternative scenario where instead of replacing it with a **5**, I instead asked you to replace it with a randomly sampled integer from 1 to 10.
 What would this do?
 Would `gsub()` work here or would I need to execute it a different way, e.g., with an `lapply()` function or a `for()` loop?
 
@@ -385,15 +360,14 @@ Would `gsub()` work here or would I need to execute it a different way, e.g., wi
 >
 > ***How Could You Execute It? : We would** need a different approach that allows us to target each problematic value individually and replace it with a fresh random sample, such as: **`lapply()` or `for` loop, or `dplyr` methods***
 
-------------------------------------------------------------------------
-
 #### **Question 9**: [3 points]
 
 You probably anticipated this!
 We just decided that, rather than a 5 we want a randomly sampled integer from 1 to 10.
 
--   Hint 1: You might find it easier to read the data in from fresh and, after commenting out your `gsub` from Question 5, pattern match on the problematic text.
--   Hint 2: This is NOT the only way to do this, but I solved this using `gregexpr()`, `regmatches()`, and `lapply()`.
+Hint 1: You might find it easier to read the data in from fresh and, after commenting out your `gsub` from Question 5, pattern match on the problematic text.
+
+Hint 2: This is NOT the only way to do this, but I solved this using `gregexpr()`, `regmatches()`, and `lapply()`.
 
 ```{r}
 # This ensures we start with the original state of the 'NumberOfReadmissions' column, before any previous cleaning like replace_with_na_all() or gsub. We assume the file for FY_2025_Hospital_Readmissions_Reduction_Program is 'FY_2025_Hospital_Readmissions_Reduction_Program_Hospital.csv' as listed in the data dictionary.
@@ -442,8 +416,6 @@ cat("Summary of NumberOfReadmissions:\n")
 summary(FY_2025_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions)
 ```
 
-------------------------------------------------------------------------
-
 #### **Question 10**: [1 point]
 
 It is finally time to fix those aberrant character columns by making them numeric.
@@ -470,7 +442,7 @@ FY_2025_Hospital_Readmissions_Reduction_Program <- FY_2025_Hospital_Readmissions
 # --- Verification (Highly Recommended) ---
 
 # Check the structure of the dataframe again to confirm the column types have changed
-cat("Structure of FY 2025 Hospital Readmissions Reduction Program after numeric conversion:\n")
+cat("Structure of FY_2025_Hospital_Readmissions_Reduction_Program after numeric conversion:\n")
 str(FY_2025_Hospital_Readmissions_Reduction_Program)
 cat("\n")
 
@@ -494,8 +466,6 @@ FY_2025_Hospital_Readmissions_Reduction_Program <-  FY_2025_Hospital_Readmission
 ```{r}
 #load(file = "readmissionsClean.Rdata")
 ```
-
-------------------------------------------------------------------------
 
 #### **Question 11**: [1 point]
 
@@ -623,7 +593,7 @@ HCAHPS <- HCAHPS %>%
                    "HcahpsAnswerDescription",
                    "PatientSurveyStarRating"))) %>% # Drops the columns we don't need
 
-  # print(colnames(.)) %>% # This will print the column names after the select()
+  print(colnames(.)) %>% # This will print the column names after the select()
   # -----------------------------
 rename(MeasureName = HcahpsQuestion) %>% # Makes a new MeasureName column
   mutate(MeasureName = gsub(" - linear mean score", "", MeasureName))
@@ -644,14 +614,14 @@ hospitalInfo <- Payment_and_Value_of_Care %>%
 load(file = "readmissionsClean.Rdata")
 ```
 
-------------------------------------------------------------------------
-
 #### **Question 12**: [5 points]
 
 Write a function that will:
 
 1.  Fix any issues identified previously, e.g., issues with the `NA` class or pivoting, if needed
-2.  Join any number of a list of dataframes you give it. For example, it should be able to join these 8 tables:
+
+2.  Join any number of a list of dataframes you give it.
+    For example, it should be able to join these 8 tables:
 
 ```{r}
 datList <- list(
@@ -791,18 +761,17 @@ hospitalInfo <- Payment_and_Value_of_Care %>%
 #This is crucial for the final join requirement.You must ensure 'readmissionsClean.Rdata' is in your working directory or provide full path.
 # load(file = "readmissionsClean.Rdata") # Run this if readmissionsClean is not in environment.
 
+# --- Function Definition for Question 12 ---
 tidyNjoin <- function(datList, filterList, hospitalInfo, readmissionsClean) {
 
   # Initialize the merged dataframe with hospitalInfo as the base
   merged_df <- hospitalInfo
 
   # Define common columns to drop from individual dataframes before joining.
-  # "HospitalOverallRating" is EXCLUDED from this list to ensure it's kept.
   cols_to_drop_from_individual_dfs <- c(
     "FacilityName", "Address", "CityTown", "State", "ZipCode", "CountyParish", "TelephoneNumber",
     "StartDate", "EndDate", "Footnote", "MeasureId",
-    "HcahpsMeasureId", # This line is corrected from previous typos.
-    "PatientSurveyStarRatingFootnote", "HcahpsAnswerPercentFootnote",
+    "HcahpsMeasureId", "PatientSurveyStarRatingFootnote", "HcahpsAnswerPercentFootnote",
     "NumberOfCompletedSurveysFootnote", "SurveyResponseRatePercentFootnote",
     "HcahpsAnswerDescription", "PatientSurveyStarRating",
     "ValueofCareCategory", "PaymentCategory",
@@ -841,18 +810,20 @@ tidyNjoin <- function(datList, filterList, hospitalInfo, readmissionsClean) {
     df_current_processed <- df_current %>%
       select(FacilityId, any_of("MeasureName"), everything()) %>%
       select(-any_of(cols_to_drop_from_individual_dfs))
-
-    # FIX: Ensure FacilityId is character in ALL dataframes for consistent joining
+    
+    # Ensure FacilityId is character in ALL dataframes for consistent joining
     df_current_processed <- df_current_processed %>%
       mutate(FacilityId = as.character(FacilityId))
 
-    # Step 2: Handle NA class issues and convert to numeric (THIS BLOCK IS NO LONGER DUPLICATED)
+    # Step 2: Handle NA class issues and convert to numeric
+    # This block now appears ONLY ONCE
     df_current_processed <- df_current_processed %>%
       replace_with_na_all(condition = ~.x %in% missing_values_to_replace)
 
-    # FIX: Exclude FacilityId from being converted back to numeric (and MeasureName)
+    # *** CRITICAL FIX HERE: EXCLUDE FacilityId from being converted back to numeric ***
     df_current_processed <- df_current_processed %>%
       mutate(across(where(is.character) & !matches("MeasureName") & !matches("FacilityId"), as.numeric))
+    # **********************************************************************************
 
     # Step 3 & 4: Handle MeasureName filtering and pivoting conditionally
     if ("MeasureName" %in% colnames(df_current_processed)) {
@@ -872,17 +843,15 @@ tidyNjoin <- function(datList, filterList, hospitalInfo, readmissionsClean) {
         # If only FacilityId and MeasureName left after filtering, no values to pivot
         pivoted_df <- df_current_filtered %>% select(FacilityId) %>% distinct() 
       }
-    } else { # This 'else' belongs to the outer 'if' (MeasureName check)
+    } else {
       # If no MeasureName column (like Hospital_General_Information), it's probably already wide.
-      # Explicitly select HospitalOverallRating to ensure it's not missed.
-      pivoted_df <- df_current_processed %>% 
-        select(FacilityId, any_of("HospitalOverallRating"), everything()) %>% # <<< CRITICAL CHANGE HERE <<<
-        distinct() 
-    } # <--- This closes the 'else' block
+      # Just take it as is, ensuring FacilityId is there and distinct.
+      pivoted_df <- df_current_processed %>% select(FacilityId, everything()) %>% distinct()
+    }
 
     # Step 5: Join the pivoted dataframe to the main merged_df
     merged_df <- full_join(merged_df, pivoted_df, by = "FacilityId")
-  } # <--- This closes the 'for' loop
+  }
 
   # Step 6: Finally, join with readmissionsClean
   merged_df <- full_join(merged_df, readmissionsClean, by = "FacilityId")
@@ -891,17 +860,15 @@ tidyNjoin <- function(datList, filterList, hospitalInfo, readmissionsClean) {
   merged_df <- merged_df %>% distinct()
 
   return(merged_df)
-} # <--- This final brace closes the 'tidyNjoin' function
+}
 ```
-
-------------------------------------------------------------------------
 
 #### **Question 13**: [1 point]
 
 Why do you think I just made you work through this function?
 (**Hint**: What are you going to be asked to do in Project 1?)
 
-> *In Project 1, I will write my own research question, manage the cleaning, pre-processing, and exploratory data analysis of merged datasets. This project allows me to create a custom data preparation process that I can use this to develop a clean, merged dataset that addresses my research question and explore insights related to my topic effectively.*
+> *In Project 1, I will write my own research question, manage the cleaning, preprocessing, and exploratory data analysis of merged datasets. This project allows me to create a custom data preparation process that I can use this to develop a clean, merged dataset that addresses my research question and explore insights related to my topic effectively.*
 
 ### The full, merged, tidied dataset for pneumonia.
 
@@ -922,8 +889,8 @@ That's definitely too many features, so let's perform some additional feature se
 
 ```{r, echo = FALSE, collapse=TRUE}
 
-# install.packages("kableExtra")
-# install.packages("tibble")
+install.packages("kableExtra")
+install.packages("tibble")
 
 library(tibble)
 library(dplyr)
@@ -991,8 +958,6 @@ It will be important to perform encoding **BEFORE** using automated methods for 
 
 Although we ideally could just include these steps (and perhaps you did!) in our tidying & joining function from Question 12, I wanted to make sure we talk about this explicitly.
 
-------------------------------------------------------------------------
-
 #### **Question 14**: [1 point]
 
 Looking through the feature names, you probably notice names like `LowerEstimate_Death rate for pneumonia patients`.
@@ -1001,7 +966,7 @@ Use the `contains()` function to **drop** any columns that contain `LowerEstimat
 Let's also go ahead and drop any columns containing `Denominator` and `HcahpsAnswerPercent` as well.
 How many features did you drop?
 
-> *I didn't have to drop any columns from the dataset because the pivot_wider function had already addressed their transformation and organization. This function effectively restructured the data, ensuring that all necessary information was retained and presented in a more suitable format for analysis. As a result, there was no need to further modify the dataset by removing columns.*
+> Your answer here.
 
 ```{r}
 # Load the dataset if you are restarting or skipped previous complex steps
@@ -1048,8 +1013,6 @@ colnames(pneumoniaAnalyze)
 
 ### Mystery encoding! (Well, it won't be a mystery for long.)
 
-------------------------------------------------------------------------
-
 #### **Question 15**: [1 point]
 
 We need to perform encoding on all of the categorical columns, ultimately.
@@ -1057,19 +1020,17 @@ However, we will focus first on the columns that begin with \``ComparedToNationa
 What kind of encoding should we perform on these columns?
 Why?
 
-> *Ordinal encoding is a way to organize categories that have a clear order. For example, "Better Than National" is better than "No Different Than National," which is in turn better than "Worse Than National." In this method, we assign numbers to each category: 1 for "Better," 2 for "No Different," and 3 for "Worse."*
+> \*Ordinal encoding is a way to organize categories that have a clear order.
+> For example, "Better Than National" is better than "No Different Than National," which is in turn better than "Worse Than National." In this method, we assign numbers to each category: 1 for "Better," 2 for "No Different," and 3 for "Worse."
 >
-> *This ranking keeps the important order intact, which helps machine learning models. They can recognize that "Worse" is further down the negative scale than "No Different." This understanding is better than treating each category as separate, like One-Hot Encoding does.*
-
-------------------------------------------------------------------------
+> This ranking keeps the important order intact, which helps machine learning models.
+> They can recognize that "Worse" is further down the negative scale than "No Different." This understanding is better than treating each category as separate, like One-Hot Encoding does.\*
 
 #### **Question 16**: [1 point]
 
 What other column do we also need to perform this kind of encoding on?
 
 > *Hospital overall rating column, because The "Hospital overall rating" is a star rating from 1 to 5 stars, where more stars mean better performance. This creates a clear ranking, making it an ordinal variable. Similarly, just as ratings like "Better," "No Different," and "Worse" have a meaningful order, a 5-star rating is always better than a 1-star rating. By assigning numerical values (1 for 1 star, 5 for 5 stars), we maintain this essential order for machine learning models.*
-
-------------------------------------------------------------------------
 
 #### *Question 17: [3 points]*
 
@@ -1078,20 +1039,28 @@ It's okay if you can only think of a way to brute-force this for now; I will sho
 :)
 
 -   **Hint 1:** You could use the `contains()` or `startsWith()` functions to help you quickly grab those columns so you can make the changes you want to make.
+
 -   **Hint 2:** You may want to explore the `grepl()` function or regular expressions, as they can allow us to match in a "fuzzy" way.
--   **Hint 3:** You may want to create a temporary dataframe that you execute the changes on and then replace the original columns from there. That way, you don't have to keep reloading the original data if you make mistakes!
--   **Hint 4** For full credit, don't forget to double check that you managed to preserve all the data! The `table()` function is sufficient here.
+
+-   **Hint 3:** You may want to create a temporary dataframe that you execute the changes on and then replace the original columns from there.
+    That way, you don't have to keep reloading the original data if you make mistakes!
+
+-   **Hint 3:** For full credit, don't forget to double check that you managed to preserve all the data!
+    The `table()` function is sufficient here.
 
 ```{r}
-# # Ensure dplyr and tidyr are loaded (as in your previous code)
-# library(dplyr)
-# library(tidyr) 
+# Ensure dplyr and tidyr are loaded (as in your previous code)
+library(dplyr)
+library(tidyr) 
 
 # Ensure datList, filterList, hospitalInfo, and readmissionsClean are defined from previous setup steps
 # (e.g., re-run the PRE-REQUISITE SETUP part of the code if you haven't just done so)
 
 # Call your tidyNjoin function to create the merged dataset
 pneumoniaAnalyze <- tidyNjoin(datList, filterList, hospitalInfo, readmissionsClean)
+
+# --- Diagnostic Step: Check columns AFTER tidyNjoin, BEFORE encoding ---
+temp_pneumonia_df <- pneumoniaAnalyze # Make the temporary copy
 
 # --- DIAGNOSTIC STEP ---
 cat("--- Columns in pneumoniaAnalyze after tidyNjoin call ---\n")
@@ -1217,7 +1186,7 @@ for (c in 1:length(cols2encode)) {
 }
 ```
 
-#### **Question 19**: [1 point]
+##### **Question 19**: [1 point]
 
 Use your finally & freshly encoded version of `pneumoniaFullEncoded` to answer this vital question for `State` and `CountyParish` features: are we justified using these features?
 Why or why not?
@@ -1230,11 +1199,11 @@ Low to moderate duplication can be kept if there is a strong justification for d
 
 **Hint 3:** If you decide it is ill-advised for either or both columns, make sure to remove those features from the dataset!
 
-```{r, include=FALSE} 
+```{r}
 # Ensure pneumoniaFull (original data) and pneumoniaFullEncoded (frequency-encoded data)
 # are loaded into your environment.
-load("pneumoniaFull.Rdata") # Uncomment and run if not already loaded
-load("pneumoniaFullEncoded.Rdata") # Uncomment and run if not already loaded
+# load("pneumoniaFull.Rdata") # Uncomment and run if not already loaded
+# load("pneumoniaFullEncoded.Rdata") # Uncomment and run if not already loaded
 
 # --- Inspecting 'State' feature ---
 cat("--- Original 'State' (categorical) counts ---\n")
@@ -1245,10 +1214,10 @@ cat("\nNumber of unique original States:", length(unique(pneumoniaFull$State)), 
 
 cat("\n--- Frequency-encoded 'State' (numeric) counts ---\n")
 # Shows the count for each unique frequency value. If many states mapped to the same number, this will be apparent.
-# Corrected: Using pneumoniaFullEncoded instead of temp_pneumonia_df
-print(table(pneumoniaFull$State, useNA = "always")) 
-# Corrected: Using pneumoniaFullEncoded instead of temp_pneumonia_df
+print(table(pneumoniaFullEncoded$State, useNA = "always"))
+# Shows the total number of distinct frequency values for State.
 cat("\nNumber of unique frequency values for State:", length(unique(pneumoniaFullEncoded$State)), "\n")
+
 
 # --- Inspecting 'CountyParish' feature ---
 cat("\n--- Original 'CountyParish' (categorical) counts ---\n")
@@ -1259,9 +1228,8 @@ cat("\nNumber of unique original CountyParishes:", length(unique(pneumoniaFull$C
 
 cat("\n--- Frequency-encoded 'CountyParish' (numeric) counts ---\n")
 # Shows the count for each unique frequency value for CountyParish.
-# Corrected: Using pneumoniaFullEncoded instead of temp_pneumonia_df
-print(table(pneumoniaFullEncoded$CountyParish, useNA = "always")) 
-# Corrected: Using pneumoniaFullEncoded instead of temp_pneumonia_df
+print(table(pneumoniaFullEncoded$CountyParish, useNA = "always"))
+# Shows the total number of distinct frequency values for CountyParish.
 cat("\nNumber of unique frequency values for CountyParish:", length(unique(pneumoniaFullEncoded$CountyParish)), "\n")
 
 
@@ -1280,9 +1248,14 @@ cat("\nNumber of unique frequency values for CountyParish:", length(unique(pneum
 #   select(-CountyParish)
 ```
 
-> *We began with 1,549 unique CountyParishes, but after applying frequency encoding, we're left with only 36 distinct categories. This represents a significant reduction in the number of unique entries, meaning that each of the 36 frequency values now, on average, corresponds to about 43 different original counties (1,549/36 ≈ 43).*
+> \*We began with 1,549 unique CountyParishes, but after applying frequency encoding, we're left with only 36 distinct categories.
+> This represents a significant reduction in the number of unique entries, meaning that each of the 36 frequency values now, on average, corresponds to about 43 different original counties (1,549/36 ≈ 43).
 >
-> *This dramatic decrease in uniqueness leads to a considerable loss of information. Many distinct geographical entities, such as counties, become indistinguishable based solely on this encoded feature. For instance, if County A, County B, and County C each have 50 hospitals, they are all represented by the same encoded value of '50'. Consequently, a machine learning model would mistakenly treat these three diverse counties as if they were identical, overlooking any unique characteristics that might impact factors like readmission rates. This loss of granularity can hinder the model's ability to accurately analyze and predict outcomes based on the recorded data.*
+> This dramatic decrease in uniqueness leads to a considerable loss of information.
+> Many distinct geographical entities, such as counties, become indistinguishable based solely on this encoded feature.
+> For instance, if County A, County B, and County C each have 50 hospitals, they are all represented by the same encoded value of '50'.
+> Consequently, a machine learning model would mistakenly treat these three diverse counties as if they were identical, overlooking any unique characteristics that might impact factors like readmission rates.
+> This loss of granularity can hinder the model's ability to accurately analyze and predict outcomes based on the recorded data.\*
 >
 > ------------------------------------------------------------------------
 >
@@ -1322,9 +1295,7 @@ rm(pneumoniaFull, pneumoniaFullEncoded, Timely_and_Effective_Care, Unplanned_Hos
 **Our very, very last steps!** Your task is to identify the appropriate target variable from the dataset.
 I have purposefully not gone into great detail about what it would be because choosing the best target is sometimes tricky.
 
-------------------------------------------------------------------------
-
-#### **Question 20**: [2 points]
+##### **Question 20**: [2 points]
 
 Use `pneumoniaAnalyze` to calculate an `observed_readmission_rate` as the number of re-admissions divided by the number of discharges, multiplied by 100, then drop the two columns used to make this new one.
 Now, using the data and the data dictionary, try to understand the relationship between `observed_readmission_rate` that we just created, the `PredictedReadmissionRate`, `ExpectedReadmissionRate`, and the `ExcessReadmissionRatio`.
@@ -1351,29 +1322,13 @@ colnames(pneumoniaAnalyze)
 summary(pneumoniaAnalyze$observed_readmission_rate)
 ```
 
-> *To identify areas or hospitals with unexpectedly high readmission rates, we should use the Excess Readmission Ratio (ERR) as our target measure.
->
-> [Reasons for This Choice:]{.underline}*
->
-> *The term "unexpectedly high" means we need to compare rates while considering patient differences. The Excess Readmission Ratio does this clearly. A ratio higher than 1 shows that a hospital has more re-admissions than expected for similar hospitals, highlighting the issues. A ratio of 1 means the hospital is performing as expected. A ratio below 1 indicates better performance.
->
-> The ERR adjusts for risk, which helps compare hospitals fairly. It accounts for different levels of patient needs, which is essential. Using a simple readmission rate could unfairly disadvantage hospitals that care for sicker or more vulnerable patients.
->
-> In summary, the Excess Readmission Ratio fits our goal of finding hospitals with high readmission rates compared to what we expect based on their patient populations. This will help us make informed recommendations for patient advocacy.*
+> Your answer here.
 
-------------------------------------------------------------------------
-
-#### **Question 21**: [1 points]
+##### **Question 21**: [1 points]
 
 Why did I have you drop the two columns used to make `observed_readmission_rate`?
 
-> It makes sense to drop NumberOfReadmissions and NumberOfDischarges after calculating observed_readmission_rate for several key reasons:
->
-> 1.  **Avoid Multicollinearity (Redundancy):** Since observed_readmission_rate is directly derived from the other two metrics, keeping all three introduces redundancy. This can lead to multicollinearity, where highly correlated predictors confuse the model, resulting in unstable estimates and reduced interpretability.
-> 2.  **Prevent Data Leakage:** If observed_readmission_rate were treated as a target variable, retaining its components would lead to data leakage, effectively giving the model the answer in the predictors. Even if ExcessReadmissionRatio is the final target, keeping these variables could still create indirect leakage or highly correlated features.
-> 3.  **Focus on the Derived Metric:** The observed_readmission_rate is a more meaningful measure for analysis compared to raw counts. Dropping the counts allows the focus to remain on this rate, which is the relevant abstraction for modeling, unless there's a specific hypothesis regarding the counts.
->
-> In summary, removing these columns streamlines the dataset by eliminating redundancy and potential issues, enabling a clearer focus on the most significant derived metric for analysis.
+> Your answer here.
 
 # Exploratory Data Analysis
 
@@ -1394,73 +1349,7 @@ Need inspiration that comes with code?!?
 Check out the [R Graph Gallery](https://r-graph-gallery.com)!
 
 ```{r}
-# --- DIAGNOSTIC STEP FOR QUESTION 22 ---
-cat("--- Columns in pneumoniaAnalyze before HospitalOverallRating_Label creation ---\n")
-print(colnames(pneumoniaAnalyze))
-cat("------------------------------------------------------------------\n\n")
-
-# If 'HospitalOverallRating' is in the list above, let's see its unique values.
-# This line will only run if the column is present.
-if ("HospitalOverallRating" %in% colnames(pneumoniaAnalyze)) {
-    cat("--- Unique values in HospitalOverallRating before encoding ---\n")
-    print(unique(pneumoniaAnalyze$HospitalOverallRating))
-    cat("------------------------------------------------------------\n\n")
-} else {
-    cat("HospitalOverallRating column is NOT found in pneumoniaAnalyze at this point.\n\n")
-}
-# --- END DIAGNOSTIC STEP ---
-
-
-# Ensure ggplot2 is loaded (it should be from your initial setup with tidyverse)
-# library(ggplot2)
-# library(dplyr) # For data manipulation (mutate, case_when)
-
-# Re-label HospitalOverallRating for better plot readability
-# The HospitalOverallRating column should already be numeric (1-5) from Question 17.
-pneumoniaAnalyze_plot <- pneumoniaAnalyze %>%
-  mutate(HospitalOverallRating_Label = case_when(
-    HospitalOverallRating == 1 ~ "1 Star",
-    HospitalOverallRating == 2 ~ "2 Stars",
-    HospitalOverallRating == 3 ~ "3 Stars",
-    HospitalOverallRating == 4 ~ "4 Stars",
-    HospitalOverallRating == 5 ~ "5 Stars",
-    TRUE ~ NA_character_ # Assign NA for any unmapped values (e.g., if original was NA)
-  )) %>%
-  # Convert the new label column to a factor with specific levels for correct ordering on the x-axis
-  mutate(HospitalOverallRating_Label = factor(HospitalOverallRating_Label,
-                                              levels = c("1 Star", "2 Stars", "3 Stars", "4 Stars", "5 Stars")))
-
-# Create a Violin Plot to explore ExcessReadmissionRatio (target) vs. HospitalOverallRating
-# A violin plot shows the distribution shape (density) of a continuous variable for different categories.
-# It's excellent for visualizing how the distribution of ExcessReadmissionRatio varies across star ratings.
-
-ggplot(pneumoniaAnalyze_plot, aes(x = HospitalOverallRating_Label, y = ExcessReadmissionRatio, fill = HospitalOverallRating_Label)) +
-  geom_violin(trim = TRUE, alpha = 0.7) + # trim=TRUE truncates violins at data extremes, alpha for transparency
-  geom_boxplot(width = 0.1, outlier.shape = NA, fill = "white", alpha = 0.5) + # Add small boxplots inside for quartiles, hide outliers
-  
-  # Add labels and title for professionalism
-  labs(
-    title = "Distribution of Hospital Excess Readmission Ratio by Overall Star Rating",
-    subtitle = "Higher ratios indicate pneumonia readmissions are higher than expected given patient mix",
-    x = "Hospital Overall Rating (Stars)",
-    y = "Excess Readmission Ratio",
-    fill = "Star Rating" # Label for the fill legend
-  ) +
-  
-  # Set y-axis limits to focus on the most relevant range around 1.0 (expected performance)
-  # Excess Readmission Ratio values near 1.0 mean performance is as expected.
-  # Values > 1.0 mean higher than expected, < 1.0 mean lower than expected.
-  scale_y_continuous(limits = c(0.7, 1.3)) + 
-  
-  # Use a clean theme
-  theme_minimal() + 
-  
-  # Adjust title and subtitle positioning
-  theme(plot.title = element_text(hjust = 0.5, face = "bold"), # Center and bold title
-        plot.subtitle = element_text(hjust = 0.5))              # Center subtitle
-
-# For a bonus point, you could try faceting by another categorical variable, e.g., 'State':
-# + facet_wrap(~ State) # Add this line after theme() if you want to facet by State (might make many small plots)
+# Your code here.
 ```
 
 Lastly, make sure to **interpret** your graphic.

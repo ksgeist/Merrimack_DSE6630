@@ -242,6 +242,7 @@ HF_sliceData %>%
   bold_labels()
 ```
 
+
 We can see right away that we lose nearly **400 more data points** if we opt to use our calculated `observed_readmission_ratio` (NOTE: nearly 500 if using the 2025 FY data), which is going to be a by-product of the fact that the `Predicted` and `Expected` readmission ratios are using prior information and information about patient mixes to generate these values. Our `observed_readmission_ratio` is crude and unadjusted any way - which could present problems when it comes to true comparability. **So, off the bat it feels as if the constructed target is possibly not a good choice despite its simplicity for stakeholders to understand.** 
 
 ### 2.3 Comparing the four possible metrics to`ComparedToNational_Hospital return days for heart failure patients`
@@ -799,9 +800,9 @@ paste0(c("Rows: ", "Columns: "), dim(dat2Analyze_hf))
 
 
 #### **Question 12**: [0.5 points]
-Thinking back to your answer to Question 12, do you feel any differently given these dimensions of the dataset?
+Thinking back to your answer to Question 9D, do you feel any differently given these dimensions of the dataset?
 
-> MN: Not sure which question I am supposed to reference here for comparison?
+> > MN: I don't feel any differently. While there was a dimension reduction, I still do not feel that we meet the Big P little N problem. Our numbers are still greater than our predictors.
 
 ## 3.4 Do the splits! 
 
@@ -810,7 +811,8 @@ At this stage, we are almost ready to __impute__ - but not until we have done ou
 #### **Question 13**: [1 point]
 Explain to your stakeholder, in simpler language, (1) why we partition data into testing and training sets and (2) what data leakage is. You do not need to go into great detail, but it should explain enough that they understand the basic ideas.
 
-> Your answer here.
+> > AJ-  1.We partition the data into testing and training set so that we can train the model on one portion known as the training set and test how well it performs on new unseen data which is the testing set. It helps to  check whether the model is learning patterns or has memorized the given  data.
+        2.Data leakage is when information from the testing set heavily influences the training process. Thus the model appears to be more accurate than it actually is solely because it is relying on the previously seen answers.
 
 You may recall that I mentioned that the optimal ratio is has been argued to be $\sqrt{p} : 1$, where $p$ is the number of parameters (which may or may not equal your predictors depending on your planned analysis). Note that you do not have to split only a single time; you could make different splits for different analyses, if needed. However, we are going to use a single split here for convenience. 
 
@@ -830,27 +832,29 @@ calcSplitRatio <- function(p = NA, df) {
   ## @p  = the number of parameters. by default, if none are provided, the number of columns (predictors) in the dataset are used
   ## @df = the dataframe that will be used for the analysis
   
-  ## COMMENT HERE
+  # If no value is provided for p, use  the number of predictors in the dataframe  (excluding the target variable)
   if(is.na(p)) {
-    p <- ncol(df) -1   ## COMMENT HERE
+    p <- ncol(df) -1   ## Subtract 1 assuming the last column is the target variable
   }
   
-  ## COMMENT HERE
+  ## use sqrt(p) rule to calculate the ideal number of test observations 
   test_N <- (1/sqrt(p))*nrow(dat2Analyze_hf)
-  ## COMMENT HERE
+  ## Convert count to a proportion of the dataset
   test_prop <- round((1/sqrt(p))*nrow(dat2Analyze_hf)/nrow(dat2Analyze_hf), 2)
-  ## COMMENT HERE
+  ## Calculate the training proportion
   train_prop <- 1-test_prop
   
-  ## COMMENT HERE
+  ## print the ideal split ratio
   print(paste0("The ideal split ratio is ", train_prop, ":", test_prop, " training:testing"))
   
-  ## COMMENT HERE
+  ## Return the training proportion
   return(train_prop)
 }
 
 ## Fill in the blanks to run:
  train_prop <- calcSplitRatio(df = dat2Analyze_hf)
+
+
 ```
 
 **Hint**: One important note here is that if the number of parameters are not provided (which is true for the starter code I gave you to run it - it does NOT pass any parameters to that argument!), then by default our function is designed to take the number of columns of the dataframe and subtract one for the target variable. Neat, huh?
@@ -865,10 +869,12 @@ Now, uncomment this code and fill it out to run it.
  test <- dat2Analyze_hf[-c(ind), ]
 ```
 
+
+
 #### **Question 14B**: [0.5 points]
 What split ratio did you get? Is it close to the canonical 80-20 split? Why do you think that happened?
 
-> Your answer here.
+> AJ- The  split ratio is 81% for training, and 19% for testing which is very close to the canonical 80/20 split. This is because the formula used depends on the  ~ 30 predictors (columns) within the dataset which naturally gives a number close to 80%, leaving the remainder (18%) of the data  to test how well it works.
 
 
 __Did you get stuck somewhere?__ If so, load the `test` and `train` data in case you struggled with Question 18 so you can proceed:
@@ -887,6 +893,17 @@ We are going to take advantage of the `missForest()` function from the `missFore
 #### 3.5.1 Running `missForest`
 
 The way I have chosen to do this is to separate the data so that I can turn the encoded categories back into categories temporarily, then stitch them back together into a temporary dataframe so that I can run `missForest`. Notice that I temporarily drop the `State` and target features; I drop `State` to spare ourselves a little computational time and I drop `PredictedReadmissionRate` to prevent __data leakage__. **Be patient!!**. Since this is randomForest, it could take a minute or two to run. **NOTE:** _If your machine fails to run this, there are data you can load. Some computers may struggle to run this._
+
+
+
+```{r}
+#confirming 
+class(train)
+
+```
+
+
+
 
 ```{r, include = TRUE}
 # Remove encoded categorical variables for imputation, plus the target and state (which have no missing)
@@ -940,7 +957,7 @@ data.frame(imputedTrain$OOBerror, names(temp)) %>%
 #### **Question 15**: [1 point]
 What does `MSE` (Mean Squared Error) and `PCF` (Proportion of Falsely Classified) indicate here? You may find looking at the `missForest` [Vignette](https://stat.ethz.ch/education/semesters/ss2012/ams/paper/missForest_1.2.pdf) helpful. Which variable(s) had the highest OOB error?
 
-> Your answer here.
+>  Since missForest was used to fill in missing data, MSE and PCF will reflect how accurate /inacurate  those imputations are.  MSE is used for numerical variables. It represents how far off the imputed values are from the true values and PCF is used for categorical variables. A higher MSE means the imputation was less accurate. It shows the proportion of imputed values that were misclassified. A PCF of 0 means perfect classification; a PCF near 0.5 suggests performance close to random guessing. The closer that  PCF is to 0 the better since PCF shows how often the model got it wrong when filling in categorical values, such as labels or groupings.
 
 **NOTE 1**: If the OOB error (either MSE or PCF) from `missForest` is really high, it’s a red flag that the imputation for those variables is untrustworthy. This could be do to too much missingness, weak relationships among the variables making it hard to predict, or low quality data (e.g., noisy, sparse). In such cases, we want to **DROP** any variables with extremely high OOB error because they add noise. A general rule of thumb is that if the PCF > ~0.3 (30% of the imputed values are wrong) or if there is especially high MSE (inflation) relative to the variance of the variable, we should drop it. Let's set those aside so we can drop them from `test` and `train` both downstream! 
 
@@ -958,7 +975,10 @@ cols2drop <- c("Payment for heart failure patients", "Emergency department volum
 #### **Question 16**: [1 point]
 Alternatively, we could use MICE (Multivariate Imputation with Chained Equations), which is a method that will model uncertainty along with the variables. Do a little research. How does MICE work? Include a citation to a source.
 
-> Your answer here.
+> MICE (Multivariate Imputation by Chained Equations) is an advanced method for handling missing data by iteratively modeling each incomplete variable using the other variables in the dataset. Unlike simpler imputation methods such as mean or mode imputation, MICE preserves multivariate relationships and accounts for the uncertainty in missing data by generating multiple imputed datasets. It works well with both numerical and categorical variables and is particularly useful when data are missing at random (MAR).
+
+Citation:
+van Buuren, S., & Groothuis-Oudshoorn, K. (2011). mice: Multivariate imputation by chained equations in R. Journal of Statistical Software, 45(3), 1–67. https://doi.org/10.18637/jss.v045.i03.
 
 #### 3.5.4 Putting it alllllll back together...
 
@@ -1023,10 +1043,17 @@ imputedTest  <- imputedTest[, !(names(imputedTest) %in% cols2drop), drop = FALSE
 Quickly explore how well the imputation did by choosing at least one numeric variable and one of the categorical variables. Did the distributions or frequencies change drastically? You may find the `summary()` and `table()` functions to be fastest here. 
 
 ```{r}
-# Your code here.
+#Summary of numeric variable before and after
+summary(train$`Healthcare workers given influenza vaccination`)
+summary(imputedTrain$`Healthcare workers given influenza vaccination`)
+
+# Categorical variable (Frequency table) before and after
+table(train$`ComparedToNational_MRSA Bacteremia`, useNA = "always")
+table(imputedTrain$`ComparedToNational_MRSA Bacteremia`)
+
 ```
 
-> Your answer here.
+> The numeric variable was well-imputed, with the mean and median values remaining nearly unchanged after imputation, suggesting minimal distortion. However, the categorical variable showed a substantial shift: the imputation process heavily favored the neutral category (0), significantly altering the original class distribution. This indicates that while the numeric imputation performed well, the categorical imputation may have introduced bias and should be interpreted with caution.
 
 ## 3.6 Another Fork in the Road
 It's time, yet again, to make a choice. If you opted to load the __fully encoded__ dataset and everything has been done on that, you will run the first chunk. But if you decided that you wanted to __wait to encode__ the TIME HAS FINALLY COME!
@@ -1076,7 +1103,7 @@ if(!is.numeric(imputedTrain$State)) {
 #### **Question 18**: [1 point]
 Because we are now frequency encoding AFTER data partitioning (we did ordinal encoding BEFORE the split for convenience), we absolutely __must__ apply the same encoding map to the `test` set that we did to the `train` set. Explain why, and what should we do if some classes of the variable end up in the `train` that is not in the `test` or vice versa? (**HINT**: Look at the source code!)
 
-> Your answer here. 
+> AJ-The FrequencyEncoding() helper function (from the source code) builds the frequency map from the training set only and then applies that exact map to the test set. If a category appears in the test set but not in the training set, the function assigns it a default frequency of 1. This default is a safe fallback that helps prevent model errors and ensures stability when encountering unseen categories. Using the same encoding map maintains consistency and avoids data leakage between training and testing
 
 ## 3.7  Transformation & Scaling
 
@@ -1098,7 +1125,7 @@ ggplot(readyTrain, aes(x = PredictedReadmissionRate)) +
 #### **Question 19A**: [1 point]
 Why is a histogram, or even a Q-Q plot, an insufficient way to assess whether a distribution is approximately normal?
 
-> Your answer here.
+> AJ-Histograms and Q-Q plots are helpful tools for data exploring, but they’re not conclusive. For a more objective assessment of normality, visualizations should be paired  with statistical tests and summary measures.These include Shapiro-Wilk test (shapiro.test),Anderson-Darling test, Kolmogorov-Smirnov test (less sensitive), Skewness and kurtosis statistics for shape and Residual analysis in model diagnostics (for regression) and to assess normality assumptions.
 
 Now Apply a [Shapiro-Wilk test](https://biostats.w.uib.no/test-for-normality-shapiro-wilks-test/) for normality using the `shapiro.test()` function. What does it indicate about your distribution? (**Note**: Shapiro tests are only reliable for $N < 5000$, but it is fine to perform here.)
 
@@ -1106,7 +1133,7 @@ Now Apply a [Shapiro-Wilk test](https://biostats.w.uib.no/test-for-normality-sha
 shapiro.test(readyTrain$PredictedReadmissionRate)
 ```
 
-> Your answer here.
+                                      > AJ-The Shapiro-Wilk test returned W = 0.99376 with a p-value ≈ 0.00000007422, which is far below the conventional significance level of 0.05. This means we reject the null hypothesis of normality, indicating that the distribution of the target variable PredictedReadmissionRate significantly deviates from a normal distribution. 
 
 ### 3.7.1 Box-Cox Transformation
 
@@ -1126,6 +1153,7 @@ print(paste0("Box-Cox lambda =  ", bc_data$lambda))
 We can see that the estimated $\lambda = -0.3$, so __approximately a square-root transform__ (see lecture slides for reference). I found that $\lambda = -0.5$ in FY 2025, for those using that year's data.
 
 #### 3.7.1.2 Now, apply the Box-Cox transformation to the `train` data:
+
 
 ```{r, echo = TRUE}
 readyTrain$bc_PredictedReadmissionRate <- predict(bc_data, readyTrain$PredictedReadmissionRate)
@@ -1156,7 +1184,7 @@ Can you see what it did to the distribution? __look closely__, if not. It's subt
 #### **Question 19B**: [1.5 points]
 Now repeat all of the steps to perform a Box-Cox transform on your own to the `imputedTest` data. Why must we (1) also transform the test data and (2) __use the same $\lambda$ as the training data__?
 
-> Your answer here.
+> We apply the Box-Cox transformation to both the training and test sets using the same lambda to ensure consistency between them. This prevents data leakage and allows the model to make valid predictions, since it was trained on data transformed with that specific lambda. Using a different lambda for the test set would apply a different transformation, leading to mismatched scales and invalid evaluation.
 
 ```{r}
 readyTest$bc_PredictedReadmissionRate <- predict(bc_data, readyTest$PredictedReadmissionRate)
