@@ -15,9 +15,9 @@ pacman::p_load(tidyverse,
 )
 
 #### CHANGE IF NEEDED #################
-filepath <- "~/Desktop/hospitals_current_data_FY2024/"
+filepath <- "C:/Users/njagi/OneDrive/Desktop/hospitals_current_data_FY2024/"
 ########################################
-
+#~/Desktop/hospitals_current_data_FY2024/
 
 ## Grab just the hospital-level files:
 files <- list.files(path = filepath, pattern = "Hospital.csv")
@@ -71,7 +71,7 @@ cleanUpReadmissions <- function(df) {
 ## Run the function
 readmissionsClean <- cleanUpReadmissions(FY_2024_Hospital_Readmissions_Reduction_Program)
 ## Save file for students:
-save(readmissionsClean, file = "FY2024_data_files/readmissionsClean2024.Rdata")
+save(readmissionsClean, file =  "FY2024_data_files/readmissionsClean2024.Rdata")
 ## Student load file:
 load(file = "FY2024_data_files/readmissionsClean2024.Rdata")
 
@@ -79,7 +79,7 @@ load(file = "FY2024_data_files/readmissionsClean2024.Rdata")
 
 #### CHANGE IF NEEDED #################
 ## Set a list of conditions:
-conditionList <- c("HF", "CABG", "AMI")
+conditionList <- c("HF")
 
 
 ########################################
