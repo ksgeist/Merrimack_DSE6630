@@ -1,7 +1,7 @@
 ---
-title: 'Project 1: Biomedical & Clinical Informatics'
+title: 'New_Project 1: Biomedical & Clinical Informatics'
 author: "Team Gamma, Collins Njagi"
-date: "02 june 2025"
+date: "04 june 2025"
 output:
   html_document:
     toc: true
@@ -99,8 +99,8 @@ Load my version of the fully cleaned, encoded, & ready-to-proceed dataset from t
 
 ```{r}
 ## Uncomment if this is your choice:
-# load("FY2024_data_files/pneumoniaAnalyzeFullyEncoded2024.Rdata")
-# dat2Analyze <- pneumoniaAnalyzeFullyEncoded
+# load("FY2024_data_files/dataAnalyzeFullyEncoded2024.Rdata")
+# dat2Analyze <- dataAnalyzeFullyEncoded
 ```
 
 ## Option 1.3.2 
@@ -108,8 +108,8 @@ Load my version of the fully cleaned, encoded, & ready-to-proceed dataset from t
 
 ```{r}
 ## Comment out if this is NOT your choice:
-load("FY2024_data_files/pneumoniaAnalyzeNoEncoding2024.Rdata")
-dat2Analyze <- pneumoniaAnalyzeNoEncoding
+load("FY2024_data_files/dataAnalyzeNoEncoding2024.Rdata") #dataAnalyzeNoEncoding2024.Rdata
+dat2Analyze <- dataAnalyzeNoEncoding
 ```
 
 #### **Question 1**: [1 point]
@@ -117,7 +117,7 @@ Which dataset do you choose and why?
 
  #Collins
 > Explain your selection here.
-Am going with option two, this is beacause as a matter of best practise, data encoding should come after data partitioning. The essense is to avoid data leakage which will lead to overfitting. Data encoding before partition may expose the model to information in the test set. That is the model learns from the same data it's supposed to be tested on. In our case here, ordinal encoding is exceptional and doesn't lead to data leakage, but for the purpose of best practice I choice option two
+Am going with option two. As a matter of best practise, data encoding should come after data partitioning. The essense is to avoid data leakage which will lead to overfitting. Data encoding before partition may expose the model to information in the test set. That is the model learns from the same data it's supposed to be tested on. In our case here, ordinal encoding is exceptional and doesn't lead to data leakage, but for the purpose of best practice I choice option two
 
 ## 1.4 Helper code: Using `R` like an object-oriented language {#helperCode}
 
@@ -134,7 +134,7 @@ We went through all the trouble in the Demo to perform encoding and now we get t
 source(file = "doOrdinalEncoding.R")
 
 ## This checks to see if you loaded the already encoded dataset
-if(!exists("pneumoniaAnalyzeFullyEncoded")) {
+if(!exists("dataAnalyzeFullyEncoded")) {
     ## This sets a list of PATTERNS to match for the columns to ordinal encode
     encodeList <- c("ComparedToNational_", 
                     "PaymentCategory", 
@@ -209,7 +209,7 @@ sliceData %>%
   bold_labels()
 ```
 
-We can see right away that we lose nearly **600 more data points** if we opt to use our calculated `observed_readmission_ratio` (NOTE: nearly 500 if using the 2025 FY data), which is going to be a by-product of the fact that the `Predicted` and `Expected` readmission ratios are using prior information and information about patient mixes to generate these values. Our `observed_readmission_ratio` is crude and unadjusted any way - which could present problems when it comes to true comparability. **So, off the bat it feels as if the constructed target is possibly not a good choice despite its simplicity for stakeholders to understand.** 
+We can see right away that we lose nearly **330 more data points** if we opt to use our calculated `observed_readmission_ratio` (NOTE: nearly 500 if using the 2025 FY data), which is going to be a by-product of the fact that the `Predicted` and `Expected` readmission ratios are using prior information and information about patient mixes to generate these values. Our `observed_readmission_ratio` is crude and unadjusted any way - which could present problems when it comes to true comparability. **So, off the bat it feels as if the constructed target is possibly not a good choice despite its simplicity for stakeholders to understand.** 
 
 ### 2.3 Comparing the four possible metrics to`ComparedToNational_Hospital return days for pneumonia patients`
 
@@ -303,7 +303,8 @@ Now that you can compare these groups more easily, what we're looking for is a b
 
 Which target(s) appear the most distinct to you?
 > Your answer here.BY Collins
-In my opinion, I think excess readmission rate would be the best feature to set as target variable. Its violin plot is very distinctive show "worse' being skilled towards the higher values than national average, "same" is distributed towards the centre as expected since its represent equal value to national average. lastly "better" shows some level of a left skeweness towards lower values an indication of excess readmission being less than national average. The unknown which are the missing values seems to centered around national average as represented by "same"
+In my opinion, I think Predicted readmission rate would be the best feature to set as target variable. Its violin plot is very distinctive with different median values for each sub-category: "better", "Same", "Worse", "Uknown" . Hospitals categorized as better tend to have lower predicted readmission rates as shown by a slightly lower median, indicating better quality of care.
+The distribution of predicted readmission rates is relatively symmetric across hospital vcategories, suggesting that the prediction model is fairly consistent in its estimates.
 
 
 #### 2.3.2 Example with `geom_density()`:
@@ -335,7 +336,8 @@ longTargets %>%
 #### **Question 3**: [0.5 points]
 Does this view confirm or change your decision from Question 3?
 
-> Your answer here. By Collins. Yes this density plot shows clearly three distinctive peaks with distinctive skewness. the same density plot is centrally place as expected while better skews to the left and worse skews towards the right
+> Your answer here. By Collins. 
+Yes the predicted Readmission density plot shows clearly three distinctive peaks with distinctive skewness. the same density plot is centrally place as expected while better skews to the left indicating a lower predicted Readmission rate and worse skews towards the right indicating a higher readmission rate compared to the "same" which represents the national average
 
 ### 2.4 What is the relationship of pneumonia-related hospital readmissions to the hospital performance metrics?
 
@@ -344,7 +346,7 @@ Something else we could do to help us make a decision is compare across predicto
 So, to do this, I'm going to make another long-format dataset and use this to make a bunch of faceted scatterplots where I put one of the readmission rates (let's started with `Predicted Readmissions`) and look for strength in relationships. Note that doing it this way, through plotting, is a **heuristic way** of choosing a target variable and it isn't the only way to do it!
 
 ```{r, echo = FALSE}
-longScore <- pneumoniaAnalyzeNoEncoding %>%
+longScore <- dataAnalyzeNoEncoding %>%
   rename(NatlComparisonHospitalDays = `ComparedToNational_Hospital return days for pneumonia patients`) %>% 
   select(contains(c("Score", "NatlComparisonHospitalDays", "readmission"))) %>% 
   ## Flexible handling depending on which dataset students select; changes to better, same, worse
@@ -380,15 +382,15 @@ Change the __y-axis__ out for _each of the four readmission rates. `Predicted Re
 > Your answer here.
 
 **HINT 1**: What does higher medicare spending per patient tell you about the underlying population of a hospital?
-#by Collins, Higher medicare spending per patient could indicate that the hospital is dealing with age advanced population (old folks) who probably have chronic donditions requiring Intensive care
+#by Collins, Higher medicare spending per patient could indicate that the hospital is dealing with age advanced population (old folks) who probably have chronic donditions requiring Intensive care. The medicare spending seems to be increasing with number of readimission, but at a higher rate in "worse hositals" compared to "Better hospitals"
 
 **HINT 2**: Venous thrombolisms and deep vein thromboses (DVTs) are often "sneakier" conditions that have "silent" symptoms until the patient is in crisis. What would having higher scores at providing prophylaxis for these conditions potentially suggest about a hospital's performance?
-#by Collins I think higher scores indicates a very stron performance of the hospital in terms of thromolism prevention, early identification and interventions and high quality of hospital resources either personel, equipments and methofology and procedures
+#by Collins I think higher scores indicates a very strong performance of the hospital in terms of thromolism prevention, early identification and interventions and high quality of hospital resources either personel, equipments and methodology and procedures
 
 
 ```{r, fig.width=7, fig.height=8, echo = FALSE, message=FALSE, fig.cap="Figure 4. Readmission rate by hospital performance and readmitted patient LOS"}
 longScore %>%  
-  ggplot(aes(y = ExcessReadmissionRatio,  ## <-- CHANGE THIS!
+  ggplot(aes(y = PredictedReadmissionRate,  ## <-- CHANGE THIS!
              x = Value)) +
     geom_point(alpha = 0.25) + 
     geom_smooth(aes(fill = as.factor(NatlComparisonHospitalDays), color = as.factor(NatlComparisonHospitalDays)), 
@@ -396,7 +398,7 @@ longScore %>%
                 se = T, 
                 show.legend = T) + 
     ## CHANGE THE TITLE FOR FULL CREDIT!
-    labs(title = "Relationship of Excess readmission ratio-pneumonia-related hospital \nreadmissions to each performance metric",
+    labs(title = "Relationship of Predicted readmission rates-pneumonia-related hospital \nreadmissions to each performance metric",
         x = "Rate or Score",
         y = "Predicted Pneumonia-related Readmissions",
         color = "Pneumonia-related Readmission Compared to National Average") +
@@ -423,7 +425,7 @@ longScore %>%
 Now let's do a similar analysis but for the `HcahpsLinear...` variables. The __HCAHPS (Hospital Consumer Assessment of Healthcare Providers and Systems)__ is a standardized survey that measures adult inpatient perceptions of hospital care. It's a national, publicly reported survey mandated by the Centers for Medicare & Medicaid Services (CMS). Because it focuses on aspects of hospital care that are important to patients, it is often used to improve patient satisfaction and hospital quality. 
 
 ```{r, echo = FALSE}
-longHCAHPS <- pneumoniaAnalyzeNoEncoding %>%
+longHCAHPS <- dataAnalyzeNoEncoding %>%
   rename(NatlComparisonHospitalDays = `ComparedToNational_Hospital return days for pneumonia patients`) %>% 
   select(contains(c("HcahpsLinear", "NatlComparisonHospitalDays", "readmission"))) %>% 
   ## Flexible handling depending on which dataset students select; changes to better, same, worse
@@ -444,15 +446,16 @@ longHCAHPS <- pneumoniaAnalyzeNoEncoding %>%
 Again, you task is to change the __y-axis__ out for _each of the four readmission rates. `Predicted Readmission Rates` has been started for you. Re-run the chunk and compare the results. **FOR FULL CREDIT** you must leave the graph on the choice you feel most strongly about AND update the title of the graph with which of the four possible readmission rates you chose. Explain below why you chose this one. 
 
 > Your answer here.By Collins
+The plots of both Doctor and Nurse communication show a negative relationship between readmission rate and effective communication. Thats is, as doctors' and nurses' communication effectiveness increases the rate of predicted readmission rate decreases significantly for all categories (Better, same, and Worse)
 Higher nurse and doctor communication is associated with improved patients outcomes, including reduced readmissions. Effective communication may lead to:
 better understanding of treatment plans and medication regimens
 increased oatient engagement and adherence  to care plans
 enhanced patient satisfaction and trust in healthcare providers
 more accurate diagnoses and timely interventions
 
->cleanliness is a critical asspect of hospital care, particularly for communicable diseases like pneumonia. However, our plot suggest that cleanliness may not have a significant impact on pneumonia-related readmissions, this might be because:
-1. Readmissions are more often related to underlying health conditions such as chronic obstruction pulmonary disease (COPD) or heart failure than hospital cleanliness.
-2. Cleanliness in a hospital is more of a norm than exception, that is hospitals are expected to maintain high standards of cleanliness, and deviations from these standards are very rare. As a results cleanliness may not be a significant differentiator in terms of readmission rates.
+>cleanliness is a critical aspect of hospital care. However, cleanliness plot shows a very mild negative relationship (that is as the level of cleanliness increases predicted readmission rate decreases mildly). In "Better" hospitals the predicted readmission rate is almost unchanged as cleanliness increases. Our plot, threfore, suggest that cleanliness may not have a significant impact on pneumonia-related readmissions, this might be because:
+1. Cleanliness in a hospital is more of a norm than exception, that is hospitals are expected to maintain high standards of cleanliness, and deviations from these standards are very rare. As a results cleanliness may not be a significant differentiator in terms of readmission rates.
+2. Readmissions are more often related to underlying health conditions such as chronic obstruction pulmonary disease (COPD) or heart failure than hospital cleanliness.
 
 **HINT 1**: What does higher nurse and doctor communication mean for improved patient outcomes, including readmission?
 
@@ -461,7 +464,7 @@ more accurate diagnoses and timely interventions
 
 ```{r, fig.width=7, fig.height=8, echo = FALSE, message=FALSE, fig.cap="Figure 5. Readmission rate by patient satisfaction and readmitted patient LOS"}
 longHCAHPS %>%  
-  ggplot(aes(y = ExcessReadmissionRatio,  ## <-- CHANGE THIS!
+  ggplot(aes(y = PredictedReadmissionRate,  ## <-- CHANGE THIS!
              x = Value)) +
     geom_point(alpha = 0.25) + 
     geom_smooth(aes(fill = as.factor(NatlComparisonHospitalDays), color = as.factor(NatlComparisonHospitalDays)), 
@@ -469,7 +472,7 @@ longHCAHPS %>%
                 se = T, 
                 show.legend = T) + 
     ## CHANGE THE TITLE FOR FULL CREDIT!
-    labs(title = "Relationship of Excess Readmission Ratio and pneumonia-related hospital \nreadmissions to each patient satisfaction metric",
+    labs(title = "Relationship of Predicted Readmission Rates and pneumonia-related hospital \nreadmissions to each patient satisfaction metric",
         x = "Rate or Score",
         y = "Predicted Pneumonia-related Readmissions",
         color = "Pneumonia-related Readmission Compared to National Average") +
@@ -495,7 +498,9 @@ longHCAHPS %>%
 What relationships do you find most compelling from these scatterplots and why? Also, name one outstanding question you have at this point, whether it is about the data, the data collection, or something more speculative.
 
 > Your answer here.BY Collins
-in my own opinion, I find communication about medicines and discharge information to be the most compelling. they both display moderate negative correlations indicating that effective communications about medicines and better discharge of information are associated with lower readmission rates. These findings may suggest that hospitals can focus on improving these aspects of patients care to reduce pneumonia-related hospital readmissions.
+in my own opinion, I find Hospital rating and Recommend Hospital to be the most compelling. Hospital rating and Recommend Hospital plots shows a strong negative correlation with readmission rate.This could be because these two features are probably ratings made up of features such (quality care, patient outcome, communication etc.). I think these two features are more compelling and better in describing a hospital in general.
+>communication about medicines and discharge information, both display moderate negative correlations indicating that effective communications about medicines and better discharge of information are associated with lower readmission rates. These findings may suggest that hospitals can focus on improving these aspects of patients care to reduce heartfailure-related hospital readmissions.
+
 
 Although there is certainly more EDA we could do, we are going to wrap that up here for the sake of moving on - but, as always, I encourage you to think about or even explore what else you would like to know about your data that we did not do!
 
@@ -522,7 +527,7 @@ But remember that what matters most is that we are __matching our question__.
 #### **Question 7**: [1 point]
 
 Do you agree with my choice of target? Why or why not? (You are free to disagree!). 
-#Collins. All along I was of the opinion that Excess readmission rate was the best target because it took into account both the observed and expected readmission rates, somehow providing a more comprehensive picture of hospital performance. after ploting denssty plot my opinion was conflicted between Excess readmission rate and predicted readmission rates. The two plots are closely similar. Howerver, after reading your supporting narrative for predicted readmission and reviewing the stakeholders question, I do agree with your opinion that predicted readmission is a better target
+#Collins. Yes I do agree with your choice. Both Violin and Density plots shows that predicted readmission rate is the most distinctive target in terms of median and symmetry in classifying hospitals in different sub-categories that is "Better", "Same", "Worse" and "Unkown". 
 
 
 ### 2.6 Bias and Limitation
@@ -531,7 +536,7 @@ Do you agree with my choice of target? Why or why not? (You are free to disagree
 All studies have bias (introduced or systemic error) and limitations (failure to fully explain something). We could go more deeply into these concepts, but for now I want you to take a stab and just brainstorming either ways we might have bias OR the limitations of using this target variable. You do not need to answer both, but you're welcome to do so. You can read more about bias [here](https://www.ncbi.nlm.nih.gov/books/NBK574513/) or see some deeper explanations of limitations [here](https://www.aje.com/arc/how-to-write-limitations-of-the-study/). You do not need to write a lot; just 2-3 sentences. I am simply asking you to pause and reflect on our choices here before we proceed. 
 
 > Your answer here.
-One potential source of bias in our data collection process is the reliance on patient surveys completed after receiving medical attention. The health status of patients at the time of responding may influence their perceptions of the service quality, leading to biased responses. Additionaly there could be systematic errors introduced during data collection such as incomplete or inaccurate records as evidenced by the huge missingness (close to 600) witnessed in the target feature observed readmission rate.
+One potential source of bias in our data collection process is the reliance on patient surveys completed after receiving medical attention. The health status of patients at the time of responding may influence their perceptions of the service quality, leading to biased responses. Additionaly there could be systematic errors introduced during data collection such as incomplete or inaccurate records as evidenced by the huge missingness (close to 330) witnessed in the target feature observed readmission rate.
 
 # 3 Pre-processing and Feature Selection
 
@@ -550,7 +555,7 @@ Add your comments to the code as indicated to explain what I was doing at each o
 
 ```{r}
 dat2Analyze <- dat2Analyze %>% 
-  ## COMMENT HERE # selected to remove other potentail target variables, columns containing sample, number of patients and, NumberSurveyscompleted
+  ## COMMENT HERE # selected to remove other potential target variables, columns containing sample, number of patients and, NumberSurveyscompleted
   select(-ExpectedReadmissionRate, 
          -ExcessReadmissionRatio,
          -observed_readmission_rate, 
@@ -600,12 +605,12 @@ dat2Analyze <- dat2Analyze[, -nearZeroVar(dat2Analyze)]
 #### **Question 9C**: [0.5 points]
 You may or may not have noticed that I moved `FacilityID` to our rownames in the datasets you loaded today. Why did I choose to do that? Why do I want to make sure unique identifiers, like `FacilityID`, are out of the dataframe before I either (a) run `nearZeroVar()` or (b) proceed with the rest of the analysis?
 
-> Your answer here. By Collins. Moving `FacilityID' to rownames transforms it into an index thus representing each row as a unique observation this also prevents it to be used as a feature in the model which could lead to errors or incorrect outcomes. 
+> Your answer here. By Collins. Moving `FacilityID' to rownames transforms it into an index thus representing each row as a unique observation. This also prevents it from being used as a feature in the model which could lead to errors or incorrect outcomes. 
 
 #### **Question 9D**: [1 point]
 Do some research on, or lean into your previous knowledge, about the **curse of dimensionality** or the **big-P, little-N (n >> P) problem**. Using whatever you find or remember, can you justify why we likely do NOT have a **big-P, little-N (n >> P) problem** here? Make sure to explain. 
 
-> Your answer here. By Collins. Typically a big-P, Little-N problem occurs when there are many more features (P) than observations (n) sometimes leading to overfitting and difficult in interpretation. However in our context we are not experiencing this problem, Furthermore actionable steps such as removing near-zero variance features, help in reducing our dimensions thus mitigating against big-p, little-n problem
+> Your answer here. By Collins. Typically a big-P, Little-N problem occurs when there are more features (P) than observations (n) sometimes leading to overfitting and difficult in interpretation. However in our context we are not experiencing this problem, Furthermore actionable steps such as removing near-zero variance features, help in reducing our dimensions thus mitigating against big-p, little-n problem. For example this problem is experienced in gene expression analysis that is (P[number of genes] is large e.g., tens of thousands of genes Vs N[number of samples] is relatively small, maybe a couple hundreds samples)
 
 ## 3.2 Assess missingness & devise an imputation plan
 
