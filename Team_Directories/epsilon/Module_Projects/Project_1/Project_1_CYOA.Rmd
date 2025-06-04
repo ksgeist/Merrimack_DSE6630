@@ -1,0 +1,1136 @@
+---
+title: "Project 1: Biomedical & Clinical Informatics - Adventure 2"
+subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
+author: "Mike Steyer"
+date: "28 May 2025"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: flatly
+    fig_crop: no
+bibliography: references.bib
+nocite: '@*'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      error = FALSE,
+                      cache = TRUE,
+                      cache.comments = TRUE,
+                      size = 13)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
+# Turn off scientific notation
+options(scipen=999)
+
+# Set seed
+set.seed(98501)
+
+# Clean, set up, and load
+pacman::p_unload(pacman::p_loaded(), character.only = TRUE)
+rm(list = ls(all = TRUE))
+
+pacman::p_load(tidyverse,
+               janitor,
+               naniar,
+               stringr,
+               ggplot2, 
+               kableExtra,
+               RColorBrewer,
+               gridExtra,
+               gtsummary,
+               prcomp,
+               factoextra,
+               ggrepel,
+               caret,
+               missForest,
+               mice,
+               car,
+               stargazer,
+               glmnet,
+               forcats,
+               snakecase
+)
+```
+
+
+# Results: 
+- Two data sets have been analyzed in this demo & project - patients who had undergone surgical procedures and patients who were treated for pneumonia. The goal was to determine which set of data resulted in better model for predicting hospital readmission rates. 
+- Based on the analysis, it appears that the non-surgical group is a better prediction data set for readmission rates, but not by much. Both datasets result in models that perform poorly - high RMSE scores and low R^2 scores. 
+
+# Next Steps & Recommendations
+- Further analysis may result in better results. Perhaps instead of framing the data in terms of illness, what if the ratings of hospitals & staff alone are used to build a predictive model of readmission?
+
+# 1 - Introduction (Adventure 2)
+__[More coding, but not as much, with a focus on the steps we've undertaken here and extending it to a new question & condition.]__
+Choose a slightly more complicated analysis to undertake, for example, focusing on surgical interventions (`HIP-KNEE` & `CABG`) or heart-related conditions (`HF`, `AMI`, & `CABG`). Coding should still be fairly minimal, but you are likely to run into problems with the code working exactly as-is, especially during cleaning. The advantage of this analysis is that it will be much more robust, have larger sample sizes, and would allow us to be able to say something far more informative to a subset of patients (e.g., those considering undergoing surgical interventions). See more information on Adventure 2 [here](#adventure2).
+
+  - Make sure to update your filepath to where you stored the hospital files on YOUR local machine, just as you did in Question 1 of the Demo!
+  - Make sure to update the condition that gets selected from "PN" to the condition of your choosing. A full list of available conditions is found in Demo 1.
+  - Choose a slightly more complicated analysis to undertake, for example, focusing on surgical interventions (`HIP-KNEE` & `CABG`) or heart-related conditions (`HF`, `AMI`, & `CABG`).
+
+You can avoid going back to Demo 1 to do your importing, cleaning, and pre-processing by running this source code:
+
+```{r}
+## Make any necessary changes in the R source code
+## Uncomment to run!
+
+source(file = "reRunDemoData.R")
+```
+
+# 2 - Encoding
+
+Perform the encoding for ordinal categorical columns.
+We need to encode these values into numerical equivalents to allow machine learning.
+
+```{r, results='hide'}
+## This calls the code in the associated .R file
+source(file = "doOrdinalEncoding.R")
+
+## This sets a list of PATTERNS to match for the columns to ordinal encode
+encodeList <- c("ComparedToNational_", 
+                "PaymentCategory", 
+                "ValueOfCareCategory",
+                "Score_Emergency department volume")
+
+## This runs the function, which takes 3 arguments
+## Open the source code to see what each argument does!
+dat2Analyze <- doOrdinalEncoding(df = dataAnalyzeNoEncoding,
+                                 encodeList = encodeList,
+                                 quiet = FALSE)
+
+```
+
+# 3 - Summary Statistics of Potential Target Variables
+Take a look at what's available for the illnesses we are interested in and how valuable they are to analysis.
+We'll be using the `PredictedReadmissionRate` variable as our target as it most aligns with the stakeholder request, but below we provide some analysis of the other target variables.
+
+```{r, echo = FALSE}
+sliceData <- dat2Analyze %>% 
+  select(`ComparedToNational_Hospital return days for heart attack patients`, 
+         `ComparedToNational_Hospital return days for heart failure patients`,
+         `ComparedToNational_Rate of readmission for CABG`,
+         PredictedReadmissionRate,
+         observed_readmission_rate, 
+         ExcessReadmissionRatio,
+         ExpectedReadmissionRate) %>% 
+  rename(`National Comparison Heart Attack Return Hospital Days` = `ComparedToNational_Hospital return days for heart attack patients`,
+         `National Comparison Heart Failure Return Hospital Days` = `ComparedToNational_Hospital return days for heart failure patients`,
+         `National Comparison CABG Readmission Rate` =  `ComparedToNational_Rate of readmission for CABG`,
+         `Predicted Readmission Rate` = PredictedReadmissionRate, 
+         `Observed Readmission Rate` = observed_readmission_rate, 
+         `ExcessReadmissionRatio` = ExcessReadmissionRatio,
+         `Expected Readmission Rate` = ExpectedReadmissionRate) %>% 
+  mutate(`National Comparison Heart Attack Return Hospital Days` = ifelse(is.na(`National Comparison Heart Attack Return Hospital Days`), "Unknown", 
+                                                      ifelse(`National Comparison Heart Attack Return Hospital Days` == 1, "Better than average",
+                                                      ifelse(`National Comparison Heart Attack Return Hospital Days` == 0, "Same as average", "Worse than average")))) %>% 
+  mutate(`National Comparison Heart Attack Return Hospital Days` = factor(`National Comparison Heart Attack Return Hospital Days`, levels = c( "Better than average", "Same as average", "Worse than average", "Unknown"))) %>%
+  mutate(`National Comparison Heart Failure Return Hospital Days` = ifelse(is.na(`National Comparison Heart Failure Return Hospital Days`), "Unknown", 
+                                                      ifelse(`National Comparison Heart Failure Return Hospital Days` == 1, "Better than average",
+                                                      ifelse(`National Comparison Heart Failure Return Hospital Days` == 0, "Same as average", "Worse than average")))) %>% 
+  mutate(`National Comparison Heart Failure Return Hospital Days` = factor(`National Comparison Heart Failure Return Hospital Days`, levels = c( "Better than average", "Same as average", "Worse than average", "Unknown"))) %>%
+  mutate(`National Comparison CABG Readmission Rate` = ifelse(is.na(`National Comparison CABG Readmission Rate`), "Unknown", 
+                                                      ifelse(`National Comparison CABG Readmission Rate` == 1, "Better than average",
+                                                      ifelse(`National Comparison CABG Readmission Rate` == 0, "Same as average", "Worse than average")))) %>% 
+  mutate(`National Comparison CABG Readmission Rate` = factor(`National Comparison CABG Readmission Rate`, levels = c( "Better than average", "Same as average", "Worse than average", "Unknown")))
+
+sliceData %>% 
+  tbl_summary(statistic = list(
+      all_continuous() ~ "{mean} ({sd}), {median}",
+      all_categorical() ~ "{n} / {N} ({p}%)"
+    ), missing_text = "(Missing)") %>% 
+  modify_caption("**Table 2. Possible target measure summaries**") %>%
+  bold_labels()
+```
+
+```{r, echo = FALSE}
+## Make the long-format version of just the possible target variables, with some cleanup of the names, etc. for nicer graphs
+longTargets <- dat2Analyze %>%
+  ## Make a shorter name
+  rename(
+          NatlComparisonHeartAttackHospitalDays = `ComparedToNational_Hospital return days for heart attack patients`,
+          NatlComparisonHeartFailureHospitalDays = `ComparedToNational_Hospital return days for heart failure patients`,
+          NatlComparisonCABGReadmissionRate = `ComparedToNational_Rate of readmission for CABG`,
+         `Predicted Readmission Rate` = PredictedReadmissionRate,
+         `Excess Readmission Ratio` = ExcessReadmissionRatio,
+         `Observed Readmission Rate` = observed_readmission_rate, 
+         `Expected Readmission Rate` = ExpectedReadmissionRate) %>% 
+  ## Flexible handling depending on which dataset students select; recodes into better, same, and worse
+  mutate(
+      NatlComparisonHeartAttackHospitalDays = case_when(
+        (NatlComparisonHeartAttackHospitalDays == 1  | NatlComparisonHeartAttackHospitalDays == "Fewer Days Than Average per 100 Discharges") ~ "Better", 
+        (NatlComparisonHeartAttackHospitalDays == -1 | NatlComparisonHeartAttackHospitalDays == "More Days Than Average per 100 Discharges") ~ "Worse", 
+        (NatlComparisonHeartAttackHospitalDays == 0  | NatlComparisonHeartAttackHospitalDays == "Average Days per 100 Discharges") ~ "Same", 
+        .default = "Unknown"
+      ),
+      NatlComparisonHeartFailureHospitalDays = case_when(
+        (NatlComparisonHeartFailureHospitalDays == 1  | NatlComparisonHeartFailureHospitalDays == "Fewer Days Than Average per 100 Discharges") ~ "Better", 
+        (NatlComparisonHeartFailureHospitalDays == -1 | NatlComparisonHeartFailureHospitalDays == "More Days Than Average per 100 Discharges") ~ "Worse", 
+        (NatlComparisonHeartFailureHospitalDays == 0  | NatlComparisonHeartFailureHospitalDays == "Average Days per 100 Discharges") ~ "Same", 
+        .default = "Unknown"
+      ),
+      NatlComparisonCABGReadmissionRate = case_when(
+        (NatlComparisonCABGReadmissionRate == 1  | NatlComparisonCABGReadmissionRate == "Fewer Days Than Average per 100 Discharges") ~ "Better", 
+        (NatlComparisonCABGReadmissionRate == -1 | NatlComparisonCABGReadmissionRate == "More Days Than Average per 100 Discharges") ~ "Worse", 
+        (NatlComparisonCABGReadmissionRate == 0  | NatlComparisonCABGReadmissionRate == "Average Days per 100 Discharges") ~ "Same", 
+        .default = "Unknown"
+      ),      
+      NatlComparisonHeartAttackHospitalDays = factor(NatlComparisonHeartAttackHospitalDays, levels = c("Better", "Same", "Worse", "Unknown")),
+      NatlComparisonHeartFailureHospitalDays = factor(NatlComparisonHeartFailureHospitalDays, levels = c("Better", "Same", "Worse", "Unknown")),
+      NatlComparisonCABGReadmissionRate = factor(NatlComparisonCABGReadmissionRate, levels = c("Better", "Same", "Worse", "Unknown"))
+  ) %>% 
+  ## Grab just the x features we want so we can compare them
+  select(c(
+    "Predicted Readmission Rate", "Excess Readmission Ratio", "Observed Readmission Rate", 
+    "Expected Readmission Rate",  "NatlComparisonHeartAttackHospitalDays", "NatlComparisonHeartFailureHospitalDays", "NatlComparisonCABGReadmissionRate"
+    )
+  )%>% 
+  ## Pivot longer
+  pivot_longer(
+    c("Predicted Readmission Rate", "Excess Readmission Ratio", "Observed Readmission Rate"), 
+    names_to = "Variable", 
+    values_to = "Value"
+  )
+```
+
+```{r, fig.width=8, fig.height=6, echo = FALSE}
+longTargets %>% 
+  ggplot(aes(x = Value, y = NatlComparisonHeartAttackHospitalDays, fill = NatlComparisonHeartAttackHospitalDays)) +
+  geom_violin(alpha = 0.7) +
+  labs(title = "Which target to use?",
+        subtitle = "(Heart Attack) By readmitted LOS in hospital compared to national average",
+        x = "",
+        y = "Rate or Score",
+        fill = "Heart Attack-related hospital days (compared to national average):") +
+  scale_fill_manual(values = c("gold", "cadetblue", "maroon", "darkgreen"),
+                    labels = c("Better", "Same", "Worse", "Unknown")) +
+  geom_boxplot(width = 0.1) +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        strip.text = element_text(size=9),
+        legend.text = element_text(size = 7),
+        legend.title = element_text(size = 10),
+        title = element_text(size = 12, color = "maroon")) + 
+  facet_wrap(~Variable, 
+             scales = "free",
+             ncol = 2)
+
+
+longTargets %>% 
+  ggplot(aes(x = Value, y = NatlComparisonHeartFailureHospitalDays, fill = NatlComparisonHeartFailureHospitalDays)) +
+  geom_violin(alpha = 0.7) +
+  labs(title = "Which target to use?",
+        subtitle = "(Heart Failure) By readmitted LOS in hospital compared to national average",
+        x = "",
+        y = "Rate or Score",
+        fill = "Heart Failure-related hospital days (compared to national average):") +
+  scale_fill_manual(values = c("gold", "cadetblue", "maroon", "darkgreen"),
+                    labels = c("Better", "Same", "Worse", "Unknown")) +
+  geom_boxplot(width = 0.1) +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        strip.text = element_text(size=9),
+        legend.text = element_text(size = 7),
+        legend.title = element_text(size = 10),
+        title = element_text(size = 12, color = "maroon")) + 
+  facet_wrap(~Variable, 
+             scales = "free",
+             ncol = 2)
+
+longTargets %>% 
+  ggplot(aes(x = Value, y = NatlComparisonCABGReadmissionRate, fill = NatlComparisonCABGReadmissionRate)) +
+  geom_violin(alpha = 0.7) +
+  labs(title = "Which target to use?",
+        subtitle = "(CABG) By readmitted LOS in hospital compared to national average",
+        x = "",
+        y = "Rate or Score",
+        fill = "CABG-related hospital days (compared to national average):") +
+  scale_fill_manual(values = c("gold", "cadetblue", "maroon", "darkgreen"),
+                    labels = c("Better", "Same", "Worse", "Unknown")) +
+  geom_boxplot(width = 0.1) +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        strip.text = element_text(size=9),
+        legend.text = element_text(size = 7),
+        legend.title = element_text(size = 10),
+        title = element_text(size = 12, color = "maroon")) + 
+  facet_wrap(~Variable, 
+             scales = "free",
+             ncol = 2)
+```
+
+# 4 - Selecting Features
+In this step we will remove unnecessary features from our data set in terms of predictive applicability to our target variable.
+
+```{r}
+## rewrite the `dat2Analyze` variable with the result of the following expression
+dat2Analyze <- dat2Analyze %>% 
+  ## remove the columns we no longer care for (select 'except')
+  select(-ExpectedReadmissionRate, 
+         -ExcessReadmissionRatio,
+         -observed_readmission_rate, 
+         -contains(c("Sample_", "NumberOfPatients")),
+         -NumberSurveysCompleted) %>% 
+  ## rename the columns to be more concise
+  rename(`Median time (minutes) patients spent in ED` = 
+         `Score_Average (median) time patients spent in the emergency department before leaving from the visit A lower number of minutes is better`) %>%
+  ## grab the target variable and all other columns
+  select(PredictedReadmissionRate, everything())
+
+## set the columns names of `dat2Analyze` as each column name with specific substrings removed
+colnames(dat2Analyze) <- gsub('Score_|HcahpsLinearMeanValue_|_Payment', '', colnames(dat2Analyze))
+```
+
+Let's take a look at the features with near-zero variance. These are prime targets for removal.
+In this data set, a lot of data is missing for the national comparison, and will result in these predictors being dropped.
+
+```{r, echo = F}
+## Identify the columns with near-zero variance
+zero_var_df <- dat2Analyze[, nearZeroVar(dat2Analyze)]
+
+## Print the columns
+data.frame(names(zero_var_df)) %>% 
+  rename(`Variables Dropped` = names.zero_var_df.) %>% 
+  kable(
+    format = "html",
+    caption = "Table 3. Columns dropped due to near-zero variance.") %>%
+    kable_styling(bootstrap_options = c("striped", full_width = F)
+)
+
+## Drop them from the dataset:
+dat2Analyze <- dat2Analyze[, -nearZeroVar(dat2Analyze)]
+```
+
+# 5 - Missingness Remidiation
+Let's detect what the missingness looks like across columns.
+Based on the results, all columns have some level of missingness.
+
+```{r}
+as.data.frame(
+  colSums(is.na(dat2Analyze))
+  ) %>%
+  rename(
+    "count_na" = `colSums(is.na(dat2Analyze))`
+  ) %>%
+  mutate(
+    percent_na = (count_na / nrow(dat2Analyze)) * 100
+  ) %>%
+  arrange(desc(percent_na))
+```
+
+Next, we'll use the MICE library, which will pair missing values with non-missing or missing values to derive some meaning from these relationships.
+The first table (Missing vs Responded) shows the correlations between missing values of one column to non-missing values of another.
+The second table (Missing vs Missing) shows the correlations between missing values of one column to missing values of another.
+
+```{r}
+## Drop State and analyze the pairwise missingness using the mice package
+miceMatrix <- dat2Analyze %>% select(-State) %>% md.pairs()
+
+miceMatrix$mr[1:6, 1:10] %>% 
+  kable(format = "html",
+    caption = "Table 4. Missing vs. Reponded Matrix Slice") %>%
+    kable_styling(bootstrap_options = c("striped", full_width = F))
+
+miceMatrix$mm[1:6, 1:10] %>% 
+  kable(format = "html",
+    caption = "Table 5. Missing vs. Missing Matrix Slice") %>%
+    kable_styling(bootstrap_options = c("striped", full_width = F))
+
+```
+
+The heatmap describes correlation between missingness and a response across variables. A higher correlation (darker colors) indicates that the variable will provide more use during imputation than others.
+
+```{r, echo = FALSE, fig.width = 9, fig.height = 9}
+## Calculate proportion from pairwise pattern of missingness
+p <- as.matrix(miceMatrix$mr/(miceMatrix$mr+miceMatrix$mm))
+
+## Set a color palette
+prettyPurples <- colorRampPalette(brewer.pal(8, "PuRd"))(8)
+
+## Make a heatmap
+heatmap(p, 
+        col = prettyPurples, 
+        cexRow = 0.5, 
+        cexCol = 0.5, 
+        margins = c(13, 13), 
+        Colv = NA)
+```
+As the above heatmap analyzes all variables in the dataset to each other, we instead want to isolate to the target variable, `PredictedReadmissionRate`.
+We can see that the amount of missingness is substantial across many variables. We'll include this in our final report as it will affect the validity of our model.
+
+```{r, echo = FALSE, fig.width = 7, fig.height = 7}
+## Calculate proportion from pairwise pattern of missingness
+p <- as.matrix(miceMatrix$mm/(miceMatrix$mr+miceMatrix$mm))
+
+## Set a color palette
+prettyPurples <- colorRampPalette(brewer.pal(10, "PuRd"))(31)
+
+## Make a heatmap
+p[1, ] %>% 
+  data.frame(Proportion = .) %>% 
+  mutate(Variable = rownames(p),
+         Variable = fct_reorder(Variable, Proportion)) %>% 
+  filter(Variable != "PredictedReadmissionRate") %>% 
+  ggplot(aes(x = Variable , y = Proportion)) +
+  geom_bar(aes(fill = Variable), stat = "identity", color = "navy") +
+  theme_minimal() +
+  labs(title = "Highest Correlations of Missingness \nwith Predicted Readmissions",
+       x = "Variables",
+       y = "Proportion of Co-missingness") +
+  scale_fill_manual(values = (prettyPurples)) +
+  coord_flip() +   
+  theme_classic() +
+  theme(legend.position = "none")
+```
+# 6 - Removal of NAs
+Here, we remove observations that have a NA value for our target variable, as they will not do anything to help the model's accuracy.
+Although about half our rows are lost during this operation, our dimensionality ratio is still within tolerance.
+
+```{r, echo = FALSE}
+dat2Analyze <- dat2Analyze %>% 
+  filter(!is.na(PredictedReadmissionRate)) 
+
+paste0(c("Rows: ", "Columns: "), dim(dat2Analyze))
+```
+
+# 7 - Train / Test Data Splitting
+Here, we define a function that can be used to calculate the ideal split ratio for our training & test data.
+We use it to generate our data partitions following the definition of the function.
+
+```{r}
+calcSplitRatio <- function(p = NA, df) {
+  ## @p  = the number of parameters. by default, if none are provided, the number of columns (predictors) in the dataset are used
+  ## @df = the dataframe that will be used for the analysis
+  
+  ## check if the number of predictors is defined
+  if(is.na(p)) {
+    p <- ncol(df) -1   ## the number of predictors was not defined, assign the number of columns-1 (-1 due to the exclusion of the target variable)
+  }
+  
+  ## calculate the number of test rows to generate
+  test_N <- (1/sqrt(p))*nrow(dat2Analyze)
+  ## calculate the proportion of rows being used as test data
+  test_prop <- round((1/sqrt(p))*nrow(dat2Analyze)/nrow(dat2Analyze), 2)
+  ## calculate the proportion of rows being used as train data
+  train_prop <- 1-test_prop
+  
+  ## write out the proportion to console
+  print(paste0("The ideal split ratio is ", train_prop, ":", test_prop, " training:testing"))
+  
+  ## return the proportion of training data to use
+  return(train_prop)
+}
+
+train_prop <- calcSplitRatio(df =dat2Analyze )
+ind <- createDataPartition(dat2Analyze$PredictedReadmissionRate,
+                           p = train_prop,
+                           list = FALSE)
+
+train <- dat2Analyze[ind, ]
+test <- dat2Analyze[-c(ind), ]
+```
+
+# 8 - Imputation
+We use the `missForest` library to generate mathematically probable values for our NAs in both our train & test data sets.
+The results of the imputation in the training set are in the table below.
+
+```{r, include = TRUE}
+# Remove encoded categorical variables for imputation, plus the target and state (which have no missing)
+data_sans_encoded = train %>% 
+  select(-PredictedReadmissionRate,
+         -State,
+         -`Emergency department volume`, 
+         -contains("ComparedToNational"))
+
+data_cat = train %>% 
+  select(`Emergency department volume`, 
+         contains("ComparedToNational")) %>% 
+  mutate_all(as.factor)
+
+# Stitch them back together:
+temp <- cbind(data_sans_encoded, data_cat)
+
+# Impute missing values using missForest
+imputedTrain <- missForest(temp, 
+                          variablewise = TRUE,
+                          verbose = FALSE)
+```
+
+```{r}
+# Remove encoded categorical variables for imputation, plus the target and state (which have no missing)
+data_sans_encoded = test %>% 
+  select(-PredictedReadmissionRate,
+         -State,
+         -contains("ComparedToNational"))
+
+data_cat = test %>% 
+  select(contains("ComparedToNational")) %>% 
+  mutate_all(as.factor)
+
+# Stitch them back together:
+temp <- cbind(data_sans_encoded, data_cat)
+
+# Impute missing values using missForest
+imputedTest <- missForest(temp, 
+                          variablewise = TRUE,
+                          verbose = FALSE)
+```
+
+```{r, echo = FALSE, include = TRUE}
+# Show a quick summary of the results
+data.frame(imputedTrain$OOBerror, names(temp)) %>% 
+  rename(Variable = `names.temp.`,
+         `OOB Error` = imputedTrain.OOBerror) %>% 
+## Print the columns
+  kable(digits = 2,
+    format = "html",
+    caption = "Table 6. missForest OOB Error Rates for the imputed variables, training dataset") %>%
+    pack_rows("MSE", 1, 22) %>%
+    pack_rows("PCF", 23, 28) %>%
+    kable_styling(bootstrap_options = c("striped", full_width = F)
+)
+```
+
+Very high error rates correspond to untrustworthy imputation results. 
+We identify the following variables due to these high values (the list will be used later to remove these columns)
+- Payment for heart attack patients
+- Payment for heart failure patients
+- Recommend hospital
+- Emergency department volume
+
+We also add the columns dropped during imputation back to the training and test sets.
+
+```{r}
+cols2drop <- c(
+  "Payment for heart attack patients", 
+  "Payment for heart failure patients",
+  "Recommend hospital",
+  "Emergency department volume"
+  )
+
+imputedTrain <- imputedTrain$ximp %>% 
+  ## Put the original State and target variables back on
+  mutate(State = train$State,
+         PredictedReadmissionRate = train$PredictedReadmissionRate) 
+
+imputedTest <- imputedTest$ximp %>% 
+  ## Put the original State and target variables back on
+  mutate(State = test$State,
+         PredictedReadmissionRate = test$PredictedReadmissionRate) 
+
+```
+
+Remove the untrustable imputed columns:
+```{r}
+imputedTrain <- imputedTrain[, !(names(imputedTrain) %in% cols2drop), drop = FALSE]
+imputedTest  <- imputedTest[, !(names(imputedTest) %in% cols2drop), drop = FALSE]
+```
+
+# 9 - Converting data back to numeric values
+The `missForest` package required some of our variables to be factors. However, we prefer numeric values for machine learning.
+
+```{r}
+readyTrain <- imputedTrain %>%
+  mutate_if(is.factor, as.character) %>%
+  mutate_if(is.character, as.numeric)
+
+readyTest <- imputedTest %>%
+  mutate_if(is.factor, as.character) %>%
+  mutate_if(is.character, as.numeric)
+
+## This calls the helper function in the associated .R file
+source(file = "doFrequencyEncoding.R")
+
+## If State is not already a number
+if(!is.numeric(imputedTrain$State)) {
+    ## This sets a list of COLUMN NAMES I want to frequency encode
+    cols2encode <- c("State")
+  
+    ## This runs the function, which takes up to 4 arguments
+    ## Open the source code to see what each argument does!
+    ## It returns a LIST of frequency encoded dataframes.
+    freqEncoded <- doFrequencyEncoding(train = imputedTrain,
+                                       test = imputedTest,
+                                       cols2encode = cols2encode, 
+                                       quiet = FALSE)
+    
+    ## Lastly, extract the newly encoded, imputed, dataframes!
+    readyTrain <- freqEncoded$train
+    readyTest <- freqEncoded$test
+}
+```
+# 10 - Transformation & Encoding
+We'll do a quick analysis of our target variable to see how it is distributed.
+Heuristically, we can see that the distribution has two hills and doesn't appear to be normally distributed, but we also run a Shapiro-Wilk test to verify.
+
+The Shaprio-Wilk normality test indicates that the data is not normally distributed, so we'll need to transform and/or scale.
+
+```{r}
+ggplot(readyTrain, aes(x = PredictedReadmissionRate)) +
+  geom_histogram(alpha = 0.6, 
+                 fill = "orchid",
+                 color = "orchid") +
+  theme_minimal() +
+  labs(title = "Predicted Readmission Ratio, N = 2,168 hospitals",
+       y = "Frequency",
+       x = "Predicted Readmission Ratio")
+
+shapiro.test(readyTrain$PredictedReadmissionRate)
+
+```
+
+A Box-Cox transformation is used to manipulate the training data into a more-normal distribution for better model performance.
+
+```{r}
+bc_data <- BoxCoxTrans(readyTrain$PredictedReadmissionRate)
+print(paste0("Box-Cox lambda =  ", bc_data$lambda))
+```
+Next, we evaluate how the Box-Cox affected the distribution.
+We can see that the resulting histogram is much more normalized than what it was previously.
+
+```{r, echo = TRUE}
+readyTrain$bc_PredictedReadmissionRate <- predict(bc_data, readyTrain$PredictedReadmissionRate)
+
+ggplot(readyTrain, aes(x = bc_PredictedReadmissionRate)) +
+  geom_histogram(alpha = 0.6, 
+                 fill = "hotpink",
+                 color = "hotpink") +
+  theme_minimal() +
+  labs(title = "Box-Cox Transformed Predicted Readmission Ratio, N = 2,168 hospitals",
+       y = "Frequency",
+       x = "Predicted Readmission Ratio")
+
+
+qqnorm(readyTrain$bc_PredictedReadmissionRate)
+qqline(readyTrain$bc_PredictedReadmissionRate, 
+       col = "hotpink", lty = 2, lwd = 2)
+
+```
+
+Apply the same transformation to the test data.
+
+```{r}
+# Your code here.
+readyTest$bc_PredictedReadmissionRate <- predict(bc_data, readyTest$PredictedReadmissionRate)
+
+# Make sure to check that your transform looks successful!
+ggplot(readyTest, aes(x = bc_PredictedReadmissionRate)) +
+  geom_histogram(alpha = 0.6, 
+                 fill = "hotpink",
+                 color = "hotpink") +
+  theme_minimal() +
+  labs(title = "Box-Cox Transformed Predicted Readmission Ratio, N =472 hospitals",
+       y = "Frequency",
+       x = "Predicted Readmission Ratio")
+
+
+qqnorm(readyTest$bc_PredictedReadmissionRate)
+qqline(readyTest$bc_PredictedReadmissionRate, 
+       col = "hotpink", lty = 2, lwd = 2)
+```
+Next, we scale the data in both the training & test sets.
+
+```{r}
+readyTrain <- readyTrain %>% 
+  ## Drop the original target variable
+  select(-PredictedReadmissionRate) %>% 
+  ## Make anything that might still be a factor from encoding is back to number
+  mutate_if(is.factor, as.numeric) %>%
+  ## Center and scale everything!
+  scale(center = TRUE, scale = TRUE) %>% 
+  data.frame()
+
+readyTest <- readyTest %>% 
+  ## Drop the original target variable
+  select(-PredictedReadmissionRate) %>% 
+  ## Make anything that might still be a factor from encoding is back to number
+  mutate_if(is.factor, as.numeric) %>%
+  ## Center and scale everything!
+  scale(center = TRUE, scale = TRUE) %>% 
+  data.frame()
+```
+
+# 11 - Checking for multicollinearity
+In this next step, we check for colinearity between the variables using a correlation matrix.
+With this analysis, we can see that there are colinearities - especially between "raw" values and their corresponding "compared to national average" variables.
+
+```{r, echo = FALSE, fig.width = 9, fig.height = 9}
+## Calculate a correlation matrix
+corrMat <- cor(readyTrain)
+
+## Make a heatmap
+heatmap(corrMat, 
+        col = rev(colorRampPalette(brewer.pal(8, "RdYlBu"))(8)), 
+        cexRow = 0.6, 
+        cexCol = 0.6, 
+        margins = c(10, 10))
+```
+
+Going further, we can use Variance Inflation Factors to determine multicolinearity. Multicoliniearity can be detected when a VIF is > 4, and especially when > 10.
+We notice that the following variables have a VIF > 5.
+- Nurse.communication	
+- Care.transition	
+- Overall.hospital.rating
+- Staff.responsiveness
+
+We then drop them from the training & test datasets.
+
+```{r}
+mod <- lm(bc_PredictedReadmissionRate ~ ., data = readyTrain)
+## Calculate the VIFs and put into a dataframe to print the table
+vifResults <- vif(mod) %>% data.frame
+## Change the column names of the dataframe
+colnames(vifResults) <- c("VIF")
+
+## Sort by VIF, print the top 15 worst offenders
+vifResults %>% 
+  arrange(desc(VIF)) %>% 
+  top_n(15) %>% 
+  ## Pass through kable() to make it pretty
+  kable(digits = 2,
+    format = "html",
+    caption = "Table 7. Top 15 Variance Inflation Factors after multiple linear regression") %>%
+    kable_styling(bootstrap_options = c("striped", full_width = F)
+)
+
+## Drop those with VIF over 5
+vifOver5 <- vifResults %>% filter(VIF >=5) %>% rownames()
+print(vifOver5)
+
+## Now drop them
+readyTrain <- readyTrain %>% select(-any_of(vifOver5))
+readyTest <- readyTest %>% select(-any_of(vifOver5))
+```
+
+# 12 - Final Cleaning Steps
+Finally, we will drop columns from our data set which aren't applicable to the target variable.
+```{r}
+readyTrain <- readyTrain %>% 
+  ## Rename the column we want to keep
+  rename(Hospital.return.days.for.heart.attack.patients = ComparedToNational_Hospital.return.days.for.heart.attack.patients) %>% 
+  rename(Hospital.return.days.for.heart.failure.patients = ComparedToNational_Hospital.return.days.for.heart.failure.patients) %>%
+  ## Drop all the other columns 
+  select(-contains("Compared"), -contains("PaymentCategory"), -SurveyResponseRate)
+
+readyTest <- readyTest %>% 
+  ## Rename the column we want to keep
+  rename(Hospital.return.days.for.heart.attack.patients = ComparedToNational_Hospital.return.days.for.heart.attack.patients) %>% 
+  rename(Hospital.return.days.for.heart.failure.patients = ComparedToNational_Hospital.return.days.for.heart.failure.patients) %>%
+  ## Drop all the other columns 
+  select(-contains("Compared"))
+
+```
+
+# 13 - Unsupervised Learning & Segmentation Analysis
+Here, we begin to determine which factors are needed to generate an accurate model.
+First, we use PCA to identify the principal components and how they relate to explaining the variance.
+
+```{r}
+pca <- prcomp(readyTrain)
+summary(pca)
+
+## Show the scree plot
+fviz_screeplot(pca, 
+         addlabels = TRUE, 
+         ylim = c(0, 30),
+         ncp = 15,
+         barfill = prettyPurples[13],
+         barcolor = prettyPurples[15],
+         main = "Scree Plot: First 15 Principal Components")
+```
+
+Next, we'll take a look at the most variance-contributing PCs via two biplots (heart attack & heart failure).
+The biplots show no discernible direction of the variables in relation to the return days metrics.
+
+```{r}
+returnHospitalHeartAttackComparison <- factor(readyTrain$Hospital.return.days.for.heart.attack.patients,
+                                   labels = c("Worse", "Same", "Better"))
+
+## Now show the biplot
+fviz_pca_biplot(pca, 
+             palette = c("maroon", "cadetblue", "gold"),
+             label = "var",
+             geom = "point",
+             geom.var = "text",
+             addEllipses = TRUE,
+             ellipse.alpha = 0.2,              ## Change alpha 0-1
+             col = "black",
+             col.var = "black",
+             habillage = returnHospitalHeartAttackComparison,
+             select.var = list(contrib = 1),
+             repel = T)
+
+returnHospitalHeartFailureComparison <- factor(readyTrain$Hospital.return.days.for.heart.failure.patients,
+                                   labels = c("Worse", "Same", "Better"))
+
+## Now show the biplot
+fviz_pca_biplot(pca, 
+             palette = c("maroon", "cadetblue", "gold"),
+             label = "var",
+             geom = "point",
+             geom.var = "text",
+             addEllipses = TRUE,
+             ellipse.alpha = 0.2,              ## Change alpha 0-1
+             col = "black",
+             col.var = "black",
+             habillage = returnHospitalHeartFailureComparison,
+             select.var = list(contrib = 1),
+             repel = T)
+```
+
+Next, we'll view what data points comprise the different components. We see that communication about medicines has a decent amount of inclusion in PC 1&2, but only ~13%.
+```{r, echo=FALSE, fig.width=8, fig.height=8,}
+fviz_contrib(pca, 
+             choice = "var", 
+             axes = 1:2,
+             fill = prettyPurples[13],
+             color = prettyPurples[15],
+             xtickslab.rt = 10)
+```
+
+Next, we'll evaluate the clusters the k-means algorithm is able to generate and attempt to identify the optimal k value. Here, we only evaluate up to k=13.
+```{r, echo = F}
+skittles <- c("#de378d","#32a840", "#463ab5","#0e87e3", "gold", "#ae5bc9", "#e35c0e", "cadetblue", "#0ee383", "red", "tan", "gray", "lavender")
+for(k in 2:13) {
+  ## Initialize a plot
+  plotName <- paste0("p", k)
+  ## Calculate the kmeans for each given k
+  kmeansResult <- kmeans(readyTrain, 	
+                     centers = k,   ## number of clusters
+                     nstart = 25,   ## num of times to repeat the process 
+                                    ## with random initialization; increase 
+                                    ## if you're failing to converge
+                     iter.max = 1000,    ## num of iterations to run k-means
+                     algorithm = "MacQueen")    ## since the default algorithm 
+                                                ## can struggle with close 
+                                                ## points, adjusting the method
+  ## Make a set of graphs to compare!
+  kmeansGraph <- fviz_cluster(kmeansResult, 
+                              geom = "point", 
+                              data = readyTrain,
+                              show.clust.cent = TRUE,
+                              ggtheme = theme_minimal(),
+                              ellipse.type = "norm",
+                              palette = skittles,
+                              pointsize = 0.5) + 
+                  ggtitle(paste0("k = ", k))
+  assign(plotName, kmeansGraph)
+}
+grid.arrange(p2, p3, p4, p5, nrow = 2)
+grid.arrange(p6, p7, p8, p9, nrow = 2)
+grid.arrange(p10, p11, p12, p13, nrow=2)
+```
+
+Another way we can evaluate the optimal k value is via the WSS (within sum of squares) method.
+```{r, echo = FALSE, fig.cap="Figure 14. WSS Scree plot for k-means"}
+# Determine number of clusters
+fviz_nbclust(readyTrain,
+             FUNcluster = kmeans, 
+             method = "wss",  
+             linecolor = prettyPurples[13]) +
+  labs(title = "WSS Elbow Method for Optimal k")
+```
+
+Both of the previous k-means clustering results rely on heuristics to determine optimal k. 
+In the silhouette method below, we can capture a concrete value of optimal k, which in this case is 2.
+We then set this optimal value for future use.
+
+```{r, echo=FALSE, fig.cap="Figure 14. Silhouette Plot for k-means"}
+fviz_nbclust(readyTrain, kmeans, method = "silhouette",
+             k.max = 9, 
+             nstart = 25,
+             iter.max = 1000,
+             linecolor = prettyPurples[13]) +
+  labs(title = "Silhouette Method for Optimal k")
+
+## Extract optimal k from silhouette method; first get the cluster data
+clusterData <- fviz_nbclust(readyTrain, kmeans, method = "silhouette")$data
+## Then extract the maximum y
+k <- as.numeric(clusterData$clusters[which.max(clusterData$y)])
+```
+
+Now that we have found the optimal number of clusters (2), let's organize the data into those clusters. We can then evaluate what each cluster predicts for its readmission rate.
+Below, we show boxplots comparing the two clusters and their outcomes. We can see that there is only a slight improvement between clusters in terms of predicted readmission rate.
+
+```{r, echo = TRUE, fig.height = 8, fig.width=6}
+set.seed(1)
+
+## generate kmeans clustering results using kmeans function
+kmeansResult <- kmeans(readyTrain, 	
+                         centers = k,      ## k is the optimal number of clusters
+                         nstart = 50,      
+                         iter.max = 1000,  
+                         algorithm = "MacQueen")
+
+## create a new dataframe named kmeansTrain that is the result of the following expression
+kmeansTrain <- imputedTrain %>% 
+  ## Rename the column we want to keep
+  rename(
+      HeartAttack.Hospital.Return.Days = `ComparedToNational_Hospital return days for heart attack patients`,
+      HeartFailure.Hospital.Return.Days = `ComparedToNational_Hospital return days for heart failure patients`
+  ) %>% 
+  ## select only columns that are not in vifOver5 and do not contain "Compared" and do not contain "PaymentCategory" and not the column SurveyResponseRate
+  select(-any_of(vifOver5), -contains("Compared"), -contains("PaymentCategory"), -SurveyResponseRate) %>% 
+  ## add two columns:
+  ## - the cluster
+  ## - capture the categorical variable as a numeric
+  mutate(
+      Cluster = kmeansResult$cluster,
+      HeartAttack.Hospital.Return.Days = as.numeric(
+        if_else(HeartAttack.Hospital.Return.Days == "1", 1,
+           if_else(HeartAttack.Hospital.Return.Days == "0", 0, -1))
+        ),
+      HeartFailure.Hospital.Return.Days = as.numeric(
+        if_else(HeartFailure.Hospital.Return.Days == "1", 1,
+           if_else(HeartFailure.Hospital.Return.Days == "0", 0, -1))
+        )
+   ) %>% 
+  ## standardize the column names
+  clean_names()
+
+## Using % contribution graph, the order of the top 10:
+pcaImportantVars <- factor(
+  c(
+      "Communication.about.medicines",
+      "Doctor.communication", 
+      "Composite.patient.safety",
+      "Quietness",
+      "Death.rate.for.heart.failure.patients",
+      "Death.rate.for.heart.attack.patients",
+      "Death.rate.for.stroke.patients",
+      "Predicted.Readmission.Rate"
+    )
+)
+
+## lowercase all the variables in this list
+pcaImportantVars <- tolower(pcaImportantVars)
+## replace "." with "_"
+pcaImportantVars <- gsub("\\.", "_", pcaImportantVars) %>% 
+## to title case (first char of each word capitalized)
+  to_any_case("title")
+
+## output to R the following expression
+kmeansTrain %>% 
+  ## update the column names to standardized conventions, using title case
+  clean_names(case = "title") %>% 
+  ## get the cluster from the kmeans data as well as any column within the pca-important var list
+  select(Cluster, any_of(pcaImportantVars)) %>% 
+  ## pivot the data longways, shifting the column names to the measure variable
+  pivot_longer(-1, names_to = "Measure", values_to = "Value") %>% 
+  ## convert the measurement to a factor
+  filter(Measure %in% pcaImportantVars) %>% 
+  ## generate a boxplot that shows the differences between clusters
+    ggplot(aes(x = Cluster, y = Value, fill = as.factor(Cluster))) +
+    geom_boxplot(alpha=0.75) +
+    scale_fill_manual(values = c(skittles[1], skittles[6])) +
+    labs(title = "Cluster Means",
+         x = "",
+         fill = "Cluster") +
+    theme_classic() +
+    theme(legend.position = "bottom",
+        strip.text = element_text(size=8),
+        legend.text = element_text(size = 8),
+        legend.title = element_text(size = 10),
+        title = element_text(size = 12, color = "maroon")) + 
+    ## facet the boxplots so that each measurement is projected as its own plot
+    facet_wrap(~ Measure, 
+             scales = "free_y",
+             ncol = 2)
+
+## output to R the following expression
+kmeansTrain %>% 
+  ## rename columns to use the "." formatting
+  rename(
+    Predicted.Readmission.Rate = predicted_readmission_rate,
+    HeartAttack.Hospital.Return.Days = heart_attack_hospital_return_days,
+    HeartFailure.Hospital.Return.Days = heart_failure_hospital_return_days
+    ) %>%  
+  ## update the column names to standardized conventions, using title case
+  clean_names(case = "title") %>% 
+  ## get the cluster from the kmeans data as well as any column within the pca-important var list
+  select(Cluster, any_of(pcaImportantVars)) %>% 
+  ## create a summary table that shows the mean / median values of all continuous variables by cluster
+  tbl_summary(by = "Cluster",
+              statistic = list(all_continuous() ~ c("{mean} ({median})"))) %>% 
+  modify_header(label ~ "Variable",
+                all_stat_cols() ~ "**Cluster {level}**") %>% 
+  modify_caption("Table 8. Summary Statistics of Important Cluster Variables")
+```
+# 14 - Supervised Learning Methods
+Here, we generate a linear regression model which attempts to find correlation between the Box-Cox transformed readmission rate and all other variables.
+Below are some plotted properties of that model.
+- We can see that the fitted model shows signs of unlinearity.
+- Via the Shaprio-Wilk test, we can see that the data most likely does not come from a normalized distribution.
+- By extracting the adjusted R^2 value from the model, we can see it behaves quite poorly, at ~15% effectiveness on our training set.
+
+```{r, echo=FALSE}
+## Fit the model
+mod <- lm(bc_PredictedReadmissionRate ~ ., 
+          data = readyTrain)
+
+## Plot diagnostic plots
+plot(mod, 1)
+plot(mod, 2)
+plot(mod, 3)
+plot(mod, 4)
+
+shapiro.test(residuals(mod))
+
+## Extract just the R-squared
+summary(mod)$adj.r.squared
+```
+Using this model, we'll try to peel off factors that aren't significant to the target variable, then make predictions with this trimmed model.
+We evaluate the predictions graphically.
+It's quite obvious the model itself isn't a great predictor - the error rates along the predictions are very high.
+
+```{r, results='hide'}
+## Perform a backward, stepwise regression to find the most parsimonious model
+bestMod <- step(mod, 
+            direction = "backward", 
+            trace = FALSE)
+
+## Make the predictions
+predictions <- predict(bestMod, newdata = readyTest)
+
+## Add the predictions to the dataset
+readyTest$predictions <- predictions
+
+## Graph what the predictions look like relative to the actual data
+ggplot(readyTest, 
+       aes(x = predictions, y = bc_PredictedReadmissionRate)) +
+       geom_point(alpha = 0.5, color = "hotpink") +
+       geom_smooth(color = "hotpink", fill = "hotpink", se = T, method = "lm") +
+  theme_minimal() +
+  labs(title = "OLS Multiple Linear Regression Predictive Power",
+       x = "Predicted Readmission Rate from Model",
+       y = "Actual Readmission Rate")
+```
+
+Next, we'll use the Elastic Net method for fitting a model to our data.
+First, we'll set up our CV parameters.
+```{r}
+ctrl <- trainControl(method = "repeatedcv",  ## Do repeated CV
+                     number = 5,             ## Number of k-folds
+                     repeats = 5,            ## Number of repeats
+                     search = "grid",        ## Grid search (vs. random)
+                     verboseIter = FALSE)    ## Don't show me all the results
+```
+
+Using those parameters, we create a grid of alpha & lambda spanning a range of values.
+We then utilize the CV parameters & the grid of alpha/lambda values in the Elastic Net model generation.
+```{r}
+## Create a search grid that allows alpha to range from 0 --> and 
+## allows lambda to range from 0 --> 5
+searchGrid <- expand.grid(.alpha = seq(0, 1, length.out = 10), 
+                          .lambda = seq(0, 5, length.out = 15))
+
+## Fit the elastic net using the tuning grid and CV scheme laid out
+elasticMod <- train(bc_PredictedReadmissionRate ~ ., 
+                    data = readyTrain, 
+                    method = "glmnet", 
+                    tuneGrid = searchGrid,
+                    trControl = ctrl) 
+```
+
+Let's evaluate the results of Elastic Net and extract the optimal alpha/lambda values. These results are plotted below.
+We find that the best values of alpha & lambda are both zero.
+
+```{r, echo = FALSE, message=FALSE}
+elasticMod$results %>% 
+  data.frame() %>% 
+  arrange(RMSE) %>% 
+  top_n(15) %>% 
+kable(digits = 2,
+    format = "html",
+    caption = "Table 11. Top Performing Results of the Elastic Net Tuning & 5-fold Repeated Cross-Validation") %>%
+    kable_styling(bootstrap_options = c("striped", full_width = F)
+)
+
+results <- elasticMod$results %>% 
+  data.frame()
+best <- results[as.numeric(rownames(elasticMod$bestTune)), ]
+
+results %>% 
+  drop_na() %>% 
+  mutate(lambda = round(lambda, 1)) %>%  
+  ggplot(aes(x=alpha, y = RMSE, color = as.factor(lambda))) +
+  geom_point() +
+  theme_minimal() +
+  geom_point(aes(x = best$alpha, best$RMSE), 
+             shape = 5, 
+             size = 3,
+             color = "black") +
+  labs(title = "Elastic Net Hyperparameter Tuning",
+       subtitle = "Best mixing percentage + λ shown as a diamond",
+       x = expression(alpha), 
+       color = expression(lambda)) + 
+  scale_color_manual(values = c(skittles, "#999999", "#E69F00", "#56B4E9", "#009E73",
+          "#F0E442", "#0072B2", "#D55E00", "#CC79A7", "#00AFBB", "#E7B800", "#FC4E07"))
+```
+
+As an example, we extract the features from our Elastic Net model that are most impactful to the observed variance.
+
+```{r, echo = FALSE}
+important <- varImp(elasticMod)$importance
+
+important %>% 
+  mutate(Feature = rownames(important)) %>% 
+  mutate(Feature = gsub("\\.", " ", Feature)) %>% 
+  arrange(desc(Overall)) %>% 
+  ggplot(aes(y = Overall, fill = Overall, x = fct_reorder(Feature, Overall))) +
+  geom_col(color = "navy") + 
+  scale_fill_continuous(low = "#DCCAE3", high = "#C00E50") +
+  coord_flip() +
+  theme_minimal() +
+  labs(title = "Feature importance as determined by \nElastic Net",
+       x = "",
+       y = "Importance", 
+       fill = "")
+```
+
+Next, we compare the OLS model against the Elastic Net model.
+As described in the plot, both these models perform nearly identically.
+
+```{r}
+## Post-resample on OLS
+prOLS <- postResample(pred = predict(mod, newdata = readyTest), 
+                      obs = readyTest$bc_PredictedReadmissionRate)
+
+## Post-resample on Elastic Net
+prElastic <- postResample(pred = predict(elasticMod, newdata = readyTest), 
+                      obs = readyTest$bc_PredictedReadmissionRate)
+
+## Display the output as a table
+rbind(prOLS, prElastic) %>% 
+  kable(digits = 2,
+    format = "html",
+    caption = "Table 12. Comparison of Model Performance of OLS and Elastic Net Regressions") %>%
+    kable_styling(bootstrap_options = c("striped", full_width = F)
+)
+
+elasticPredictions <- predict(elasticMod, newdata = readyTest)
+testingResults <- c(readyTest$predictions,
+                    elasticPredictions)
+label <- c(rep("OLS Prediction", nrow(readyTest)),
+           rep("Elastic Net Prediction", length(elasticPredictions)))
+temp <- cbind.data.frame(testingResults, label)
+temp$actual <- rep(readyTest$bc_PredictedReadmissionRate, 2)
+
+## Graph what the predictions look like relative to the actual data
+ggplot(temp, 
+       aes(x = testingResults, y = actual, fill = label, color = label)) +
+       geom_point(alpha = 0.5) +
+       geom_smooth(se = T, method = "lm", alpha = 0.45) +
+  scale_color_manual(values = c("navy", "hotpink")) +
+  scale_fill_manual(values = c("navy", "hotpink")) +
+  theme_minimal() +
+  labs(title = "Elastic Net vs. OLS Predictive Power",
+       x = "Predicted Readmission Rate from Model",
+       y = "Actual Readmission Rate",
+       fill = "", 
+       color = "") +
+  theme(legend.position = "bottom")
+```
