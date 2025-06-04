@@ -70,7 +70,7 @@ We will pick up where we left off in Demo 1 to prepare you for analysis. Althoug
 
 Our goal is to see this analysis through to generate a predictive model that the advocacy group can use, and hopefully it will be a decent one. To ensure that it stands the best chance of being a good predictive model, our analysis plan includes all the key steps in the data science life cycle/project flow, including: __cleaning__, __exploration__, __feature selection__, __pre-processing__, __unsupervised machine learning exploration__, and __supervised modeling__. Whew! 
 
-Our specific plan is to perform two big analyses in the hopes of having a nice deliverable to present to our client. The first will be a __segmentation analysis__, or clustering analysis, which will attempt to group our hospitals together on the basis of their attributes and their pneumonia-related readmissions. Thie will be done using a combination of PCA and $k$-means. Our second analysis will be to perform supervised, predictive analysis using an elastic net, which conveniently combines a penalized regression with variable selection so we can point our clients down a path of hospital attributes to focus on, as well as a model they can use to make future predictions.
+Our specific plan is to perform two big analyses in the hopes of having a nice deliverable to present to our client. The first will be a __segmentation analysis__, or clustering analysis, which will attempt to group our hospitals together on the basis of their attributes and their heart failure-related readmissions. Thie will be done using a combination of PCA and $k$-means. Our second analysis will be to perform supervised, predictive analysis using an elastic net, which conveniently combines a penalized regression with variable selection so we can point our clients down a path of hospital attributes to focus on, as well as a model they can use to make future predictions.
 
 ## 1.2 Your objective.
 
@@ -80,13 +80,6 @@ Your oject is to work through this Project 1. You will have 31 Questions to answ
 __[Minimal coding, focus is on understanding cleaning, pre-processing, and the ML analyses we performed here.]__
 Choose ONE other condition (anything other than pneumonia) and run through the analyses again, using our same target variable. You will update your question, hypotheses, and predictions, but will be able to re-use all of the other code with very minor modifications. Credit will be based more on interpretation and not on coding. See more information on Adventure 1 [here](#adventure1).
 
-### Adventure 2. 
-__[More coding, but not as much, with a focus on the steps we've undertaken here and extending it to a new question & condition.]__
-Choose a slightly more complicated analysis to undertake, for example, focusing on surgical interventions (`HIP-KNEE` & `CABG`) or heart-related conditions (`HF`, `AMI`, & `CABG`). Coding should still be fairly minimal, but you are likely to run into problems with the code working exactly as-is, especially during cleaning. The advantage of this analysis is that it will be much more robust, have larger sample sizes, and would allow us to be able to say something far more informative to a subset of patients (e.g., those considering undergoing surgical interventions). See more information on Adventure 2 [here](#adventure2).
-
-### Adventure 3. 
-__[Most coding, but no cleaning or pre-processing, with an emphasis entirely on the machine learning analyses.]__
-Continue with the pneumonia-related data that you have here, completely cleaned and pre-processed, and do two more unsupervised OR supervised analyses. For example, you could do another kNN using the $k$ we identify in our Segmentation Analysis here, or you could do a random forest to account for any possible non-linearity. You could even choose to do a Ridge and LASSO regression and compare those analyses to what we get out of an Elastic Net. Any of these are fine, but you must __explain your decision__ in your submission. See more information on Adventure 3 [here](#adventure3).
 
 ## 1.3 A Fork in the Road! {#section1.3}
 
@@ -98,9 +91,11 @@ This is the first of your choices in your adventure, and what you choose here co
 Load my version of the fully cleaned, encoded, & ready-to-proceed dataset from the end of Demo 1. These data are not yet ready for analysis (!) but we would be picking up with that here.
 
 ```{r}
+#team, i had to direct R as to where my source code was. You may not need this line 
+source("/Users/sharonsingh/Documents/GitHub/Merrimack_DSE6630/Team_Directories/kappa/Module_Projects/Project_1/reRunDemoData.R")
 ## Uncomment if this is your choice:
-load("/Users/stephgarofalo/Documents/GitHub/Merrimack_DSE6630/I. Biomedical & Clinical Informatics/Project_1/FY2024_data_files/pneumoniaAnalyzeFullyEncoded2024.Rdata")
-dat2Analyze <- pneumoniaAnalyzeFullyEncoded
+load("/Users/sharonsingh/Documents/GitHub/Merrimack_DSE6630/Team_Directories/kappa/Module_Projects/Project_1/FY2024_data_files/dataFull2024.Rdata")
+dat2Analyze <- dataFull
 
 ```
 
@@ -110,14 +105,15 @@ dat2Analyze <- pneumoniaAnalyzeFullyEncoded
 ```{r}
 ## Comment out if this is NOT your choice:
 ## Uncomment if this is your choice:
-load("/Users/stephgarofalo/Documents/GitHub/Merrimack_DSE6630/I. Biomedical & Clinical Informatics/Project_1/FY2024_data_files/pneumoniaAnalyzeNoEncoding2024.Rdata")
-##dat2Analyze <- pneumoniaAnalyzeNoEncoding
+load("/Users/sharonsingh/Documents/GitHub/Merrimack_DSE6630/Team_Directories/kappa/Module_Projects/Project_1/FY2024_data_files/dataAnalyzeNoEncoding2024.Rdata")
+##dat2Analyze <- dataAnalyzeNoEncoding
 ```
 
 #### **Question 1**: [1 point]
 Which dataset do you choose and why?
 
-> I chose this dataset because it has already been fully encoded and includes the ordinal and frequency encoding applied in Demo 1. This means it is ready for analysis with minimal additional preprocessing required, which will save time and ensure consistency with the work we did in Demo 1.  Additionally, using this pre-encoded dataset minimizes the risk of introducing errors or inconsistencies in encoding. If I had chosen the unencoded dataset (Option 1.3.2), I would have had to repeat the encoding process manually, which could lead to inconsistencies or errors. Therefore, using the fully-encoded dataset ensures we build on the previous work efficiently and accurately.
+> We chose the heart failure dataset because ti is one of the most common and critical conditions for hospitals when monitoring readmissions. It has significant cost implications, along with impact to the life of the patient - therefore reducing readmission rates is important for both hospital and patient success. Moreover, the dataset offers multidimensional hospital-level data tied to a high-impact clinical outcome. The dataset includes many assets, including operational, clinical, financial, and patient experience variables which ultimately allow for comprehensive analysis. Heart failure readmissions are a critical policy-relevant outcome, making the findings valuable for improving hospital care and reducing costs. The dataset’s size, diversity, and inclusion of both adjusted and unadjusted measures make it well-suited for robust predictive or explanatory modeling.
+
 
 ## 1.4 Helper code: Using `R` like an object-oriented language {#helperCode}
 
@@ -134,7 +130,7 @@ We went through all the trouble in the Demo to perform encoding and now we get t
 source(file = "doOrdinalEncoding.R")
 
 ## This checks to see if you loaded the already encoded dataset
-if(!exists("pneumoniaAnalyzeFullyEncoded")) {
+if(!exists("dataFull")) {
     ## This sets a list of PATTERNS to match for the columns to ordinal encode
     encodeList <- c("ComparedToNational_", 
                     "PaymentCategory", 
@@ -163,18 +159,18 @@ You may be wondering - could we use it as a target? Sure - but it's not for the 
 ```{r, echo = FALSE, collapse=TRUE}
 dict <- tribble(
 ~`Possible Target`, ~`Description`,
-"ComparedToNational_Hospital return days for pneumonia patients", "Hospital return days measures the number of days patients spent back in the hospital (in the emergency department, under
-observation, or in an inpatient unit) within 30 days after they were first treated and released for pneumonia. Reported as compared to the national average, such that 'below average' is better and 'above average' is worse.", 
+"ComparedToNational_Hospital return days for heart failure patients", "Hospital return days measures the number of days patients spent back in the hospital (in the emergency department, under
+observation, or in an inpatient unit) within 30 days after they were first treated and released for heart failure Reported as compared to the national average, such that 'below average' is better and 'above average' is worse.", 
 "ExpectedReadmissionRate", "The expected number of readmissions in each hospital is estimated using its patient mix and an average hospital-specific intercept. It is thus indirectly standardized to other hospitals with similar case and patient mixes.",
 "PredictedReadmissionRate", "The number of readmissions within 30 days predicted based on the hospital’s performance with its observed case mix. The predicted number of readmissions is estimated using a hospital-specific intercept, and is intended to reflect the annual expected performance of the hospital given its historical case and patient mix and performance.",
 "ExcessReadmissionRatio", "The ratio of the predicted readmission rate to the expected readmission rate, based on an average hospital with similar patients. Performance is compared against a ratio of one, such that below one is better and above one is worse in terms of readmission rates.",
-"observed_readmission_rate", "Our calculation of the observed number of pneumonia-related readmissions within 30 days found by dividing the number of readmissions observed for the hospital during the given period by the number of discharges for that same period, and multiplied by 100 to put it on the same scale as the Predicted and Expected Readmission Rates. It reflects a true observation as reported by the hospital during that period, but is not adjusted for case mixes or prior information for that hospital. Thus, this is a crude, unadjusted value."
+"observed_readmission_rate", "Our calculation of the observed number of heart failure-related readmissions within 30 days found by dividing the number of readmissions observed for the hospital during the given period by the number of discharges for that same period, and multiplied by 100 to put it on the same scale as the Predicted and Expected Readmission Rates. It reflects a true observation as reported by the hospital during that period, but is not adjusted for case mixes or prior information for that hospital. Thus, this is a crude, unadjusted value."
 )
 
 dict %>% 
   kable(
     format = "html",
-    caption = "Table 1. List of possible target variables from the pneumonia-related hospital readmission data. Which one to choose?") %>%
+    caption = "Table 1. List of possible target variables from the heart failure-related hospital readmission data. Which one to choose?") %>%
     kable_styling(bootstrap_options = c("striped", full_width = F)
   )
 ```
@@ -184,21 +180,22 @@ dict %>%
 Now, I know I didn't ask you to do it, but I will actually begin my assessment of which target is most appropriate by constructing a quick summary table. In my assessment of what is an appropriate target, 
 
 ```{r, echo = FALSE}
-sliceData <- dat2Analyze %>% 
+sliceData <- dat2Analyze %>%
   select(`ComparedToNational_Hospital return days for pneumonia patients`, 
          PredictedReadmissionRate,
-         observed_readmission_rate, 
          ExcessReadmissionRatio,
-         ExpectedReadmissionRate) %>% 
+         ExpectedReadmissionRate) %>%
   rename(`National Comparison Return Hospital Days` = `ComparedToNational_Hospital return days for pneumonia patients`,
          `Predicted Readmission Rate` = PredictedReadmissionRate, 
-         `Observed Readmission Rate` = observed_readmission_rate, 
          `ExcessReadmissionRatio` = ExcessReadmissionRatio,
-         `Expected Readmission Rate` = ExpectedReadmissionRate) %>% 
-  mutate(`National Comparison Return Hospital Days` = ifelse(is.na(`National Comparison Return Hospital Days`), "Unknown", 
+         `Expected Readmission Rate` = ExpectedReadmissionRate) %>%
+  mutate(`National Comparison Return Hospital Days` = ifelse(is.na(`National Comparison Return Hospital Days`), "Unknown",
                                                       ifelse(`National Comparison Return Hospital Days` == 1, "Better than average",
-                                                      ifelse(`National Comparison Return Hospital Days` == 0, "Same as average", "Worse than average")))) %>% 
-  mutate(`National Comparison Return Hospital Days` = factor(`National Comparison Return Hospital Days`, levels = c( "Better than average", "Same as average", "Worse than average", "Unknown")))
+                                                      ifelse(`National Comparison Return Hospital Days` == 0, "Same as average", "Worse than average")))) %>%
+  mutate(`National Comparison Return Hospital Days` = factor(`National Comparison Return Hospital Days`, 
+                                                             levels = c("Better than average", "Same as average", "Worse than average", "Unknown")))
+
+
 
 sliceData %>% 
   tbl_summary(statistic = list(
@@ -222,22 +219,20 @@ I don't have to store it as a separate data frame (i.e., I can just pipe it dire
 ```{r, echo = FALSE}
 ## Make the long-format version of just the possible target variables, with some cleanup of the names, etc. for nicer graphs
 longTargets <- dat2Analyze %>%
-  ## Make a shorter name
   rename(NatlComparisonHospitalDays = `ComparedToNational_Hospital return days for pneumonia patients`,
          `Predicted Readmission Rate` = PredictedReadmissionRate,
          `Excess Readmission Ratio` = ExcessReadmissionRatio,
-         `Observed Readmission Rate` = observed_readmission_rate, 
-         `Expected Readmission Rate` = ExpectedReadmissionRate) %>% 
-  ## Flexible handling depending on which dataset students select; recodes into better, same, and worse
+         `Expected Readmission Rate` = ExpectedReadmissionRate,
+         `Number of Readmissions` = NumberOfReadmissions) %>%
   mutate(NatlComparisonHospitalDays = case_when(
-    (NatlComparisonHospitalDays == 1  | NatlComparisonHospitalDays == "Fewer Days Than Average per 100 Discharges") ~ "Better", 
-    (NatlComparisonHospitalDays == -1 | NatlComparisonHospitalDays == "More Days Than Average per 100 Discharges") ~ "Worse", 
-    (NatlComparisonHospitalDays == 0  | NatlComparisonHospitalDays == "Average Days per 100 Discharges") ~ "Same", 
-    .default = "Unknown"),
-  NatlComparisonHospitalDays = factor(NatlComparisonHospitalDays, levels = c("Better", "Same", "Worse", "Unknown"))) %>% 
-  ## Grab just the five features we want so we can compare them
-  select(contains(c("readmission", "NatlComparisonHospitalDays"))) %>% 
-  ## Pivot longer
+    NatlComparisonHospitalDays == 1  ~ "Better",
+    NatlComparisonHospitalDays == -1 ~ "Worse",
+    NatlComparisonHospitalDays == 0  ~ "Same",
+    TRUE ~ "Unknown"
+  )) %>%
+  mutate(NatlComparisonHospitalDays = factor(NatlComparisonHospitalDays,
+                                             levels = c("Better", "Same", "Worse", "Unknown"))) %>%
+  select(contains("readmission"), NatlComparisonHospitalDays) %>%
   pivot_longer(-c(5), names_to = "Variable", values_to = "Value")
 ```
 
@@ -254,7 +249,7 @@ longTargets %>%
         subtitle = "By readmitted LOS in hospital compared to national average",
         x = "",
         y = "Rate or Score",
-        fill = "Pneumonia-related hospital days (compared to national average):") +
+        fill = "HF-related hospital days (compared to national average):") +
   scale_fill_manual(values = c("gold", "cadetblue", "maroon", "darkgreen"),
                     labels = c("Better", "Same", "Worse", "Unknown")) +
   theme_minimal() +
@@ -283,7 +278,7 @@ longTargets %>%
        subtitle = "By readmitted LOS in hospital compared to national average",
         x = "",
         y = "Rate or Score",
-        fill = "Pneumonia-related hospital days (compared to national average):") +
+        fill = "HF-related hospital days (compared to national average):") +
   scale_fill_manual(values = c("gold", "cadetblue", "maroon", "darkgreen"),
                     labels = c("Better", "Same", "Worse", "Unknown")) +
   theme_minimal() +
@@ -298,10 +293,12 @@ longTargets %>%
 ```
 
 #### **Question 2B**: [0.5 points]
-Now that you can compare these groups more easily, what we're looking for is a balance between **clear difference** between hospital ordinality relative to the national average (i.e., "Are better hospitals really better in pneumonia readmission rates?").
+Now that you can compare these groups more easily, what we're looking for is a balance between **clear difference** between hospital ordinality relative to the national average (i.e., "Are better hospitals really better in HF readmission rates?").
 
 Which target(s) appear the most distinct to you?
-> The Predicted Readmission Rate target appears the most distinct, as it shows the clearest separation between hospital categories ("Better," "Same," "Worse") in both the boxplots and violin plots. This suggests it is the best target for capturing differences in pneumonia readmission rates across hospitals.
+> The excess readmission ratio stands out as the most distinct as here we can most clearly see a seperate between 'Better', 'Same', and 'Worse' groups. Alongside, the boxplots show non-overlapping ranges and  noticeable shifts, meaning hospitals rated “Better” really tend to have lower ratios, while “Worse” hospitals show higher. Meanwhile, the Predicted Readmission Rate and Expected Readmission Rate are fairly consistent, but their group differences are smaller, with lots of overlap. Lastly, te Number of Readmissions shows a lot of spread and overlap, especially in the “Worse” category, making it noisy.
+
+
 
 #### 2.3.2 Example with `geom_density()`:
 We could also choose to overlay density plots instead of violin or boxplots, as this can sometimes help us see subtler separation of groups than we can see otherwise. This time, I am also going to ignore the "Unknown" (i.e., missing) class of hospitals to prevent things from getting too messy!
@@ -315,7 +312,7 @@ longTargets %>%
        subtitle = "By readmitted LOS in hospital compared to national average",
         x = "",
         y = "Rate or Score",
-        fill = "Pneumonia-related hospital days (compared to national average):") +
+        fill = "HF-related hospital days (compared to national average):") +
   scale_fill_manual(values = c("gold", "cadetblue", "maroon", "darkgreen"),
                     labels = c("Better", "Same", "Worse", "Unknown")) +
   theme_minimal() +
@@ -332,16 +329,19 @@ longTargets %>%
 #### **Question 3**: [0.5 points]
 Does this view confirm or change your decision from Question 3?
 
-> This view confirms my decision to choose Predicted Readmission Rate as the target. It shows the clearest separation between hospital groups, while the Observed Readmission Rate has more overlap, especially between "Same" and "Worse" categories. Therefore, Predicted Readmission Rate is the most distinct and appropriate target for modeling pneumonia readmissions.
+> Based on both the boxplot and density plot comparisons, the Excess Readmission Ratio appears as the most distinct and meaningful target for modeling. Unlike the Expected or Predicted Readmission Rates, which show substantial overlap between “Better,” “Same,” and “Worse” hospitals, the Excess Readmission Ratio shows distinct separation between these categories, ultimately making it easier to distinguish high- and low-performing hospitals.
+Additionally, the Number of Readmissions is heavily skewed, reducing its usefulness as a balanced target, whereas the Excess Readmission Ratio is a standardized measure that directly compares observed readmissions to expectations, offering a clear and interpretable indicator of hospital performance relative to national benchmarks. We can conlude that it is the most appropriate target for modeling heart failure-related hospital readmission patterns.
 
-### 2.4 What is the relationship of pneumonia-related hospital readmissions to the hospital performance metrics?
+
+
+### 2.4 What is the relationship of HF-related hospital readmissions to the hospital performance metrics?
 
 Something else we could do to help us make a decision is compare across predictors to look for the most striking relationships among the proposed target (readmission rate), how well compared to national average hospitals are performing AFTER readmitting pneumonia patients (how long after readmission they are in the hospital), and relationships among other hospital-performance predictors, like Medicaid spending or pneumonia-related deaths. 
 
 So, to do this, I'm going to make another long-format dataset and use this to make a bunch of faceted scatterplots where I put one of the readmission rates (let's started with `Predicted Readmissions`) and look for strength in relationships. Note that doing it this way, through plotting, is a **heuristic way** of choosing a target variable and it isn't the only way to do it!
 
 ```{r, echo = FALSE}
-longScore <- pneumoniaAnalyzeNoEncoding %>%
+longScore <- dataAnalyzeNoEncoding %>%
   rename(NatlComparisonHospitalDays = `ComparedToNational_Hospital return days for pneumonia patients`) %>% 
   select(contains(c("Score", "NatlComparisonHospitalDays", "readmission"))) %>% 
   ## Flexible handling depending on which dataset students select; changes to better, same, worse
@@ -378,11 +378,11 @@ Change the __y-axis__ out for _each of the four readmission rates. `Predicted Re
 ggplot(longScore, aes(x = Value, y = observed_readmission_rate, color = NatlComparisonHospitalDays)) +
   geom_point() +
   facet_wrap(~ Variable, scales = "free_y") +
-  labs(title = "Observed Readmission Rate vs. Hospital Performance Metrics")
+  labs(title = "ExcessReadmissionRatio vs. Hospital Performance Metrics")
 
 ```
 
-> After comparing the scatterplots for each readmission rate, I chose Observed Readmission Rate as the best target. The scatterplots with this y-axis showed clearer groupings and more consistent trends with hospital performance metrics like ED wait time, pneumonia death rate, and Medicare spending. This stronger visual separation suggests that Observed Readmission Rate best reflects hospital-level differences in pneumonia care outcomes. The other readmission rates (Excess, Expected, Predicted) showed more overlap and less distinct relationships, making them less useful for modeling.
+> After changint the y-axis for each of the four different readmission rates (Excess Readmission Ratio, Expected Readmission Ratio, Number of Readmissions, Predicted Readmission Rate) I concluded that the excess readmission ratio is the one I feel most strongly about. This is because it provides a distinct seperation between "Better", "Same", and "Worse" hospitals, primariyl for the key hospital eprformance metrics. “Better” hospitals generally cluster at lower excess ratios while “Worse” hospitals spread higher. It provides a normalized and interpretable performance measure that best reflects true quality differences.
 
 **HINT 1**: What does higher medicare spending per patient tell you about the underlying population of a hospital?
 
@@ -391,7 +391,7 @@ ggplot(longScore, aes(x = Value, y = observed_readmission_rate, color = NatlComp
 
 ```{r, fig.width=7, fig.height=8, echo = FALSE, message=FALSE, fig.cap="Figure 4. Readmission rate by hospital performance and readmitted patient LOS"}
 longScore %>%  
-  ggplot(aes(y = observed_readmission_rate,  ## <-- CHANGE THIS!
+  ggplot(aes(y = ExcessReadmissionRatio,  ## <-- CHANGE THIS!
              x = Value)) +
     geom_point(alpha = 0.25) + 
     geom_smooth(aes(fill = as.factor(NatlComparisonHospitalDays), color = as.factor(NatlComparisonHospitalDays)), 
@@ -399,10 +399,10 @@ longScore %>%
                 se = T, 
                 show.legend = T) + 
     ## CHANGE THE TITLE FOR FULL CREDIT!
-    labs(title = "Relationship of Observed Readmission Rate and pneumonia-related hospital \nreadmissions to each performance metric",
+    labs(title = "Relationship of Observed Readmission Rate and HF-related hospital \nreadmissions to each performance metric",
         x = "Rate or Score",
-        y = "Predicted Pneumonia-related Readmissions",
-        color = "Pneumonia-related Readmission Compared to National Average") +
+        y = "Predicted HF-related Readmissions",
+        color = "HF-related Readmission Compared to National Average") +
   scale_fill_manual(values = c("gold", "cadetblue", "maroon")) + 
   scale_color_manual(values = c("gold", "cadetblue", "maroon"),
                     labels = c("Better", "Same", "Worse")) + 
@@ -2142,7 +2142,7 @@ You can avoid going back to Demo 1 to do your importing, cleaning, and pre-proce
 ```{r}
 ## Make any necessary changes in the R source code
 ## Uncomment to run!
-# source(file = "reRunDemoData.R")
+source(file = "reRunDemoData.R")
 ```
 
   - Make sure to update your filepath to where you stored the hospital files on YOUR local machine, just as you did in Question 1 of the Demo!
@@ -2167,7 +2167,7 @@ You can avoid going back to Demo 1 to do your importing, cleaning, and pre-proce
 - A natural extension would be to do a Ridge and/or a LASSO; the former would tell you if you should be controlling for multicollinearity more than you currently are, the latter would tell you if you need to further shrink coefficients than you currently are. Additionally, you could consider a regression-based method that incorporates **non-linearity**, such as a random forest. However, you are free to choose anything you think is appropriate here! 
 - Other choices I think you could potentially justify to stakeholders, if you were interested: 
 
-1. Switch to classification-based random forest using `ComparedToNational_Hospital return days for pneumonia patients`
+1. Switch to classification-based random forest using `ComparedToNational_Hospital return days for heart failure patients`
 
 2. kNN using the 2 clusters we've identified and named in our segmentation analysis
 
