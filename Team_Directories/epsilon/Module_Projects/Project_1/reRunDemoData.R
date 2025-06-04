@@ -15,7 +15,7 @@ pacman::p_load(tidyverse,
 )
 
 #### CHANGE IF NEEDED #################
-filepath <- "~/Desktop/hospitals_current_data_FY2024/"
+filepath <- "C:\\Users\\mike_\\OneDrive\\Documents\\School\\Healthcare Analytics\\hospitals_current_data\\"
 ########################################
 
 
@@ -33,12 +33,12 @@ for(f in 1:length(files)) {
   ## Assign the filename to dat 
   assign(filename, dat)
   
-  ## Note that the vroom warning in FY2024 is due to the footnote column; 
+  ## Note that the vroom warning in FY2025 is due to the footnote column; 
   ## this is not really an issue unless we are using that column.
 }
 
 ## Make sure to tidy the MeasureName column:
-FY_2024_Hospital_Readmissions_Reduction_Program <- FY_2024_Hospital_Readmissions_Reduction_Program %>%
+FY_2025_Hospital_Readmissions_Reduction_Program <- FY_2025_Hospital_Readmissions_Reduction_Program %>%
   mutate(MeasureName = gsub("READM-30-", "", MeasureName)) %>% 
   mutate(MeasureName = gsub("-HRRP", "", MeasureName)) 
 
@@ -69,11 +69,11 @@ cleanUpReadmissions <- function(df) {
 
 
 ## Run the function
-readmissionsClean <- cleanUpReadmissions(FY_2024_Hospital_Readmissions_Reduction_Program)
+readmissionsClean <- cleanUpReadmissions(FY_2025_Hospital_Readmissions_Reduction_Program)
 ## Save file for students:
-save(readmissionsClean, file = "FY2024_data_files/readmissionsClean2024.Rdata")
+save(readmissionsClean, file = "FY2025_data_files/readmissionsClean2025.Rdata")
 ## Student load file:
-load(file = "FY2024_data_files/readmissionsClean2024.Rdata")
+load(file = "FY2025_data_files/readmissionsClean2025.Rdata")
 
 
 
@@ -128,28 +128,47 @@ datList <- list(Healthcare_Associated_Infections,
 
 
 ## The criteria I will use to filter each table, if applicable
-filterList <- list("MRSA Bacteremia", 
-                   "Payment for pneumonia patients", 
+filterList <- list(
+                  "MRSA Bacteremia", 
+                   c(
+                     "Payment for heart failure patients",
+                     "Payment for heart attack patients"
+                   ),
                    "Abdomen CT Use of Contrast Material", 
-                   
-                   c("Death rate for pneumonia patients", 
-                     "Perioperative pulmonary embolism or deep vein thrombosis rate",
-                     "CMS Medicare PSI 90: Patient safety and adverse events composite", 
-                     "Postoperative respiratory failure rate"),
-                   
-                   "Medicare spending per patient",
-                   
-                   c("Healthcare workers given influenza vaccination", 
-                     "Percentage of healthcare personnel who completed COVID-19 primary vaccination series", 
+                   c(
+                     "Death rate for heart attack patients", 
+                     "Death rate for Coronary Artery Bypass Graft (CABG) surgery patients",
+                     "Death rate for heart failure patients", 
+                     "Death rate for stroke patients"
+                   ),
+                   c(
+                    "Medicare spending per patient",
+                    "Spending per Hospital Patient with Medicare (Medicare Spending per Beneficiary)"
+                   ),
+                   c(
+                     "Healthcare workers given influenza vaccination", 
+                     "Percentage of healthcare personnel who are up to date with COVID-19 vaccinations", 
                      "Average (median) time patients spent in the emergency department before leaving from the visit A lower number of minutes is better", 
                      "Left before being seen",
-                     "Venous Thromboembolism Prophylaxis", 
-                     "Intensive Care Unit Venous Thromboembolism Prophylaxis", 
-                     "Emergency department volume"),
+                     "Percentage of ED patients with a diagnosis of STEMI who received timely delivery of guideline-based reperfusion therapies appropriate for the care setting and delivered in the absence of contraindications",
+                     "Percentage of ischemic stroke patients prescribed or continuing to take antithrombotic therapy at hospital discharge",
+                     "Percentage of ischemic stroke patients with atrial fibrillation/flutter who are prescribed or continuing to take anticoagulation therapy at hospital discharge",
+                     "Percentage of ischemic stroke patients who are prescribed or continuing to take statin medication at hospital discharge",
+                     "Percentage of patients that received VTE prophylaxis after hospital admission or surgery", 
+                     "Percentage of patients that received VTE prophylaxis after being admitted to the intensive care unit (ICU)", 
+                     "Emergency department volume"
+                   ),
                    
-                   "Hospital return days for pneumonia patients",
+                   c(
+                    "Hospital return days for heart attack patients",
+                    "Hospital return days for heart failure patients",
+                    "Rate of readmission for heart attack patients",
+                    "Rate of readmission for CABG",
+                    "Rate of readmission for heart failure patients"
+                   ),
                    
-                   c("Nurse communication",
+                   c(
+                     "Nurse communication",
                      "Doctor communication",
                      "Staff responsiveness",
                      "Communication about medicines",
@@ -158,7 +177,8 @@ filterList <- list("MRSA Bacteremia",
                      "Cleanliness",
                      "Quietness",
                      "Overall hospital rating",
-                     "Recommend hospital")
+                     "Recommend hospital"
+                   )
 )
 
 ########################################
@@ -259,9 +279,9 @@ dataFull <- dataFull %>%
   arrange(FacilityId)
 
 ## Save file for students:
-save(dataFull, file = "FY2024_data_files/dataFull2024.Rdata")
+save(dataFull, file = "FY2025_data_files/dataFull2025.Rdata")
 ## Student load file:
-load("FY2024_data_files/dataFull2024.Rdata")
+load("FY2025_data_files/dataFull2025.Rdata")
 
 ####################################################
 ## NOTE THIS IS WHERE THE SHIFT HAPPENS FROM DEMO 1!
@@ -312,16 +332,17 @@ dataAnalyzeNoEncoding <- cbind(dataAnalyzeNoEncoding, columns2encode, facilityId
 ######## I didn't ask you to do this in the Demo. #############
 ###############################################################
 ## Also pre-drop `Score_Hospital return days for pneumonia patients` for collinearity purposes
-## Have to use an if/else switch because of variable differences between 2024 and 2024
+## Have to use an if/else switch because of variable differences between 2025 and 2025
 if ("Score_Percentage of healthcare personnel who completed COVID-19 primary vaccination series" %in% names(dataAnalyzeNoEncoding)) {
   dataAnalyzeNoEncoding <- dataAnalyzeNoEncoding %>% 
-    select(-`Score_Hospital return days for pneumonia patients`, 
-           -`Score_Intensive Care Unit Venous Thromboembolism Prophylaxis`, 
+    select(-`Score_Hospital return days for heart attack patients`, 
+           -`Score_Hospital return days for heart failure patients`, 
            -`Score_Percentage of healthcare personnel who completed COVID-19 primary vaccination series`)
 } else {
   dataAnalyzeNoEncoding <- dataAnalyzeNoEncoding %>% 
-    select(-`Score_Hospital return days for pneumonia patients`, 
-           -`Score_Intensive Care Unit Venous Thromboembolism Prophylaxis`)
+    select(-`Score_Hospital return days for heart attack patients`, 
+           -`Score_Hospital return days for heart failure patients`
+    )
 }
 
 
@@ -350,33 +371,33 @@ dataAnalyzeNoEncoding <- dataAnalyzeNoEncoding %>%
   column_to_rownames("facilityId") 
     
 ## Save file for students:
-save(dataAnalyzeNoEncoding, file = "FY2024_data_files/dataAnalyzeNoEncoding2024.Rdata")
+save(dataAnalyzeNoEncoding, file = "FY2025_data_files/dataAnalyzeNoEncoding2025.Rdata")
 ## Student load file:
-load(file = "FY2024_data_files/dataAnalyzeNoEncoding2024.Rdata")
+load(file = "FY2025_data_files/dataAnalyzeNoEncoding2025.Rdata")
 
 
 ## CLEAN UP OUR MESS! We can remove the datasets we are no longer using
-rm(dataFull, 
-   Timely_and_Effective_Care, 
-   Unplanned_Hospital_Visits, 
-   Outpatient_Imaging_Efficiency, 
-   Payment_and_Value_of_Care, 
-   paymentOnly, 
-   readmissionsClean, 
-   valueOnly, 
-   hospitalInfo, 
-   Maternal_Health, 
-   Medicare_Hospital_Spending_Per_Patient, 
-   FY_2024_HAC_Reduction_Program, 
-   FY_2024_Hospital_Readmissions_Reduction_Program, 
-   files, 
-   HCAHPS, 
-   Healthcare_Associated_Infections, 
-   Complications_and_Deaths, 
-   dat, 
+rm(dataFull,
+   Timely_and_Effective_Care,
+   Unplanned_Hospital_Visits,
+   Outpatient_Imaging_Efficiency,
+   Payment_and_Value_of_Care,
+   paymentOnly,
+   readmissionsClean,
+   valueOnly,
+   hospitalInfo,
+   Maternal_Health,
+   Medicare_Hospital_Spending_Per_Patient,
+   FY_2025_HAC_Reduction_Program,
+   FY_2025_Hospital_Readmissions_Reduction_Program,
+   files,
+   HCAHPS,
+   Healthcare_Associated_Infections,
+   Complications_and_Deaths,
+   dat,
    columns2encode,
    datList,
    filterList,
    dataAnalyze,
    dfFull,
-   facilityId)          
+   facilityId)
