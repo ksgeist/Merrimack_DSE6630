@@ -1,14 +1,16 @@
 ---
-title: "Project 1: Biomedical & Clinical Informatics"
-subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
+title: 'Project 1: Biomedical & Clinical Informatics'
 author: "Gregory Andriotakis"
 date: "20 May 2025"
 output:
   html_document:
-    toc: true
-    toc_float: true
+    toc: yes
+    toc_float: yes
     theme: flatly
     fig_crop: no
+  pdf_document:
+    toc: yes
+subtitle: 'Merrimack College DSE6630: Healthcare & Life Sciences Analytics'
 bibliography: references.bib
 nocite: '@*'
 ---
@@ -177,10 +179,6 @@ dict %>%
 ### 2.2 Summary statistics of the possible targets
 
 Now, I know I didn't ask you to do it, but I will actually begin my assessment of which target is most appropriate by constructing a quick summary table. In my assessment of what is an appropriate target, 
-
-```{r}
-install.packages("gtsummary")
-```
 
 
 ```{r, echo = FALSE}
@@ -2542,6 +2540,14 @@ It's time to choose your adventure! After working through this demo and answerin
 
 3. Our data are also ready for a neural network analysis (e.g., a feed-forward NN)!
 
+> For this section, we will be exploring three models.
+
+> 1. A Random Forest
+
+> 2. A kNN
+
+> 3. A Random Forest including Cluster Assignments
+
 ## Random Forest
 
 > As explained earlier, our data does not appear to be strongly linear.
@@ -2615,7 +2621,7 @@ ggplot(temp_rf, aes(x = predicted, y = actual)) +
 > Compared to our previous models, the random forest did slightly better.
 > The R-squared value is 0.4, which is 5% better than the linear models. 
 
-> The RMSE value is 0.78, which is lower than the RMSE of 0.81 from the two
+> The RMSE value is 0.77, which is lower than the RMSE of 0.81 from the two
 > linear models. 
 > This means that there is slightly less distance between actual and predicted
 > values in the random forest model than in the linear models. 
@@ -2719,6 +2725,95 @@ confusionMatrix(knn_predictions, readyTest_knn$cluster)
 
 > This suggests that communication with patients is a key aspect to 
 > controling readmissions. 
+
+## Random Forest with Clusters
+
+> Now that we have demonstrated both the effectiveness of random forests and
+> the apparent legitimacy of the clusters, we will create a new random forest
+> model that considers cluster assignment when predicting readmissions.
+
+```{r}
+# Preparing Train/Test Data
+
+readyTrain_rf <- readyTrain
+readyTrain_rf$cluster <- cluster_labels
+
+test_clusters <- assign_cluster(readyTest, kmeans2$centers)
+test_clusters <- as.factor(test_clusters)
+
+readyTest_rf <- readyTest
+readyTest_rf$cluster <- test_clusters
+```
+
+```{r}
+# Cross Validation
+
+ctrl <- trainControl(method = "repeatedcv",
+                    number = 5,
+                    repeats = 5,
+                    search = "grid",
+                    verboseIter = FALSE)
+```
+
+```{r}
+# Training Random Forest
+
+rfMod_cluster <- train(
+  bc_PredictedReadmissionRate ~ .,
+  data = readyTrain_rf,
+  method = "rf",
+  trControl = ctrl
+)
+```
+
+```{r}
+# Testing Random Forest
+
+rfPredictions_cluster <- predict(rfMod_cluster, newdata = readyTest_rf)
+```
+
+```{r}
+# Visualize Results
+
+prRF_cluster <- postResample(pred = rfPredictions_cluster, obs = readyTest_rf$bc_PredictedReadmissionRate)
+
+rfTable_cluster <- as.data.frame(t(prRF_cluster))
+rownames(rfTable_cluster) <- "Random Forest (with Cluster)"
+
+rfTable_cluster %>%
+  kable(digits = 2,
+        format = "html",
+        caption = "Table: Random Forest (with Cluster) Test Set Performance") %>%
+  kable_styling(bootstrap_options = c("striped", "full_width" = F))
+
+temp_rf_cluster <- data.frame(
+  predicted = rfPredictions_cluster,
+  actual = readyTest_rf$bc_PredictedReadmissionRate
+)
+
+ggplot(temp_rf_cluster, aes(x = predicted, y = actual)) +
+  geom_point(alpha = 0.5, color = "forestgreen") +
+  geom_smooth(se = TRUE, method = "lm", color = "black", linetype = "dashed", alpha = 0.45) +
+  theme_minimal() +
+  labs(
+    title = "Random Forest (with Cluster): Predicted vs. Actual Readmission Rate (Test Set)",
+    x = "Predicted Readmission Rate",
+    y = "Actual Readmission Rate"
+  )
+```
+
+> Surprisingly, we do not see an increase in performance by incorporating
+> the cluster data into the random forest. 
+> This could suggest that while the clusters have some real identifiable 
+> existence, their identification alone does not provide significant 
+> predicting power for our model.
+
+> Future suggestions could include:
+
+> 1. Trying to indentify and test different clusters
+
+> 2. Trying to apply different machine learning techniques to our clusters
+
 
 ## Deliverables
 
