@@ -1,8 +1,8 @@
 ---
 title: "Demo 2: Public Health & Epidemiology"
 subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
-author: "Katherine S. Geist, PhD"
-date: "26 May 2025"
+author: "Gregory Andriotakis"
+date: "10 June 2025"
 output:
   html_document:
     toc: true
@@ -98,6 +98,10 @@ head(states) %>%
 
 Now, let's make a base map leveraging the `ggplot2` package using the `states` dataset. Notice that `x` will always be longitude, `y` will always be latitude, and that we must also pass it a grouping variable. Why do you think we need the `group` variable here?
 
+> The group variable defines how points should be connected to form shapes.
+> Without it, ggplot will come up with a way to connect the points that will
+> not make visual sense.
+
 ```{r, echo=FALSE}
                 ## x = longitude, y = latitude, group must be set!
 ggplot(states, aes(x = long, y = lat, group = group)) + 
@@ -127,7 +131,8 @@ Great, we've made our first map of the continental US! It's pretty uninteresting
 ### 1.2.1 Bring in the hospital readmissions data
 
 ```{r}
-load("../../I. Biomedical & Clinical Informatics/Demo_1/pneumoniaFull.Rdata")
+#load("../../I. Biomedical & Clinical Informatics/Demo_1/pneumoniaFull.Rdata")
+load("/Users/gregory/GitHub_Clones.nosync/Merrimack_DSE6630/I. Biomedical & Clinical Informatics/Demo_1/pneumoniaFull.Rdata")
 ## Let's change some key data types as well:
 pneumoniaFull <- pneumoniaFull %>% 
   mutate_at(c("Score_Death rate for pneumonia patients", 
@@ -144,7 +149,10 @@ Why didn't I choose to bring in the fully-processed dataset from Project 1? What
 
 **Hint**: What information was deleted and/or changes were made downstream that would make those later datasets poor choices for spatial analysis?
 
-> Your answer here.
+> We cannot use the processed project data, as it was transformed in several ways,
+> such as applying a box-cox transformation, centering, and scaling.
+> Since these transformations change the shape of the data and their interpretations, it is
+> best for us to return to the original state of the data.
 
 ### 1.2.2 Make sure the geographic levels match
 
@@ -153,10 +161,13 @@ Now, take a look at the names of the states in the `states` dataset (from the `r
 #### **Question 2A**: [0.25 points]
 
 ```{r}
-# Your code here.
+# Looking at the first 6 entries of each dataset's state variable
+head(states$region)
+head(pneumoniaFull$State)
 ```
 
-> Your answer here.
+> In the states dataset, the state names are fully spelled out.
+> On the other hand, the pneumoniaFull dataset stores only the state abbreviations.
 
 I am sure you've now realized that before we can merge them with the state data that we extracted for the map we must make the state names match. This is because `State` in our pneumonia-related readmissions data is an abbreviation (e.g., "AL") but it's the name of the state in the `map_data` ("alabama"). **How can we fix that?**
 
@@ -178,7 +189,16 @@ head(state.fips) %>%
 Now, write code that would allow you to replace the two-letter abbreviation for `State` in the `pneumoniaFull` dataset with the full-name of the state in `states$region` to allow merging.
 
 ```{r}
-# Your code here.
+# Name Vector
+state_map <- setNames(tolower(state.name), state.abb)
+
+# Conversion and store in new variable
+pneumoniaFull$state_full <- state_map[pneumoniaFull$State]
+
+# Verify
+pneumoniaFull %>%
+  select(state_full) %>%
+  head()
 ```
 
 Sadly, sometimes this can fall short. For example, take a look at the state of Washington:
@@ -198,7 +218,22 @@ States with islands, like WA state or NY, can have additional mappings that we'd
 
 What could we do to `state.fips` to fix this problem? Would your solution become tedious if, for example, we were doing counties instead?
 
-> Your answer here.
+> One possible solution is to write code that will extract the state from
+> the polyname column (ex. filter for what comes before the :) and store
+> the information in a new column.
+> That coulumn could then be used for our mappings.
+
+```{r}
+# Example Code:
+
+# state.fips <- state.fips %>% # Apply to state.fips using state.fips
+#  mutate(state_name = sub(":.*", "", polyname)) # Create a new column with only the values in polyname before the :
+```
+
+
+> Considering this suggesting is pretty automated, I don't believe that it would
+> become tedious. It may require additional work depending on how the data is
+> stored, but overall would work in the same way. 
 
 An alternative solution (and not the only one by any means) could be to write a function to do the mapping ourselves. It's easier in this particular case to write our own little function, I think. Notice also that I am choosing to name the new column in `pneumoniaFull.Rdata` as `region`; this is to match the column name in the `states` dataframe that we use for mapping so we can merge the tables more easily.
 
@@ -237,7 +272,15 @@ Show that you understand how the `getStateName` works by using it to replace the
 **HINT**: You can use the `mutate()` function or you could just use the base `R` way, either one!
 
 ```{r}
-# Your code here.
+# Using the function
+
+pneumoniaFull$feature <- getStateName(pneumoniaFull$State)
+
+# Verifying
+
+pneumoniaFull %>%
+  select(feature) %>%
+  head()
 ```
 
 ### 1.2.3 Aggregate `PredictedReadmissionsRate` by state
@@ -248,32 +291,37 @@ Now, before we add the pneumonia-related hospital readmissions to the map, we ne
 
 Start from my code and finish the aggregation by state for the `mean()` and `median()` by filling in the blanks. Notice that we are making a separate dataset called `stateAggPneumonia`. Make sure to uncomment the code when you're ready to run it.
 
+
 ```{r}
-# stateAggPneumonia <- ___ %>%
-#   ## Grab readmissions and region
-#   select(PredictedReadmissionRate, ___, 
-#          `Score_Death rate for pneumonia patients`, 
-#          `Score_Hospital return days for pneumonia patients`, 
-#          `Score_Medicare spending per patient`) %>%  
-#   ## Change region to a factor
-#   mutate(region = as.factor(___)) %>% 
-#   ## Change any other columns from character to numeric
-#   mutate_if(is.character, ___) %>% 
-#   ## Group by region
-#   group_by(___) %>%  
-#   ## Create the new aggregated variables for each measure
-#   summarize(meanReadmissions = mean(PredictedReadmissionRate, na.rm = TRUE),
-#             medianReadmissions = ___(PredictedReadmissionRate, na.rm = TRUE),
-#             meanDeathRate = mean(`Score_Death rate for pneumonia patients`, 
-#               na.rm = ___),
-#             medianDeathRate = ___(`Score_Death rate for pneumonia patients`, 
-#               na.rm = TRUE),
-#             meanHospitalReturnDays = ___,
-#             medianHospitalReturnDays = ___,
-#             meanMedicareSpending = ___,
-#             medianMedicareSpending = ___) %>% 
-#   ## Remove the missing region
-#   filter(!is.na(region))
+ stateAggPneumonia <- pneumoniaFull %>%
+   ## Grab readmissions and region
+   select(PredictedReadmissionRate, feature, 
+          "Score_Death rate for pneumonia patients", 
+          "Score_Hospital return days for pneumonia patients", 
+          "Score_Medicare spending per patient") %>%  
+   ## Change region to a factor
+   mutate(region = as.factor(feature)) %>% 
+   ## Change any other columns from character to numeric
+   mutate_if(is.character, as.numeric) %>% 
+   ## Group by region
+   group_by(feature) %>%  
+   ## Create the new aggregated variables for each measure
+   summarize(meanReadmissions = mean(PredictedReadmissionRate, na.rm = TRUE),
+             medianReadmissions = median(PredictedReadmissionRate, na.rm = TRUE),
+             meanDeathRate = mean("Score_Death rate for pneumonia patients", 
+               na.rm = TRUE),
+             medianDeathRate = median("Score_Death rate for pneumonia patients", 
+               na.rm = TRUE),
+             meanHospitalReturnDays = mean("Score_Hospital return days for pneumonia patients", 
+               na.rm = TRUE),
+             medianHospitalReturnDays = median("Score_Hospital return days for pneumonia patients", 
+               na.rm = TRUE),
+             meanMedicareSpending = mean("Score_Medicare spending per patient", 
+               na.rm = TRUE),
+             medianMedicareSpending = median("Score_Medicare spending per patient", 
+               na.rm = TRUE)) %>% 
+   ## Remove the missing region
+   filter(!is.na(feature))
 ```
 
 ### 1.2.4 If you were not able to figure it out, load the state-level aggregated data set
@@ -285,7 +333,26 @@ load(file = "stateAggPneumonia.Rdata")
 #### **Question 6**: [1 point]
 Are there any missing data? If so, what data are missing? Did you make a mistake?
 
-> Your answer here.
+```{r}
+# Exploring the data
+head(stateAggPneumonia)
+dim(stateAggPneumonia)
+summary(stateAggPneumonia)
+
+# Explore missing data
+stateAggPneumonia[!complete.cases(stateAggPneumonia), ]
+
+# Explore Maryland
+pneumoniaFull %>%
+  select(feature, "Score_Medicare spending per patient") %>%
+  filter(feature == "maryland") %>%
+  head()
+```
+
+
+> Maryland is missing both its mean and median Medicare spending values.
+> This was not a mistake on my part, as it appear that the state of 
+> maryland does not have Medicare spending data in this dataset.
 
 ### 1.2.5 Means or medians? How do you choose?
 
@@ -332,7 +399,15 @@ On the other hand, we will choose the **median** when:
 #### **Question 7**: [1 point]
 You may have to do some research if you do not recall, but why would showing someone a mean when we should have showed them a median, or vice versa, potentially create interpretation problems for us or our stakeholders?
 
-> Your answer here.
+> Each measure captures different information about the distribution of the data.
+> Using the wrong measure can create confusion for stakeholders.
+> For example, if you report the mean of data that has significant outliers,
+> then the results will not be representative of the majority of the data.
+> In addition, you may be missing out on highlighting the reason why the 
+> outlier(s) exist.
+
+> On the other hand, using the median when the data is uniform could
+> lead to missing out on highlighting the significance of the distribution.
 
 \   
 
@@ -343,7 +418,12 @@ Practice reading boxplots to decide, for each measure, whether you should use th
 
 **Based on Figure 1 below**, which measure(s) do you think would benefit from the median over the mean? Why?
 
-> Your answer here.
+> PneumoniaReadmissionRate does not appear to have a median that is center
+> with its box. 
+> The box-plot suggests a slight right skew, which would indicate that this
+> measure would benefit from using the median.
+
+> CHECK MORE?
 
 ```{r, echo = FALSE, fig.height=8, fig.width=10, fig.cap="Figure 1. Violin and boxplots to assess distribution symmetry"}
 pneumoniaFull %>% 
@@ -390,22 +470,28 @@ ___Interpretation___: Because $p<0.05$, we reject the hypothesis of symmetry and
 Your task is to repeat this test, with interpretations, for `Score_Death rate for pneumonia patients`, `Score_Hospital return days for pneumonia patients`, and          `Score_Medicare spending per patient`:
 
 ```{r}
-# Your code here.
+# Score_Death rate for pneumonia patients
+
+agostino.test(pneumoniaFull$"Score_Death rate for pneumonia patients")
 ```
 
-___Interpretation___: ...
+___Interpretation___: Because $p<0.05$, we reject the hypothesis of symmetry. The score of death rate for pneumonia patients are __significantly skewed__. The median should be used to aggregate this variable.
+
+```{r}
+# Score_Hospital return days for pneumonia patients
+
+agostino.test(pneumoniaFull$"Score_Hospital return days for pneumonia patients")
+```
+
+___Interpretation___: Because $p<0.05$, we reject the hypothesis of symmetry. The score of hospital return days for pneumonia patients are __significantly skewed__. The median should be used to aggregate this variable.
 
 ```{r}
 # Your code here.
+
+agostino.test(pneumoniaFull$"Score_Medicare spending per patient")
 ```
 
-___Interpretation___: ...
-
-```{r}
-# Your code here.
-```
-
-___Interpretation___: ...
+___Interpretation___: Because $p<0.05$, we reject the hypothesis of symmetry. The score of medicare spending per patient are __significantly skewed__. The median should be used to aggregate this variable.
 
 #### 1.2.5.3 Assessing stability of central tendency estimates
 
@@ -413,6 +499,13 @@ One final thing we can do is assess the stability of the estimates of central te
 
 #### **Question 8C**: [1 points]
 **Based on Figure 2 below**, and using your choices from questions 8A and 8B, assess the __stability__ (i.e., symmetry) of the estimates you selected as the best (either mean or median) for each of the four variables. Do you see any cause for concern with your choice, or do you feel comfortable to proceed with what you've selected?
+
+> The median of Medicare spending appears to be somewhat off.
+> However, beyond that, most of the variables appears to be mostly
+> stable. 
+
+> Therefore, I do not conclude there to be any major concerns with proceeding
+> to use the median.
 
 ```{r, echo = FALSE, fig.height=10, fig.width=5, fig.cap="Figure 2. Compare stability of mean vs. median after aggregation"}
 stateAggPneumonia %>% 
@@ -439,7 +532,11 @@ The time has come to make your final selection! Your job is to __remove__ the co
 
 #### **Question 8D**: [1 points]
 ```{r}
-# Your code here.
+# Dropping the mean data
+
+stateAggPneumonia <- stateAggPneumonia %>% select(-contains("mean"))
+
+head(stateAggPneumonia) # Verifying columns are dropped
 ```
 
 
@@ -509,6 +606,17 @@ stateAggPneumonia %>%
     kable_styling(bootstrap_options = c("hover", full_width = F)
   )
 ```
+
+> The states with the most readmissions are mostly along the coasts.
+> This is likely because these states have higher population densities,
+> as these states have most of the major cities in the country.
+> Therefore, they are likely admitting more patients than the states 
+> with lower population densities.
+
+> It is also worth investigation if our aggregation level affects what we
+> are seeing.
+> For example, hospitals in NYC may not be representative of hospitals elsewhere
+> in the state, skewing the picture. 
 
 **HINT**: It may not be readily obvious from the map or table! If you don't see a hypothesis, that's okay. But try to think about anything some of these states might have in common, if anything.
 
@@ -591,6 +699,8 @@ states_sf <- st_as_sf(map("state", plot = FALSE, fill = TRUE))
 
 You may need to do a little digging, but what exactly is the `st_as_sf()` function from the `sf` package doing? Can you figure out why I didn't just use the `states` object we already used for mapping?
 
+> ANSWER HERE
+
 ### 2.1.4 Calculate spatial weights for our target, predicted pneumonia readmission rate. {#findSW}
 
 Now, we finally get to the meat of it! __Spatial weights__ represent the spatial relationships (or influence) between geographic units (here, states). In other words, spatial weights define how much nearby observations contribute to calculations for a given location. These weights are typically based on proximity, contiguity (shared borders), or distance, but it depends on the type of spatial autocorrelation or dependence in the data.
@@ -626,7 +736,14 @@ As an example, Colorado and Arizona do not share a border only a corner, right? 
 #### **Question 11A**: [0.5 points]
 Look up "rook" continuity and explain what (1) what it means, (2) how the neighbor relationship of Colorado and Arizona would change, if it would, and (3) how we change to this type of contiguity in the `poly2nb()` function. (You don't need to actually change it in the code, however.)
 
-> Your answer here. 
+> Rook contiguity means that states are only considered neighbors when they share
+> a border.
+
+> Using rook contiguity, Colorado and Arizona would not be consider neighbors,
+> as they do not share an edge. 
+
+> In the poly2nb() function, you can change to rook contiguity by setting
+> the queen parameter to FALSE.
 
 _We can find neighboring states using queen contiguity like this:_
 ```{r}
@@ -653,7 +770,7 @@ sf_use_s2(TRUE)
 
 The first state in our dataset is Alabama. Take a look at one of our maps if needed. How many neighbors do you expect it to have?
 
-> Your answer here.
+> I would expect Alabama to have four neighbors (as it shares a border with four states).
 
 Now investigate Alabama's spatial weights:
 
@@ -663,15 +780,21 @@ states_sw$weights[[1]]
 
 Does this feel consistent (1) with what you know about the number of neighbors Alabama has and (2) what I mentioned above about row-standardizing our weights? Why or why not?
 
-> Your answer here. 
+> This feels consistent, as I had previously identified four neighbors.
+> Since the weights are standardized, all the weights will add up to 1.
+> Therefore, four weights all equal to 0.25 is exactly what we should expect. 
 
-Lastly, investigate the spatial weights for Massachusetts (number __22__). Does it fit with your expectations given the number of neighbors?
+Lastly, investigate the spatial weights for Massachusetts (number __20__). Does it fit with your expectations given the number of neighbors?
 
 ```{r}
-# Your code here.
+# Massachusetts Weights
+
+states_sw$weights[[20]]
 ```
 
-> Your answer here. 
+> Once again, this meets expectations.
+> There are five states bordering Massachusetts, and there are five weights
+> of equal part that all add up to 1. 
 
 **Join the Spatial Weights back to our Training Data**
 
@@ -696,7 +819,8 @@ I am sure you caught this, but spatial weights and everything are being done on 
 
 **HINT**: It is the same reason we did all of our other pre-processing AFTER splitting the data!
 
-> Your answer here. 
+> We want to avoid data leakage, which could occur if we do our
+> pre-processing on the full data. 
 
 ## 2.2 Global Spatial Autocorrelation: Global Moran’s $I$
 
