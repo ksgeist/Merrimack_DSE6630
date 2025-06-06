@@ -127,7 +127,7 @@ Great, we've made our first map of the continental US! It's pretty uninteresting
 ### 1.2.1 Bring in the hospital readmissions data
 
 ```{r}
-load("/Users/stephgarofalo/Documents/GitHub/Merrimack_DSE6630/I. Biomedical & Clinical Informatics/Demo_1/pneumoniaFull.Rdata")
+load("/Users/sharonsingh/Documents/GitHub/Merrimack_DSE6630/I. Biomedical & Clinical Informatics/Demo_1/pneumoniaFull.Rdata")
 ## Let's change some key data types as well:
 pneumoniaFull <- pneumoniaFull %>% 
   mutate_at(c("Score_Death rate for pneumonia patients", 
@@ -618,7 +618,7 @@ In the aggregation that I did for both `stateAggTrain` and `stateAggTest` I took
 
 **HINT 2**: Why is a median _or_ a mean acceptable if we're working with scaled and centered data?
 
-> This is because the stateAggTrain and stateAggTest datasets were created from raw data and we had not yet scaled or centered these values. When data is unscaled and may be skewed, the median is a more robust choice to avoid the influence of outliers.
+> This is because the stateAggTrain and stateAggTest datasets were created from raw data and we had not yet scaled or centered these values. When data is unscaled and may be skewed, the median is a more robust choice to avoid the influence of outliers. When working with scaled and centered data, either the mean or the median is typically acceptable for summarizing central tendency because centered Data Has a Mean of Zero. Both mean and median become acceptable in scaled and centered data because extreme values are minimized, and all variables are on a comparable scale with a shared center.
 
 Once data is scaled and centered (as we did in Project 1), the choice between mean or median becomes less important because transformations reduce skewness and make the distribution more symmetric. Therefore, using the median for aggregation here is a safe and consistent choice before merging with geometry and applying further modeling steps.
 
@@ -644,8 +644,7 @@ states_sf <- st_as_sf(map("state", plot = FALSE, fill = TRUE))
 
 You may need to do a little digging, but what exactly is the `st_as_sf()` function from the `sf` package doing? Can you figure out why I didn't just use the `states` object we already used for mapping?
 
-> The states object contains geographic information such as longitude and latitude coordinates. This allows it to be used with geom_polygon() for basic mapping. However, it lacks coordinate reference system (CRS) data and does not  support spatial joins or spatial statistical modeling. The st_as_sf() function from the sf package converts geographic data into a proper shapefile (sf) object. This format includes full polygon geometries, retains CRS data, fully supports spatial joins, and can be used with geom_sf() for mapping as well as with spatial statistics and modeling functions.
- 
+>The states object contains geographic information such as longitude and latitude coordinates. This allows it to be used with geom_polygon() for basic mapping. However, it lacks coordinate reference system (CRS) data and does not  support spatial joins or spatial statistical modeling. The st_as_sf() function from the sf package converts geographic data into a proper shapefile (sf) object. This format includes full polygon geometries, retains CRS data, fully supports spatial joins, and can be used with geom_sf() for mapping as well as with spatial statistics and modeling functions.
 
 ### 2.1.4 Calculate spatial weights for our target, predicted pneumonia readmission rate. {#findSW}
 
@@ -756,7 +755,7 @@ I am sure you caught this, but spatial weights and everything are being done on 
 **HINT**: It is the same reason we did all of our other pre-processing AFTER splitting the data!
 
 > We are performing all spatial pre-processing only on the training data in order to avoid data leakage. Data leakage happens when information from the test set influences the model training process.
-If we had used the testing data set as well to compute spatial relationships or weights, we would be allowing information from the test data to indirectly influence the model’s understanding of the training set. This would result in overly optimistic performance metrics and a model that doesn’t generalize well.
+If we had used the test set as well to compute spatial relationships or weights, we would be allowing information from the test data to indirectly influence the model’s understanding of the training set. This would result in overly optimistic performance metrics and a model that doesn’t generalize well.
 By restricting spatial pre-processing to the training set only, we ensure that our model is trained on only the information it should have access to and evaluation on the test set remains unbiased.
 
 ## 2.2 Global Spatial Autocorrelation: Global Moran’s $I$
@@ -828,7 +827,6 @@ These states have low readmission rates and are surrounded by low-rate neighbors
 High-Low Outliers Quadrant IV
 This states have high readmission rates but are surrounding by states with low rates. The graph shows no states that are outliers in this category.
 
-
 #### **Question 14A**: [0.5 points] SS
 **NOTICE** that I had you define the target as a _centered_ version of `Median_RawPredictedReadmissionRate`, which is the median of the _untransformed, unscaled_ readmissions. Shouldn't I have used the transformed and scaled version, `bc_PredictedReadmissionRate`? Can you think of any reason why I chose to use the centered median of the raw readmissions rather than the transformed version?
 
@@ -845,8 +843,7 @@ In fact, using the raw median readmission rates allows for easier interpretation
 
 Now go back up to temporarily **reset the target** to `bc_PredictedReadmissionRate` [here](#setTarget). **There is no need to scale it again!** Then, re-run the Global Moran's $I$. make sure to update the limits of the $x$-axis or just comment that line out (`xlim(...)`) to look at the graph. Looking at the value of $I$, the $p$-value, and the graph output - does the conclusion change? Does it matter which value we choose for the analysis?
 
-> The conclusion does not change when we use the transformed bc_PredictedReadmissionRate instead of the centered raw median. Moran’s I statistic remains high at approximately 0.289, indicating moderate positive spatial autocorrelation. This means that states with similar transformed pneumonia readmission rates still tend to cluster geographically. The p-value of 0.0007 is still significant, so we reject the null hypothesis that readmission rates are randomly distributed across space. This Moran’s I value is very similar to the earlier result using the centered raw median (about 0.268), which reinforces that the observed spatial clustering is robust regardless of which version of the readmission rate we use.
-
+> Your answer here.
 
 **NOTE**: Make sure to change $y$ back to the scaled version of `Median_RawPredictedReadmissionRate` before moving to the next analysis!
 
@@ -906,7 +903,7 @@ We can actually break this down a bit to help us better understand the differenc
 
 This implies, then, that if we __identify the quadrants__ we identify the hot/coldspots! So, let's do that.
 
-#### **Question 15A**: [1 point] SG
+#### **Question 15A**: [1 point]
 
 - Hotspots (Quadrant I, "High-High") will be states that have:
 
@@ -916,7 +913,7 @@ This implies, then, that if we __identify the quadrants__ we identify the hot/co
 
 **What will the criteria for coldspot (quadrant III) states be?**
 
-> Coldspot states are those with low pneumonia-related readmission rates that are near other states with similarly low rates. To be a coldspot, the state must have a significantly low rate compared to the national average, and its nearby states must also have low rates. This shows a clear cluster of low readmission rates.
+> Your answer here.
 
 #### 2.3.2.1 Extract the spatially-lagged median hospital readmission rates
 We can use the `lag.listw()` to extract the spatial lag of the target. So, these values are the __spatially-adjusted__ median pneumonia-related 
@@ -927,10 +924,10 @@ lag_medianReadmissions <- lag.listw(states_sw, y)
 ## lag_medianReadmissions
 
 ## Just Massachusetts' value:
-lag_medianReadmissions[20]
+## lag_medianReadmissions[20]
 ```
 
-#### **Question 15B**: [0.5 points] SG
+#### **Question 15B**: [0.5 points]
 The raw target is the % of all pnuemonia patients discharged who are predicted to be readmitted within 30 days after being released from the hospital. So, e.g., the _raw_ median pneumonia-related readmissions rate for Massachusetts is 16.6789, meaning that $\approx$ 16.7% (no multiplication by 100 needed here!) are predicted to be readmitted based on a sliding-window average of 30-day readmissions. 
 
 Yet, the _spatially-lagged_ pneumonia-readmissions for Massachusetts is only 0.2126469! 
@@ -939,25 +936,20 @@ Yet, the _spatially-lagged_ pneumonia-readmissions for Massachusetts is only 0.2
 
 **HINT**: What did we do to the raw hospital readmissions before we calculated the spatial weights in this [section](#findSW)?
 
-> Before calculating spatial weights and performing spatial lagging, the raw pneumonia readmission rates were centered — that means the mean value was subtracted from each state's rate. This transformation shifts the data to have a mean of 0, turning the raw values (like 16.7%) into deviations from the national average. So when you calculate the spatial lag — which is just a weighted average of neighboring states' centered values — the result is not a percentage anymore. It’s how much higher or lower than average Massachusetts’ neighbors are on average.
+> Your answer here.
 
-#### **Question 15C**: [0.5 points] SG
+#### **Question 15C**: [0.5 points]
 Show just Massachusetts' median readmissions to see its value after performing the step I am referring to in the hint. 
 
 **HINT**: Massachusetts is at row 20 in the `states_sf_AggTrain` dataframe, which will make it easier to locate its value in the vector created by looking at just the `Median_RawPredictedReadmissionRate` column.
 
 ```{r}
-# Extract and center the Median_RawPredictedReadmissionRate
-y_centered <- scale(states_sf_AggTrain$Median_RawPredictedReadmissionRate,
-                    center = TRUE, scale = FALSE)
-
-# Show Massachusetts' value (row 20)
-y_centered[20]
+## Your code here.
 ```
 
 **QUESTION**: Is this a lot closer to the spatially-lagged value?
 
-> Yes. The centered value is on the same scale as the spatially-lagged value, which is why it looks much closer. That’s why centering was necessary — so both values could be meaningfully compared and used to determine spatial patterns like clusters and outliers.
+> Your answer here.
 
 #### 2.3.2.2 Convert the LISA results to a dataframe
 
@@ -982,34 +974,34 @@ states_sf_AggTrain <- states_sf_AggTrain %>%
 #### 2.3.2.4 Classify the LISA quadrants (hot/coldspots) based on the criteria 
 The criteria we used (in case you already forgot!) were set [here]{#hotVScold}. All of the steps might make it easy to forget what we are trying to do, but we're finally at the important part: **identifying the quadrants**. 
 
-#### **Question 15D**: [0.5 points] SG
+#### **Question 15D**: [0.5 points]
 The code below identifies the quadrants and adds them to the `states_sf_AggTrain` dataset. Your task is to add comments to the code below where indicated. Make sure to refer back to the criteria we set [here]{#hotVScold} if needed!
 
 > Answer in the comments.
 
 ```{r}
-## Add a new column to classify each state into a spatial quadrant category
+## COMMENT HERE
 states_sf_AggTrain <- states_sf_AggTrain %>%
   mutate(
-    ## Begin defining the 'quadrant' column using conditional logic
+    ## COMMENT HERE
     quadrant = case_when(
-      ## If the p-value is greater than 0.05, there is no significant spatial autocorrelation → mark as "N.S."
+      ## COMMENT HERE
       pValue > 0.05 ~ "N.S.",
-      ## If p-value is significant (<= 0.05), no need to re-check pValue — all remaining rows already passed that condition above
+      ## COMMENT HERE - Why do I not have to specify p-value again?
       
-      ## High-High: Centered median readmission (y) > 0 AND lagged neighbor average > 0 → Hotspot (Quadrant I)
+      ## COMMENT HERE ABOUT LINE BELOW - INCLUDE QUADRANT!
       y > 0 & lag_medianReadmissions > 0 ~ "Hotspot",
       
-      ## Low-Low: Centered median readmission (y) < 0 AND lagged neighbor average < 0 → Coldspot (Quadrant III)
+      ## COMMENT HERE ABOUT LINE BELOW - INCLUDE QUADRANT!
       y < 0 & lag_medianReadmissions < 0 ~ "Coldspot",
 
-      ## High-Low: State has high readmissions (y > 0) but neighbors have low values (lag < 0) → High-Low Outlier (Quadrant IV)
+      ## COMMENT HERE ABOUT LINE BELOW - INCLUDE QUADRANT!
       y > 0 & lag_medianReadmissions < 0 ~ "High-Low Outlier",
 
-      ## Low-High: State has low readmissions (y < 0) but neighbors have high values (lag > 0) → Low-High Outlier (Quadrant II)
+      ## COMMENT HERE ABOUT LINE BELOW - INCLUDE QUADRANT!
       y < 0 & lag_medianReadmissions > 0 ~ "Low-High Outlier",
 
-      ## Catch-all in case none of the conditions are met (shouldn’t happen, but good to include for safety)
+      ## COMMENT HERE
       TRUE ~ NA
     )
   )
@@ -1048,15 +1040,14 @@ ggplot(states_sf_AggTrain) +
     caption = "Source: Centers for Medicare & Medicaid Services (CMS), 2024")
 ```
 
-#### **Question 15E**: [0.5 points] SG
+#### **Question 15E**: [0.5 points]
 Interpret what it means if Indiana is a "low-high" outlier.
 
-> This suggests that Indiana stands out in a positive way compared to its neighbors. While the region around it struggles with higher hospital readmissions, Indiana is doing significantly better. This could point to more effective hospital practices, state-level healthcare policies, or patient outcomes within Indiana that are worth investigating or replicating elsewhere. It may also flag Indiana as a potential best-practice model for surrounding states.
+> Your answer here.
 
-#### **Question 15F**: [1 point] SG
+#### **Question 15F**: [1 point]
 Do the hot and coldspots make sense with your observations of graph `p1`? Why or why not? Can you explain why hot/coldspots will not necessarily correspond with __individual states'__ high and low median readmission rates?
 
-> Yes, the hot and coldspots identified in the LISA map make sense when compared to graph p1. For example, states like West Virginia and Pennsylvania appear dark in p1 and PA is correctly labeled as a hotspot, while states like Montana and Wyoming are light and form a coldspot cluster. However, hot/coldspots do not always match individual states’ high or low readmission rates because LISA considers both the state's value and the values of its neighboring states. A state with a high rate surrounded by low-rate neighbors might be labeled an outlier rather than a hotspot, and vice versa. Spatial context matters more than the individual value alone.
 ## 2.4 Spatial Regression Models
 
 __Spatial regression models__ explicitly account for spatial relationships in data, which is something we encounter constantly in public health and epidemiology, as well as environmental studies (e.g., climate change, pollution, wildfire risk), agriculture (e.g., soil nutrients, water availability), sociology and social work (e.g., poverty, social justice), criminology (e.g., real-time crime predictions), and business (e.g., real-estate and housing prices). In other words, spatial regression gives us tools to analyze _how nearby locations influence each other_, especially when spatial relationships __violate the assumption of independence in OLS regression!__
@@ -1079,12 +1070,12 @@ where $y$ is the target variable (median pneumonia-related readmissions), $W$ is
 
 We are justified in proceeding with a SAR because, as you hopefully remember from the end of Project 1, pneumonia-related hospital readmissions could be predicted with an OLS regression! However, we also know we have spatial patterns here that we want to try account for in our predictive models, so let's do that now.
 
-#### **Question 16**: [1 point] SG
+#### **Question 16**: [1 point]
 Your data have already been partitioned into training and testing sets, preprocessed and normalized, and we just calculated the spatial weights matrix, $W$. What if we did NOT already have the data fully pre-processed? In a few sentences, describe the steps we would have to take if we were starting from the raw data.
 
 **HINT**: Think of the data science lifecycle/flow we keep coming back to!
 
-> If we were starting from the raw data, we would first need to clean and wrangle it—this includes removing or imputing missing values, correcting data types, and filtering out any irrelevant observations. Next, we would need to engineer features (e.g., converting categorical variables, creating summary measures), followed by normalizing or transforming variables to ensure comparability, especially if they’re on different scales or skewed. After that, we would split the data into training and testing sets to prevent data leakage. Then, we would perform spatial joins or aggregations to attach geographic identifiers and calculate spatial weights based on the appropriate geometries. Finally, we’d be ready to fit a spatial regression model like using the cleaned, transformed, and geographically-aware training data.
+> Your answer here.
 
 ### 2.4.1.1 For our convenience, make a dataframe that contains just the information we want for fitting the SAR and store it into `sarTrain`
 
@@ -1113,14 +1104,14 @@ sarTrain <- states_sf_AggTrain %>%
 OLS <- lm(bc_PredictedReadmissionRate ~ ., data = sarTrain)
 ```
 
-#### **Question 17A**: [0.5 points] SG
+#### **Question 17A**: [0.5 points]
 Why am I fitting an OLS regression again? 
 
 **HINT 1**: There are actually TWO reasons! But you only need one for full credit...
 
 **HINT 2**: What did aggregation do to our sample size?
 
-> You're fitting an OLS regression again because after aggregating to the state level, the sample size has changed—we now have fewer observations (just one per state). This means the earlier OLS model fitted on hospital-level data isn't directly comparable. Additionally, running OLS here gives us a baseline model to compare against the spatial regression model (SAR), helping us evaluate how much the spatial structure improves predictive power.
+> Your answer here.
 
 ### 2.4.1.3 Check residuals for spatial autocorrelation
 If we didn't already know that we have spatial relationships from the Moran's $I$ and the LISA, we could also consider calculating a Moran's $I$ on the residuals of the OLS regression. This would tell us, even if we had NOT yet done a Moran's $I$ or LISA, that whether we should pay more attention to our spatial relationships and explicitly include them in our regression model. 
@@ -1132,18 +1123,18 @@ $H_0$: The null hypothesis is that the residuals are not spatially autocorrelate
 moran.test(residuals(OLS), states_sw)
 ```
 
-#### **Question 17B**: [1.5 points] SG
+#### **Question 17B**: [1.5 points]
 - What would we conclude from the results of the Moran's $I$ test on the __residuals__? 
 
-> The Moran’s I test checks whether the leftover errors from our OLS model (the residuals) still show a spatial pattern. Since the p-value is just above 0.05, we can’t say for sure that the errors are clustered by location. That means the OLS model did a decent job, and there’s no strong evidence that the errors are influenced by nearby states.
+> Your answer here.
 
 - If we had started here, rather than calculating the Moran's $I$ and LISA first, could we have been potentially mistaken about spatial relationships? Why or why not?
 
-> Yes, if we had started by looking at the residuals before calculating Moran’s I and LISA on the original readmission data, we could have missed important spatial patterns. That’s because once a model (like OLS) is fit, it might already account for some spatial structure through the predictors. So if we only looked at the residuals, we might wrongly conclude that there isn’t much spatial clustering — even though the original data did have strong spatial relationships. By starting with Moran’s I and LISA on the raw data, we confirmed upfront that spatial clustering exists, which helps justify the need for spatial models like SAR.
+> Your answer here.
 
 - Why might these results disagree with what we found from the Moran's $I$ and LISA on the scaled target?
 
-> These results might differ because we’re now looking at the residuals from a regression, not the raw readmission rates. Earlier, Moran’s I and LISA showed clear spatial clustering in the raw data. But after fitting a model with predictors, some of that spatial pattern was explained — so there’s less spatial autocorrelation left in the residuals, which is why the test result is weaker.
+> Your answer here.
 
 ### 2.4.1.4 Fit the SAR model
 The `lagsarlm()` from the `spatialreg` package will fit the SAR for us, allowing us to specify the spatial weights matrix, `states_sw`, that we calculated all the way back [here](#findSW).
@@ -1221,26 +1212,23 @@ Our LM test statistic, per the `summary()` output, is 0.05318 with a $p$-value o
 
 **CONCLUSION**: With a $p$-value MORE than 0.05, we could conclude that there is NO residual spatial autocorrelation after fitting the SAR. Thus, the SAR model is sufficient for explaining the spatial autocorrelation in the target!
 
-#### **Question 18**: [3 points] SG
+#### **Question 18**: [3 points]
 Briefly summarize everything we know at this point: (1) Global Moran's $I$ results, (2) Local Moran's $I$ (LISA) results, (3) Moran's $I$ on the residuals of the OLS model, (4) the test for spatial autoregression using the coefficient $\rho$, (5) the Likelihood Ratio Test (LRT), and (6) the LM test for residual spatial autocorrelation after fitting the SAR model. DO NOT simply copy my interpretations but instead try to make sure you understand each of these pieces of evidence and what they tell us.
 
-> 1. Global Moran's I: The Global Moran’s I value was positive and statistically significant, indicating that pneumonia-related readmissions tend to cluster geographically—states with high values are near others with high values, and the same for low values. This suggests clear spatial autocorrelation in the target variable.
-> 2. Local Moran's I (LISA): LISA results identified specific hot and coldspots. For example, West Virginia and surrounding states formed a hotspot, while several northwestern states formed a coldspot. These results confirm the presence of localized clusters, strengthening the case for spatial dependence in the data.
-> 3. Moran’s I on OLS residuals: The Moran’s I test on the OLS model residuals gave a p-value slightly above 0.05, suggesting that the residuals do not have statistically significant spatial autocorrelation. This result might misleadingly imply that OLS is sufficient, even though earlier tests showed otherwise.
-> 4. Test for spatial autoregression using ρ (rho): The SAR model showed a significant spatial autoregressive coefficient (ρ), with a p-value < 0.05. This indicates that spatial lag (influence from neighboring states) contributes meaningfully to the model, and spatial dependence should not be ignored.
-> 5. Likelihood Ratio Test (LRT): The LRT comparing the SAR and OLS models was significant (p = 0.0286), indicating that the SAR model fits the data better than OLS. This supports the idea that including spatial structure improves the model’s performance.
-> 6. LM test for residual spatial autocorrelation: The LM test on the SAR model residuals showed a high p-value (0.818), indicating that there is no significant leftover spatial autocorrelation. This suggests the SAR model has successfully accounted for spatial dependencies in the data.
+> 1. 
+> 2. 
+> 3. 
+> 4. 
+> 5. 
+> 6. 
 
 What is your **final takeaway**? Do we need to account for spatial autocorrelation in our regression model?
 
-> Yes, we do need to account for spatial autocorrelation in our regression model. The Global and Local Moran’s I tests showed clear evidence of spatial clustering, and the SAR model significantly improved model fit over OLS based on the Likelihood Ratio Test. Most importantly, the SAR model successfully removed residual spatial autocorrelation, meaning it better captures the structure of the data. Ignoring spatial effects would likely underestimate or misattribute relationships in the data.1
-
+> Your answer here.
 
 ### 2.4.1.6 Inferential statistics - which predictors are important?
 
 ```{r, echo = FALSE}
-install.packages("broom.helpers")
-library(broom.helpers)
 ## Print a table using gtsummary
 tbl_regression(SAR) %>% 
   modify_caption("Table 7. Spatial Lag (SAR) Regression results.") %>% 
@@ -1248,10 +1236,10 @@ tbl_regression(SAR) %>%
   add_significance_stars(hide_p = FALSE)
 ```
 
-#### **Question 19**: [2 points] SG
+#### **Question 19**: [2 points]
 We can think of dealing with **spatial spillover** as helping us distinguish the wheat from the chaff (truth from noise). **Interpret** which of the coefficients are significant ($p$-value < 0.05) AND compare that to both Table 10 (parsimonious OLS model results) AND Figure 20 (Feature Importance from Elastic Net) from __Project 1__. Now that we are accounting for spatial autocorrelation, which predictors are still important? Did any become significant (important) now that weren't before?
 
-> After accounting for spatial effects in the SAR model, only two predictors stayed significant: Medicare spending per patient and embolism/thrombosis rate. The spatial lag term (rho) was also significant, meaning nearby states' readmission rates do matter. Some variables that were important before, like hospital return days and death rate, are no longer significant. This shows that once we adjust for spatial patterns, only a few predictors truly stand out.
+> Your answer here.
 
 
 ### 2.4.1.6 Inferential statistics - which predictors are important?
@@ -1345,10 +1333,10 @@ data.frame(Model = c("OLS", "SAR (Spatial Lag)"),
 ```
 
 
-#### **Question 20A**: [0.5 points] SG
+#### **Question 20A**: [0.5 points]
 Why is it challenging to interpret this RMSE in terms of the original/raw median pneumonia-related hospital readmissions? (I know.. I know... you've gotten it by now. Just checking.)
 
-> It’s challenging to interpret this RMSE because the model was trained on the Box-Cox transformed version of the target, not the original raw readmission rates. That means the RMSE is on the transformed scale, so it doesn’t directly reflect the percentage of readmissions in real-world terms without converting it back.
+> Your answer here.
 
 **So, let's add the Mean Absolute Error (MAE) as well, which may be easier to interpret**.
 ```{r}
@@ -1375,7 +1363,7 @@ data.frame(Model = c("OLS", "SAR (Spatial Lag)"),
 #### **Question 20B**: [1.5 points]
 Interpret the MAE **and** the RMSE. Which model is better? Don't forget to interpret the RMSE in terms of the transformed target!
 
-> The SAR (Spatial Lag) model has a lower RMSE (1.15) and MAE (0.79) compared to the OLS model (RMSE = 1.33, MAE = 0.84), which means it produces more accurate predictions overall.
+> Your answer here.
 
 ### 2.4.2 Other Types of Spatial Regression Models
 The results of our SAR showed that we did not need to worry about any other types of spatial regression because the LM Test for spatial autocorrelation of the residuals was not significant. Still, I want to take a brief moment to explain what those models are and how we do them, using our current data as an example. They are important enough alternatives to the SAR we may need them in the future!
@@ -1401,17 +1389,17 @@ SEM <- errorsarlm(bc_PredictedReadmissionRate ~ ., data = sarTrain,
                         listw = states_sw)
 
 ## Uncomment to view results!
-summary(SEM)
+## summary(SEM)
 ```
 
-#### **Question 21A**: [1 point] SG
+#### **Question 21A**: [1 point]
 Test the null hypothesis that $\lambda = 0$, i.e., that there is spatial autocorrelation in the residuals. What p-value do you get and what conclusions do you make?
 
-> Since the p-value (0.81762) is much greater than 0.05, we fail to reject the null hypothesis. There is no significant spatial autocorrelation remaining in the residuals after fitting the SAR model. This means the SAR model successfully accounted for spatial effects in the data.
+> Your answer here.
 
 **WHY** might you find a significant SEM but the LM test from the SAR is NOT significant? What does that suggest about our SAR model? (This is not a trick question, we've already discussed it.)
 
-> A significant SEM but non-significant LM test in the SAR model means the SAR already handled the spatial autocorrelation well. Since there’s no leftover spatial pattern in the residuals, we don’t need an SEM. This shows the SAR model was a good fit for our data.
+> Your answer here.
 
 
 ### 2.4.2.2 Spatial Durbin Model
@@ -1433,7 +1421,7 @@ SDM <- lagsarlm(formula = bc_PredictedReadmissionRate ~ ., data = sarTrain,
   listw = states_sw, type = "mixed") ## "mixed" is necessary to specify as SDM
 
 ## Uncomment to view results!
- summary(SDM)
+## summary(SDM)
 ```
 
 **Now, you might notice something a bit odd here**. Now, the test of the $H_0: \rho = 0$ is NOT significant (p = 0.17868) but the LM test IS significant (p = 0.012548), which is a **complete reversal**. What gives?!
@@ -1451,10 +1439,10 @@ The reality is that we likely have **yet unaccounted for spatial structure in th
   - (2) Try to find the ommitted variables. **We are going to go with option 2!**
 
 
-#### **Question 21B**: [1 point] SG
+#### **Question 21B**: [1 point]
 Briefly summarize a possible workflow, based on what we've done here as well as with help from other sources if needed, to use (1) Moran's $I$ and/or LISA, (2) SAR, (3) SEM, and (4) SDM. Table 8 (below) may help you or you're free to refer to it to save writing. Feel free to write this is as numbered or bulleted list, if you'd like!
 
-> To analyze spatial data, we start with Moran’s I and LISA to check for spatial autocorrelation in the outcome variable, which tells us if spatial models are necessary. If there is spatial dependence, we fit a Spatial Autoregressive Model (SAR) to account for how neighboring regions influence each other. If residuals from the SAR still show spatial autocorrelation, we then try a Spatial Error Model (SEM), which captures unmeasured spatial effects. If we suspect that both the outcome and the predictors have spatial patterns, we use a Spatial Durbin Model (SDM), which accounts for spatial effects in both. This workflow helps determine the best model for understanding or predicting spatial patterns in the data.
+> Your answer here.
 
 \  
 
@@ -1479,23 +1467,19 @@ Do data scientists ever extract the spatially lagged targets/predictors and put 
 
 **HINT 3**: [Medium](https://medium.com) or LinkedIn can sometimes have decent how-to guides, but these articles are NOT validated in any way. If you choose an article from here, make sure you validate it with what we've done here and discussed in class!
 
-> Yes, data scientists do incorporate spatially lagged variables into machine learning models like Elastic Net, Random Forests, and Neural Networks to enhance predictive performance, especially when dealing with spatial autocorrelation. Researchers are exploring more ways to incorporate spatially lagged variables into machine learning models to improve prediction performance for spatial autocorrelation. Integrating spatial lag parameters into Random Forest models has been shown to modestly enhance their predictive accuracy by capturing spatial dependencies between observations. Neural networks can be adapted to account for spatial effects by including spatial lag vectors as input features, allowing the network to learn from both the original and neighboring values. Another approach, known as Spatially Explicit Machine Learning, combines techniques like spatial lagging or Eigenvector Spatial Filtering (ESF) with models such as Random Forests to reduce prediction error and minimize spatial autocorrelation in model residuals.
-A study titled "Spatial Models or Random Forest? Evaluating the Use of Spatially Explicit Machine Learning Methods to Predict Employment Density around New Transit Stations in Los Angeles" demonstrates the application of spatially explicit Random Forest models. The research found that incorporating spatial lag parameters modestly improved the accuracy of Random Forest models in predicting employment density.
-Credit, Kevin. (2021). Spatial Models or Random Forest? Evaluating the Use of Spatially Explicit Machine Learning Methods to Predict Employment Density around New Transit Stations in Los Angeles. Geographical Analysis. 54. 10.1111/gean.12273. 
+> Your answer here.
 
 #### **Question 23**: [2 points]
 **DATA SCIENCE EXTENSIONS OF SPATIAL MODELING** $\rightarrow$ Why is the **state-level** spatial dataset inappropriate for any further machine-learning? In other words, why are we currently restricted __with the dataset exactly as it is__ to just the SAR, SEM, or SDM?
 
 **HINT**: Check the dimensions of `sarTrain` if you need to!
 
-> The state-level spatial dataset is inappropriate for further machine learning because it is too small—we are working with only 49 observations. Most machine learning algorithms, including Random Forest, Elastic Net, and Neural Networks, require substantially larger datasets to train models effectively, avoid overfitting, and generalize well. Machine learning models benefit from complexity in the data which our aggregated dataset lacks. Because we’ve aggregated to the state level, we’ve lost the individual hospital-level granularity, which limits the amount of variation the models can learn from.&#x20;
-
+> Your answer here.
 
 #### **Question 24**: [1 point]
 **DATA SCIENCE EXTENSIONS OF SPATIAL MODELING** $\rightarrow$ Is there another spatial structure to this dataset that we could explore for use with machine learning instead of state-level?
 
-> A more suitable spatial structure for applying machine learning to this dataset would be hospital-level or county-level data, rather than state-level. Hospital-level data has a much larger sample size with over 2,600 observations, making it more appropriate. County-level or ZIP code-level data also provides finer geographic resolution and helps preserve spatial variation. This enables more localized analysis and the integration of spatial lag features or neighborhood characteristics. These levels of spatial structure allow for the incorporation of spatial relationships to high-readmission areas, into machine learning models.
-
+> Your answer here.
 
 # 3 Finding omitted spatially-autocorrelated variables
 
@@ -1506,8 +1490,7 @@ Perhaps you noticed, as I did, that some of the higher rates of pneumonia-relate
 #### **Question 25**: [1 point]
 What is a **Social Determinant of Health (SDOH)**? Where does this phrase come from?
 
-> A social determinant of health (SDOH) refers to the non-medical factors that influence health outcomes. These include the conditions in which people are born, grow, live, work, and age, and they shape the distribution of resources, opportunities, and power. Common examples include income level, educational attainment, employment status, housing, food security, neighborhood safety, and access to healthcare. The phrase comes from the public health and epidemiology fields and was popularized globally by the World Health Organization.
-
+> Your answer here.
 
 ## 3.1 Pre-processing population-level data to test SDOH hypotheses
 
@@ -1575,21 +1558,22 @@ Add your comments to the code that makes the three new plots: `p2`, `p3`, and `p
 ```{r, echo = TRUE, warning = FALSE, message = FALSE}
 ## Make a map `p2` of population density:
 p2 <- states_sf_AggTrain %>% 
-## Remove D.C. because it's an outlier in density that can skew the color scale
+## COMMENT HERE
   filter(ID != "district of columbia") %>%  ## <- Comment this out to see why!
+## COMMENT HERE
 ggplot() +
-  ## use sf geometry with population density as fill color
+  ## COMMENT HERE
   geom_sf(aes(fill = popDensity), color = "grey20", alpha = 1, size = 0.2) +
-  ## Define color scale for population density
+  ## COMMENT HERE
   scale_fill_gradient(
     name = "Hundreds per sq. mi.",
     low = "white", high = skittles[3],
     na.value = "grey90"
   ) +
-  ## Add map title and data source caption
+  ## COMMENT HERE
   labs(title = "Adult population density by state",
     caption = "Source: U.S. Census Bureau, 2023") +
-  ## Clean up background and axes for map visualization
+  ## COMMENT HERE
   theme(
     panel.grid = element_blank(),
     panel.background = element_rect(fill = "white"),
@@ -1599,42 +1583,42 @@ ggplot() +
     axis.title = element_blank(),
     legend.position = "bottom"
   ) +
-  ## Make sure map is proportionally accurate
+  ## COMMENT HERE
   coord_sf()
 
 ## Make a scatterplot called `p3` with best-fit reference line between 
 ## population density and the pneumonia-related hospital readmissions
 
 p3 <- states_sf_AggTrain %>% 
-## Remove D.C. again due to outlier
+## COMMENT HERE
   filter(ID != "district of columbia") %>%  ## <- Comment this out to see why!
-## Scatterplot with transparent points
+## COMMENT HERE
 ggplot(aes(x = popDensity, y = Median_RawPredictedReadmissionRate)) +
-## Add liner regression line
+## COMMENT HERE
   geom_point(alpha = 0.5) + 
   geom_smooth(method = "lm", se = T, color = skittles[3]) +
   theme_minimal() +
-  ## Add plot labels
+  ## COMMENT HERE
   labs(title = "Hospital readmissions by population density",
        x = "Hundreds per sq. mi.",
        y = "Predicted Pneumonia-related Hospital Readmissions")
 
 ## Make a barplot `p4` that shows the highest density states with their median
 p4 <- states_sf_AggTrain %>% 
-## Remove D.C. again
+## COMMENT HERE
   filter(ID != "district of columbia") %>%  ## <- Comment this out to see why!
-  ## Sort by population density descending
+  ## COMMENT HERE
   arrange(desc(popDensity)) %>% 
-  ## Take top 10 most dense states
+  ## COMMENT HERE
   head(10) %>% 
-  ## Create a bar plot where states are reordered by population density (most dense at top)
+  ## COMMENT HERE
 ggplot(aes(x = fct_reorder(ID, popDensity), y = Median_RawPredictedReadmissionRate)) +
-  ## Create horizontal bar chart
+  ## COMMENT HERE
   geom_col(fill = skittles[3]) +
   theme_minimal() + 
-  ## ## Flip the coordinates so states are on the y-axis and readmission rates on the x-axis
+  ## COMMENT HERE
   coord_flip() +
-  ## Add titles and labels
+  ## COMMENT HERE
   labs(title = "Top 10 Most Dense States",
      y = "Median % hospital readmissions",
      x = "",
@@ -1651,13 +1635,12 @@ grid.arrange(p3, p4, ncol = 2)
 #### **Question 27A**: [0.5 points]
 Compare the new map, `p2` of population density to the original map, `p1`. It may be hard to tell at first, but do you see a correlation between population density and median pneumonia-related admissions?
 
-> Yes, there does appear to be a correlation between population density and median pneumonia-related hospital readmissions when comparing the two maps (p2 and p1). High-density states in p2, such as New Jersey, Massachusetts, Maryland, and New York, also show higher readmission rates in p1. Lower-density states like Wyoming, Montana, and the Dakotas generally show lower readmission rates. The presence of darker shades (indicating higher values) in similar regions on both maps suggests a positive spatial correlation.&#x20;
+> Your answer here.
 
 #### **Question 27B**: [0.5 points]
 Now look at the scatterplot, `p3`, and the column graph, `p4`. What conclusions can you make, if any, from these two graphs and why?
 
-> The scatterplot (p3) shows a positive linear relationship between population density and median pneumonia-related hospital readmissions. As population density increases, the predicted readmission rate also rises. The best-fit line and its confidence interval reinforce this. This suggests that population density may be a meaningful predictor of hospital readmission rates. The bar plot (p4) complements this by displaying the top 10 most densely populated states, such as New Jersey, Rhode Island, Massachusetts, and New York many of which also have among the highest median readmission rates. 
-
+> Your answer here.
 
 ### 3.2.2 Adding Population Density to the SAR
 
@@ -1729,7 +1712,7 @@ moran.test(residuals(OLS), states_sw)
 
 **QUESTION**: What does Moran's $I$ test on the residuals tell us about spatial autocorrelation of the residual (error) terms?
 
-> Moran’s $I$ = 0.105, p = 0.098. There's weak, non-significant spatial autocorrelation in the residuals. So, the model is not clearly misspecified spatially, and a standard OLS model may be sufficient for now.
+> Your answer here.
 
 
 #### 3.2.2.3 Fit the SAR and look at $\rho$ and the LM test
@@ -1738,13 +1721,12 @@ moran.test(residuals(OLS), states_sw)
 SAR <- lagsarlm(bc_PredictedReadmissionRate ~ ., data = sarTrain, 
                 listw = states_sw)
 ## Uncomment to view results!
-summary(SAR)
+## summary(SAR)
 ```
 
 **QUESTION**: What is the value of $\rho$ and its $p$-value? Does it suggest that we have spatial dependence in our target variable still? Are you surprised? What about the LM test?
 
-> The value of the spatial autoregressive coefficient, ρ, is 0.354 with a p-value of 0.00705, which indicates that there is statistically significant spatial dependence in the target variable.  This confirms that pneumonia-related hospital readmission rates in one state are influenced by those in neighboring states. This result is not surprising given the earlier findings from the Global Moran’s I and LISA tests, which showed clear spatial clustering. Even after accounting for factors like population density, the spatial signal in the target remains. However, the LM test has a p-value of 0.684, which is not significant. This tells us that the SAR model has done a good job of accounting for spatial effects, as there is no strong evidence of spatial patterning left in the residuals.&#x20;
-
+> Your answer here.
 
 #### 3.2.2.4 Compare the SAR to the OLS model with a Likelihood Ratio Test (LRT)
 ```{r}
@@ -1756,8 +1738,7 @@ anova(SAR, OLS)
 
 **QUESTION**: Which model is the better fitting model and why?
 
-> The SAR (Spatial Autoregressive) model is the better fitting model because it has a lower AIC (61.513 vs. 65.221) and a higher log-likelihood (−10.757 vs. −13.611) compared to the OLS model. The likelihood ratio test yields a p-value of 0.0169, which is less than the standard significance level of 0.05. This means we reject the null hypothesis that the simpler OLS model is sufficient, and conclude that the SAR model, which accounts for spatial dependence in the target variable, provides a significantly better fit to the data.
-
+> Your answer here.
 
 #### 3.2.2.5 Inferential statistics
 ```{r}
@@ -1770,10 +1751,7 @@ tbl_regression(SAR) %>%
 
 **QUESTION**: Did any of the predictors change significance from the first SAR we ran? What about `popDensity`? Is it significant, and how do you interpret its beta coefficient (the slope) AFTER adjusting for spatial dependence in readmission rate?
 
-> Yes, there were some notable changes in predictor significance between the first SAR model and the updated SAR model that includes population density. In the earlier SAR model, variables such as composite patient safety and postoperative respiratory failure rate were close to statistical significance, but their p-values increased slightly in the updated model. Perioperative pulmonary embolism or deep vein thrombosis rate and Medicare spending per patient remained statistically significant in both models, suggesting they are consistently influential predictors. Population density became statistically significant in the updated SAR model, with a p-value of 0.0415 and a positive coefficient of approximately 0.0092. This means that even after accounting for spatial dependence, states with higher population density tend to have higher median pneumonia-related readmission rates.
-
-&#x20;Interpreting the coefficient, for every increase of 100 people per square mile, the predicted readmission rate increases by about 0.009 on the transformed scale. This supports the earlier hypothesis that higher population density is associated with more readmissions.
-
+> Your answer here.
 
 #### 3.2.2.6 Fit SEM and SDM
 ```{r}
@@ -1781,13 +1759,13 @@ tbl_regression(SAR) %>%
 SEM <- errorsarlm(bc_PredictedReadmissionRate ~ ., data = sarTrain, 
                   listw = states_sw)
 ## Uncomment to view results!
-summary(SEM)
+## summary(SEM)
 
 ## Fit the SDM (spatial Durbin model) using the training data and weights matrix
 SDM <- lagsarlm(formula = bc_PredictedReadmissionRate ~ ., data = sarTrain, 
     listw = states_sw, type = "mixed") ## "mixed" is necessary to specify as SDM
 ## Uncomment to view results!
-summary(SDM)
+## summary(SDM)
 ```
 
 #### 3.2.2.6 Predictions using the testing data on SAR, SEM, and SDM
@@ -1835,7 +1813,8 @@ data.frame(Model = c("OLS", "SAR (Spatial Lag)", "SEM (Spatial Error)", "SDM (Du
 
 **QUESTION**: What does the comparison of the four models' $RMSE$ and $MAE$ imply? Which model is the superior model? Is SAR still "good enough"? Do you think that, despite adding population density, we're likely STILL omitting spatial variables? Explain.
 
-> The three spatial models (SAR, SEM, and SDM) all outperform OLS in terms of prediction error. Each spatial model has a lower RMSE (1.09 vs. 1.30) and MAE (0.74 vs. 0.82) than the OLS model, indicating better predictive accuracy. However, there is essentially no difference in predictive performance among the SAR, SEM, and SDM models, as they share identical RMSE and MAE values. The SAR model still appears to be “good enough” for practical use, especially considering its relative simplicity compared to the more complex SDM. The fact that all three spatial models perform similarly shows that spatial dependence is clearly present but perhaps not fully accounted for even after including a variable like population density. This suggests we are likely still omitting other spatially structured variables.
+> Your answer here.
+
 
 ## 3.3 Testing Another Hypothesis: Readmissions by ?
 
