@@ -917,7 +917,7 @@ states_sf_AggTrain <- states_sf_AggTrain %>%
     ## COMMENT HERE
     quadrant = case_when(
       ## COMMENT HERE
-      pValue > 0.05 ~ "N.S.",
+      pValue >= 0.05 ~ "N.S.",
       ## COMMENT HERE - Why do I not have to specify p-value again?
       
       ## COMMENT HERE ABOUT LINE BELOW - INCLUDE QUADRANT!
@@ -941,7 +941,7 @@ states_sf_AggTrain <- states_sf_AggTrain %>%
 #### 2.3.2.5 Map the LISA cluster (quadrants)
 Lastly, let's visualize our hot/cold spots on the map! Note that we are now using `geom_sf()` for mapping rather than `geom_polygon()`. This is because our dataframe now contains **shapefile** geometries instead of just the polygons that it did earlier, hence the change.
 
-```{r}
+```{r, echo = FALSE}
 ggplot(states_sf_AggTrain) +
   ## Now using geom_sf() because we have shapefile data rather than just
   ## polygons; geom_polygon() will no longer work here!
@@ -1308,7 +1308,7 @@ In our case, after controlling for all known predictors and modeling spatial dep
 
 The general structure of the SEM is:
 
-$y = + \lambda W \epsilon + \beta_1 X_1 + ... +\beta_n X_n + E$
+$y = \lambda W \epsilon + \beta_1 X_1 + ... +\beta_n X_n + E$
 
 where $y$ is the target variable (median pneumonia-related readmissions), $W$ is the spatial weights matrix, which defines the neighborhoods (stored in `states_sw`!), and $\lambda$ is the _spatial error coefficient__. This means that the first term of the equation, $\lambda W \epsilon$, measures the spatial correlation between our errors. So, if $\lambda = 0$, the spatial correlation between the errors isn't enough to bias the standard errors. As with SAR, the remaining terms, $\beta_1 X_1 + \beta_2 X_2 + ... \beta_n X_n$ are just the standard regression coefficients for each of the $n$ predictors. $E$ is an unmeasured error term, which is now the overall error leftover after fitting the SEM regression. 
 
@@ -1352,7 +1352,7 @@ SDM <- lagsarlm(formula = bc_PredictedReadmissionRate ~ ., data = sarTrain,
   listw = states_sw, type = "mixed") ## "mixed" is necessary to specify as SDM
 
 ## Uncomment to view results!
-## summary(SDM)
+summary(SDM)
 ```
 
 **Now, you might notice something a bit odd here**. Now, the test of the $H_0: \rho = 0$ is NOT significant (p = 0.17868) but the LM test IS significant (p = 0.012548), which is a **complete reversal**. What gives?!
@@ -1652,7 +1652,7 @@ moran.test(residuals(OLS), states_sw)
 SAR <- lagsarlm(bc_PredictedReadmissionRate ~ ., data = sarTrain, 
                 listw = states_sw)
 ## Uncomment to view results!
-## summary(SAR)
+#summary(SAR)
 ```
 
 **QUESTION**: What is the value of $\rho$ and its $p$-value? Does it suggest that we have spatial dependence in our target variable still? Are you surprised? What about the LM test?
