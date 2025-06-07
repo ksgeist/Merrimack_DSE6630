@@ -1,8 +1,8 @@
 ---
 title: "Demo 2: Public Health & Epidemiology"
 subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
-author: "Katherine S. Geist, PhD"
-date: "26 May 2025"
+author: "Team Sigma: Alourdes Joseph, June Lemieux, Melissa Nooney"
+date: "10 Jun 2025"
 output:
   html_document:
     toc: true
@@ -1405,12 +1405,12 @@ Do data scientists ever extract the spatially lagged targets/predictors and put 
 
 **HINT**: Check the dimensions of `sarTrain` if you need to!
 
-> Your answer here.
+> MN: The dimensions of sarTrain are 49 rows and 17 columns, this is a very small dataset. I feel state-level is not appropriate for further machine-learning because there is not enough inforation for the model to create relationships without over-fitting. This dataset introduces the curse of dimensionality, we have too many predictors compared to observations, and not enough data points to reliably estimate relationships. This could also introduce multicollinearity, as well as if any new information is introduced, it could drastically change the results. As far as my current understanding, the SAR, SEM, and SDM can account for the small amount of data because they handle the spartial aspects.
 
 #### **Question 24**: [1 point]
 **DATA SCIENCE EXTENSIONS OF SPATIAL MODELING** $\rightarrow$ Is there another spatial structure to this dataset that we could explore for use with machine learning instead of state-level?
 
-> Your answer here.
+> MN: I believe we could use county level data, or maybe even zip code data, as that would increase the dimensionality of our dataset, which machine learning models love and tend to perform better in those circumstances. 
 
 # 3 Finding omitted spatially-autocorrelated variables
 
@@ -1421,7 +1421,8 @@ Perhaps you noticed, as I did, that some of the higher rates of pneumonia-relate
 #### **Question 25**: [1 point]
 What is a **Social Determinant of Health (SDOH)**? Where does this phrase come from?
 
-> Your answer here.
+> MN: A social determinant of health is a non-medical factor or influence of health outcomes. These could include place of birth, social norms, political structures, income level, education level, and access to healthcare, just to name a few
+https://www.cdc.gov/public-health-gateway/php/about/social-determinants-of-health.html
 
 ## 3.1 Pre-processing population-level data to test SDOH hypotheses
 
@@ -1484,27 +1485,27 @@ So, let's use our mapping skills to help us to assess whether we think there is 
 #### **Question 26**: [1 point]
 Add your comments to the code that makes the three new plots: `p2`, `p3`, and `p4`. 
 
-> Answer in the comments.
+> MN:
 
-```{r, echo = TRUE, warning = FALSE, message = FALSE}
+```{r echo=TRUE, message=FALSE, warning=FALSE}
 ## Make a map `p2` of population density:
 p2 <- states_sf_AggTrain %>% 
-## COMMENT HERE
+## filter out DC, ? extreme pop density alters the rest of map
   filter(ID != "district of columbia") %>%  ## <- Comment this out to see why!
-## COMMENT HERE
+## create plot
 ggplot() +
-  ## COMMENT HERE
+  ## creates a map using spatial geometry, using the popDensity as the fill
   geom_sf(aes(fill = popDensity), color = "grey20", alpha = 1, size = 0.2) +
-  ## COMMENT HERE
+  ## scale aesthetics using hundreds per square mile
   scale_fill_gradient(
     name = "Hundreds per sq. mi.",
     low = "white", high = skittles[3],
     na.value = "grey90"
   ) +
-  ## COMMENT HERE
+  ## labels, title and captoin of source
   labs(title = "Adult population density by state",
     caption = "Source: U.S. Census Bureau, 2023") +
-  ## COMMENT HERE
+  ## adjusting map appearance, making elements blank or not visible
   theme(
     panel.grid = element_blank(),
     panel.background = element_rect(fill = "white"),
@@ -1514,42 +1515,42 @@ ggplot() +
     axis.title = element_blank(),
     legend.position = "bottom"
   ) +
-  ## COMMENT HERE
+  ## type of coordinate display, using proper lat/long
   coord_sf()
 
 ## Make a scatterplot called `p3` with best-fit reference line between 
 ## population density and the pneumonia-related hospital readmissions
 
 p3 <- states_sf_AggTrain %>% 
-## COMMENT HERE
+## remove DC from mapping plot
   filter(ID != "district of columbia") %>%  ## <- Comment this out to see why!
-## COMMENT HERE
+## create a plot using median raw predicted readmission rate
 ggplot(aes(x = popDensity, y = Median_RawPredictedReadmissionRate)) +
-## COMMENT HERE
+## create scatter plot withh trend line
   geom_point(alpha = 0.5) + 
   geom_smooth(method = "lm", se = T, color = skittles[3]) +
   theme_minimal() +
-  ## COMMENT HERE
+  ## adding labels to plot
   labs(title = "Hospital readmissions by population density",
        x = "Hundreds per sq. mi.",
        y = "Predicted Pneumonia-related Hospital Readmissions")
 
 ## Make a barplot `p4` that shows the highest density states with their median
 p4 <- states_sf_AggTrain %>% 
-## COMMENT HERE
+## filter out DC
   filter(ID != "district of columbia") %>%  ## <- Comment this out to see why!
-  ## COMMENT HERE
+  ## arrange popdensity in descending order
   arrange(desc(popDensity)) %>% 
-  ## COMMENT HERE
+  ## show the first 10
   head(10) %>% 
-  ## COMMENT HERE
+  ## re-order by popdensity, not iD
 ggplot(aes(x = fct_reorder(ID, popDensity), y = Median_RawPredictedReadmissionRate)) +
-  ## COMMENT HERE
+  ## create bar chart
   geom_col(fill = skittles[3]) +
   theme_minimal() + 
-  ## COMMENT HERE
+  ## turn chart for horizontal bars
   coord_flip() +
-  ## COMMENT HERE
+  ## title and labels
   labs(title = "Top 10 Most Dense States",
      y = "Median % hospital readmissions",
      x = "",
@@ -1566,12 +1567,14 @@ grid.arrange(p3, p4, ncol = 2)
 #### **Question 27A**: [0.5 points]
 Compare the new map, `p2` of population density to the original map, `p1`. It may be hard to tell at first, but do you see a correlation between population density and median pneumonia-related admissions?
 
-> Your answer here.
+> MN: When looking at p1 and p2 and comparing, we can see some trends overlapping. If looking at the New Jersey area on p2, we can see high population density there and in surrounding areas. Looking at p1 in the same area we can see that the median predicted readmission is also at the higher end.
+If we go to the Colorado area in p2, we see that the poplation density is lower, as well as surrounding areas. In comparison to p1, we do see lower median predicted readmissions, with the exception of Nevada, which is interesting because it has a low population density. Would county level data show a different story? 
 
 #### **Question 27B**: [0.5 points]
 Now look at the scatterplot, `p3`, and the column graph, `p4`. What conclusions can you make, if any, from these two graphs and why?
 
-> Your answer here.
+> MN: Looking at the trend line of p3, we can see that there is a positive correlation between population density and predicted oneumonia related readmissions. We could assume that the top 10 states from p4 are the points to the right and up on p3, maybe some point labels could confirm that. 
+On p3, while there seems to be highe population density states oulling the trend line, we can also see that there is a more subtle same trend with the points closer to the left, they do trend right and up, while not as dramactically as the far right.
 
 ### 3.2.2 Adding Population Density to the SAR
 
@@ -1643,8 +1646,7 @@ moran.test(residuals(OLS), states_sw)
 
 **QUESTION**: What does Moran's $I$ test on the residuals tell us about spatial autocorrelation of the residual (error) terms?
 
-> Your answer here.
-
+> MN: The Moran statistic is 0.1045, showing a weak positive spatial correlation. Seeing we have a p-value of over 0.05, this test is telling us that the residuals do not support spatial autocorrelation. So we could say either there isn't spatial autocorreltion, or maybe we do still have some omitted variables that were absorbed into other predictors.
 
 #### 3.2.2.3 Fit the SAR and look at $\rho$ and the LM test
 ```{r}
@@ -1652,12 +1654,13 @@ moran.test(residuals(OLS), states_sw)
 SAR <- lagsarlm(bc_PredictedReadmissionRate ~ ., data = sarTrain, 
                 listw = states_sw)
 ## Uncomment to view results!
-## summary(SAR)
+summary(SAR)
 ```
 
 **QUESTION**: What is the value of $\rho$ and its $p$-value? Does it suggest that we have spatial dependence in our target variable still? Are you surprised? What about the LM test?
 
-> Your answer here.
+> MN: The Rho is 0.35443, and p-value 0.016887, and this does suggest spatial dependance. I don't think I'm surprised because I beleive we were expecting dependance somewhere. 
+The LM test shows a p-value of 0.68448, which would suggest that the spatial lag is capturing spatial dependence.
 
 #### 3.2.2.4 Compare the SAR to the OLS model with a Likelihood Ratio Test (LRT)
 ```{r}
@@ -1669,7 +1672,8 @@ anova(SAR, OLS)
 
 **QUESTION**: Which model is the better fitting model and why?
 
-> Your answer here.
+> MN: Since spatial dependence exists, the OLS model is missing key spatial influences, while SAR correctly accounts for them, leading to a better model fit. The AIC is 61.513 in the SAR, and 65.221 in the OLS. The lower AIC would indicat ethe better fitting model. Also the p-value of 0.016887 is significant and suggest that the SAR model captures the data better than OLS.
+
 
 #### 3.2.2.5 Inferential statistics
 ```{r}
@@ -1682,7 +1686,7 @@ tbl_regression(SAR) %>%
 
 **QUESTION**: Did any of the predictors change significance from the first SAR we ran? What about `popDensity`? Is it significant, and how do you interpret its beta coefficient (the slope) AFTER adjusting for spatial dependence in readmission rate?
 
-> Your answer here.
+> MN: We do see the same predictors being significant with the addition of popDensity. Medicare Spending and Quietness actually became slightly more significant, and periop puml embolism and DVT became slightly less significant. I would interpret the beta coefficient of 0.01 as for every 1 unit increase of population density, there is an increae of 0.01 pneumonia related hospital readmissions, while holding all other variables constant.
 
 #### 3.2.2.6 Fit SEM and SDM
 ```{r}
@@ -1690,13 +1694,13 @@ tbl_regression(SAR) %>%
 SEM <- errorsarlm(bc_PredictedReadmissionRate ~ ., data = sarTrain, 
                   listw = states_sw)
 ## Uncomment to view results!
-## summary(SEM)
+summary(SEM)
 
 ## Fit the SDM (spatial Durbin model) using the training data and weights matrix
 SDM <- lagsarlm(formula = bc_PredictedReadmissionRate ~ ., data = sarTrain, 
     listw = states_sw, type = "mixed") ## "mixed" is necessary to specify as SDM
 ## Uncomment to view results!
-## summary(SDM)
+summary(SDM)
 ```
 
 #### 3.2.2.6 Predictions using the testing data on SAR, SEM, and SDM
@@ -1744,7 +1748,7 @@ data.frame(Model = c("OLS", "SAR (Spatial Lag)", "SEM (Spatial Error)", "SDM (Du
 
 **QUESTION**: What does the comparison of the four models' $RMSE$ and $MAE$ imply? Which model is the superior model? Is SAR still "good enough"? Do you think that, despite adding population density, we're likely STILL omitting spatial variables? Explain.
 
-> Your answer here.
+> MN: Looking at thr RMSE and MAE of all 4 models, we can conclude that OLS is not the best option. SAR, SE<, and SDM all performed the same. Since SAR performed the same as the other spatial models, we could say that it is "good enoigh". Given that SDM can account to an extent for omitted variables, I feel like this model should have performed better. Since it did not, one could assume tha there may still be more omiited variables not accounted for.
 
 
 ## 3.3 Testing Another Hypothesis: Readmissions by ?
@@ -1761,3 +1765,234 @@ But these are not the only population-related hypotheses we could pose. Perhaps,
 - **Hypothesis 3: High Poverty Populations**: Higher rates of pneumonia-related readmissions may be associated with higher proportions of the poverty living at or below the poverty threshold __because__ those individuals may have poorer medical coverage, including non- and under-insuredness, or a stronger drive to try to return to work, both of which could in turn pressure some hospitals to discharge sick patients sooner than they otherwise would.
 
 **For full credit**, walk through all of the steps from Section 3.2. Make sure to answer the interpretation questions, too!
+
+>MN: 
+**Hypothesis 2: High Elderly Populations**: States with a higher proportion of their adult population over the age of 65 have higher rates of readmission __because__ of age-related factors that increase the likelihood of severe illness, like pneumonia, and increased risk of complications that could lead to higher
+hospital readmissions.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+## Make a map `p5` of population over 65
+p5 <- states_sf_AggTrain %>% 
+## filter out DC, ? extreme pop density alters the rest of map
+  #filter(ID != "district of columbia") %>%  ## <- Comment this out to see why!
+## create plot
+ggplot() +
+  ## creates a map using spatial geometry, using the over65PercentPop as the fill
+  geom_sf(aes(fill = over65PercentPop), color = "grey20", alpha = 1, size = 0.2) +
+  ## scale aesthetics using hundreds per square mile
+  scale_fill_gradient(
+    name = "Percentage of population over 65",
+    low = "white", high = skittles[3],
+    na.value = "grey90"
+  ) +
+  ## labels, title and caption of source
+  labs(title = "Percent of Population Over 65 by state",
+    caption = "Source: U.S. Census Bureau, 2023") +
+  ## adjusting map appearance, making elements blank or not visible
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    legend.position = "bottom"
+  ) +
+  ## type of coordinate display, using proper lat/long
+  coord_sf()
+
+## Make a scatterplot called `p3` with best-fit reference line between 
+## population density and the pneumonia-related hospital readmissions
+
+p6 <- states_sf_AggTrain %>% 
+## remove DC from mapping plot
+  #filter(ID != "district of columbia") %>%  ## <- Comment this out to see why!
+## create a plot using median raw predicted readmission rate
+ggplot(aes(x = over65PercentPop, y = Median_RawPredictedReadmissionRate)) +
+## create scatter plot withh trend line
+  geom_point(alpha = 0.5) + 
+  geom_smooth(method = "lm", se = T, color = skittles[3]) +
+  theme_minimal() +
+  ## adding labels to plot
+  labs(title = "Hospital readmissions by population percentage over 65",
+       x = "Percentage of Population over 65",
+       y = "Predicted Pneumonia-related Hospital Readmissions")
+
+## Make a barplot `p7` that shows the highest over 65  states with their median
+p7 <- states_sf_AggTrain %>% 
+## filter out DC
+  #filter(ID != "district of columbia") %>%  ## <- Comment this out to see why!
+  ## arrange popdensity in descending order
+  arrange(desc(over65PercentPop)) %>% 
+  ## show the first 10
+  head(10) %>% 
+  ## re-order by popdensity, not iD
+ggplot(aes(x = fct_reorder(ID, over65PercentPop), y = Median_RawPredictedReadmissionRate)) +
+  ## create bar chart
+  geom_col(fill = skittles[3]) +
+  theme_minimal() + 
+  ## turn chart for horizontal bars
+  coord_flip() +
+  ## title and labels
+  labs(title = "Top 10 Over 65 States",
+     y = "Median % hospital readmissions",
+     x = "",
+     caption = "Source: CMS, 2024 & U.S. Census, 2023")
+```
+
+```{r}
+## This prints the plots in a nice arrangement when knitted
+p1
+p5
+grid.arrange(p6, p7, ncol = 2)
+```
+
+>MN: Before going further, and just looking at the maps created, I feel there is an interesting trend, and something to look into further.
+Looking at p6 we see there is a negative correlation between population over 65 and predicted pneumonia readmissions. p7 shows the top 10 states with populations over 65. When we look at those states in p5 and compare it to p1, not all states with high over 65 population have high readmission rates. Maine for instance stands out, while in the opposite degree West Virginia stands out with a high over 65 population and high readmissin rates. My question here is, are there other SDOH at play here?
+
+
+```{r}
+## TRAINING
+            ## Start from the training data
+sarTrain_over65 <- states_sf_AggTrain %>% 
+  ## Make it a dataframe/tibble
+  as_data_frame() %>% 
+  ## Drop the features that we dropped before the analysis in Project 1, as 
+  ## well as the features we do NOT want to use as predictors!
+  select(-Median_RawPredictedReadmissionRate, 
+         -Median_RawMedicareSpending, 
+         -Median_RawHospitalReturnDays, 
+         -Median_RawDeathRate, 
+         -ID,
+         -localI, 
+         -pValue, 
+         -quadrant, 
+         -geom, 
+         -lag_medianReadmissions,
+  ## Make sure to remove any correlated variables/variables we don't want to
+  ## test from the Census data!!
+         -totalPop,
+         -adultPop,
+         -over65Pop, 
+         -percBelowPoverty,
+         -landSqMi, 
+         -popDensity)
+
+## TESTING
+            ## Start from the testing data
+sarTest_over65 <- states_sf_AggTest %>% 
+  ## Make it a dataframe/tibble
+  as_data_frame() %>% 
+  ## Move the ID column to the rownames
+  column_to_rownames("ID") %>% 
+  ## Drop the features that we dropped before the analysis in Project 1, as 
+  ## well as the features we do NOT want to use as predictors!
+  select(-Median_RawPredictedReadmissionRate, 
+         -Median_RawMedicareSpending, 
+         -Median_RawHospitalReturnDays, 
+         -Median_RawDeathRate,
+         -geom,
+         ## Make sure to remove any correlated variables/variables we don't want to
+         ## test from the Census data!!
+         -totalPop,
+         -adultPop,
+         -over65Pop, 
+         -percBelowPoverty,
+         -landSqMi, 
+         -popDensity) %>% 
+  ## Have to drop any missing values from the testing data
+  drop_na()
+```
+
+```{r}
+OLS_over65 <- lm(bc_PredictedReadmissionRate ~ ., data = sarTrain_over65)
+## Moran's I test on residuals
+moran.test(residuals(OLS), states_sw)
+```
+
+```{r}
+SAR_over65 <- lagsarlm(bc_PredictedReadmissionRate ~ ., data = sarTrain_over65, 
+                listw = states_sw)
+## Uncomment to view results!
+summary(SAR_over65)
+```
+
+```{r}
+anova(SAR_over65, OLS_over65)
+```
+
+>MN:So far the SAR is peforming much better than OLS. Moran test showed possibly some spatial correlations ofr population over 65, but the SAR seemed to perform well, and showed a statisticly significant spatial dependance in the RHO.
+Also of note the AIC for this SAR is higher than the AIC for popdensity, indicating that this may not be the better omitted variable model.
+
+```{r}
+## Print a table using gtsummary
+tbl_regression(SAR_over65) %>% 
+  modify_caption("Table 7. Spatial Lag (SAR_over65) Regression results.") %>% 
+  modify_header(label = "**Coefficient**") %>% 
+  add_significance_stars(hide_p = FALSE)
+```
+
+>MN: The coefficients are interesting, we have the same significant variables as the popdensity, but over65 percentage population does not show as significant. This could indicate it's not as strong an indicator as we previously believed.
+
+```{r}
+## Fit the SEM (spatial error model) using the training data and weights matrix
+SEM_over65<- errorsarlm(bc_PredictedReadmissionRate ~ ., data = sarTrain_over65, 
+                  listw = states_sw)
+## Uncomment to view results!
+summary(SEM_over65)
+
+## Fit the SDM (spatial Durbin model) using the training data and weights matrix
+SDM_over65 <- lagsarlm(formula = bc_PredictedReadmissionRate ~ ., data = sarTrain_over65, 
+    listw = states_sw, type = "mixed") ## "mixed" is necessary to specify as SDM
+## Uncomment to view results!
+summary(SDM_over65)
+```
+
+```{r}
+## Fit the predictions for the FOUR models using the testing data!
+olsPredictions_over65 <- predict(OLS_over65, newdata = sarTest_over65)
+
+sarPredictions_over65 <- predict(SAR_over65, newdata = sarTest_over65, listw = states_sw) %>% 
+  as_tibble()
+
+semPredictions_over65 <- predict(SAR_over65, newdata = sarTest_over65, listw = states_sw) %>% 
+  as_tibble()
+
+sdmPredictions_over65 <- predict(SAR_over65, newdata = sarTest_over65, listw = states_sw) %>% 
+  as_tibble()
+```
+
+```{r}
+## RMSE
+olsRMSE_over65 <- sqrt(mean((sarTest_over65$bc_PredictedReadmissionRate - olsPredictions_over65)^2))
+sarRMSE_over65 <- sqrt(mean((sarTest_over65$bc_PredictedReadmissionRate - sarPredictions_over65$fit)^2))
+semRMSE_over65 <- sqrt(mean((sarTest_over65$bc_PredictedReadmissionRate - semPredictions_over65$fit)^2))
+sdmRMSE_over65 <- sqrt(mean((sarTest_over65$bc_PredictedReadmissionRate - sdmPredictions_over65$fit)^2))
+
+## MAE
+olsMAE_over65 <- mean(abs(sarTest_over65$bc_PredictedReadmissionRate - olsPredictions_over65))
+sarMAE_over65 <- mean(abs(sarTest_over65$bc_PredictedReadmissionRate - sarPredictions_over65$fit))
+semMAE_over65 <- mean(abs(sarTest_over65$bc_PredictedReadmissionRate - semPredictions_over65$fit))
+sdmMAE_over65 <- mean(abs(sarTest_over65$bc_PredictedReadmissionRate - sdmPredictions_over65$fit))
+
+## Make a dataframe for comparison of RMSE and MAE values
+data.frame(Model = c("OLS", "SAR (Spatial Lag)", "SEM (Spatial Error)", "SDM (Durbin)"),
+           RMSE = round(c(olsRMSE_over65, sarRMSE_over65, semRMSE_over65, sdmRMSE_over65), 2),
+           MAE = round(c(olsMAE_over65, sarMAE_over65, semMAE_over65, sdmMAE_over65),2)) %>% 
+  ## Display with kable
+  kable(digits = 2,
+        format = "html",
+        caption = "Table 13. Comparison of RMSE and MAE for all models.") %>%
+  kable_styling(bootstrap_options = c("hover", full_width = F)
+  )
+```
+
+>MN: Finally, looking at our comparison table, the same pattern as population denisty emerges. OLS performs the "worst", while all of our spatial models perform the same. We can also see that population percentage over 65 does not perform as well as population denisty did, suggesting that this variable does not capture spatial dependencies as well as population density.
+
+>: I feel that our hypotheses may not be strongly supported. Spatial modeling does not suggest that age alone is a driving factor in pneumonia realted hospital readmissions. While it makes intuitive sense, the model does not fully and significantly enough support the hypotheses. 
+
+
+
+
+
+
