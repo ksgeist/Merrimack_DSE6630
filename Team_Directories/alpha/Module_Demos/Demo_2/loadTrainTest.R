@@ -112,3 +112,4 @@ stateAggTest <- stateTest %>%
 
 ## Remove for cleanup and to save confusion
 rm(readyTest, readyTrain)
+
