@@ -668,9 +668,100 @@ To perform spatial analysis, one needs geographic-level aggregate data that has 
 But because our ultimate goal is to try to tie this back with all of the work we did in Project 1, I will actually give you data, which you get by running this code chunk. This returns both the training and testing sets, aggregated but not yet merged with geometries, so we don't lose our other encoding and especially our transformations for OLS. They are going to be called `stateAggTrain` and `stateAggTest`, respectively.
 
 ```{r}
-source(file = "loadTrainTest.R")
+#source(file = "loadTrainTest.R")
 # (JML) I had some trouble with this due to the location of my files. I ended up opening the .R file, modifying the paths of the source files and manually running the code. I did not push the changed file to github because I assume the path issue is isolated to my workstation setup.
 ```
+
+```{r}
+getwd()
+```
+
+
+```{r}
+data_dir <- "/Users/aleej"
+
+```
+
+```{r}
+## Load required package
+pacman::p_load(tidyverse, tools)
+
+## Automatically search for the Rdata files starting in your home directory
+home_dir <- path.expand("~")
+train_path <- list.files(home_dir, pattern = "readyTrain\\.Rdata$", recursive = TRUE, full.names = TRUE)[1]
+test_path <- list.files(home_dir, pattern = "readyTest\\.Rdata$", recursive = TRUE, full.names = TRUE)[1]
+
+## Check if the files were found
+if (is.na(train_path) | is.na(test_path)) {
+  stop("One or both data files were not found. Please check your folders.")
+}
+
+## Load files
+load(train_path)
+load(test_path)
+
+## Pre-process TRAIN
+readyTrain <- readyTrain %>%
+  mutate(FacilityId = rownames(readyTrain)) %>%
+  rename(Hospital.return.days.for.pneumonia.patients = ComparedToNational_Hospital.return.days.for.pneumonia.patients) %>%
+  select(-Nurse.communication, -Overall.hospital.rating, -Staff.responsiveness, -Care.transition,
+         -Recommend.hospital, -contains("Compared"), -contains("PaymentCategory"), -SurveyResponseRate,
+         -State)
+
+## Pre-process TEST
+readyTest <- readyTest %>%
+  mutate(FacilityId = rownames(readyTest)) %>%
+  rename(Hospital.return.days.for.pneumonia.patients = ComparedToNational_Hospital.return.days.for.pneumonia.patients) %>%
+  select(-Nurse.communication, -Overall.hospital.rating, -Staff.responsiveness, -Care.transition,
+         -Recommend.hospital, -contains("Compared"), -contains("PaymentCategory"), -SurveyResponseRate,
+         -State)
+
+## Check for pneumoniaFull
+if (!exists("pneumoniaFull")) {
+  message("pneumoniaFull is missing. Please load or create it before proceeding.")
+} else {
+  pneumoniaFull <- pneumoniaFull %>% mutate(region = getStateName(State))
+
+  ## Merge for TRAIN
+  stateTrain <- readyTrain %>%
+    left_join(pneumoniaFull %>% select(FacilityId, region, PredictedReadmissionRate,
+      `Score_Hospital return days for pneumonia patients`,
+      `Score_Medicare spending per patient`, `Score_Death rate for pneumonia patients`),
+      by = "FacilityId") %>%
+    column_to_rownames("FacilityId") %>%
+    rename(Median_RawPredictedReadmissionRate = PredictedReadmissionRate,
+           Median_RawMedicareSpending = `Score_Medicare spending per patient`,
+           Median_RawDeathRate = `Score_Death rate for pneumonia patients`,
+           Median_RawHospitalReturnDays = `Score_Hospital return days for pneumonia patients`)
+
+  ## Merge for TEST
+  stateTest <- readyTest %>%
+    left_join(pneumoniaFull %>% select(FacilityId, region, PredictedReadmissionRate,
+      `Score_Hospital return days for pneumonia patients`,
+      `Score_Medicare spending per patient`, `Score_Death rate for pneumonia patients`),
+      by = "FacilityId") %>%
+    column_to_rownames("FacilityId") %>%
+    rename(Median_RawPredictedReadmissionRate = PredictedReadmissionRate,
+           Median_RawMedicareSpending = `Score_Medicare spending per patient`,
+           Median_RawDeathRate = `Score_Death rate for pneumonia patients`,
+           Median_RawHospitalReturnDays = `Score_Hospital return days for pneumonia patients`)
+
+  ## Aggregate
+  stateAggTrain <- stateTrain %>%
+    group_by(region) %>%
+    summarise(across(where(is.numeric), median, na.rm = TRUE))
+
+  stateAggTest <- stateTest %>%
+    group_by(region) %>%
+    summarise(across(where(is.numeric), median, na.rm = TRUE))
+}
+
+## Clean up
+rm(readyTrain, readyTest)
+
+```
+
+
 
 **NOTE 1** that these new aggregated training and testing states have `region` in them instead of `state`. This is so that they are already cleaned up for merging with geometries.
 
@@ -997,7 +1088,12 @@ This implies, then, that if we __identify the quadrants__ we identify the hot/co
 
 **What will the criteria for coldspot (quadrant III) states be?**
 
-> Your answer here.
+> AJ-For a state to be classified as a Coldspot (Quadrant III)— it needs to have low readmission rates surrounded by other low-readmission states (positive spatial autocorrelation), have a cluster of "good" performance with a local clustering that is statistically significant. Has a positive local Moran’s I (Ii > 0), Negative centered value of y , and has a significant p-value Pr(z != E(Ii)) < 0.05.
+
+
+Let me know if you'd like help identifying coldspots in your output using a filtering script or visual map.it must meet the opposite set of criteria from a hotspot:
+
+.
 
 #### 2.3.2.1 Extract the spatially-lagged median hospital readmission rates
 We can use the `lag.listw()` to extract the spatial lag of the target. So, these values are the __spatially-adjusted__ median pneumonia-related 
@@ -1020,7 +1116,7 @@ Yet, the _spatially-lagged_ pneumonia-readmissions for Massachusetts is only 0.2
 
 **HINT**: What did we do to the raw hospital readmissions before we calculated the spatial weights in this [section](#findSW)?
 
-> Your answer here.
+> AJ-The spatially-lagged values are shifted because they’re calculated on the centered (mean-subtracted) readmission rates and  not the original raw values. Before the spatial weights was calculated, the raw median readmission rates were mean-centered by  subtracting the overall mean from each state's value.This transformation shifts the data to have a mean of zero and  makes the lagged values reflect deviations from the average, so they appear smaller and shifted.
 
 #### **Question 15C**: [0.5 points]
 Show just Massachusetts' median readmissions to see its value after performing the step I am referring to in the hint. 
@@ -1028,12 +1124,16 @@ Show just Massachusetts' median readmissions to see its value after performing t
 **HINT**: Massachusetts is at row 20 in the `states_sf_AggTrain` dataframe, which will make it easier to locate its value in the vector created by looking at just the `Median_RawPredictedReadmissionRate` column.
 
 ```{r}
-## Your code here.
+# Massachusetts is row 20 in the original dataframe
+y[20]
+
 ```
 
 **QUESTION**: Is this a lot closer to the spatially-lagged value?
 
-> Your answer here.
+> AJ-Yes, it is much closer.The centered value for Massachusetts is  0.657, which is on the same scale as the spatially-lagged value (around 0.213), unlike the original raw value (~16.7). Since the spatially-lagged value was around 0.213, it’s much closer to the centered value than the original raw rate (~16.7%).
+
+
 
 #### 2.3.2.2 Convert the LISA results to a dataframe
 
@@ -1064,32 +1164,36 @@ The code below identifies the quadrants and adds them to the `states_sf_AggTrain
 > Answer in the comments.
 
 ```{r}
-## COMMENT HERE
+##Classify each state into LISA quadrants based on local Moran's I and spatial lag criteria
+
 states_sf_AggTrain <- states_sf_AggTrain %>%
   mutate(
-    ## COMMENT HERE
+    ## Create a new variable 'quadrant' to classify states as Hotspot, Coldspot, Outlier, or Not Significant
     quadrant = case_when(
-      ## COMMENT HERE
+      ## If p-value is greater than 0.05, the local spatial autocorrelation is NOT statistically significant
       pValue > 0.05 ~ "N.S.",
-      ## COMMENT HERE - Why do I not have to specify p-value again?
+      ## No need to specify p-value again in other cases because the first condition already filters for significance -       
+      ## so all other cases below already have p-value <= 0.05 (significant)
+
       
-      ## COMMENT HERE ABOUT LINE BELOW - INCLUDE QUADRANT!
+      ## Quadrant I: Hotspot (High-High)
       y > 0 & lag_medianReadmissions > 0 ~ "Hotspot",
       
-      ## COMMENT HERE ABOUT LINE BELOW - INCLUDE QUADRANT!
+      ## Quadrant III: Coldspot (Low-Low) 
       y < 0 & lag_medianReadmissions < 0 ~ "Coldspot",
 
-      ## COMMENT HERE ABOUT LINE BELOW - INCLUDE QUADRANT!
+      ## Quadrant IV: High-Low Outlier 
       y > 0 & lag_medianReadmissions < 0 ~ "High-Low Outlier",
 
-      ## COMMENT HERE ABOUT LINE BELOW - INCLUDE QUADRANT!
+      ## Quadrant II: Low-High Outlier 
       y < 0 & lag_medianReadmissions > 0 ~ "Low-High Outlier",
 
-      ## COMMENT HERE
-      TRUE ~ NA
+      ##For any remaining cases not covered above, assign NA
+      TRUE ~ NA_character_
     )
   )
 ```
+
 
 #### 2.3.2.5 Map the LISA cluster (quadrants)
 Lastly, let's visualize our hot/cold spots on the map! Note that we are now using `geom_sf()` for mapping rather than `geom_polygon()`. This is because our dataframe now contains **shapefile** geometries instead of just the polygons that it did earlier, hence the change.
@@ -1127,10 +1231,11 @@ ggplot(states_sf_AggTrain) +
 #### **Question 15E**: [0.5 points]
 Interpret what it means if Indiana is a "low-high" outlier.
 
-> Your answer here.
+> AJ- If Indiana is a "low-high" outlier, it means that the state is  doing better than expected compared to its higher-readmission neighbors but it's noted as an exception in a region of poor performance and the spatial relationship is statistically significant (p-value < 0.05).
 
 #### **Question 15F**: [1 point]
 Do the hot and coldspots make sense with your observations of graph `p1`? Why or why not? Can you explain why hot/coldspots will not necessarily correspond with __individual states'__ high and low median readmission rates?
+> AJ- Hot and coldspots may not perfectly match with 'individual states' high or low median readmission rates because spatial clustering (LISA) focuses on patterns among neighbors, not just isolated values. While the graph p1 shows 'individual state' rates, LISA classifies states based on both their value and the values of their neighbors. A hotspot state is not just a state with a high rate but a high-rate state surrounded by other high-rate states and a coldspot state is astate surrounded by low-rate states. Therefore a state with a high readmission rate could be simply an outlier (high surrounded by low), not a hotspot and spatial context  and LISA adds nuance beyond what p1 graph can't show  alone.
 
 ## 2.4 Spatial Regression Models
 
@@ -1159,7 +1264,7 @@ Your data have already been partitioned into training and testing sets, preproce
 
 **HINT**: Think of the data science lifecycle/flow we keep coming back to!
 
-> Your answer here.
+> AJ- Starting from raw data, we would first clean the data removing or imputing missing values, correcting errors, and standardizing formats. Then, we would engineer or select relevant features, including calculating variables like median readmission rates and  we would normalize or scale continuous predictors so they're on comparable scales, especially if using models sensitive to magnitude. We would also need to merge spatial data (like shapefiles) with our hospital readmission data to create the spatial weights matrix in order to capture neighborhood structure. Finally, we would split the data into training and testing sets so that we can evaluate model performance.
 
 ### 2.4.1.1 For our convenience, make a dataframe that contains just the information we want for fitting the SAR and store it into `sarTrain`
 
@@ -1195,7 +1300,7 @@ Why am I fitting an OLS regression again?
 
 **HINT 2**: What did aggregation do to our sample size?
 
-> Your answer here.
+> AJ- (1) Fitting an OLS regression again  provides a baseline model to compare against the Spatial Autoregressive (SAR) model and help assess whether spatial relationships improve predictions. (2)  Aggregation to the state level since it's a smaller sample size, is important in order to verify that basic assumptions still hold and that predictors are still useful before adding spatial complexity.  OLS is used as a baseline for model comparison and revalidating assumptions after aggregation due to the reduced sample size.
 
 ### 2.4.1.3 Check residuals for spatial autocorrelation
 If we didn't already know that we have spatial relationships from the Moran's $I$ and the LISA, we could also consider calculating a Moran's $I$ on the residuals of the OLS regression. This would tell us, even if we had NOT yet done a Moran's $I$ or LISA, that whether we should pay more attention to our spatial relationships and explicitly include them in our regression model. 
@@ -1210,15 +1315,16 @@ moran.test(residuals(OLS), states_sw)
 #### **Question 17B**: [1.5 points]
 - What would we conclude from the results of the Moran's $I$ test on the __residuals__? 
 
-> Your answer here.
+> AJ-It can be concluded that there is no strong evidence of spatial autocorrelation in the residuals of the OLS regression since the p-value (0.061) is slightly above the common threshold of 0.05. This means failure to reject the null hypothesis that residuals are spatially independent, suggesting that OLS may not be severely misspecified.
+However, the positive Moran's I value (≈ 0.129) hints at a possible mild spatial pattern, so using a spatial model like SAR could still be worthwhile for improving accuracy or interpretability.
 
 - If we had started here, rather than calculating the Moran's $I$ and LISA first, could we have been potentially mistaken about spatial relationships? Why or why not?
 
-> Your answer here.
+> AJ-Starting with residuals alone would be misleading since the p-value (0.061) is just above the typical significance threshold. This borderline result could lead us to wrongly conclude there’s no spatial autocorrelation. It’s better to assess spatial patterns both in the raw outcome and in residuals to fully understand spatial dependence.
 
 - Why might these results disagree with what we found from the Moran's $I$ and LISA on the scaled target?
 
-> Your answer here.
+> AJ-These results might disagree because the Moran’s I and LISA on the scaled target detect spatial patterns in the raw (unexplained) data, whereas the Moran’s I on the OLS residuals detects spatial patterns left over after controlling for predictors.The raw target’s spatial patterns and the residual spatial patterns after modeling can differ, leading to differences in conclusions between the raw and modeled data.
 
 ### 2.4.1.4 Fit the SAR model
 The `lagsarlm()` from the `spatialreg` package will fit the SAR for us, allowing us to specify the spatial weights matrix, `states_sw`, that we calculated all the way back [here](#findSW).
@@ -1299,16 +1405,19 @@ Our LM test statistic, per the `summary()` output, is 0.05318 with a $p$-value o
 #### **Question 18**: [3 points]
 Briefly summarize everything we know at this point: (1) Global Moran's $I$ results, (2) Local Moran's $I$ (LISA) results, (3) Moran's $I$ on the residuals of the OLS model, (4) the test for spatial autoregression using the coefficient $\rho$, (5) the Likelihood Ratio Test (LRT), and (6) the LM test for residual spatial autocorrelation after fitting the SAR model. DO NOT simply copy my interpretations but instead try to make sure you understand each of these pieces of evidence and what they tell us.
 
-> 1. 
-> 2. 
-> 3. 
-> 4. 
-> 5. 
-> 6. 
+> 1. Global Moran’s I: Showed significant positive spatial autocorrelation in the scaled outcome, meaning similar readmission rates tend to cluster geographically. This suggests that spatial relationships are important and should not be ignored.
+> 2. Local Moran’s I (LISA): Identified specific clusters (e.g., high-high or low-low areas) where readmission rates are unusually similar to neighbors. This gave localized insight into spatial dependence and reinforced the global Moran’s I findings.
+> 3. Moran’s I on OLS Residuals: Produced a borderline p-value (~0.061), suggesting weak or no residual spatial autocorrelation. If we had started here, we might have incorrectly concluded that spatial effects aren’t important. However, this only reflects patterns after controlling for predictors.
+> 4. SAR Model ρ Coefficient: The spatial lag coefficient ρ was significantly greater than zero (p = 0.012), indicating that spatial dependence in the outcome remains after accounting for predictors. This justifies the inclusion of the spatial lag term in the model.
+
+> 5. Likelihood Ratio Test (LRT): Showed that the SAR model fits significantly better than the OLS model (p = 0.0286), meaning the addition of the spatial component meaningfully improves predictive performance.
+
+> 6. LM Test on SAR Residuals: Had a high p-value (~0.82), indicating no remaining spatial autocorrelation in the residuals after fitting the SAR model. This confirms that the SAR successfully addressed the spatial structure in the data.
+
 
 What is your **final takeaway**? Do we need to account for spatial autocorrelation in our regression model?
 
-> Your answer here.
+> AJ-Yes, we definitely need to account for spatial autocorrelation in our regression model. The evidence shows that the outcome exhibits spatial clustering, and the SAR model significantly improves fit over OLS by explicitly modeling spatial dependence. Ignoring spatial effects would risk biased or inefficient estimates therefore including spatial structure is essential for accurate modeling and inference..
 
 ### 2.4.1.6 Inferential statistics - which predictors are important?
 
@@ -1323,7 +1432,7 @@ tbl_regression(SAR) %>%
 #### **Question 19**: [2 points]
 We can think of dealing with **spatial spillover** as helping us distinguish the wheat from the chaff (truth from noise). **Interpret** which of the coefficients are significant ($p$-value < 0.05) AND compare that to both Table 10 (parsimonious OLS model results) AND Figure 20 (Feature Importance from Elastic Net) from __Project 1__. Now that we are accounting for spatial autocorrelation, which predictors are still important? Did any become significant (important) now that weren't before?
 
-> Your answer here.
+> AJ- Perioperative complications and Medicare spending remain important predictors across all models and quietness gains significance only after accounting for spatial dependence which then  highlights the added value of spatial modeling. Accounting for spatial autocorrelation sharpen the  inference—separating true effects from spatially structured noise and revealing predictors that truly matter when spatial spillover is considered..
 
 
 ### 2.4.1.6 Inferential statistics - which predictors are important?
@@ -1505,7 +1614,7 @@ SDM <- lagsarlm(formula = bc_PredictedReadmissionRate ~ ., data = sarTrain,
   listw = states_sw, type = "mixed") ## "mixed" is necessary to specify as SDM
 
 ## Uncomment to view results!
-## summary(SDM)
+ summary(SDM)
 ```
 
 **Now, you might notice something a bit odd here**. Now, the test of the $H_0: \rho = 0$ is NOT significant (p = 0.17868) but the LM test IS significant (p = 0.012548), which is a **complete reversal**. What gives?!
