@@ -650,7 +650,7 @@ states_sw <- nb2listw(states_nb, style = "W")
 sf_use_s2(TRUE)
 ```
 
-#### **Question 11B**: [0.5 points]
+#### **Question 11B**: [0.5 points]    TT
 
 The first state in our dataset is Alabama. Take a look at one of our maps if needed. How many neighbors do you expect it to have?
 
@@ -695,13 +695,14 @@ states_sf_AggTrain <- left_join(states_sf, stateAggTrain,
                                 by = c("ID" = "region"))
 ```
 
-#### **Question 12**: [1 point]
+#### **Question 12**: [1 point]       TT
 
 I am sure you caught this, but spatial weights and everything are being done on the **training** data only. What key issue am I trying to __avoid__ by performing all of my spatial pre-processing steps on the training data only? Why am I not using the full dataset for this?
 
 **HINT**: It is the same reason we did all of our other pre-processing AFTER splitting the data!
 
 > Your answer here. 
+The main issue we are trying to avoid by doing this exploratory analysis on the training data is data leakage (i.e. making sure that none of the test data is being used to train the model).
 
 ## 2.2 Global Spatial Autocorrelation: Global Moran’s $I$
 
@@ -716,6 +717,11 @@ We are going to set the target like this to facilitate making it easier to swap 
 
 y <- scale(states_sf_AggTrain$Median_RawPredictedReadmissionRate,
            center = TRUE, scale = FALSE)
+
+#y <- scale(states_sf_AggTrain$bc_PredictedReadmissionRate,
+#           center = TRUE, scale = FALSE)
+
+
 ```
 
 
@@ -759,15 +765,20 @@ Outlier states in each of the quadrants of the graph are also identified.
 - **High-low outliers**  (Quadrant IV) 
   - These states have high readmission rates but are generally surrounded by neighboring states that are low.
 
-#### **Question 13**: [1 point]
+#### **Question 13**: [1 point]    TT
 Identify each of the outliers from the graph and interpret the type of outlier (high-high, low-high, etc.) that they are. 
 
 > Your answer here.
+The outliers present on the graph are 
+--West Virginia. Washington D.C., and New Jersey (all being high-high outliers), 
+--Delaware (a low-high outlier), and 
+--Utah (a low-low outlier).
 
-#### **Question 14A**: [0.5 points]
+#### **Question 14A**: [0.5 points]    TT
 **NOTICE** that I had you define the target as a _centered_ version of `Median_RawPredictedReadmissionRate`, which is the median of the _untransformed, unscaled_ readmissions. Shouldn't I have used the transformed and scaled version, `bc_PredictedReadmissionRate`? Can you think of any reason why I chose to use the centered median of the raw readmissions rather than the transformed version?
 
 > Your answer here.
+We used the raw median readmission rate instead of the transformed version to keep the direction and scale of the data. This makes sure that each state's value and its neighbors’ values are moving in the same direction, which is important when identifying spatial patterns like “high-high” or “low-low” in a Moran’s I plot. Using the transformed version could distort these relationships and make the quadrant assignments misleading.
 
 **HINT 1**: What does centering do that scaling does not? Could centering be important, for example, to make sure that $y$ is going in the same direction as lagged $y$?
 
@@ -775,11 +786,12 @@ Identify each of the outliers from the graph and interpret the type of outlier (
 
 **HINT 3**: [Chapter 8](https://www.paulamoraga.com/book-spatial/spatial-autocorrelation.html) by Paul Moraga on Spatial Autocorrelation may be helpful, but it also gets a bit deep in the weeds too.
 
-#### **Question 14B**: [0.5 points]
+#### **Question 14B**: [0.5 points]    TT
 
 Now go back up to temporarily **reset the target** to `bc_PredictedReadmissionRate` [here](#setTarget). **There is no need to scale it again!** Then, re-run the Global Moran's $I$. make sure to update the limits of the $x$-axis or just comment that line out (`xlim(...)`) to look at the graph. Looking at the value of $I$, the $p$-value, and the graph output - does the conclusion change? Does it matter which value we choose for the analysis?
 
 > Your answer here.
+Changing the target to bc_PredictedReadmissionRate did slightly change the values from the Global Moran’s I analysis — the standard deviate increased from 2.9895 to 3.1939, and the p-value dropped from 0.0014 to 0.0007. These changes suggest that the spatial autocorrelation became slightly stronger with the transformed variable. These small changes indicate that the overall conclusions from the graphs arethe same (the correlation between the variables stayed the same). While the transformation affects the magnitude of the test statistic and shifts how some outliers on the graph (most notably, Utah), it does not meaningfully change the interpretation or spatial pattern we observe.
 
 **NOTE**: Make sure to change $y$ back to the scaled version of `Median_RawPredictedReadmissionRate` before moving to the next analysis!
 
