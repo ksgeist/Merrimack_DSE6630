@@ -307,7 +307,7 @@ levels(stateAggPneumonia$region)
 Are there any missing data? If so, what data are missing? Did you make a mistake?
 
 > Your answer here.By Collins
-Yes I had missing data, I had 49 observation rather than 51 observation. My dataset was missing Alaska and Hawaii. No I don't think I made a mistake. The removal of N/A could have resulted to missing the two states
+Yes I had missing data, I had 49 observation rather than 51 observation. My dataset was missing Alaska and Hawaii. No I don't think I made a mistake. The removal of N/A (!is.na(region)) could have resulted to missing the two states
 
 ### 1.2.5 Means or medians? How do you choose?
 
@@ -325,7 +325,7 @@ Choosing the mean or median value here is going to be really important for anyon
 
 On the other hand, we will choose the **median** when:
 
- - The data are skewed (i.e., there us long tail on one side of the curve) OR the data are lepto- or platykurtic (overly "peaked" or flattened, respectively)
+ - The data are skewed (i.e., there is long tail on one side of the curve) OR the data are lepto- or platykurtic (overly "peaked" or flattened, respectively)
 
   - **Skewness** Guidelines:
 
@@ -354,9 +354,13 @@ On the other hand, we will choose the **median** when:
 #### **Question 7**: [1 point]
 You may have to do some research if you do not recall, but why would showing someone a mean when we should have showed them a median, or vice versa, potentially create interpretation problems for us or our stakeholders?
 
-> Your answer here.
-
-\   
+> Your answer here.By Collins
+Mean is very sensitive to extreme values (outliers). If they are very high or low values in a dataset, then mean can be skewed leading to a misleading interpretation. On the other hand median is very robust with outliers, therefore a good representation of a typical value when the data is skewed.
+>Interpretation Problems:
+1. Masking inequality: If you show mean in a skewed data then it might musk underlying inequalities. For example, if you are analyzing healthcare outcomes, a mean value may not reveal a small group of patients that has extremly poor outcomes (right skew) while the majority has good outcomes. In this case Median would be the best to represent the typical value as its robust to outliers.
+2. overemphasizing extremes: conversely, if you show stakeholders a median value it might downplay the impact of extreme values. For example, in finance, a median return on investment may not capture the potential for extremly high returns that can occur with certain investments. In this example assume you have ROI: 5%, 7%, 10%, 12% & 1000%. in this case our median would be 10% ignoring the presence of 1000%. This is because median focuses on the central position of the ordered data rather than the weight of the values in the data.
+3.Misleading comparisons: When comparing groups or datasets, using wrong measure of central tendency may lead to incorrect conclusions. For instance, if you comparing the average income of two cities, using the mean may make one city appear more affluent that it actually if there are a few extremely high-income individuals.
+   
 
 #### 1.2.5.1 Using boxplots embedded in violin plots to assess distribution symmetry
 
@@ -366,6 +370,9 @@ Practice reading boxplots to decide, for each measure, whether you should use th
 **Based on Figure 1 below**, which measure(s) do you think would benefit from the median over the mean? Why?
 
 > Your answer here.
+1. medical spending per patient seems a little bit skewed to the right. even thogh the skew is not prominent I would prefer using median
+2. Pneumonia death rate shows a normally distributed (symmetrical) type of data indicating no presence of skweness. For death rate I would use mean as my measure of central tendency
+3.Pneumonia Hospital return days and Pneumonia readmission rate are both prominently right skewed thus median would be the best. In addtion, pneumonia readmission rate is ordinal therefore, median would still the best to interprete it.
 
 ```{r, echo = FALSE, fig.height=8, fig.width=10, fig.cap="Figure 1. Violin and boxplots to assess distribution symmetry"}
 pneumoniaFull %>% 
@@ -381,8 +388,8 @@ pneumoniaFull %>%
   mutate_if(is.character, as.numeric) %>% 
   pivot_longer(cols = 1:4, names_to = "Measure", values_to = "Value") %>% 
   ggplot(aes(y = Value, x = Measure, fill = Measure)) + 
-  geom_violin(alpha = 0.65) + 
-  geom_boxplot(width = 0.25, alpha = 1, fill = "white") +
+  geom_violin(alpha = 0.3) + 
+  geom_boxplot(width = 0.25, alpha = 0.6, fill = "white") +
   scale_fill_manual(values = skittles[c(7,5,3,2)]) +
   theme_bw() +
   facet_wrap(~Measure, scales = "free", nrow = 1, shrink = TRUE) + 
@@ -395,6 +402,13 @@ pneumoniaFull %>%
 #### 1.2.5.2 D'Agostino's $K^2$ Skewness Test to assess distribution symmetry
 
 In Project 1, I introduced the Shapiro-Wilk test for normality for those who were not familiar with it. As a reminder, the Shapiro-Wilk test is a goodness-of-fit test to assess whether an approximately normal transformation matches our data, with the null hypothesis that it does. It does this by computing a $W$ statistic compares ordered sample values to the corresponding normal distribution quantiles. As I mentioned before, it typically has high power to detect deviations from normality in most situations unless $N>5000$.
+
+```{r}
+shapiro.test(pneumoniaFull$`Score_Medicare spending per patient`) # Just wanted to check with shapiro_wilk test
+```
+```{r}
+shapiro.test(pneumoniaFull$`Score_Death rate for pneumonia patients`)
+```
 
 But normality tests (and Shapiro-Wilk is not the only one!) is not a sufficient test of __skewness__ or __kurtosis__. E.g., we can have enough skew or kurtosis that our distribution would be better described by a median over a mean, yet it does not deviate at the 5% significance threshold from a normal approximation! In other words, it can look normal, not deviate from normal per a Shapiro-Wilk test, and _yet_ still be sufficiently skewed that the median is a better choice. One reason this can happen, for example, is if you have a lot of repeats of the same value, as seen in count data or some quantitative measures that have been rounded to integers. 
 
@@ -409,25 +423,29 @@ agostino.test(pneumoniaFull$PredictedReadmissionRate)
 ___Interpretation___: Because $p<0.05$, we reject the hypothesis of symmetry and conclude that predicted readmissions are __significantly skewed__. We should use the median to aggregate this variable.
 
 #### **Question 8B**: [1 point]
-Your task is to repeat this test, with interpretations, for `Score_Death rate for pneumonia patients`, `Score_Hospital return days for pneumonia patients`, and          `Score_Medicare spending per patient`:
+Your task is to repeat this test, with interpretations, for `Score_Death rate for pneumonia patients`, `Score_Hospital return days for pneumonia patients`, and `Score_Medicare spending per patient`:
 
 ```{r}
-# Your code here.
+# Your code here.By Collins
+agostino.test(pneumoniaFull$`Score_Death rate for pneumonia patients`)
 ```
 
-___Interpretation___: ...
+___Interpretation___: By Collins. Am surprised because to my naked eyes pneumonia death rate violin showed normal distribution. But after running Agostino test and shipiro-wilk test, the data shows existence of skewness that is p-value of 0.0000000000001165 < 0.05. Therefore, we should use median 
 
 ```{r}
-# Your code here.
+# Your code here. By collins
+agostino.test(pneumoniaFull$`Score_Hospital return days for pneumonia patients`)
+
 ```
 
-___Interpretation___: ...
+___Interpretation___: Because p-value =  0.00000000000000022 is less than 0.05, we reject null hypotheis and conclude that Score_Hospital return days for pneumonia patients is skewed. we should therefore use median 
 
 ```{r}
-# Your code here.
+# Your code here.By Collins
+agostino.test(pneumoniaFull$ `Score_Medicare spending per patient`)
 ```
 
-___Interpretation___: ...
+___Interpretation___: By Collins: Because  p-value < 0.00000000000000022, $p<0.05$, we reject the hypothesis of symmetry and conclude that Score_Medicare spending per patient are __significantly skewed__. We should use the median to aggregate this variable.
 
 #### 1.2.5.3 Assessing stability of central tendency estimates
 
@@ -461,7 +479,9 @@ The time has come to make your final selection! Your job is to __remove__ the co
 
 #### **Question 8D**: [1 points]
 ```{r}
-# Your code here.
+# Your code here. By Collins
+stateAggPneumonia <- stateAggPneumonia %>%
+  select(-c("meanReadmissions", "meanDeathRate", "meanHospitalReturnDays", "meanMedicareSpending"))
 ```
 
 
@@ -518,6 +538,8 @@ p1
 #### **Question 9A**: [0.25 points] {#table4}
 Do you notice any trends that could be worth testing? If you're not sure, take a look at this sorted table showing the top 10 states for median pneumonia-related hospital readmissions:
 
+#By Collins, southern states, western states (California and nevada), and northeastern states (Michigan, Illinois). These regions exhibit a higher median predicted percentage of readmissions within 30 days. this suggest there may be regional factors contributing to these higher rates
+
 ```{r, echo = FALSE, message=FALSE, warning=FALSE}
 stateAggPneumonia %>% 
   arrange(desc(medianReadmissions)) %>%
@@ -534,6 +556,10 @@ stateAggPneumonia %>%
 
 **HINT**: It may not be readily obvious from the map or table! If you don't see a hypothesis, that's okay. But try to think about anything some of these states might have in common, if anything.
 
+#By Collins:
+#1. Socialeconomic Factors: states with lower resources access may experience higher readmission rates
+#2. Demographic Factors: presences of higher ageing population may influence higher readmissions backed by factors such chronic diseases.
+
 #### **Question 9B**: [1.75 points]
 
 Your task is to now update the code I used to make `p1` for the remaining three variables. I suggest copying the code and following the comments to update everywhere I have `!!Update` written. You should update per the following specification for __full credit__:
@@ -541,11 +567,115 @@ Your task is to now update the code I used to make `p1` for the remaining three 
 - `Pneumonia Death Rate` (whether mean or median, your choice from earlier) $\rightarrow$ color should be `skittles[3]`
   - Don't forget to update the axis labels and titles appropriately. Death rate was measured as number of deaths per pneumonia cases in 30 days.
 
+```{r}
+## Store the plot into a variable called p1
+p2 <- ggplot(mergedStateAggPneumonia, aes(x = long, y = lat, group = group, 
+                               ## !!Update the fill to the variable you want
+                               fill = medianDeathRate)) +  
+  geom_polygon(color = "grey20", size = 0.2, alpha = 1) +
+  ## !!Update this change the legend and color scale
+  scale_fill_continuous(name="Median Pneumonia Deaths within 30 days", 
+            low = "white", high = skittles[3]) +       ## !!Update color here   
+            ## Leave low as white; only !!update high!
+  
+  ## !!Update the title to reflect a better map title
+  labs(title = "Median Pneumonia-related Deaths by state",
+   ## Leave the caption as-is
+   caption = "Source: Centers for Medicare & Medicaid Services (CMS), 2024") +
+  
+  ## -- This makes the map pretty. No need to change any of this -- ##
+  ## Makes a completely blank map background
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    legend.position = "bottom"
+  ) +
+  ## Sets the aspect ratio to roughly match US map proportions
+  coord_fixed(1.3)
+
+## Displays the map
+p2
+```
+
 - `Medicare Spending` (whether mean or median, your choice from earlier) $\rightarrow$ color should be `skittles[7]`
   - Don't forget to update the axis labels and titles appropriately. Medicare spending was measured at each hospital per patient.
+  
+```{r}
+## Store the plot into a variable called p1
+p3 <- ggplot(mergedStateAggPneumonia, aes(x = long, y = lat, group = group, 
+                               ## !!Update the fill to the variable you want
+                               fill = medianMedicareSpending)) +  
+  geom_polygon(color = "grey20", size = 0.2, alpha = 1) +
+  ## !!Update this change the legend and color scale
+  scale_fill_continuous(name="Median Medicare Spending per Patient within 30 days", 
+            low = "white", high = skittles[7]) +       ## !!Update color here   
+            ## Leave low as white; only !!update high!
+  
+  ## !!Update the title to reflect a better map title
+  labs(title = "Median Medicare Spending Per patient by state",
+   ## Leave the caption as-is
+   caption = "Source: Centers for Medicare & Medicaid Services (CMS), 2024") +
+  
+  ## -- This makes the map pretty. No need to change any of this -- ##
+  ## Makes a completely blank map background
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    legend.position = "bottom"
+  ) +
+  ## Sets the aspect ratio to roughly match US map proportions
+  coord_fixed(1.3)
+
+## Displays the map
+p3
+```
+  
 
 - `Pneumonia Hospital Return Days` (whether mean or median, your choice from earlier) $\rightarrow$ color should be `skittles[5]`
   - Don't forget to update the axis labels and titles appropriately. Hospital return days are the number of days readmitted pneumonia patients spend in the hospital. Readmissions are only measured within 30 days of the original admission to the hospital for pneumonia.
+  
+```{r}
+## Store the plot into a variable called p1
+p4 <- ggplot(mergedStateAggPneumonia, aes(x = long, y = lat, group = group, 
+                               ## !!Update the fill to the variable you want
+                               fill = medianHospitalReturnDays)) +  
+  geom_polygon(color = "grey20", size = 0.2, alpha = 1) +
+  ## !!Update this change the legend and color scale
+  scale_fill_continuous(name="Pneumonia Related: Median Hopsital Return Days within 30 days", 
+            low = "white", high = skittles[5]) +       ## !!Update color here   
+            ## Leave low as white; only !!update high!
+  
+  ## !!Update the title to reflect a better map title
+  labs(title = "Median Hospital Return Days by state",
+   ## Leave the caption as-is
+   caption = "Source: Centers for Medicare & Medicaid Services (CMS), 2024") +
+  
+  ## -- This makes the map pretty. No need to change any of this -- ##
+  ## Makes a completely blank map background
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    legend.position = "bottom"
+  ) +
+  ## Sets the aspect ratio to roughly match US map proportions
+  coord_fixed(1.3)
+
+## Displays the map
+p4
+```
+  
 
 # 2 State-level Spatial Analysis
 
@@ -559,6 +689,9 @@ But because our ultimate goal is to try to tie this back with all of the work we
 
 ```{r}
 source(file = "loadTrainTest.R")
+         
+#"C:/data_science/DSE6003OM_SP2025R1/Merrimack_DSE6630/Team_Directories/gamma/Module_Demos/Demo_2/loadTrainTest.R")
+
 ```
 
 **NOTE 1** that these new aggregated training and testing states have `region` in them instead of `state`. This is so that they are already cleaned up for merging with geometries.
@@ -570,16 +703,18 @@ source(file = "loadTrainTest.R")
 Check that all of the states (in `region`) made it into the training set. If you choose to do this by counting, say with `unique()` or `distinct()`, you should get __52__ if they are all present.
 
 ```{r}
-# Your code here
+# Your code here By Collins
+unique(stateAggTrain$region)
 ```
 
-> Your answer here.
+> Your answer here. By Collins. I happen to have only 49. Am still missing Alaska and Hawaii
 
 #### **Question 10B**: [0.25 points]
 
 Why am I not asking you to check the states in the testing data?
 
-> Your answer here.
+> Your answer here. By Collins
+The testing data is used to evaluate the performance of the model, and it is assumed that the it will have similar distribution of states as the training data. Therefore, checking the states in the testing test data is not as crucial as checking the states in the training set.
 
 #### **Question 10C**: [0.25 points]
 
@@ -589,7 +724,8 @@ In the aggregation that I did for both `stateAggTrain` and `stateAggTest` I took
 
 **HINT 2**: Why is a median _or_ a mean acceptable if we're working with scaled and centered data?
 
-> Your answer here.
+> Your answer here. By Collins
+Scaling and centering data is technically transforming data from asymmetry to symmetry. In short its a way of normalizing the data around the mean such that it follows a normal distribution. In this case using either mean or medium will be acceptable.
 
 ### 2.1.2 Identify your geographic level of aggregation for each variable. 
 
@@ -599,7 +735,7 @@ __Here, we have selected state__. We already decided this going into the previou
 
 Sadly, what we used for mapping will not be sufficient. Recall that, in lecture, I kept referring to something called __shapefiles__ and I said we wouldn't have to worry about them a ton (yet) but that we were going to need them already. Well, here they are! 
 
-A shapefile is a widely used geospatial vector data format for geographic information system (GIS) software, storing the location, shape, and attributes of geographic features such as points, lines, and polygons. This is is typically across a set of related files with file extensions of `.shp`, `.shx`, or `.dbf`. Because __shapefiles are the gold-standard__ of spatial analysis, our spatial statistics packages in R similarly expect geometrics in __shapefile__ (often abbreviates as __sf__) format. We could either import shapefiles (which we will do in Project 2) or, here, we will simply convert the geometrics from the `maps` package into shapefile format so we can calculate our spatial statistics. 
+A shapefile is a widely used geospatial vector data format for geographic information system (GIS) software, storing the location, shape, and attributes of geographic features such as points, lines, and polygons. This is typically across a set of related files with file extensions of `.shp`, `.shx`, or `.dbf`. Because __shapefiles are the gold-standard__ of spatial analysis, our spatial statistics packages in R similarly expect geometrics in __shapefile__ (often abbreviates as __sf__) format. We could either import shapefiles (which we will do in Project 2) or, here, we will simply convert the geometrics from the `maps` package into shapefile format so we can calculate our spatial statistics. 
 
 Complicated, right? Thankfully, most of that magic will be performed for us using the `sf` package in R. If you want to learn more about the `sf` package, you can find that [here](https://r-spatial.github.io/sf/). 
 
@@ -607,11 +743,21 @@ _We can convert to shapefile format in a single line of code:_
 ```{r}
 ## Get state map geometries in shapefile format
 states_sf <- st_as_sf(map("state", plot = FALSE, fill = TRUE))
+
 ```  
 
 #### **Question 10D**: [0.25 points]
 
 You may need to do a little digging, but what exactly is the `st_as_sf()` function from the `sf` package doing? Can you figure out why I didn't just use the `states` object we already used for mapping?
+
+#Answer By Collins: `st_as_sf()` function is used to convert the map object ("state", plot = FALSE, fill = TRUE) into an (sf) object named states_sf. This allows for further analysis and manipulation using sf package
+>states object was not used directly because it might not be in the format that is easily convertible to an sf object or might not have the necessary geometry information.
+
+
+```{r}
+?st_as_sf() #Convert stars object into an sf object
+```
+
 
 ### 2.1.4 Calculate spatial weights for our target, predicted pneumonia readmission rate. {#findSW}
 
@@ -641,14 +787,17 @@ states_sf <- st_make_valid(states_sf)
 
 **Find Neighboring States**
 
-Next, we will use the `poly2nb()` function from the `spdep` package to create a _neighborhood list_ based on the polygon boundaries of our spatial objects (states). It is using the shapefile (sf) object we already made, `states_sf`, to do this. What it will do is defines which polygons (states) are neighbors by looking for which ones share borders with each other (called __contiguity__). By default, it uses what is called "queen" continuity (derived from chess); it would define a neighboring state as one that shares any point (edge OR corner) as neighbors. 
+Next, we will use the `poly2nb()` function from the `spdep` package to create a _neighborhood list_ based on the polygon boundaries of our spatial objects (states). It is using the shapefile (sf) object we already made, `states_sf`, to do this. What it will do is defines which polygons (states) are neighbors by looking for which ones share borders with each other (called __contiguity__). By default, it uses what is called "queen" contiguity (derived from chess); it would define a neighboring state as one that shares any point (edge OR corner) as neighbors. 
 
 As an example, Colorado and Arizona do not share a border only a corner, right? But according to "queen" contiguity, they are still neighbors. 
 
 #### **Question 11A**: [0.5 points]
-Look up "rook" continuity and explain what (1) what it means, (2) how the neighbor relationship of Colorado and Arizona would change, if it would, and (3) how we change to this type of contiguity in the `poly2nb()` function. (You don't need to actually change it in the code, however.)
+Look up "rook" contiguity and explain what (1) what it means, (2) how the neighbor relationship of Colorado and Arizona would change, if it would, and (3) how we change to this type of contiguity in the `poly2nb()` function. (You don't need to actually change it in the code, however.)
 
-> Your answer here. 
+> Your answer here.By Collins:
+>1. What is "rook" contiguity. It refers to a method of defining polygons based on shared edges. Unlike "queen" contiguity, which considers both edges and corners as points of contiguity, rook contiguity only considers polygons as neighbors if they share an edge (boundary line)
+>2. how the neighbor relationship of Colorado and Arizona would change: Under "queen" contiguity, Colorado and Arizona are considered neighbors because they share a corner. However, under "rook" contiguity, they would not be considered neighbors since they do not share an edge (boundary line).
+>3. how we change to this type of contiguity in the `poly2nb()` function. To implement "rook" contiguity in `poly2nb()`function, we would set the "queen" argument to FALSE
 
 _We can find neighboring states using queen contiguity like this:_
 ```{r}
@@ -675,7 +824,8 @@ sf_use_s2(TRUE)
 
 The first state in our dataset is Alabama. Take a look at one of our maps if needed. How many neighbors do you expect it to have?
 
-> Your answer here.
+> Your answer here. By Collins
+Alabama has four neighbors: Tennessee, Georgia, Florida, and Mississippi
 
 Now investigate Alabama's spatial weights:
 
@@ -685,15 +835,18 @@ states_sw$weights[[1]]
 
 Does this feel consistent (1) with what you know about the number of neighbors Alabama has and (2) what I mentioned above about row-standardizing our weights? Why or why not?
 
-> Your answer here. 
+> Your answer here. By Collins
+Yes this is very consistent because each neighbor is allocated a weight of 0.25. This means the total weight of Alabama will be 1 just like any other state with less or more neighbors
 
 Lastly, investigate the spatial weights for Massachusetts (number __22__). Does it fit with your expectations given the number of neighbors?
 
 ```{r}
 # Your code here.
+states_sw$weights[[22]]
 ```
 
-> Your answer here. 
+> Your answer here. By Collins
+Massachusetts has five neighbors: New Hampshire, vermont, New york, connecticut, and rhode Island. While the idea of normalized weight of 1 is consistent, I expected each neighbor to contribute equal weight of (1/5)
 
 **Join the Spatial Weights back to our Training Data**
 
@@ -718,7 +871,8 @@ I am sure you caught this, but spatial weights and everything are being done on 
 
 **HINT**: It is the same reason we did all of our other pre-processing AFTER splitting the data!
 
-> Your answer here. 
+> Your answer here. By Collins
+The main reason to perform all spatial pre-processing steps on the training data only is to avoid data leakage. Data leakage occurs when information from test dataset is used to train the model, which can lead to overly optimistic results and poor performance on unseen data. 
 
 ## 2.2 Global Spatial Autocorrelation: Global Moran’s $I$
 
@@ -733,6 +887,7 @@ We are going to set the target like this to facilitate making it easier to swap 
 
 y <- scale(states_sf_AggTrain$Median_RawPredictedReadmissionRate,
            center = TRUE, scale = FALSE)
+
 ```
 
 
@@ -779,12 +934,19 @@ Outlier states in each of the quadrants of the graph are also identified.
 #### **Question 13**: [1 point]
 Identify each of the outliers from the graph and interpret the type of outlier (high-high, low-high, etc.) that they are. 
 
-> Your answer here.
+> Your answer here. By Collins
+1.quadrant 1 (High-High), West Virginia, District of Columbia & New Jersey
+2.quadrant II (Low-High), Delaware
+3.quadrant  III (Low-Low), Utah
+
 
 #### **Question 14A**: [0.5 points]
 **NOTICE** that I had you define the target as a _centered_ version of `Median_RawPredictedReadmissionRate`, which is the median of the _untransformed, unscaled_ readmissions. Shouldn't I have used the transformed and scaled version, `bc_PredictedReadmissionRate`? Can you think of any reason why I chose to use the centered median of the raw readmissions rather than the transformed version?
 
-> Your answer here.
+> Your answer here. By Collins
+a transformed target (`bc_PredictedReadmissionRate) is not only centred but also scaled. That means it would be difficult to interpret its results. Therefore the main reason for using the centered median of raw readmissions instead of the transformed and scaled version is to maintain interpretability. By using the centered version, the results are more intuitive and easier to understand in the context of actual readmission rates. In addition, the results are simpler for stakeholders to understand.
+>Centering involves subtracting a constant value from each data point, typically the mean or median to shift the data's central tendency. Scaling, on the other hand, involves multiplying each data point by a constant factor to adjust the data's range or variance. So, while scaling adjusts the range and variance of the data, centering focuses on aligning the data around a central point. Centering does not change the spread or dispersion of the data, whereas scaling does. Centering is particularly important when dealing with lagged values, as it ensures that the original and lagged values are directionally aligned. in our case this is very important in ensuring that both the original and lagged values belong in the same quadrant.
+
 
 **HINT 1**: What does centering do that scaling does not? Could centering be important, for example, to make sure that $y$ is going in the same direction as lagged $y$?
 
@@ -796,7 +958,8 @@ Identify each of the outliers from the graph and interpret the type of outlier (
 
 Now go back up to temporarily **reset the target** to `bc_PredictedReadmissionRate` [here](#setTarget). **There is no need to scale it again!** Then, re-run the Global Moran's $I$. make sure to update the limits of the $x$-axis or just comment that line out (`xlim(...)`) to look at the graph. Looking at the value of $I$, the $p$-value, and the graph output - does the conclusion change? Does it matter which value we choose for the analysis?
 
-> Your answer here.
+> Your answer here. By Collins
+Moran I statistic = 0.288790751 and p-value = 0.0007019 the interpretation remains the same because the p-value = 0.0007019 < 0.05  and its still positive. But for the graph, utah and west virgin miss to show up in the graph
 
 **NOTE**: Make sure to change $y$ back to the scaled version of `Median_RawPredictedReadmissionRate` before moving to the next analysis!
 
@@ -866,18 +1029,22 @@ This implies, then, that if we __identify the quadrants__ we identify the hot/co
 
 **What will the criteria for coldspot (quadrant III) states be?**
 
-> Your answer here.
+> Your answer here. By Collins
+ - A significant $p$-value ($p < 0.05$), which suggests that local $I_i$ is significantly __negative__ ($I_i < 0$) 
+ - A _centered_ median hospital pneumonia-related readmissions rate that is negative
+ - A __spatially-lagged__ median hospital pneumonia-related readmissions rate that is negative
+
 
 #### 2.3.2.1 Extract the spatially-lagged median hospital readmission rates
 We can use the `lag.listw()` to extract the spatial lag of the target. So, these values are the __spatially-adjusted__ median pneumonia-related 
 
 ```{r}
 lag_medianReadmissions <- lag.listw(states_sw, y)
-## Run this is you want to see what they look like!
-## lag_medianReadmissions
+## Run this if you want to see what they look like!
+ #lag_medianReadmissions
 
 ## Just Massachusetts' value:
-## lag_medianReadmissions[20]
+ lag_medianReadmissions[20] #initially we used 22 to represented Massachusetts, has it changed because we are missing Alask and Hawaii (islands)?
 ```
 
 #### **Question 15B**: [0.5 points]
@@ -889,7 +1056,8 @@ Yet, the _spatially-lagged_ pneumonia-readmissions for Massachusetts is only 0.2
 
 **HINT**: What did we do to the raw hospital readmissions before we calculated the spatial weights in this [section](#findSW)?
 
-> Your answer here.
+> Your answer here.By Collins
+we centered the raw hospital readmissions before we calculated the spatial weights
 
 #### **Question 15C**: [0.5 points]
 Show just Massachusetts' median readmissions to see its value after performing the step I am referring to in the hint. 
@@ -898,11 +1066,19 @@ Show just Massachusetts' median readmissions to see its value after performing t
 
 ```{r}
 ## Your code here.
+
+#hint 1 step being refered to "y <- scale(states_sf_AggTrain$Median_RawPredictedReadmissionRate,
+           #center = TRUE, scale = FALSE)" we did centering but not scaling 
+
+states_sf_AggTrain$Median_RawPredictedReadmissionRate[20]
+
+  
 ```
 
 **QUESTION**: Is this a lot closer to the spatially-lagged value?
 
-> Your answer here.
+> Your answer here. By Collins 
+Yes it is, 16.67% is close to 21.26 %
 
 #### 2.3.2.2 Convert the LISA results to a dataframe
 
@@ -933,28 +1109,28 @@ The code below identifies the quadrants and adds them to the `states_sf_AggTrain
 > Answer in the comments.
 
 ```{r}
-## COMMENT HERE
+## COMMENT HERE calling state_sf_AggTrain using pipe function
 states_sf_AggTrain <- states_sf_AggTrain %>%
   mutate(
-    ## COMMENT HERE
+    ## COMMENT HERE mutate function add/ modifies columns in states_sf_AggTrain
     quadrant = case_when(
-      ## COMMENT HERE
-      pValue > 0.05 ~ "N.S.",
-      ## COMMENT HERE - Why do I not have to specify p-value again?
+      ## COMMENT HERE case_when statement performs multiple conditional checks and returns different values based on those conditions. in this case it creates a new column quadrant
+      pValue > 0.05 ~ "N.S.", #this line checks if the value in the Pvalue column is greater than 0.05. If true, it assigns the string "N.S" (Not Significant) in the quadrant column and stops evaluating further conditions
+      ## COMMENT HERE - Why do I not have to specify p-value again? because the p-value condition pValue > 0.05 ~ "N.S." is being used as a filter to exclude non-significant results from further evaluation. once the condition is met it stops evaluating further conditions
       
       ## COMMENT HERE ABOUT LINE BELOW - INCLUDE QUADRANT!
-      y > 0 & lag_medianReadmissions > 0 ~ "Hotspot",
+      y > 0 & lag_medianReadmissions > 0 ~ "Hotspot", # Quadrant I, High readmissions with high neighboring states
       
       ## COMMENT HERE ABOUT LINE BELOW - INCLUDE QUADRANT!
-      y < 0 & lag_medianReadmissions < 0 ~ "Coldspot",
+      y < 0 & lag_medianReadmissions < 0 ~ "Coldspot", #Quadrant III, low readmissions with low neighboring states
 
       ## COMMENT HERE ABOUT LINE BELOW - INCLUDE QUADRANT!
-      y > 0 & lag_medianReadmissions < 0 ~ "High-Low Outlier",
+      y > 0 & lag_medianReadmissions < 0 ~ "High-Low Outlier", #Quadrant iv, high readmissions and low neighboring states (outlier)
 
       ## COMMENT HERE ABOUT LINE BELOW - INCLUDE QUADRANT!
-      y < 0 & lag_medianReadmissions > 0 ~ "Low-High Outlier",
+      y < 0 & lag_medianReadmissions > 0 ~ "Low-High Outlier", # Quadrant II, Low readmissions and high neighboring states (outlier)
 
-      ## COMMENT HERE
+      ## COMMENT HERE default case for the case_when statement. if non of the above conditions are met, then assighns N/A
       TRUE ~ NA
     )
   )
@@ -996,10 +1172,14 @@ ggplot(states_sf_AggTrain) +
 #### **Question 15E**: [0.5 points]
 Interpret what it means if Indiana is a "low-high" outlier.
 
-> Your answer here.
+> Your answer here. By Collins
+From The map we can see Indiana is in a quadrant low-high. That is Indiana has low readmission rates of pneumonia but is surrounded by states with high readmission rate.
 
 #### **Question 15F**: [1 point]
 Do the hot and coldspots make sense with your observations of graph `p1`? Why or why not? Can you explain why hot/coldspots will not necessarily correspond with __individual states'__ high and low median readmission rates?
+
+> from P1, states like California, Nevada, Michigan, Florida, West virginia, and Illinois show high readmission rates but non of them made it to hotspots. However states with very low readmission rates like Wyoming and utah made it to coldspot quadrant.
+>Hot and Coldspots somehow make sense with some of the observations in p1 because they represent spatial clusters of similar values. However, they will not necessarily correspond with indivual states "high and lwo median readmission rates due to the spatial nature of the analysis.
 
 ## 2.4 Spatial Regression Models
 
@@ -1028,7 +1208,10 @@ Your data have already been partitioned into training and testing sets, preproce
 
 **HINT**: Think of the data science lifecycle/flow we keep coming back to!
 
-> Your answer here.
+> Your answer here. By Collins
+data importation > cleaning (tidy) > [Exploratory analysis (EDA) > Feature Engineering]. the next is model, its rfinement and then prediction.
+> pre-processing (Train-test split > impute/remove missing values > encoding > arithment tranformation > center and scaling)
+
 
 ### 2.4.1.1 For our convenience, make a dataframe that contains just the information we want for fitting the SAR and store it into `sarTrain`
 
@@ -1064,7 +1247,8 @@ Why am I fitting an OLS regression again?
 
 **HINT 2**: What did aggregation do to our sample size?
 
-> Your answer here.
+> Your answer here. By Collins
+Ols will act as our baselie model for comparison and 2nd aggregation reduced our sample size significantly.
 
 ### 2.4.1.3 Check residuals for spatial autocorrelation
 If we didn't already know that we have spatial relationships from the Moran's $I$ and the LISA, we could also consider calculating a Moran's $I$ on the residuals of the OLS regression. This would tell us, even if we had NOT yet done a Moran's $I$ or LISA, that whether we should pay more attention to our spatial relationships and explicitly include them in our regression model. 
@@ -1079,15 +1263,19 @@ moran.test(residuals(OLS), states_sw)
 #### **Question 17B**: [1.5 points]
 - What would we conclude from the results of the Moran's $I$ test on the __residuals__? 
 
-> Your answer here.
+> Your answer here. By Collins
+p-value = 0.06133 > 0.05 . since the P-value is greater than significance level (0.05), we fail to reject the null hypothesis and conclude that there is no significant evidence of spatial autocorrelation in the residuals of the OLS regression model
 
 - If we had started here, rather than calculating the Moran's $I$ and LISA first, could we have been potentially mistaken about spatial relationships? Why or why not?
 
-> Your answer here.
+> Your answer here. By Collins
+Yes we would have been mistaken because both Moran's $I$ and LISA have already shown there is spatial relationships. Yet at this point the moran (I) test on OLS residuals shows there is no spatial relationship which would have been misleading without prior knowledge.
 
 - Why might these results disagree with what we found from the Moran's $I$ and LISA on the scaled target?
 
-> Your answer here.
+> Your answer here.By Collins
+Am not very sure of my findings here but after a little research, I have found out that the Moran's (I) test on the residuals are disagreeing with what we found from Moran's (I) and LISA on the scaled target because the Moran's (I) test on the residuals is testing for spatial Autocorrelation in the residuals of the OLS regression model, whereas the Moran's I and LISA on the scaled target are testing for spatial relationships in the target variable itself. The Moran's I test on the residuals is asking whether the residuals are randomly distributed in space, or if there is a pattern to their distribution. If the residuals are not spatially autocorrelated, it means that the OLS regression model has accounted for the spatial relationships in the data.
+on the other hand, The Moran's I  and LISA test on the scaled target are asking whether there are spatial relationships in the target variable itself, If there are significant spatially relationships in the target variable, it means that the variable is not randomly distributed in space and there may be underlying spatial processes that are driving the patterns.
 
 ### 2.4.1.4 Fit the SAR model
 The `lagsarlm()` from the `spatialreg` package will fit the SAR for us, allowing us to specify the spatial weights matrix, `states_sw`, that we calculated all the way back [here](#findSW).
@@ -1119,7 +1307,7 @@ $LR = 2 \times (\log L_{SAR}  - \log L_{OLS})$
 
 where $\log L_{SAR}$ is the log-likelihood of the SAR model and $\log L_{OLS}$ of the OLS model. The LR test statistic follows a $\chi^2$ distribution with 1 degree of freedom. 
 
-But if that feels too mathy for your, just remember this: **A LR of 0 means there is NO difference between the two models being compared, but the bigger the LR the higher the probability that the two models are different.** Thus, our $H_0$ (null hypothesis) is that there is no difference between the SAR model and the OLS. So, if our $p$-value is less than 0.05, we will reject that null hypothesis. 
+But if that feels too mathy for you, just remember this: **A LR of 0 means there is NO difference between the two models being compared, but the bigger the LR the higher the probability that the two models are different.** Thus, our $H_0$ (null hypothesis) is that there is no difference between the SAR model and the OLS. So, if our $p$-value is less than 0.05, we will reject that null hypothesis. 
 
 In the output, the $\log L_{SAR} = -12.75$ but the $\log L_{OLS}$ isn't shown. We can very quickly perform the LRT in `R` using the `anova()` function. **NOTE** that this function is confusingly named here; it will either do an Analysis of Variance (ANOVA) or an Analysis of Deviance, also known as the Likelihood Ratio Test which is what we are doing here!
 
