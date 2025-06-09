@@ -210,7 +210,21 @@ state_lookup <- state.fips %>%
 
 # Now we use left join to join the lookup table to pneumoniaFull and replace at the abbreviation with the full names
 pneumoniaFull <- pneumoniaFull %>%
-  left_join(state_lookup, by = "State")
+  left_join(state_lookup, by = "State") %>%
+  mutate(State = region) %>%  # Replace abbreviation with full name
+  select(-region)             # Remove region
+
+unique(pneumoniaFull$State)
+
+# 2 - Rerun this to start pneumoniaFull from fresh:
+load("../../../../I. Biomedical & Clinical Informatics/Demo_1/pneumoniaFull.Rdata")
+
+ ## Let's change some key data types as well:
+ pneumoniaFull <- pneumoniaFull %>% 
+   mutate_at(c("Score_Death rate for pneumonia patients", 
+               "Score_Medicare spending per patient", 
+               "Score_Hospital return days for pneumonia patients"), 
+             as.numeric)
 ```
 
 Sadly, sometimes this can fall short. For example, take a look at the state of Washington:
@@ -262,6 +276,7 @@ getStateName <- function(abbr) {
 }
 ```
 
+
 #### **Question 4**: [1 point] - KB
 
 Show that you understand how the `getStateName` works by using it to replace the abbreviation with the statename into a new column you call `feature` in the `pneumoniaFull` dataframe.
@@ -271,17 +286,25 @@ Show that you understand how the `getStateName` works by using it to replace the
 ```{r}
 # Your code here.
 
+# KB: what KB did before 
 # showing how `getStateName` works using the `mutate()` function 
 # pneumoniaFull <- pneumoniaFull %>%
 #   mutate(region = gsub(":.*", "", State))
 
 ## KSG: Not quite --> I may have worded this confusingly, but I really just meant to run the function. For example, look at what this does!
-# getStateName(pneumoniaFull$State)
-## Now, what could you do to replace "region" in pneumoniaFull using this code? It was simpler than you thought!
+#getStateName(pneumoniaFull$State)
 
-# Explanation: here gsub(":.*", "", State) removes everything starting from `:` (including the :), so that "massachusetts:nantucket" becomes "massachusetts" and so on 
+# KB: This returns a named character vector where Names are the abbreviations and Values are the full state names
+
+## KSG: Now, what could you do to replace "region" in pneumoniaFull using this code? It was simpler than you thought!
+
+# KB: showing how using unname() removes abbreviations and only keeps statenames in new feature column 
+pneumoniaFull <- pneumoniaFull %>%
+  mutate(region = getStateName(State))
+
+# shows only the statenames in the new feature column
+str(pneumoniaFull$region)
 ```
-
 
 ### 1.2.3 Aggregate `PredictedReadmissionsRate` by state
 
@@ -290,6 +313,8 @@ Now, before we add the pneumonia-related hospital readmissions to the map, we ne
 #### **Question 5**: [1 point] - KB
 
 Start from my code and finish the aggregation by state for the `mean()` and `median()` by filling in the blanks. Notice that we are making a separate dataset called `stateAggPneumonia`. Make sure to uncomment the code when you're ready to run it.
+
+
 
 ```{r}
  stateAggPneumonia <-  pneumoniaFull %>%
@@ -708,19 +733,6 @@ But because our ultimate goal is to try to tie this back with all of the work we
 
 
 ```{r}
-## Adding this back before your source code so you have a clean and correct version:
-load("../../../../I. Biomedical & Clinical Informatics/Demo_1/pneumoniaFull.Rdata")
- 
-## Let's change some key data types as well:
-pneumoniaFull <- pneumoniaFull %>% 
- mutate_at(c("Score_Death rate for pneumonia patients", 
-             "Score_Medicare spending per patient", 
-             "Score_Hospital return days for pneumonia patients"), 
-             as.numeric)
-
-## Also make sure that you have run all the code up to this point; it relies on the
-## getStateName() function to work correctly! But it now works.
-  
 source(file = "loadTrainTest.R")
 ```
 
@@ -728,23 +740,26 @@ source(file = "loadTrainTest.R")
 
 **NOTE 2**: All of the raw variables have been named `Median_Raw...` to distinguish them from their transformed and scaled counterparts!
 
-#### **Question 10A**: [0.25 points]
+#### **Question 10A**: [0.25 points] - KB
 
 Check that all of the states (in `region`) made it into the training set. If you choose to do this by counting, say with `unique()` or `distinct()`, you should get __52__ if they are all present.
 
 ```{r}
 # Your code here
+
+# Counting the number of states that made it into the training set
+length(unique(pneumoniaFull$region))
 ```
 
-> Your answer here.
+> Looks like there are 52 states that made it!
 
-#### **Question 10B**: [0.25 points]
+#### **Question 10B**: [0.25 points] - KB
 
 Why am I not asking you to check the states in the testing data?
 
-> Your answer here.
+> The reason you are not asking us to check the states in the testing data is because it is okay if not all the states are included there, since the goal of the testing data is to see how well the model handles unseen data. As long as the training data has all the states, the model is able learn from the full diversity of data. Then we can use the testing data, even if its different or smaller, to check how well the model actually performs.
 
-#### **Question 10C**: [0.25 points]
+#### **Question 10C**: [0.25 points] - KB
 
 In the aggregation that I did for both `stateAggTrain` and `stateAggTest` I took the __median__ for everything. Why, when we just went through all the rigmarole of figuring out if we should display the mean or the median of variables like Predicted Pneumonia Readmissions? 
 
@@ -752,7 +767,8 @@ In the aggregation that I did for both `stateAggTrain` and `stateAggTest` I took
 
 **HINT 2**: Why is a median _or_ a mean acceptable if we're working with scaled and centered data?
 
-> Your answer here.
+> The reason the median was used when aggregating stateAggTrain and `stateAggTest is because we were working with the raw and unscaled data. Before, when we were deciding between using the mean and median, we were using data that had already been scaled, which helps to reduce the impact of any outliers, so using either the mean or median was fine in that case.
+However, now that we are back to using the original data, the outliers and skewed values can really affect the mean alot more. That is why it is important to use the median. Overall, it is a better choice here, giving us a more reliable summary of the data without being thrown off by any extreme values.
 
 ### 2.1.2 Identify your geographic level of aggregation for each variable. 
 
@@ -772,9 +788,14 @@ _We can convert to shapefile format in a single line of code:_
 states_sf <- st_as_sf(map("state", plot = FALSE, fill = TRUE))
 ```  
 
-#### **Question 10D**: [0.25 points]
+#### **Question 10D**: [0.25 points] - KB
 
 You may need to do a little digging, but what exactly is the `st_as_sf()` function from the `sf` package doing? Can you figure out why I didn't just use the `states` object we already used for mapping?
+
+> The st_as_sf() function from the sf package is convertting the map data into a standardized spatial format called a "simple features" or sf object. This format then stores both the shapes (geometry) and related data so that the spatial analysis tools in R can use them. You didnt use just the states object we already used for mapping because it is mainly for plotting, where as st_as_sf() prepares the data for advanced spatial calculations like finding neighbors or measuring spatial autocorrelation. Overall, the states object lacks the detailed structure and metadata needed for these types of analyses, so converting to an sf object works better for proper spatial statistics.
+Source:
+Pebesma, E. (2018). Simple Features for R: Standardized Support for Spatial Vector Data. The R Journal, 10(1), 439-446. https://doi.org/10.32614/RJ-2018-009
+(For more info on sf package: https://r-spatial.github.io/sf/)
 
 ### 2.1.4 Calculate spatial weights for our target, predicted pneumonia readmission rate. {#findSW}
 
