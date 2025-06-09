@@ -1,8 +1,8 @@
 ---
 title: "Demo 2: Public Health & Epidemiology"
 subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
-author: "Katherine S. Geist, PhD"
-date: "26 May 2025"
+author: "Krisha Bugajski-Sharp, Nicholas Lagoni, Trinity Tobin"
+date: "6 June 2025"
 output:
   html_document:
     toc: true
@@ -94,7 +94,7 @@ head(states) %>%
 
 6. `subregion` = refers to a subdivision within a region, but is only present for detailed maps like "county" not "state", hence we have no subregion here
 
-#### **Question 1A**: [0.5 points]
+#### **Question 1A**: [0.5 points] - KB
 
 Now, let's make a base map leveraging the `ggplot2` package using the `states` dataset. Notice that `x` will always be longitude, `y` will always be latitude, and that we must also pass it a grouping variable. Why do you think we need the `group` variable here?
 
@@ -119,6 +119,7 @@ ggplot(states, aes(x = long, y = lat, group = group)) +
   ## Creates a title
   ggtitle("A beautiful, blank map of the continental United States")
 ```
+>  When we take the variable group out, it makes the boundaries all out of place, with the state boundary lines going in all directions. We need a group variable here because it tells ggplot which points belong to the same shape/boundary. Without it, ggplot2 tries to connect all the coordinates in the dataset as one continuous line, which gives us that big jumble of lines and an incorrect map.
 
 Great, we've made our first map of the continental US! It's pretty uninteresting just as-is, so let's use this map to overlay our pneumonia-related hospital readmissions data.
 
@@ -127,7 +128,8 @@ Great, we've made our first map of the continental US! It's pretty uninteresting
 ### 1.2.1 Bring in the hospital readmissions data
 
 ```{r}
-load("../../I. Biomedical & Clinical Informatics/Demo_1/pneumoniaFull.Rdata")
+load("../../../../I. Biomedical & Clinical Informatics/Demo_1/pneumoniaFull.Rdata")
+
 ## Let's change some key data types as well:
 pneumoniaFull <- pneumoniaFull %>% 
   mutate_at(c("Score_Death rate for pneumonia patients", 
@@ -136,31 +138,38 @@ pneumoniaFull <- pneumoniaFull %>%
             as.numeric)
 ```
 
+
 Notice that I brought in our **fully merged, but otherwise unmodified (non-encoded, non-transformed)** dataset from Demo 1 called `pneumoniaAnalyzeNoEncoding2024.Rdata`!
 
-#### **Question 1B**: [0.5 points]
+#### **Question 1B**: [0.5 points] - KB
 
 Why didn't I choose to bring in the fully-processed dataset from Project 1? What does this suggest about our choice of data for spatial analyses versus machine learning models like elastic net?
 
 **Hint**: What information was deleted and/or changes were made downstream that would make those later datasets poor choices for spatial analysis?
 
-> Your answer here.
+
+> It looks like the "pneumoniaAnalyzeFullyEncoded" dataset form Project 1 had dropped alot of important spatial data including 	
+CountyParish, Address, CityTown, and ZipCode. The dataset we are using here "pneumoniaFull", contains all these spatial data. This suggests that using the unmodified dataset which contains this geographic context is important in order to get variables that are essential for mapping and spatial interpretation. These would have been lost or distorted in a machine learning optimized datasets, which on the other hand see these variables as noise and have stronger predicting cabablilties with out them. 
 
 ### 1.2.2 Make sure the geographic levels match
 
 Now, take a look at the names of the states in the `states` dataset (from the `region`) column and compare that with the names of the states in our dataset. How do they differ? *You may choose to answer this with code or by otherwise visually inspecting the dataset.*
 
-#### **Question 2A**: [0.25 points]
+#### **Question 2A**: [0.25 points] - KB
 
 ```{r}
-# Your code here.
+# checking the unique state names in the `states` dataset
+unique(states$region)
+
+# checking the unique state names in the pneumonia dataset
+unique(pneumoniaFull$State)
 ```
 
-> Your answer here.
+> By looking at the unique state names in both the datasets, it looks like the States in the `states` dataset are shown with there full name spelled out and no capital letters. On the other hand, when looking at the Staes in the `pneumoniaFull` dataset, we can see that the State names are shown with abriviations with capital letters.  
 
 I am sure you've now realized that before we can merge them with the state data that we extracted for the map we must make the state names match. This is because `State` in our pneumonia-related readmissions data is an abbreviation (e.g., "AL") but it's the name of the state in the `map_data` ("alabama"). **How can we fix that?**
 
-#### **Question 2B**: [0.75 points]
+#### **Question 2B**: [0.75 points] - KB
 
 Explore how you can use the `state.fips` packaged dataset from the `maps` package to do the conversion for you.
 
@@ -178,7 +187,30 @@ head(state.fips) %>%
 Now, write code that would allow you to replace the two-letter abbreviation for `State` in the `pneumoniaFull` dataset with the full-name of the state in `states$region` to allow merging.
 
 ```{r}
-# Your code here.
+## KSG: THIS IS WHERE THE ADDED ROWS ARE HAPPENING. So, you were very close - but there is an issue in your join.
+## Your state lookup table is right, but the issue is in your left_join. Now, what you did here isn't technically wrong - it's a byproduct of the fact that state.fips has all the extra regions for islands! It isn't your fault. So, you're left with two options:
+
+## 1 - Don't ACTUALLY overwrite pneumoniaFull; just show that your code works
+## 2 - Rerun this to start pneumoniaFull from fresh:
+# load("../../../../I. Biomedical & Clinical Informatics/Demo_1/pneumoniaFull.Rdata")
+# 
+# ## Let's change some key data types as well:
+# pneumoniaFull <- pneumoniaFull %>% 
+#   mutate_at(c("Score_Death rate for pneumonia patients", 
+#               "Score_Medicare spending per patient", 
+#               "Score_Hospital return days for pneumonia patients"), 
+#             as.numeric)
+
+## So it isn't that your copy of pneumoniaFull is bad, it's that you overwrote it with a "bad" version
+
+# Here is a lookup table that contains both the State abbreviations and full names
+state_lookup <- state.fips %>%
+  select(State = abb, region = polyname) %>%
+  distinct()
+
+# Now we use left join to join the lookup table to pneumoniaFull and replace at the abbreviation with the full names
+pneumoniaFull <- pneumoniaFull %>%
+  left_join(state_lookup, by = "State")
 ```
 
 Sadly, sometimes this can fall short. For example, take a look at the state of Washington:
@@ -194,11 +226,11 @@ state.fips %>%
 
 States with islands, like WA state or NY, can have additional mappings that we'd miss if we weren't aware of this issue.
 
-#### **Question 3**: [1 point]
+#### **Question 3**: [1 point] - KB
 
 What could we do to `state.fips` to fix this problem? Would your solution become tedious if, for example, we were doing counties instead?
 
-> Your answer here.
+> In order to fix this problem, we could remove everything after the ":" in the polyname column and keep only one row per state abbreviation. This will make the joining clean with a single, lowercase state name. However, this would be alot of work and allow for more errros if we were to do it at the county level, due to subregions. 
 
 An alternative solution (and not the only one by any means) could be to write a function to do the mapping ourselves. It's easier in this particular case to write our own little function, I think. Notice also that I am choosing to name the new column in `pneumoniaFull.Rdata` as `region`; this is to match the column name in the `states` dataframe that we use for mapping so we can merge the tables more easily.
 
@@ -230,7 +262,7 @@ getStateName <- function(abbr) {
 }
 ```
 
-#### **Question 4**: [1 point]
+#### **Question 4**: [1 point] - KB
 
 Show that you understand how the `getStateName` works by using it to replace the abbreviation with the statename into a new column you call `feature` in the `pneumoniaFull` dataframe.
 
@@ -238,42 +270,54 @@ Show that you understand how the `getStateName` works by using it to replace the
 
 ```{r}
 # Your code here.
+
+# showing how `getStateName` works using the `mutate()` function 
+# pneumoniaFull <- pneumoniaFull %>%
+#   mutate(region = gsub(":.*", "", State))
+
+## KSG: Not quite --> I may have worded this confusingly, but I really just meant to run the function. For example, look at what this does!
+# getStateName(pneumoniaFull$State)
+## Now, what could you do to replace "region" in pneumoniaFull using this code? It was simpler than you thought!
+
+# Explanation: here gsub(":.*", "", State) removes everything starting from `:` (including the :), so that "massachusetts:nantucket" becomes "massachusetts" and so on 
 ```
+
 
 ### 1.2.3 Aggregate `PredictedReadmissionsRate` by state
 
 Now, before we add the pneumonia-related hospital readmissions to the map, we need to **aggregate** it at the state-level. We will want to do that by aggregating across states and taking the `mean()` and `median()`.
 
-#### **Question 5**: [1 point]
+#### **Question 5**: [1 point] - KB
 
 Start from my code and finish the aggregation by state for the `mean()` and `median()` by filling in the blanks. Notice that we are making a separate dataset called `stateAggPneumonia`. Make sure to uncomment the code when you're ready to run it.
 
 ```{r}
-# stateAggPneumonia <- ___ %>%
+ stateAggPneumonia <-  pneumoniaFull %>%
 #   ## Grab readmissions and region
-#   select(PredictedReadmissionRate, ___, 
-#          `Score_Death rate for pneumonia patients`, 
-#          `Score_Hospital return days for pneumonia patients`, 
-#          `Score_Medicare spending per patient`) %>%  
-#   ## Change region to a factor
-#   mutate(region = as.factor(___)) %>% 
-#   ## Change any other columns from character to numeric
-#   mutate_if(is.character, ___) %>% 
-#   ## Group by region
-#   group_by(___) %>%  
-#   ## Create the new aggregated variables for each measure
-#   summarize(meanReadmissions = mean(PredictedReadmissionRate, na.rm = TRUE),
-#             medianReadmissions = ___(PredictedReadmissionRate, na.rm = TRUE),
-#             meanDeathRate = mean(`Score_Death rate for pneumonia patients`, 
-#               na.rm = ___),
-#             medianDeathRate = ___(`Score_Death rate for pneumonia patients`, 
-#               na.rm = TRUE),
-#             meanHospitalReturnDays = ___,
-#             medianHospitalReturnDays = ___,
-#             meanMedicareSpending = ___,
-#             medianMedicareSpending = ___) %>% 
-#   ## Remove the missing region
-#   filter(!is.na(region))
+  select(PredictedReadmissionRate, region, 
+          `Score_Death rate for pneumonia patients`, 
+          `Score_Hospital return days for pneumonia patients`, 
+          `Score_Medicare spending per patient`) %>%  
+   ## Change region to a factor
+   mutate(region = as.factor(region)) %>% 
+   ## Change any other columns from character to numeric
+   mutate_if(is.character, as.numeric) %>% 
+   ## Group by region
+   group_by(region) %>%  
+   ## Create the new aggregated variables for each measure
+   summarize(meanReadmissions = mean(PredictedReadmissionRate, na.rm = TRUE),
+             medianReadmissions = median(PredictedReadmissionRate, na.rm = TRUE),
+             meanDeathRate = mean(`Score_Death rate for pneumonia patients`, 
+               na.rm = TRUE),
+             medianDeathRate = median(`Score_Death rate for pneumonia patients`, 
+               na.rm = TRUE),
+             meanHospitalReturnDays = mean(`Score_Hospital return days for pneumonia patients`, na.rm = TRUE),
+             medianHospitalReturnDays = median(`Score_Hospital return days for pneumonia patients`, na.rm = TRUE),
+             meanMedicareSpending = mean(`Score_Medicare spending per patient`, na.rm = TRUE),
+             medianMedicareSpending = median(`Score_Medicare spending per patient`, na.rm = TRUE)) %>% 
+               
+   ## Remove the missing region
+   filter(!is.na(region))
 ```
 
 ### 1.2.4 If you were not able to figure it out, load the state-level aggregated data set
@@ -282,10 +326,16 @@ Start from my code and finish the aggregation by state for the `mean()` and `med
 load(file = "stateAggPneumonia.Rdata")
 ```
 
-#### **Question 6**: [1 point]
+#### **Question 6**: [1 point] - KB
 Are there any missing data? If so, what data are missing? Did you make a mistake?
 
-> Your answer here.
+```{r}
+#Checking for the missing values and counting them by the columns
+colSums(is.na(stateAggPneumonia))
+```
+
+> It looks like there still are missing data. meanMedicareSpending has 1 data missing, meaning that one state has all values missing and medianMedicareSpending	had 1	data missing, which probaly means that the same state has no valid values to calculate the median. Therefore there was no mistake made. All region values are present and all the meterics exept for that MedicareSpending one are present. It is totally  normal with real world data sets to have missing values!
+                                            
 
 ### 1.2.5 Means or medians? How do you choose?
 
@@ -329,21 +379,19 @@ On the other hand, we will choose the **median** when:
 
  - You are using **non-parametric** statistical methods that do not assume normality because you found that your data were not normally distributed
 
-#### **Question 7**: [1 point]
+#### **Question 7**: [1 point] - KB
 You may have to do some research if you do not recall, but why would showing someone a mean when we should have showed them a median, or vice versa, potentially create interpretation problems for us or our stakeholders?
 
-> Your answer here.
-
-\   
+> Showing a mean instead of a median or vice versa, when it is not appropriate can definetly lead to misleading interpretations. For example, if the data is skewed or contain outliers, it can pull the mean away from the true center of the distribution. In this case, the stakeholder would be assuming that the mean represents the typical value, when in actually is being distorted by the extreme values. This will cause the stakeholders to misjudge the outcomes. In our sutuation, if one or a few hospitals in a state has extremely high readmission rates, the mean would overstate the performance, making the state look worse than it actually is. On the other hand, using the median could hide extreme but maybe important information, so it could understate serious problems in a state with some very high readmission hospitals.
 
 #### 1.2.5.1 Using boxplots embedded in violin plots to assess distribution symmetry
 
-#### **Question 8A**: [1 points]
+#### **Question 8A**: [1 points] - KB
 Practice reading boxplots to decide, for each measure, whether you should use the mean or median, or whether it matters. Need some help with boxplots? This [article](https://www.labxchange.org/library/items/lb:LabXchange:d8863c77:html:1) breaks it down nicely.
 
 **Based on Figure 1 below**, which measure(s) do you think would benefit from the median over the mean? Why?
 
-> Your answer here.
+> Looking at the boxplots below, it looks like Medicare Spending per Patient is the most symetrical, but still has a slight right skew. Pneumonia Death Rate is also mostly symetrical, but also has a small right skew. Pneumonia Hospital Return Days has a strong right skew. Pneumonia Readmission Rate also has a mildly strong right skew. Overall, using the median over the mean would benifit Pneumonia Hospital Return Days, Pneumonia Death Rate, and Pneumonia Readmission Rate. This is true because these measures all have a skewed distribution and contain high outliers that can cause the mean to me misrepresented. Also, using meidan for consitancy for Pneumonia Readmission Rate would be good. 
 
 ```{r, echo = FALSE, fig.height=8, fig.width=10, fig.cap="Figure 1. Violin and boxplots to assess distribution symmetry"}
 pneumoniaFull %>% 
@@ -386,32 +434,39 @@ agostino.test(pneumoniaFull$PredictedReadmissionRate)
 
 ___Interpretation___: Because $p<0.05$, we reject the hypothesis of symmetry and conclude that predicted readmissions are __significantly skewed__. We should use the median to aggregate this variable.
 
-#### **Question 8B**: [1 point]
+#### **Question 8B**: [1 point] - KB
 Your task is to repeat this test, with interpretations, for `Score_Death rate for pneumonia patients`, `Score_Hospital return days for pneumonia patients`, and          `Score_Medicare spending per patient`:
 
 ```{r}
 # Your code here.
+
+# Score_Death rate for pneumonia patients
+agostino.test(pneumoniaFull$`Score_Death rate for pneumonia patients`)
 ```
 
-___Interpretation___: ...
+___Interpretation___: Because p < 0.05, we reject the hypothesis of symmetry and conclude that death rates for pneumonia patients are significantly skewed. We should use the median to aggregate this variable.
 
 ```{r}
 # Your code here.
+#Score_Hospital return days for pneumonia patients
+agostino.test(pneumoniaFull$`Score_Hospital return days for pneumonia patients`)
 ```
 
-___Interpretation___: ...
+___Interpretation___: Because p < 0.05, we reject the hypothesis of symmetry and conclude that hospital return days for pneumonia patients are significantly skewed. We should use the median to aggregate this variable.
 
 ```{r}
 # Your code here.
+# Score_Medicare spending per patient
+agostino.test(pneumoniaFull$`Score_Medicare spending per patient`)
 ```
 
-___Interpretation___: ...
+___Interpretation___: Because p < 0.05, we reject the hypothesis of symmetry and conclude that Medicare spending per patient is significantly skewed. We should use the median to aggregate this variable.
 
 #### 1.2.5.3 Assessing stability of central tendency estimates
 
 One final thing we can do is assess the stability of the estimates of central tendency we've calculated, the __mean__ and the __median__ to ensure that, post-aggregation, we don't see any issues in the resulting distribution. If we did, we would want to consider another estimate we haven't yet explored - e.g., another percentile or even a weighted-mean. 
 
-#### **Question 8C**: [1 points]
+#### **Question 8C**: [1 points] - KB
 **Based on Figure 2 below**, and using your choices from questions 8A and 8B, assess the __stability__ (i.e., symmetry) of the estimates you selected as the best (either mean or median) for each of the four variables. Do you see any cause for concern with your choice, or do you feel comfortable to proceed with what you've selected?
 
 ```{r, echo = FALSE, fig.height=10, fig.width=5, fig.cap="Figure 2. Compare stability of mean vs. median after aggregation"}
@@ -433,13 +488,19 @@ ggplot(aes(y = Estimate, x = Measure, fill = Measure)) +
   ggtitle("Figure 2. Assessing stability of central tendency \nestimates")
 ```
 
+> Looking at Figure 2, there is no cause for concern with the choice of using the median for all four variables as determined previously from 8A and 8B. It looks like Figure 2 actually confimrs that the median will provide more of a stable estimate, expecially with the skewness and outliers that were seen well in the violin plots from Figure 1.
+
 #### 1.2.5.4 Final selection of mean vs. median {#choice}
 
 The time has come to make your final selection! Your job is to __remove__ the columns from `stateAggPneumonia` that do not correspond with your final decisions of mean or median for questions 8A-C. 
 
-#### **Question 8D**: [1 points]
+#### **Question 8D**: [1 points] - KB
 ```{r}
-# Your code here.
+# Your code here
+
+# Removing all the columns that have "mean" from the original stateAggPneumonia
+stateAggPneumonia <- stateAggPneumonia %>%
+  select(-matches("^mean"))
 ```
 
 
@@ -493,7 +554,7 @@ p1 <- ggplot(mergedStateAggPneumonia, aes(x = long, y = lat, group = group,
 p1
 ```
 
-#### **Question 9A**: [0.25 points] {#table4}
+#### **Question 9A**: [0.25 points] {#table4} - KB
 Do you notice any trends that could be worth testing? If you're not sure, take a look at this sorted table showing the top 10 states for median pneumonia-related hospital readmissions:
 
 ```{r, echo = FALSE, message=FALSE, warning=FALSE}
@@ -510,20 +571,130 @@ stateAggPneumonia %>%
   )
 ```
 
+
+> A noticeable trend from both the map and Table 4 is that states with higher median pneumonia-related readmission rates tend to be more densely populated areas, for example I know that New Jersey, California, New York, Illinois, and Florida have larger populations.
+
 **HINT**: It may not be readily obvious from the map or table! If you don't see a hypothesis, that's okay. But try to think about anything some of these states might have in common, if anything.
 
-#### **Question 9B**: [1.75 points]
+#### **Question 9B**: [1.75 points] - KB
 
 Your task is to now update the code I used to make `p1` for the remaining three variables. I suggest copying the code and following the comments to update everywhere I have `!!Update` written. You should update per the following specification for __full credit__:
 
 - `Pneumonia Death Rate` (whether mean or median, your choice from earlier) $\rightarrow$ color should be `skittles[3]`
   - Don't forget to update the axis labels and titles appropriately. Death rate was measured as number of deaths per pneumonia cases in 30 days.
 
+### Pneumonia Death Rate 
+```{r, echo = FALSE}
+## Store the plot into a variable called p2
+p2 <- ggplot(mergedStateAggPneumonia, aes(x = long, y = lat, group = group, 
+                               ## !!Update the fill to the variable you want
+                               fill = medianDeathRate)) +  
+  geom_polygon(color = "grey20", size = 0.2, alpha = 1) +
+  ## !!Update this change the legend and color scale
+  scale_fill_continuous(name = "Median deaths per pneumonia cases in 30 days", 
+                        low = "white", high = skittles[3]) +       ## !!Update color here   
+                        ## Leave low as white; only !!update high!
+  
+  ## !!Update the title to reflect a better map title
+  labs(title = "Median pneumonia-related death rate by state",
+       ## Leave the caption as-is
+       caption = "Source: Centers for Medicare & Medicaid Services (CMS), 2024") +
+  
+  ## -- This makes the map pretty. No need to change any of this -- ##
+  ## Makes a completely blank map background
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    legend.position = "bottom"
+  ) +
+  ## Sets the aspect ratio to roughly match US map proportions
+  coord_fixed(1.3)
+
+## Displays the map
+p2
+```
+
+
+
 - `Medicare Spending` (whether mean or median, your choice from earlier) $\rightarrow$ color should be `skittles[7]`
   - Don't forget to update the axis labels and titles appropriately. Medicare spending was measured at each hospital per patient.
 
+### Medicare Spending per Patient
+```{r, echo = FALSE}
+## Store the plot into a variable called p3
+p3 <- ggplot(mergedStateAggPneumonia, aes(x = long, y = lat, group = group, 
+                               ## !!Update the fill to the variable you want
+                               fill = medianMedicareSpending)) +  
+  geom_polygon(color = "grey20", size = 0.2, alpha = 1) +
+  ## !!Update this change the legend and color scale
+  scale_fill_continuous(name = "Median Medicare spending per patient", 
+                        low = "white", high = skittles[7]) +       ## !!Update color here   
+                        ## Leave low as white; only !!update high!
+  
+  ## !!Update the title to reflect a better map title
+  labs(title = "Median Medicare spending for pneumonia patients by state",
+       ## Leave the caption as-is
+       caption = "Source: Centers for Medicare & Medicaid Services (CMS), 2024") +
+  
+  ## -- This makes the map pretty. No need to change any of this -- ##
+  ## Makes a completely blank map background
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    legend.position = "bottom"
+  ) +
+  ## Sets the aspect ratio to roughly match US map proportions
+  coord_fixed(1.3)
+
+## Displays the map
+p3
+```
+
 - `Pneumonia Hospital Return Days` (whether mean or median, your choice from earlier) $\rightarrow$ color should be `skittles[5]`
   - Don't forget to update the axis labels and titles appropriately. Hospital return days are the number of days readmitted pneumonia patients spend in the hospital. Readmissions are only measured within 30 days of the original admission to the hospital for pneumonia.
+
+### Pneumonia Hospital Return Days
+```{r, echo = FALSE}
+## Store the plot into a variable called p4
+p4 <- ggplot(mergedStateAggPneumonia, aes(x = long, y = lat, group = group, 
+                               ## !!Update the fill to the variable you want
+                               fill = medianHospitalReturnDays)) +  
+  geom_polygon(color = "grey20", size = 0.2, alpha = 1) +
+  ## !!Update this change the legend and color scale
+  scale_fill_continuous(name = "Median pneumonia hospital return days within 30 days", 
+                        low = "white", high = skittles[5]) +       ## !!Update color here   
+                        ## Leave low as white; only !!update high!
+  
+  ## !!Update the title to reflect a better map title
+  labs(title = "Median pneumonia-related hospital return days by state",
+       ## Leave the caption as-is
+       caption = "Source: Centers for Medicare & Medicaid Services (CMS), 2024") +
+  
+  ## -- This makes the map pretty. No need to change any of this -- ##
+  ## Makes a completely blank map background
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    legend.position = "bottom"
+  ) +
+  ## Sets the aspect ratio to roughly match US map proportions
+  coord_fixed(1.3)
+
+## Displays the map
+p4
+```
 
 # 2 State-level Spatial Analysis
 
@@ -535,7 +706,21 @@ To perform spatial analysis, one needs geographic-level aggregate data that has 
 
 But because our ultimate goal is to try to tie this back with all of the work we did in Project 1, I will actually give you data, which you get by running this code chunk. This returns both the training and testing sets, aggregated but not yet merged with geometries, so we don't lose our other encoding and especially our transformations for OLS. They are going to be called `stateAggTrain` and `stateAggTest`, respectively.
 
+
 ```{r}
+## Adding this back before your source code so you have a clean and correct version:
+load("../../../../I. Biomedical & Clinical Informatics/Demo_1/pneumoniaFull.Rdata")
+ 
+## Let's change some key data types as well:
+pneumoniaFull <- pneumoniaFull %>% 
+ mutate_at(c("Score_Death rate for pneumonia patients", 
+             "Score_Medicare spending per patient", 
+             "Score_Hospital return days for pneumonia patients"), 
+             as.numeric)
+
+## Also make sure that you have run all the code up to this point; it relies on the
+## getStateName() function to work correctly! But it now works.
+  
 source(file = "loadTrainTest.R")
 ```
 

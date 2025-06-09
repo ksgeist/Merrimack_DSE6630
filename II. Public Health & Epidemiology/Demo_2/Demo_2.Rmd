@@ -623,10 +623,11 @@ Next, we will use the `poly2nb()` function from the `spdep` package to create a 
 
 As an example, Colorado and Arizona do not share a border only a corner, right? But according to "queen" contiguity, they are still neighbors. 
 
-#### **Question 11A**: [0.5 points]
+#### **Question 11A**: [0.5 points]     TT
 Look up "rook" continuity and explain what (1) what it means, (2) how the neighbor relationship of Colorado and Arizona would change, if it would, and (3) how we change to this type of contiguity in the `poly2nb()` function. (You don't need to actually change it in the code, however.)
 
 > Your answer here. 
+Rook contiguity is a way of deciding what is considered a neighbor of a certain state. For this contiguity, the states are considered neighbors if they share a full border (excludes states connected by corners). In the case of Colorado and Arizona, they would not be considered neighbors because they are only connected by a corner. How we would change this continuity in the 'poly2nb()' is by changing the line to 'queen' = FALSE. 
 
 _We can find neighboring states using queen contiguity like this:_
 ```{r}
@@ -640,7 +641,7 @@ Next, we will use the `nb2listw()` function from `spdep` to convert the neighbor
 
 There are actually several styles of weighting; we will be using row-standardizing (`style = "W"`) as it is the most appropriate for spatial autocorrelation. Row-standardized weights are spatial weights where each row sums to 1. This means the influence of all neighbors on a given spatial unit is normalized, so the total influence is consistent across all units regardless of how many neighbors they have. Without standardization, units with more neighbors could have a greater total weight, biasing spatial statistics. This means that states like Colorado, that have lots of neighbors, are not weighted more heavily than states like Alaska or Hawaii, which are effectively islands. **This will make Moran's $I$ more comparable across the states.** 
 
-_We can calculate the spatial weights as folows:_
+_We can calculate the spatial weights as follows:_
 ```{r}
 ## Calculate the state-level spatial weights
 states_sw <- nb2listw(states_nb, style = "W")
@@ -649,11 +650,12 @@ states_sw <- nb2listw(states_nb, style = "W")
 sf_use_s2(TRUE)
 ```
 
-#### **Question 11B**: [0.5 points]
+#### **Question 11B**: [0.5 points]    TT
 
 The first state in our dataset is Alabama. Take a look at one of our maps if needed. How many neighbors do you expect it to have?
 
 > Your answer here.
+Based on queen contiguity, you wouod expect Alabama to have 4 neighbors. 
 
 Now investigate Alabama's spatial weights:
 
@@ -664,14 +666,17 @@ states_sw$weights[[1]]
 Does this feel consistent (1) with what you know about the number of neighbors Alabama has and (2) what I mentioned above about row-standardizing our weights? Why or why not?
 
 > Your answer here. 
+This does feel consistent, as each neighbors is equally associated with Alabama (no one state has a greater degree of association than another state).
 
-Lastly, investigate the spatial weights for Massachusetts (number __22__). Does it fit with your expectations given the number of neighbors?
+Lastly, investigate the spatial weights for Massachusetts (number __20__). Does it fit with your expectations given the number of neighbors?
 
 ```{r}
 # Your code here.
+states_sw$weights[[20]]
 ```
 
 > Your answer here. 
+It also fits my expectation, based on my above logic.
 
 **Join the Spatial Weights back to our Training Data**
 
@@ -690,13 +695,14 @@ states_sf_AggTrain <- left_join(states_sf, stateAggTrain,
                                 by = c("ID" = "region"))
 ```
 
-#### **Question 12**: [1 point]
+#### **Question 12**: [1 point]       TT
 
 I am sure you caught this, but spatial weights and everything are being done on the **training** data only. What key issue am I trying to __avoid__ by performing all of my spatial pre-processing steps on the training data only? Why am I not using the full dataset for this?
 
 **HINT**: It is the same reason we did all of our other pre-processing AFTER splitting the data!
 
 > Your answer here. 
+The main issue we are trying to avoid by doing this exploratory analysis on the training data is data leakage (i.e. making sure that none of the test data is being used to train the model).
 
 ## 2.2 Global Spatial Autocorrelation: Global Moran’s $I$
 
@@ -711,6 +717,11 @@ We are going to set the target like this to facilitate making it easier to swap 
 
 y <- scale(states_sf_AggTrain$Median_RawPredictedReadmissionRate,
            center = TRUE, scale = FALSE)
+
+#y <- scale(states_sf_AggTrain$bc_PredictedReadmissionRate,
+#           center = TRUE, scale = FALSE)
+
+
 ```
 
 
@@ -754,15 +765,20 @@ Outlier states in each of the quadrants of the graph are also identified.
 - **High-low outliers**  (Quadrant IV) 
   - These states have high readmission rates but are generally surrounded by neighboring states that are low.
 
-#### **Question 13**: [1 point]
+#### **Question 13**: [1 point]    TT
 Identify each of the outliers from the graph and interpret the type of outlier (high-high, low-high, etc.) that they are. 
 
 > Your answer here.
+The outliers present on the graph are 
+--West Virginia. Washington D.C., and New Jersey (all being high-high outliers), 
+--Delaware (a low-high outlier), and 
+--Utah (a low-low outlier).
 
-#### **Question 14A**: [0.5 points]
+#### **Question 14A**: [0.5 points]    TT
 **NOTICE** that I had you define the target as a _centered_ version of `Median_RawPredictedReadmissionRate`, which is the median of the _untransformed, unscaled_ readmissions. Shouldn't I have used the transformed and scaled version, `bc_PredictedReadmissionRate`? Can you think of any reason why I chose to use the centered median of the raw readmissions rather than the transformed version?
 
 > Your answer here.
+We used the raw median readmission rate instead of the transformed version to keep the direction and scale of the data. This makes sure that each state's value and its neighbors’ values are moving in the same direction, which is important when identifying spatial patterns like “high-high” or “low-low” in a Moran’s I plot. Using the transformed version could distort these relationships and make the quadrant assignments misleading.
 
 **HINT 1**: What does centering do that scaling does not? Could centering be important, for example, to make sure that $y$ is going in the same direction as lagged $y$?
 
@@ -770,11 +786,12 @@ Identify each of the outliers from the graph and interpret the type of outlier (
 
 **HINT 3**: [Chapter 8](https://www.paulamoraga.com/book-spatial/spatial-autocorrelation.html) by Paul Moraga on Spatial Autocorrelation may be helpful, but it also gets a bit deep in the weeds too.
 
-#### **Question 14B**: [0.5 points]
+#### **Question 14B**: [0.5 points]    TT
 
 Now go back up to temporarily **reset the target** to `bc_PredictedReadmissionRate` [here](#setTarget). **There is no need to scale it again!** Then, re-run the Global Moran's $I$. make sure to update the limits of the $x$-axis or just comment that line out (`xlim(...)`) to look at the graph. Looking at the value of $I$, the $p$-value, and the graph output - does the conclusion change? Does it matter which value we choose for the analysis?
 
 > Your answer here.
+Changing the target to bc_PredictedReadmissionRate did slightly change the values from the Global Moran’s I analysis — the standard deviate increased from 2.9895 to 3.1939, and the p-value dropped from 0.0014 to 0.0007. These changes suggest that the spatial autocorrelation became slightly stronger with the transformed variable. These small changes indicate that the overall conclusions from the graphs arethe same (the correlation between the variables stayed the same). While the transformation affects the magnitude of the test statistic and shifts how some outliers on the graph (most notably, Utah), it does not meaningfully change the interpretation or spatial pattern we observe.
 
 **NOTE**: Make sure to change $y$ back to the scaled version of `Median_RawPredictedReadmissionRate` before moving to the next analysis!
 
@@ -917,7 +934,7 @@ states_sf_AggTrain <- states_sf_AggTrain %>%
     ## COMMENT HERE
     quadrant = case_when(
       ## COMMENT HERE
-      pValue > 0.05 ~ "N.S.",
+      pValue >= 0.05 ~ "N.S.",
       ## COMMENT HERE - Why do I not have to specify p-value again?
       
       ## COMMENT HERE ABOUT LINE BELOW - INCLUDE QUADRANT!
@@ -941,7 +958,7 @@ states_sf_AggTrain <- states_sf_AggTrain %>%
 #### 2.3.2.5 Map the LISA cluster (quadrants)
 Lastly, let's visualize our hot/cold spots on the map! Note that we are now using `geom_sf()` for mapping rather than `geom_polygon()`. This is because our dataframe now contains **shapefile** geometries instead of just the polygons that it did earlier, hence the change.
 
-```{r}
+```{r, echo = FALSE}
 ggplot(states_sf_AggTrain) +
   ## Now using geom_sf() because we have shapefile data rather than just
   ## polygons; geom_polygon() will no longer work here!
@@ -1308,7 +1325,7 @@ In our case, after controlling for all known predictors and modeling spatial dep
 
 The general structure of the SEM is:
 
-$y = + \lambda W \epsilon + \beta_1 X_1 + ... +\beta_n X_n + E$
+$y = \lambda W \epsilon + \beta_1 X_1 + ... +\beta_n X_n + E$
 
 where $y$ is the target variable (median pneumonia-related readmissions), $W$ is the spatial weights matrix, which defines the neighborhoods (stored in `states_sw`!), and $\lambda$ is the _spatial error coefficient__. This means that the first term of the equation, $\lambda W \epsilon$, measures the spatial correlation between our errors. So, if $\lambda = 0$, the spatial correlation between the errors isn't enough to bias the standard errors. As with SAR, the remaining terms, $\beta_1 X_1 + \beta_2 X_2 + ... \beta_n X_n$ are just the standard regression coefficients for each of the $n$ predictors. $E$ is an unmeasured error term, which is now the overall error leftover after fitting the SEM regression. 
 
@@ -1352,7 +1369,7 @@ SDM <- lagsarlm(formula = bc_PredictedReadmissionRate ~ ., data = sarTrain,
   listw = states_sw, type = "mixed") ## "mixed" is necessary to specify as SDM
 
 ## Uncomment to view results!
-## summary(SDM)
+summary(SDM)
 ```
 
 **Now, you might notice something a bit odd here**. Now, the test of the $H_0: \rho = 0$ is NOT significant (p = 0.17868) but the LM test IS significant (p = 0.012548), which is a **complete reversal**. What gives?!
@@ -1652,7 +1669,7 @@ moran.test(residuals(OLS), states_sw)
 SAR <- lagsarlm(bc_PredictedReadmissionRate ~ ., data = sarTrain, 
                 listw = states_sw)
 ## Uncomment to view results!
-## summary(SAR)
+#summary(SAR)
 ```
 
 **QUESTION**: What is the value of $\rho$ and its $p$-value? Does it suggest that we have spatial dependence in our target variable still? Are you surprised? What about the LM test?
