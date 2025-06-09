@@ -1433,7 +1433,7 @@ tbl_regression(SAR) %>%
 #### **Question 19**: [2 points]
 We can think of dealing with **spatial spillover** as helping us distinguish the wheat from the chaff (truth from noise). **Interpret** which of the coefficients are significant ($p$-value < 0.05) AND compare that to both Table 10 (parsimonious OLS model results) AND Figure 20 (Feature Importance from Elastic Net) from __Project 1__. Now that we are accounting for spatial autocorrelation, which predictors are still important? Did any become significant (important) now that weren't before?
 
-> AJ- Perioperative complications and Medicare spending remain important predictors across all models and quietness gains significance only after accounting for spatial dependence which then  highlights the added value of spatial modeling. Accounting for spatial autocorrelation sharpen the  inference—separating true effects from spatially structured noise and revealing predictors that truly matter when spatial spillover is considered..
+> AJ- Perioperative complications and Medicare spending remain important predictors across all models and quietness gains significance only after accounting for spatial dependence which then  highlights the added value of spatial modeling. Accounting for spatial autocorrelation sharpens the  inference, separating true effects from spatially structured noise and revealing predictors that truly matter when spatial spillover is considered.
 
 
 ### 2.4.1.6 Inferential statistics - which predictors are important?
@@ -1530,7 +1530,7 @@ data.frame(Model = c("OLS", "SAR (Spatial Lag)"),
 #### **Question 20A**: [0.5 points]
 Why is it challenging to interpret this RMSE in terms of the original/raw median pneumonia-related hospital readmissions? (I know.. I know... you've gotten it by now. Just checking.)
 
-> Your answer here.
+> AJ-To interpret RMSE , the error would need to be back-transformed (unscaled) because the model was trained on a scaled (standardized) version of the target variable. As a result, RMSE reflects error in standardized units, not in the original units of hospital readmission rates, making direct interpretation difficult.
 
 **So, let's add the Mean Absolute Error (MAE) as well, which may be easier to interpret**.
 ```{r}
@@ -1557,7 +1557,10 @@ data.frame(Model = c("OLS", "SAR (Spatial Lag)"),
 #### **Question 20B**: [1.5 points]
 Interpret the MAE **and** the RMSE. Which model is better? Don't forget to interpret the RMSE in terms of the transformed target!
 
-> Your answer here.
+> AJ-The Mean Absolute Error (MAE) represents the average magnitude of the errors between the predicted and actual values on the test set, measured in the transformed (standardized) units of the target variable. It provides a straightforward interpretation of the typical size of prediction errors without regard to their direction.
+The Root Mean Squared Error (RMSE) also measures prediction error on the transformed scale but places greater emphasis on larger errors because it squares the differences before averaging. This makes RMSE more sensitive to outliers. For example, an RMSE of 0.3 means that on average, predictions deviate from the true values by about 0.3 standard deviations in the transformed target scale.
+When comparing the two models, the SAR model shows lower MAE and RMSE than the OLS model, indicating that it produces both smaller average errors and fewer large prediction mistakes which  suggests that accounting for spatial autocorrelation improves predictive accuracy.
+In summary, the SAR model performs better than OLS when evaluated by both MAE and RMSE on the transformed target, demonstrating the value of incorporating spatial dependence in the regression. The SAR model is preferred if it shows consistently lower MAE and RMSE than OLS, demonstrating improved predictive performance by capturing spatial dependence.
 
 ### 2.4.2 Other Types of Spatial Regression Models
 The results of our SAR showed that we did not need to worry about any other types of spatial regression because the LM Test for spatial autocorrelation of the residuals was not significant. Still, I want to take a brief moment to explain what those models are and how we do them, using our current data as an example. They are important enough alternatives to the SAR we may need them in the future!
@@ -1583,17 +1586,20 @@ SEM <- errorsarlm(bc_PredictedReadmissionRate ~ ., data = sarTrain,
                         listw = states_sw)
 
 ## Uncomment to view results!
-## summary(SEM)
+ summary(SEM)
 ```
 
 #### **Question 21A**: [1 point]
 Test the null hypothesis that $\lambda = 0$, i.e., that there is spatial autocorrelation in the residuals. What p-value do you get and what conclusions do you make?
 
-> Your answer here.
+> AJ-The null hypothesis is that lambda=0, which means there is no spatial autocorrelation in the residuals.From the SEM output, the estimated 
+lambda is 0.62138 with a very small p-value of 0.00000037814.
+Since the p-value is much less than 0.05, we reject the null hypothesis.
+This provides strong evidence of spatial autocorrelation in the residuals, indicating that the spatial error model is necessary to properly account for this spatial dependence.
 
 **WHY** might you find a significant SEM but the LM test from the SAR is NOT significant? What does that suggest about our SAR model? (This is not a trick question, we've already discussed it.)
 
-> Your answer here.
+> AJ- The reason would be that a significant SEM combined with a non-significant LM test for SAR residuals suggests the SAR model fits well by capturing spatial spillover in the outcome, but some spatial dependence remains in the residuals that the SEM detects, indicating potential room for refinement or complementary modeling.
 
 
 ### 2.4.2.2 Spatial Durbin Model
@@ -1636,7 +1642,13 @@ The reality is that we likely have **yet unaccounted for spatial structure in th
 #### **Question 21B**: [1 point]
 Briefly summarize a possible workflow, based on what we've done here as well as with help from other sources if needed, to use (1) Moran's $I$ and/or LISA, (2) SAR, (3) SEM, and (4) SDM. Table 8 (below) may help you or you're free to refer to it to save writing. Feel free to write this is as numbered or bulleted list, if you'd like!
 
-> Your answer here.
+> AJ- Summary for a possible workflow
+1.Check spatial autocorrelation with Moran’s I or LISA.
+2.If present, fit SAR to model spatial dependence in the outcome.
+3.Test SAR residuals for spatial autocorrelation using LM test.
+4.If residual autocorrelation remains, fit SEM to model spatial dependence in errors.
+5.If needed, fit SDM to account for spatial dependence in both outcome and predictors, especially if omitted variables are suspected.
+6.Use diagnostics to choose the best model and improve with additional variables if necessary.
 
 \  
 
@@ -1661,7 +1673,8 @@ Do data scientists ever extract the spatially lagged targets/predictors and put 
 
 **HINT 3**: [Medium](https://medium.com) or LinkedIn can sometimes have decent how-to guides, but these articles are NOT validated in any way. If you choose an article from here, make sure you validate it with what we've done here and discussed in class!
 
-> Your answer here.
+> AJ-Integrating spatially lagged variables into machine learning models is a proven strategy to enhance predictive performance in spatially correlated datasets. By acknowledging and modeling spatial dependencies, data scientists can build more robust models that better reflect the underlying spatial structures of the data. 
+Recent study published in Remote Sensing demonstrates the effectiveness of integrating spatial features into machine learning models (https://www.researchgate.net/publication/359808809_Incorporating_Spatial_Autocorrelation_in_Machine_Learning_Models_Using_Spatial_Lag_and_Eigenvector_Spatial_Filtering_Features?utm_source=chatgpt.com). By utilizing Moran’s I and Local Indicators of Spatial Association (LISA) to assess spatial autocorrelation at both global and local scales. Their findings indicate that Random Forest models incorporating spatial lag or Eigenvector Spatial Filtering (ESF) features yielded lower errors—up to 33% improvement—and significantly reduced global spatial autocorrelation of the residuals, with a 95% decrease in Moran’s I. These models outperformed benchmark Geographically Weighted Regression (GWR) models in terms of accuracy and residual spatial autocorrelation.
 
 #### **Question 23**: [2 points]
 **DATA SCIENCE EXTENSIONS OF SPATIAL MODELING** $\rightarrow$ Why is the **state-level** spatial dataset inappropriate for any further machine-learning? In other words, why are we currently restricted __with the dataset exactly as it is__ to just the SAR, SEM, or SDM?
