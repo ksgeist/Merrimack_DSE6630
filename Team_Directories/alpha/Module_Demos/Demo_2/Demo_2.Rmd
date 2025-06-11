@@ -2008,20 +2008,197 @@ data.frame(Model = c("OLS", "SAR (Spatial Lag)", "SEM (Spatial Error)", "SDM (Du
 
 **QUESTION**: What does the comparison of the four models' $RMSE$ and $MAE$ imply? Which model is the superior model? Is SAR still "good enough"? Do you think that, despite adding population density, we're likely STILL omitting spatial variables? Explain.
 
-> These results suggest that OLS performs worse than all three spatial models, which all perform equally well. SAR is good enough as it performs just as well as the other two spatial options we explored. We could still be omitting spatial variables, even with this improved performance, as so many Social Determinants of Health are inherently spatially correlated (i.e., socioeconomic status is linked to place of residence, educational opportunities are linked to property taxes which is linked to where you live, also linked to public school districts, etc.).
+> These results suggest that OLS performs worse than all three spatial models, which all perform equally well. SAR is good enough as it performs just as well as the other two spatial options we explored. There is no statistical indicator that we are missing any spatial variables based on the analysis we have done (SAR Lm was insignificant, SAR performs well). Realistically, We could still be omitting spatial variables, even with this improved performance, as so many Social Determinants of Health are inherently spatially correlated (i.e., socioeconomic status is linked to place of residence, educational opportunities are linked to property taxes which is linked to where you live, also linked to public school districts, etc.).
 
 
-## 3.3 Testing Another Hypothesis: Readmissions by ?
+## 3.3 Testing Another Hypothesis: Readmissions by Poverty
 
 The time has finally come for you to choose your own adventure again! There are two more hypotheses we could test using spatially-influenced, social determinants of health (SDOH) that we imported with population density from the U.S. Census. 
 
-#### **Question 29**: [10 points]
-Choose ONE of the two hypotheses to explore and, using the code from Section 3.2, walk through both the heuristic and spatial regression tests of your chosen hypothesis. The hypotheses have been provided for you this time. 
+#### **Question 29**: [10 points] - NL
 
-- **Hypothesis 2: High Elderly Populations**: States with a higher proportion of their adult population over the age of 65 have higher rates of readmission __because__ of age-related factors that increase the likelihood of severe illness, like pneumonia, and increased risk of complications that could lead to higher hospital readmissions. 
-
-But these are not the only population-related hypotheses we could pose. Perhaps, instead, it has to do with poverty - perhaps states with higher poverty rates also tend to see lower rates of medical coverage, thereby leading hospitals to release patients too early to spare costs. Thus, we might also ask if states with higher poverty rates are more likely to see higher pneumonia readmissions?
+Perhaps, instead, it has to do with poverty - perhaps states with higher poverty rates also tend to see lower rates of medical coverage, thereby leading hospitals to release patients too early to spare costs. Thus, we might also ask if states with higher poverty rates are more likely to see higher pneumonia readmissions?
 
 - **Hypothesis 3: High Poverty Populations**: Higher rates of pneumonia-related readmissions may be associated with higher proportions of the poverty living at or below the poverty threshold __because__ those individuals may have poorer medical coverage, including non- and under-insuredness, or a stronger drive to try to return to work, both of which could in turn pressure some hospitals to discharge sick patients sooner than they otherwise would.
 
 **For full credit**, walk through all of the steps from Section 3.2. Make sure to answer the interpretation questions, too!
+
+##### Visual Data Exploration
+```{r, echo = FALSE}
+## Make a map `p2` of population density:
+p2 <- states_sf_AggTrain %>% 
+  filter(ID != "district of columbia") %>%  ## <- Comment this out to see why!
+ggplot() +
+  geom_sf(aes(fill = percBelowPoverty), color = "grey20", alpha = 1, size = 0.2) +
+  scale_fill_gradient(
+    name = "(percantage below poverty line)",
+    low = "white", high = skittles[3],
+    na.value = "grey90"
+  ) +
+
+  labs(title = "Percentage of Population Below Poverty Line by state",
+    caption = "Source: U.S. Census Bureau, 2023") +
+
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    legend.position = "bottom"
+  ) +
+
+  coord_sf()
+p3 <- states_sf_AggTrain %>% 
+  filter(ID != "district of columbia") %>%  ## <- Comment this out to see why!
+ggplot(aes(x = percBelowPoverty, y = Median_RawPredictedReadmissionRate)) +
+  geom_point(alpha = 0.5) + 
+  geom_smooth(method = "lm", se = T, color = skittles[3]) +
+  theme_minimal() +
+  labs(title = "Hospital readmissions by population poverty",
+       x = "Percentage below poverty line",
+       y = "Predicted Pneumonia-related Hospital Readmissions")
+## Make a barplot `p4` that shows the highest density states with their median
+p4 <- states_sf_AggTrain %>% 
+  filter(ID != "district of columbia") %>%  ## <- Comment this out to see why!
+  arrange(desc(percBelowPoverty)) %>% 
+  head(10) %>% 
+ggplot(aes(x = fct_reorder(ID, percBelowPoverty), y = Median_RawPredictedReadmissionRate)) +
+  geom_col(fill = skittles[3]) +
+  theme_minimal() + 
+  coord_flip() +
+  labs(title = "Top 10 Most Impoverished States",
+     y = "Median % hospital readmissions",
+     x = "",
+     caption = "Source: CMS, 2024 & U.S. Census, 2023; n.b. Wash D.C. excluded")
+
+p1
+p2
+grid.arrange(p3, p4, ncol = 2)
+```
+> There seems to be some correlation between the percentage of the population below the poverty line and the percentage of pneumonia related hospital readmissions, though this is more difficult to discern from the map than in the previous exercise with population density.
+
+##### Creating a new SAR for poverty
+```{r}
+sarTrain <- states_sf_AggTrain %>% 
+  as_data_frame() %>% 
+  select(-Median_RawPredictedReadmissionRate, 
+         -Median_RawMedicareSpending, 
+         -Median_RawHospitalReturnDays, 
+         -Median_RawDeathRate, 
+         -ID,
+         -localI, 
+         -pValue, 
+         -quadrant, 
+         -geom, 
+         -lag_medianReadmissions,
+         -totalPop,
+         -adultPop,
+         -over65Pop, 
+         -popDensity,
+         -landSqMi, 
+         -over65PercentPop)
+
+sarTest <- states_sf_AggTest %>% 
+  as_data_frame() %>% 
+  column_to_rownames("ID") %>% 
+  select(-Median_RawPredictedReadmissionRate, 
+         -Median_RawMedicareSpending, 
+         -Median_RawHospitalReturnDays, 
+         -Median_RawDeathRate,
+         -geom,
+         -totalPop,
+         -adultPop,
+         -over65Pop, 
+         -popDensity,
+         -landSqMi, 
+         -over65PercentPop) %>% 
+  drop_na()
+```
+
+##### Moran's I for poverty
+```{r}
+OLS <- lm(bc_PredictedReadmissionRate ~ ., data = sarTrain)
+## Moran's I test on residuals
+moran.test(residuals(OLS), states_sw)
+```
+> The output of Moran's I (p = 0.02641) suggests that there is statistically significant spatial autocorrelation in the residual terms, when accounting for the percentage of the population under the poverty line.
+
+##### Fitting the SAR for poverty
+```{r}
+SAR <- lagsarlm(bc_PredictedReadmissionRate ~ ., data = sarTrain, 
+                listw = states_sw)
+summary(SAR)
+```
+
+> The SAR model when accounting for the percentage of the population under the poverty line shows that there is some statistically significant spatial autocorrelation in the dependent variable (Rho = 0.34846). The LM test suggests that there is no spatial autocorrelation in the residuals of the model (p = 0.38383), suggesting that this model does an apt job at capturing those spatial relationships.
+
+##### Compare the SAR poverty model to the OLS model with a Likelihood Ratio Test (LRT)
+```{r}
+anova(SAR, OLS)
+```
+> The results of the LRT suggest that this SAR model accounting for poverty rates performs significantly better than the simpler OLS model.
+
+##### Inferential Statistics for poverty model
+```{r}
+tbl_regression(SAR) %>% 
+  modify_caption("Table 7. Spatial Lag (SAR) Regression results.") %>% 
+  modify_header(label = "**Coefficient**") %>% 
+  add_significance_stars(hide_p = FALSE)
+```
+
+> The summary table suggests that the percentage of the population below poverty is not a statistically significant determinant of pneumonia-related hospital readmission rates, though it is close to significant and does have a very high beta coefficient of 3.6. This is one of those cases where you might be tempted to think "biologically significant, not statistically significant." Postoperative respiratory failure rate is significant in this model whereas in the non-spatial model it was insignificant. All other predictors remain the same in terms of statistical significance.
+
+##### Fitting SEM and SDM models with poverty rates
+```{r}
+## Fit the SEM (spatial error model) using the training data and weights matrix
+SEM <- errorsarlm(bc_PredictedReadmissionRate ~ ., data = sarTrain, 
+                  listw = states_sw)
+## Uncomment to view results!
+summary(SEM)
+
+## Fit the SDM (spatial Durbin model) using the training data and weights matrix
+SDM <- lagsarlm(formula = bc_PredictedReadmissionRate ~ ., data = sarTrain, 
+    listw = states_sw, type = "mixed") ## "mixed" is necessary to specify as SDM
+## Uncomment to view results!
+summary(SDM)
+```
+##### Predictions for all four models accounting for poverty rates
+```{r}
+olsPredictions <- predict(OLS, newdata = sarTest)
+
+sarPredictions <- predict(SAR, newdata = sarTest, listw = states_sw) %>% 
+  as_tibble()
+
+semPredictions <- predict(SAR, newdata = sarTest, listw = states_sw) %>% 
+  as_tibble()
+
+sdmPredictions <- predict(SAR, newdata = sarTest, listw = states_sw) %>% 
+  as_tibble()
+
+## RMSE
+olsRMSE <- sqrt(mean((sarTest$bc_PredictedReadmissionRate - olsPredictions)^2))
+sarRMSE <- sqrt(mean((sarTest$bc_PredictedReadmissionRate - sarPredictions$fit)^2))
+semRMSE <- sqrt(mean((sarTest$bc_PredictedReadmissionRate - semPredictions$fit)^2))
+sdmRMSE <- sqrt(mean((sarTest$bc_PredictedReadmissionRate - sdmPredictions$fit)^2))
+
+## MAE
+olsMAE <- mean(abs(sarTest$bc_PredictedReadmissionRate - olsPredictions))
+sarMAE <- mean(abs(sarTest$bc_PredictedReadmissionRate - sarPredictions$fit))
+semMAE <- mean(abs(sarTest$bc_PredictedReadmissionRate - semPredictions$fit))
+sdmMAE <- mean(abs(sarTest$bc_PredictedReadmissionRate - sdmPredictions$fit))
+
+## Make a dataframe for comparison of RMSE and MAE values
+data.frame(Model = c("OLS", "SAR (Spatial Lag)", "SEM (Spatial Error)", "SDM (Durbin)"),
+           RMSE = round(c(olsRMSE, sarRMSE, semRMSE, sdmRMSE), 2),
+           MAE = round(c(olsMAE, sarMAE, semMAE, sdmMAE),2)) %>% 
+  ## Display with kable
+  kable(digits = 2,
+        format = "html",
+        caption = "Table 13. Comparison of RMSE and MAE for all models.") %>%
+  kable_styling(bootstrap_options = c("hover", full_width = F)
+  )
+```
+
+> Again we see that the spatial models all perform similarly, while performing as a group much better than the simpler OLS model. Overall, the models accounting for the percentage of the population below the poverty line perform less well than the models tested above that account for population density. The improved performance of the spatial models does suggest that poverty rate has some relationship with pneumonia-related hospital readmission rates, though it was shown in the SAR model to be statistically insignificant when directly predicting the target variable. The SEM model returns statistical significance for poverty rate as a predictor of errors, which suggests that poverty rate may be a proxy for other, unexplained spatial variables, as it relates to the unexplained variation. The SDM model also returns statistical significance for poverty rate as a predictor of pneumonia-related hospital readmission rates. This suggests that poverty rate has spatial spillover effects that SAR is not able to fully capture, as it only targets the spatial lag of the dependent variable, while SDM targets the spatial lag of the dependent and independent variables. These indirect effects that SDM captures may be contributin to poverty rate's influence on pneumonia-related hospital readmission rates.
