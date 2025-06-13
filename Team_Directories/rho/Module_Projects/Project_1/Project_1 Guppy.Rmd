@@ -527,21 +527,21 @@ Add your comments to the code as indicated to explain what I was doing at each o
 
 ```{r}
 dat2Analyze <- dat2Analyze %>% 
-  ## COMMENT HERE
+  # this is going to be focusing on working with the dat2analyze table, and this is filtering that for the next changes
   select(-ExpectedReadmissionRate, 
          -ExcessReadmissionRatio,
          -observed_readmission_rate, 
          -contains(c("Sample_", "NumberOfPatients")),
          -NumberSurveysCompleted) %>% 
-  ## COMMENT HERE
-  rename(`Median time (minutes) patients spent in ED` = 
+  ## this is the process of dropping all of the columns that have that name but it is also dropping any columns that have the name Sameple or Number of Patients in it when using contain
+  rename(`Median time (minutes) patients spent in ED` =
          `Score_Average (median) time patients spent in the emergency department before leaving from the visit A lower number of minutes is better`,
          `Composite patient safety` = `Score_CMS Medicare PSI 90: Patient safety and adverse events composite`,
          `ComparedToNational_Composite patient safety` = `ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`) %>% 
-  ## COMMENT HERE
+  ## This section above is renaming the name of the columns so that they make a little bit more sense when using them to create models 
   select(PredictedReadmissionRate, everything())
 
-## COMMENT HERE
+## this is going to choose all of the predicted rates and all of the variables that are associate with that column
 colnames(dat2Analyze) <- gsub('Score_|HcahpsLinearMeanValue_|_Payment', '', colnames(dat2Analyze))
 ```
 
@@ -553,7 +553,7 @@ Next, we are going to take advantage of the `nearZeroVar()` function that is par
 #### **Question 9B**: [0.5 points]
 If you are not familiar yet with the concept of __zero or near-zero variance__, do a little digging. Based on what you read, try to explain for your naive advocacy group stakeholders, why it's important to remove the features with little variance.
 
-> Your answer here.
+> The near zero variance function is a function which locates any places where the value is close to zero and doesn't show variation when it comes to the data. This is also an important function to run especially in this work because it locates places where there is a value close to zero which could allow for us to find places where patient privacy could be compromised. This function wil also help to locate some constants in the data that maybe wasn't originally seen. After finding these columns these are going to be dropped so that there can still be variance in the data. 
 
 ```{r, echo = F}
 ## Identify the columns with near-zero variance
@@ -575,14 +575,14 @@ dat2Analyze <- dat2Analyze[, -nearZeroVar(dat2Analyze)]
 **Take note** of the number of features here.
 
 #### **Question 9C**: [0.5 points]
-You may or may not have noticed that I moved `FacilityID` to our rownames in the datasets you loaded today. Why did I choose to do that? Why do I want to make sure unique identifiers, like `FacilityID`, are out of the dataframe before I either (a) run `nearZeroVar()` or (b) proceed with the rest of the analysis?
+You may or may not have noticed that I moved `FacilityID` to our rownames in the datasets you loaded today. Why did I choose to do that? Why do I want to make sure unique identifiers, like `FacilityID`, are out of the dataframe before I either (a) run `nearZeroVar()` or (b) proceed with the rest of the analysis? 
 
-> Your answer here.
+> Having FacilityID in the actual database it would get included in all of hte models that are created. Since these are saved as integers in the database they would be included in the model creation and they don't have significants in the way of creating models. These ID columns are just for that, to help ID which facilities have what scoring. These models are also trying to predict more unbrella trend across myltiple facilities if we were creating models for just one facility then the ID column wouldn't be needed.
 
 #### **Question 9D**: [1 point]
 Do some research on, or lean into your previous knowledge, about the **curse of dimensionality** or the **big-P, little-N (n >> P) problem**. Using whatever you find or remember, can you justify why we likely do NOT have a **big-P, little-N (n >> P) problem** here? Make sure to explain. 
 
-> Your answer here.
+> The big P little N problem speaks on dataframes that have more variables then it does observations. This isn't somehting that is a problem with this database since it has 370229 observations and 31 variables. If these was an idea to do this kind of anlyzation with hospitals in one local are then this may cause a problem since there wouldn't be a lot of hospitals in such a small area. In changing the amount of observations to so few it could cause a lot of problems since there will be more variable. This concept can also cause data to do some stange things, like points moving far apart, and the mode that is created makes the model and noise approach 100% accuracy. This all can be avoided though by having more observations compared to variables. 
 
 ## 3.2 Assess missingness & devise an imputation plan
 
@@ -592,14 +592,16 @@ We are going to deal with imputation in a rather quick and elegant way that requ
 Write some code that will quickly tally the number of columns in the dataset that contain missing values. You will find `colSums()` and `is.na()` functions likely useful here. **What percent of the features have at least some level of missingness?**
 
 ```{r}
-# Your code here.
+print(colSums(is.na(dat2Analyze)))
+
+
 ```
 
-> Your answer here.
+> There is some level of missingness to all of the columns that are in the database have some level of emptiness to them. Above is the amount of Na that are in each column and unfortunetly  there is some level of missing in each column.  
 
 **Which column(s) are not missing any data?**
 
-> Your answer here.
+> The State column isn't missing any data but this is also  
 
 **How many complete observations do we have in the dataset?** You may find `nrow()` with `complete.cases()` or `drop_na()` useful!
 ```{r}
