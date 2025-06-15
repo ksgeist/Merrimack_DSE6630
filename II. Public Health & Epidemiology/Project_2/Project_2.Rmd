@@ -1,0 +1,1809 @@
+---
+title: "Project 2: Public Health & Epidemiology"
+subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
+author: "Katherine S. Geist, PhD"
+date: "10 June 2025"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: flatly
+    fig_crop: no
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE,
+                      cache = FALSE, 
+                      cache.comments = FALSE,
+                      size = 13)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# clean, set up, and load
+pacman::p_unload(pacman::p_loaded(), character.only = TRUE)
+rm(list = ls(all = TRUE))
+
+pacman::p_load(here,
+               tidyverse, 
+               ggplot2, 
+               ggExtra,
+               kableExtra,
+               forcats,
+               sf,
+               cols4all,
+               jsonlite, 
+               spdep,
+               spatialreg,
+               caret,
+               glmnet, 
+               gbm)
+
+skittles <- c("#6c1c7a", "#fcba03", "#cc4348", "#CC79A7", "#D55E00",  
+              "#009E73", "#226b58", "#083d5c", "#56B4E9", "#925ebf", "#86a607")
+```
+
+# 1 Introduction
+
+It is __September of 2020__, right in the middle of the COVID-19 pandemic and during the California statewide shutdown. You have just been hired by the [California Department of Public Health (CDPH) in Vital Records](https://www.cdph.ca.gov/Programs/CHSI/Pages/Vital-Records.aspx) to track non-COVID mortality trends for the past 4 years for which all data have currently been aggregated and de-identified (anonymized). You are told that the purpose is two-fold:
+
+1. **Help the state identify shifts in spatiotemporal mortality trends as a result of the COVID statewide stay-at-home orders.**
+
+2. **Help the state build predictive models for non-COVID causes of mortality to establish a pre-COVID baseline.**
+
+## 1.1 Provided data: California mortalities {#providedData}
+
+You were given properly de-identified data from 2017 - 2020, which contain mortality records for the state of California by gender, leading cause of death, race / ethnicity, and location of death. All data have been taken from the death certificates filed with the state. 
+
+**NOTE**: If you are interested in these data, the source is the [California Death Profiles dataset](https://data.chhs.ca.gov/dataset/death-profiles-by-county) maintained by California Health and Human Services.
+
+```{r}
+## Load the provided data files
+load("california_mortality_tables.RData")
+```
+
+You are provided 6 tables total, which have the following variables.
+
+```{r, echo=FALSE}
+dict <- tribble(
+  ~ Variable, ~ Description,
+  "Year", "Year of record",
+  "Month", "Month of record",
+  "County", "California county where death was recorded",
+  
+  "annualCount",  "Number of deaths for the sex specified",
+  "raceEthnicity", "Race and/or Ethnicity of the deceased; Latinx is unfortunately treated as a racial category here rather than an ethnic group",
+  "leadingCauseDeath",  "Leading cause of death per death certificate; See separate table for encoding",
+
+  "ageBins",   "Age groups where the age at death was known",
+  "ageDeaths",  "Number of deaths for the age bin specified",
+  
+  "biologicalSex",   "Biological sex of decedent",
+  "sexDeaths",  "Number of deaths for the sex specified",
+  
+  "placeDeathOccurred",  "Location of death, per death certificate",
+  "placeDeaths", "Number of deaths matching specified criteria",
+  
+  "raceDeaths", "Number of deaths matching race / ethnic criteria",
+
+  "totalDeaths", "Number of deaths per month, year, & county",
+)
+
+kable(
+    dict,
+    format = "html",
+    col.names = c("", ""),
+    caption = "Table 1. Data dictionary of variables in the California mortality tables.") %>%
+    
+    group_rows(index = c("All Tables" = 3, "Annual Mortality Table" = 2, "Specialized Variables" = 9)) %>%
+    kable_styling(bootstrap_options = c("hover"),
+)
+```
+
+```{r, echo=FALSE}
+icd <- tribble(
+  ~ Abbreviation, ~ Description, ~ ICD,
+  "HTD", "Diseases of the Heart", "I00-I09, I11, I13, I20-I51",
+  "CAN", "Malignant Neoplasms (Cancers)", "C00-C97",
+  "STK", "Cerebrovascular Disease (Stroke)", "I60-I69",
+  "CLD", "Chronic Lower Respiratory Disease (CLRD)", "J40-J47",
+  "INJ", "Unintentional Injuries", "V01-X59, Y85-Y86",
+  "PNF", "Pneumonia and Influenza", "J09-J18",
+  "DIA", "Diabetes Mellitus", "E10-E14",
+  "ALZ", "Alzheimer's Disease", "G30",
+  "LIV", "Chronic Liver Disease and Cirrhosis", "K70, K73-K74",
+  "SUI", "Intentional Self Harm (Suicide)", "U03, X60-X84, Y87.0",
+  "HYP", "Essential Hypertension and Hypertensive Renal Disease", "I10, I12, I15",
+  "HOM", "Homicide", "U01-U02, X85-Y09, Y87.1",
+  "NEP", "Nephritis, Nephrotic Syndrome and Nephrosis", "N00-N07, N17-N19, N25-N27]",
+  "OTH", "All Other Causes of Death", "All codes not listed above"
+)
+
+kable(
+    icd,
+    format = "html",
+    col.names = c("3-letter Code", "Description", "ICD-10 Codes"),
+    caption = "Table 2. Underlying cause of death category based on coding using the Tenth Revision of the International Classification of Diseases (ICD) codes") %>%
+
+    kable_styling(bootstrap_options = c("hover"),
+)
+```
+
+**NOTE**: Make sure to refer to these tables as you go!
+
+# 2 Using Spatial Analysis to Assess Spatiotemporal Trends in Overall Mortality
+
+## 2.1 Background
+
+Unlike your first project, your data engineering team (i.e., __me__) has provided you with most of the data tables in a nice, tidy format that are relatively nice and tidy to begin with - which means you can dig right into the analysis! Remember, any time you have datasets with __spatial information__ they are spatial data; these data are organized by California county, so you know you must do a spatial analysis! However, there is also a _temporal_ element - you have data from four different years, 2017 to 2020. So, you decide you will make maps to analyze both the spatial (geographic) and temporal (time) trends in the hope it will shed insight into which downstream analysis you should do. Consider this to be part of your __Exploratory Data Analysis__.
+
+As discussed in lecture, one of the key types of spatial data files you might use are called __shapefiles__, which is what you are going to practice loading and working with shapefiles, using this [open source dataset](https://gis.data.ca.gov/datasets/8713ced9b78a4abb97dc130a691a8695/explore) for the state of California. You will have to download these data as they are too large to put onto GitHub. 
+
+Begin by downloading the requisite spatial data files. Make sure you put them in their own directory called __California_County_Boundaries__ on your Desktop; otherwise, you will need to adjust your path in the file settings below! This is similar to what I had you do in Demo 1, if you'll recall.
+
+Notice that the directory contains six files, three of them with file extensions you discussed last week in lecture:
+
+* `cnty19_1.cpg`
+* `cnty19_1.dbf`
+* `cnty19_1.prj`
+* `cnty19_1.shp`
+* `cnty19_1.shp.xml`
+* `cnty19_1.shx`
+
+#### Question 1 [1 point]:
+
+What do each of these six files represent? You will not be able to open them directly on your computer, so you may need to refer back to lecture and do a little digging to figure out the type of data you would expect each of these files to contain.
+
+> Your answer here.
+
+## 2.2 Your objective
+
+You want to first get a sense for __annual trends__ in overall mortality across the state to see what you are working with. Your first objective is to join your overall mortality data to the shapefile to be able to make maps to visualize these trends. You also want to calculate __spatial weights__ to allow you to create predictive models of mortality by county.
+
+## 2.3 Making your first map of California
+
+You are going to practice two ways to make maps from shapefiles so that you can see two ways to do it. Also, to give you more for reference, you are roughly following the [GIS Basics Chapter of the Epi R Handbook]("https://epirhandbook.com/en/gis-basics.html") (with your own twist, of course!). This chapter may be helpful for understanding more of the "nuts and bolts" of GIS as well, including definitions and why you might do things certain ways.
+
+__The initial processing steps will include:__
+
+1. Import the shapefile
+2. Filter rows to keep only areas of interest
+3. Merge with the other data tables to creates maps and analyze trends
+
+
+
+### 2.3.1 Read in the shapefile & validate geometries
+
+You will leverage the `read_sf()` function that is part of the `sf` package. As you might have guessed, `sf` refers to __shapefile__. Note that there is an alternative method to read in shapefiles called `st_read`, which is an alias for `read_sf()` with some different default arguments. By default, `read_sf()` is quiet, whereas `read_st()` will print information about the data source by default. Additionally, `read_sf()` returns a tibble rather than a dataframe. So which to choose? It's your preference, in this case. By default, your code below will use `read_sf()` but you could instead use `read_st()` if you wanted.
+
+```{r}
+cali_sf <- read_sf("~/Desktop/California_County_Boundaries/cnty19_1.shp") 
+
+## Alternatively, you can read in the shapefile using the 'st_read()' function
+## cali_st <- st_read("./California_County_Boundaries/cnty19_1.shp") 
+```
+
+**NOTE** If you get a warning (as opposed to a critical error) is from [GDAL](https://gdal.org/en/stable/), a library of raster and vector geospatial data formats that your `read_sf()` (or `st_read()`) functions are using to transform the polygons for mapping. This warning indicates that some polygon geometries in the shapefile have boundaries (rings) with an inconsistent order of coordinates ("invalid winding order"). GIS tools assume that it will read from the right-hand, and the warning is letting you know that it is autocorrecting it. However, you could still have issues and it isn't ideal.
+
+*Just as you did in Demo 2, you can fix this by validating the polygon boundaries:*
+```{r}
+## Disable Google S2 engine
+sf_use_s2(FALSE)
+## Validate the geometry boundaries/edges
+cali_sf <- st_make_valid(cali_sf)
+```
+
+*Now, let's do a quick check of the map of California counties to make sure all the layers look okay:*
+```{r}
+plot(cali_sf)
+```
+
+*And let's check the validity of the boundaries:*
+```{r}
+st_is_valid(cali_sf)
+```
+
+#### Question 2 [1 point]:
+Why did `TRUE` print 69 times? What are the "69 features" in the geometry? 
+
+**Hint 1**: Are all of them counties? If not, what are they? Try running `print(calif_sf$COUNTY_NAME`. What do you see?
+
+**Hint 2**: There are islands in California. What happens to islands in terms of `COUNTY_NAM`?
+
+> Your answer here.
+
+*Next, let's take a look at the geometry of the shapefile that you loaded.*
+```{r}
+cali_sf$geometry
+```
+
+Notice that, just like Demo 2, you only have the __polygon__ geometry in your shapefile. If you were to investigate further, you would find that currently there are no other geometries (e.g., lines or points) in this shapefile. You could add them and export the shapefile, if you ever needed to do so, like to share with someone else. For example, if you wanted to add points for the county seats of each county, you could add them based on longitude and latitude; similarly, you could add just points for major California cities, which I will demonstrate below.
+
+#### Question 3A [0.5 points]:
+What is the bounding box that comes with your shapefile and what does it tell us? **What would you do to the bounding box if you wanted to zoom in or out on a geographic feature?**
+
+> Your answer here.
+
+#### Question 3B [0.5 points]:
+What is the projection? What does it tell you and why does projection matter? **What will change if you change the projection?**
+
+> Your answer here.
+
+### 2.3.2 Create a basic map of California
+
+In Demo 2, I showed you how to plot shapefiles using `ggplot2`'s `geom_sf()` function, and even though there are advanced mapping functions in R you could use you will stick with that for consistency, convenience, and speed. 
+
+```{r}
+## Initiate the plot and tell it the dataset
+ggplot(data = cali_sf) +
+  ## Give it specific fill and border colors
+  geom_sf(fill = skittles[6], 
+          color = "gray20", 
+          linewidth = 0.25, 
+          alpha = 0.65) +
+  
+  ## Set map projection explicitly
+  coord_sf(expand = FALSE) +   ## <- keeps map tight to its bounding box
+  
+  ## Uncomment to make a completely blank map background
+  # theme(
+  #   panel.grid = element_blank(),
+  #   panel.background = element_rect(fill = "white"),
+  #   plot.background = element_rect(fill = "white"),
+  #   axis.text = element_blank(),
+  #   axis.ticks = element_blank(),
+  #   axis.title = element_blank(),
+  # ) +
+  
+  ## Give it a title and footnote/caption 
+  labs(title = "California Counties",
+       caption = "Source: California State Geoportal") 
+```
+
+### 2.3.3 Zooming in on the map {#zoomNlabel}
+
+Now, what if you only wanted to visualize a few counties? Let's look at the three northernmost counties that border Oregon. The three northernmost California counties that border Oregon are:
+
+- Del Norte
+- Siskiyou
+- Modoc
+
+Notice that the county names are accessible through `cali_sf$COUNTY_NAM`. Thus, you can just use the `filter()` function from `dplyr` to be able to grab the three northernmost counties you want by name, which I have started for you.
+
+#### Question 4 [1 point]:
+Finish the code below to create a map of the northernmost 3 counties in California. You can copy and paste, with minor modifications, the code for the entire state map to do this. **NOTE** that you are storing your map into `map1`. This is because I will show you how to add labels in the next section! Don't forget to update your plot title for full credit!
+
+```{r}
+# ## Start from the California spatial tibble - Uncomment to run
+# map1 <- cali_sf %>% 
+#   ## Filter to just the 3 counties that border Oregon - Uncomment to run
+#   filter(COUNTY_NAM == "Del Norte" | COUNTY_NAM == "Siskiyou" | COUNTY_NAM == "Modoc") %>% 
+
+## YOUR CODE HERE.
+```
+
+*Now let's add labels!* 
+This code will not run unless you have made `map1` correctly!
+
+```{r}
+### UNCOMMENT THIS CODE TO RUN:
+
+# ## Calculate the county centers:
+# county_centroids <- st_centroid(cali_sf) %>% 
+# ## Filter for just the northern centroids
+#     filter(COUNTY_NAM == "Del Norte" | COUNTY_NAM == "Siskiyou" | COUNTY_NAM == "Modoc") 
+# 
+# ## Now, add the labels to the map:
+# map1 + geom_sf_text(data = county_centroids, 
+#                     aes(label = COUNTY_NAM), 
+#                     size = 3.5, fontface = "bold") +
+#   ## fix the x and y axis labels to make a beautiful map!
+#   theme(axis.title = element_blank())
+```
+
+## 2.3.4 Creating points for major cities in California {#overlayPoints}
+
+Often, your stakeholders will want geographic reference points; whether this is the label of a county name, as you just did for the 3 counties that border Oregon, or they might be locations of major cities. Let's choose to plot five cities in California, the capital Sacramento and the four most populated cities:
+
+- Sacramento (the capital)
+- Los Angeles
+- San Diego
+- San Francisco
+
+But, to do this, it takes a little sorcery. You have to create a second **layer** for the points you want to overlay. So, you will put the longitude and latitude for each city, with the city's name and an identifier as to whether it's the capital or not, into its own dataframe. You will then convert it to a shapefile object.
+
+```{r}
+## Create a cities data frame with coordinates
+cities <- data.frame(
+  city = c("Sacramento", "San Diego", "Los Angeles", "San Francisco"),
+  lon = c(-121.4944, -117.1611, -118.2437, -122.4194),
+  lat = c(38.5816, 32.7157, 34.0522, 37.7749),
+  cityType = c("capital", "major", "major", "major")
+)
+
+## Convert to shapefile object with the same projection as what you had
+cities_sf <- st_as_sf(cities, coords = c("lon", "lat"), crs = 4326)
+```
+
+*Now, you can plot the map by overlaying the city points, with differing colors for each city and a different shape and size marker for the capital, Sacramento:*
+
+```{r, echo = FALSE}
+# Plot California counties with city points
+ggplot(data = cali_sf) +
+  ## Give it specific fill and border colors
+  geom_sf(fill = skittles[6], 
+          color = "gray20", 
+          linewidth = 0.25, 
+          alpha = 0.65) +
+  
+  ## Set ap projection explicitly
+  coord_sf(expand = FALSE) +   ## <- keeps map tight to its bounding box
+  
+  #### ----- Here is where you overlay the points! -------- ####
+  geom_sf(data = cities_sf, 
+          ## Different colors & shapes & sizes for different cities
+          aes(color = city, shape = cityType, size = cityType)) + 
+  
+  ## Define shapes and sizes manually for cityType
+  scale_shape_manual(values = c(capital = 18, major = 16), guide = "none") +  
+  scale_size_manual(values = c(capital = 6, major = 3), guide = "none") +
+  
+  ## Define the fill color for the city shapes
+  scale_color_manual(values = skittles[1:4], name = "City") +
+
+  ## Give it a title and footnote/caption 
+  labs(title = "California Counties with Major Cities Marked",
+       caption = "Source: California State Geoportal") 
+```
+
+#### Question 5 [1 point]:
+Your stakeholders point out that you have forgotten San Jose, one of the most populated cities in California! They ask you to go back to the map and add it on. 
+
+**Hint 1**: The coordinates of San Jose are 37.3387° N, 121.8853° W
+**Hint 2**: Don't forget to add a `cityType` for San Jose!
+**Hint 3**: Don't forget to add a skittles color for San Jose in `scale_color_manual`!
+
+```{r}
+## YOUR CODE HERE.
+```
+
+## 2.4 Joining shapefiles with a tibble or dataframe
+
+As mentioned above, the `sf_read()` function from the `sf` package loads your shapefile as a `tibble`, which makes life much easier for you when dealing with shapefiles. It also means you can easily join your shapefiles with other tibbles / dataframes, like the ones we've imported of mortality data. Let's briefly breakdown what your process to do this is going to look like:
+
+__Our Process:__
+
+1. Rename the **County** column so it matches the shapefile
+
+2. Summarize the data by **Year** so you can visualize the annual trends
+
+3. Join the two tibbles by `COUNTY_NAME`
+
+4. Make sure to turn the joined tibble **back into a shapefile** using the `st_as_sf()` function, otherwise it will fail. The join will convert it into a structure that is no longer a shapefile, so you have to back-convert it to a shapefile!
+
+5. You are going to remove the islands, not because you dislike islands but because they get labeled separately and make your map look cluttered. Further, the few people who reside on the islands of California will still be included in their onshore county, so you are not ignoring anyone. *Feel free to experiment removing that filter to see what I mean!*
+
+#### Question 6 [1 point]:
+Annotate the following code chunk with comments to make sure you understand what you are doing here. **HINT**: refer back to the earlier tables with the data descriptions to help you understand the data better!
+
+```{r, echo = TRUE, warning=FALSE, message=FALSE}
+## YOUR COMMENT HERE - make sure to comment on the choice of data
+mortality_sf <- totalDeaths %>% 
+  ## YOUR COMMENT HERE
+  rename(COUNTY_NAM = County) %>%
+  ## YOUR COMMENT HERE
+  group_by(COUNTY_NAM, Year, Month) %>% 
+  ## YOUR COMMENT HERE
+  summarise(totalDeaths = sum(totalDeaths, na.rm = TRUE)) %>%
+  ## YOUR COMMENT HERE - make sure to comment on the relationship parameter
+  full_join(cali_sf, by = "COUNTY_NAM", relationship = "many-to-many") %>% 
+  ## YOUR COMMENT HERE
+  st_as_sf() %>% 
+  ## YOUR COMMENT HERE
+  filter(is.na(ISLAND))
+```
+
+#### Question 7A [0.5 points]:
+What does `st_join()` do? Could you have executed the join with `st_join()` instead of `full_join()` here? Why or why not? 
+
+> Your answer here.
+
+
+#### Question 7B [0.5 points]:
+This question has three subparts.
+
+1. How many features are there in `mortality_sf`? 
+```{r}
+# Your code here.
+```
+
+2. Why is it so many more than in `cali_sf`?
+> Your answer here.
+
+3. How many counties are there now in `COUNTY_NAM`? (Hint: Use `unique()` or `n_distinct()` to help you get the true number!) Why is it different from the number you saw in Question 2?  
+```{r}
+# Your code here.
+```
+
+> Your answer here.
+
+
+## 2.5 Visualizing annual trends in overall mortality
+
+You are asked to make four maps, one for each year, that shows how annual overall mortality trends to identify any changes as a result of either the COVID-19 pandemic or the stay-at-home orders. Notice that you first use a `group_by()` and a `summarize()` to tally the total deaths per county per year - but **unlike your previous chloropeths**, you are applying a purposeful set of cuts every $5 \times 10^n$ deaths. Why? This is to allow you to see [order of magnitude](https://en.wikipedia.org/wiki/Order_of_magnitude) changes in the total deaths by California counties for each of the four years. 
+
+```{r}
+## Start from the mortality spatial tibble
+mortalitySummary <- mortality_sf %>% 
+  ## Group by and then summarize to total the deaths by County and Year
+  group_by(COUNTY_NAM, Year) %>% 
+  summarise(totalDeaths = sum(totalDeaths, na.rm = TRUE)) %>% 
+  mutate(deathLabels = cut(totalDeaths, 
+                          breaks = c(0, 50, 500, 5000, 50000, Inf),
+                          labels = c("0-49", "50-499", "500-4,999", 
+                                    "5,000-49,999", "50,000+"),
+                          ordered_result = TRUE, right = F)) 
+## Initialize the plot
+ggplot(mortalitySummary) +
+  ## Chloropeth: draw the polygons of the counties and color by total deaths
+  geom_sf(aes(fill = deathLabels), color = "gray20", size = 0.2) +
+  ## Apply manual fill scale for total deaths
+  scale_fill_manual(
+    name = "Deaths, All Causes (per 10,000 persons)",
+    values = c4a(palette="BuPu", n=6),
+    drop = FALSE
+  ) +
+  ## Set map projection explicitly
+  coord_sf(expand = FALSE) +   ## <- keeps map tight to its bounding box
+  theme_bw() +
+  ## Make a completely blank map background this time
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    strip.text = element_text(size = 12, face = "bold"),
+    legend.position = "bottom"
+  ) +
+  labs(
+    title = "California Annual Deaths by County (All Causes)",
+    subtitle = "2017 - 2020",
+    caption = "Source: California DPH Vital Records"
+  ) + 
+  ## Use facet_wrap to make one map per year
+  facet_wrap(~ Year, ncol = 4)
+```
+
+### 2.5.1 Uh oh, can you spot the problem?
+
+#### Question 8 [1 point]:
+Is there any pattern that is a cause for concern in your interpretation of **total deaths**? 
+
+**Hint 1**: The county with the highest number of deaths (darkest purple) is **Los Angeles county**. What is special about LA county?
+**Hint 2**: Do you see other similar darker colors in counties around cities?
+
+> Your answer here.
+
+## 2.6 Accessing the 2020 US Census API
+
+Hopefully, you have figured out that you need population data to add to your dataframes. In Demo 2, I gave you Census data - but this time, I want to teach you how to more efficiently and iteratively access data through an **API** (Application Programming Interface), which acts as a bridge between two software programs to exchange data. As data scientists, learning to use and love APIs will serve you well! *Thus, for the Census data this time you are going to access the Census Bureau's API endpoint.*
+
+If you have not yet worked with an API, never fear! That's why we're doing it here. Here, the Census API will allow you to access their database and download their data in JSON (Java Script Object Notation) format, which is format that __flattens__ databases into text. By connecting to the API endpoint for the Census Bureau, you will be able to download instantaneously only the data you want, which in your case will be population sizes and some basic demographics about the breakdown of population by sex and by individuals over the age of 65 years. 
+
+Because the US Census API uses JSON formatted files, you will be using the `jsonlite` package to convert the JSON files to a dataframe. But first, you need to gain access to the API!
+
+### 2.6.1 Getting your first Census API Key (unless you already have one)
+
+In order to access the Census API, you will need your own Census API key. I could give you mine, but it's generally not good practice to share API keys unless you trust the person. Why? (1) If someone misuses your API key, you could get banned from accessing the API. (2) Especially for government or non-profit agencies, it can be a good idea to have your own so that they can keep track of how many users they have. Not all API access is free, but for government, non-profit, or institutionally held data, access is free although you may have different hoops to jump through for access depending on how secure they want to keep the data. (e.g., to protect survey respondents).
+
+#### Question 9 [1 point]:
+You will sign up for your API census key [here](https://api.census.gov/data/key_signup.html). You should be able to obtain your key very quickly, but if you run into trouble then I will give you the data I have downloaded through __my__ API key so that you can still keep going with the project.
+
+Once your have your key, fill it into this code chunk here:
+```{r}
+## Set your API key (put it between the quotation marks):
+key <- " "
+```
+
+### 2.6.2 Downloading data tables from the 2020 Census API
+
+You are going to use the 2020 Census since that is the last year of data you have for the mortality dataset. The U.S. Census maintains numerous tables you can use for data. You will be using the __Decennial Census: Demographic Profile__. You can find the variable explanations for this table of the 2020 Census data [here]("https://api.census.gov/data/2020/dec/dp/variables.html"). Below is a custom function I have written that will allow you to extract any of the variables you want from this table as long as you follow the usage.
+
+**HOW TO GET DATA FROM AN API: THE `url`**
+
+The important thing to understand about APIs is that they are based on the `url` to the API endpoint. For example, 
+
+`https://api.census.gov/data/2020/dec/dp?get=NAME,DP1_0001C,DP1_0025C&for=county:*&in=state:06&key=YOUR_API_KEY`
+
+is a `url` that you can break down into its constituent parts like this:
+
+| Component                       | Description                                                  |
+| ------------------------------- | ------------------------------------------------------------ |
+| `https://api.census.gov/data`   | Base API endpoint                                            |
+| `/2020/dec/dp`                  | Specific dataset path (2020 Decennial Census, Data Profile)  |
+| `?get=NAME,DP1_0001C,DP1_0025C` | Variables to retrieve (`NAME` and 2 demographic variables, `DP1_0001C` and `DP1_0025C`) |
+| `&for=county:*`                 | Requesting data for **all counties**                         |
+| `&in=state:06`                  | Restricting to **California** (FIPS code 06)                 |
+| `&key=YOUR_API_KEY`             | Your **personal API key** (required for access)              |
+
+You can practice modifying this `url` by adding your personal key to the end. If you do, what you'll see is something is this if you copy and paste the **completed `url`** into your browser:
+
+!["JSON file of Census data on the web"](images/example_census_url.png)
+This is the Census data for the two variables chosen in `JSON` format! You can then convert these into a dataframe using the `fromJSON()` function from the `jsonlite` library, although this is not the only `JSON` handling package that exists in R. Similar packages exist in Python.
+
+**HOW THE FUNCTION WORKS**
+
+The custom function, `getPopSizes()`, pulls population data from the U.S. Census API for all counties in California, specifically demographic details like total population, gender counts, and age 65+ breakdowns from the 2020 Decennial Census.
+
+*Before you run the function, you must set the stage:*
+
+ - `state = "06"`
+   - Sets the state FIPS code for California (FIPS 06 = CA)
+   - If you wanted all states, you'd use "*"
+   
+- `vars`
+  - A vector of Census variable codes for population totals, age, and sex breakdowns
+  - For example, `DP1_0001C` is total population
+  
+- `header`
+  - A human-readable list of column names that will replace the technical variable codes in `vars`
+
+#### Question 10A [0.5 points]:
+Using a search engine or the [Census table explorer](https://data.census.gov), whichever you find easier to use, look for the differences between table variables `DP1_0048C` and  `DP1_0048P`. What different information do these two variables hold?
+
+> Your answer here.
+
+*Digging into the Function*
+
+The function `getPopSizes()` takes in the following information as **arguments** to be able to run correctly:
+
+  - `key`: your Census API key
+  - `vars`: variable codes
+  - `header`: column names you want
+
+Then, inside the function, it is doing several key tasks:
+
+1. Builds the `url` for the API request
+  - Adds variables to `get=...`
+  - Limits to counties in California via `for=county:*&in=state:06`
+  - Appends the API key at the end of the `url`
+
+2. Requests the data from the Census API using `fromJSON(url)` and converts it to a data frame
+
+3. Cleans the data for you
+  - Removes the first row (which contains column names from the API)
+  - Renames columns using `header`
+  - Converts character columns back into numbers (`mutate_at`)
+
+4. Returns a cleaned data frame of all the census variables requested, complete with human-readable headers! 
+  - This dataframe is now ready to be joined with your mortality shapefile!
+
+**Function call**
+This line runs the function using your API key and saves the result to a variable called `census`:
+`census <- getPopSizes(key, vars, header)`
+
+
+**NOTE** Make sure to change `include=FALSE` to `TRUE` in the first line (the `{r}` setup line) the chunk or you will get an error upon knitting.
+
+```{r, eval = FALSE, echo = TRUE}
+## Set the state want you in double-digit FIPS; if you want all states, use *
+state = "06" ## California
+
+## Set a vector of variables you want; no need to include NAME, 
+## it's already written into the function
+vars <- c("DP1_0001C", "DP1_0025C", "DP1_0049C", "DP1_0024C",
+          "DP1_0024P", "DP1_0048C", "DP1_0048P", "DP1_0072C",
+          "DP1_0072P")
+
+## Set my header
+header <- c("totalN", "malesN", "femalesN", "over65", "over65perc", 
+            "males65plus", "males65plusPerc", "females65plus", 
+            "females65plusPerc")
+
+getPopSizes <- function(key, vars, header) {
+  ## Building your url
+  
+  ## initialize "get" variable
+  get <- "NAME"
+  ## For each of the variable, add in the codes to the "get" variable so you can 
+  ## add that into the API address
+  for(i in 1:length(vars)){
+    get <- paste(get, vars[i], sep="&")
+  }
+  ## Add in more of the necessary pieces into the API address
+  for.statemt <- paste0("&for=county:*&in=state:", state) 
+  base.url <- "https://api.census.gov/data/2020/dec/dp"
+  ## The finished URL that you will use to get the JSON file
+  url <- paste0(base.url, "?get=", get, for.statemt, "&key=", key)
+
+  ## Use fromJSON() to get the data table and turn into a data frame
+  census <- data.frame(fromJSON(url))
+  census <- census[-1, ]  ## first row needs to be dropped
+  
+  ## Rename the columns with what you want
+  names(census) <- c("NAME", header, "STATE", "COUNTY")
+
+  ## Fix the fact that everything numeric was turned into character
+  census <- census %>% 
+      mutate_at(header, as.numeric)
+  
+  ## Done!  
+  return(census)
+}
+
+## Call the function
+census <- getPopSizes(key, vars, header) 
+## Remove the extra characters from the name of the county
+census <- census %>% 
+  mutate(NAME = gsub(" County, California", "", NAME)) %>% 
+  rename(County = NAME)
+```
+
+**Did you notice how quickly it accessed the information?** That is one of the strengths of APIs. You also get to customize the tables to only grab what you want and you can imagine how you might iterative over multiple years or other structures using a function similar to what I coded for you above. APIs are wonderful to become familiar with as a data scientist; I highly recommend practicing more with APIs as you move toward the job market as it is a highly sought after skill! I also strongly recommend the R package [`tidycensus`](https://walker-data.com/tidycensus/); I did not choose to use that here so you would have __generic code__ you could use for many API endpoints going forward in your career! Additionally, `tidycensus` is restrictive since it only access some tables of the Census (notably the American Community Survey or ACS), but you were using a different table here.
+
+#### Question 10B [0.5 points]:
+Use code or some other method to explore the resulting dataframe, `census`. Explain what this dataframe contains. 
+
+> Your answer here
+
+#### Question 11 [1 point]:
+Now that you know more generally how this function works and have seen it in action, in your own words, explain how you could adapt this approach (or even this function!) to work with a different API (not the Census). I am not asking you to code, but I am asking you to think through:
+
+1. What key pieces of the function would you need to change?
+2. What general steps stay the same regardless of the API?
+
+- **Hint 1**: Think about how the `url` is built and what makes it specific to the Census API.
+- **Hint 2**: Think about how the data is retrieved (e.g., using `fromJSON()`) and cleaned afterward.
+- **Hint 3**: For simplicity, assume that the data retrieved are in `JSON` format, since that is the most commonly used format.
+
+> Your answer here.
+
+
+### 2.6.3 Joining the census with the spatial data and updating the maps
+
+#### Question 12 [3 points]:
+Now, it's your turn to do some work! Your task is to join the census data to the shapefile of overall mortality we've already made. You want a tibble that contains all of the data from the census dataframe and all of the data from `mortality_sf`. I called mine `mortality_sf2`, so you will want to call yours the same unless you plan to change the variable name everywhere else downstream. 
+
+* **Hint 1**: The easiest way is to use the FIPS data to join.
+
+* **Hint 2**: Don't worry about calculating % mortality yet. I will help you with that below.
+
+* **Hint 3**: If you're having problems, check your data types!
+
+```{r}
+# Your code here.
+```
+
+**Note**: If you're unable to do this for any reason, you can pick back up here. You will need to download the data from [Google Drive](https://drive.google.com/file/d/15MT127zoySDS7kOfr9uhLwPSIWBCok1W/view?usp=sharing), as the shapefile is too large for GitHub yet again. I have placed mine on my Desktop, but you can put it anywhere you like and update the directory path. Just make sure not to put it in your GitHub repo!
+
+```{r, eval = TRUE}
+## Comment me out or change EVAL=FALSE to run your own versions!
+load("~/Desktop/mortality_sf2.Rdata")
+load("census.Rdata")
+```
+
+## 2.7 Mapping population-adjusted mortality
+
+Now, at this point, you were so excited to have these data that you decide to next calculate the annual population-adjusted % mortality per county per year so that you could recreate the map you tried to make above. **Notice** that, this time, I set the color scale for the chloropeth to equal the **five number summary** from `fivenum()` so that you could more easily see the median versus the quartiles. 
+
+**NOTE**: If you get errors here, it is because your `mortality_sf2` object is not quite right!
+
+```{r}
+##### Calculate the annual percent mortality
+mortalitySummary <- mortality_sf2 %>% 
+  ## Group by County as well as Year
+  group_by(COUNTY_NAM, Year) %>% 
+  ## Summarize by calculating an annual percent mortality
+  ## Note that I have to divide by the mean of the N from the Census  
+  ## or I'd get an error
+  summarize(annualPercMortality = 100*(sum(totalDeaths, 
+                                           na.rm = TRUE)/mean(totalN))) %>% 
+  ## Ungroup - necessary to remove the grouping for future use
+  ungroup()
+
+#### Find the five number summary
+summ <- fivenum(mortalitySummary$annualPercMortality)
+paste0("The five-number summary of annual % total mortality is: ")
+paste(c("Min", "Lower Quartile", "Median", "Upper Quartile", "Max"), 
+      round(summ, 3))
+
+##### Now add on the cuts and labels for mapping:
+mortalitySummary <- mortalitySummary %>% 
+  mutate(deathLabels = cut(annualPercMortality, 
+                          breaks = c(summ, Inf),
+                          labels = c("0-0.493", "0.494-0.647", "0.648-0.777", 
+                                    "0.778-1.391", "1.392+"),
+                          ordered_result = TRUE, right = F)) 
+```
+
+Your population-adjusted map now shows the **percent mortality** in the population rather than total numbers of deaths. In other words, **per capita**, what percentage of total deaths were there each year?
+
+```{r, echo=FALSE}
+## Initialize the plot
+ggplot(mortalitySummary) +
+  ## Chloropeth: draw the polygons of the counties and color by total deaths
+  geom_sf(aes(fill = deathLabels), color = "gray20", size = 0.2) +
+
+  ## Apply manual fill scale for total deaths
+  scale_fill_manual(
+    name = "% Mortality, All Causes",
+    values = c4a(palette="brewer.bu_pu", n=6),
+    drop = FALSE
+  ) +
+  ## Set map projection explicitly
+  coord_sf(expand = FALSE) +   ## <- keeps map tight to its bounding box
+  
+  theme_bw() +
+  ## Make a completely blank map background this time
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    strip.text = element_text(size = 12, face = "bold"),
+    legend.position = "bottom"
+  ) +
+
+
+  # Add title and caption
+  labs(
+    title = "California Annual Percent Mortality by County (All Causes)",
+    subtitle = "2017 - 2020",
+    caption = "Source: California DPH Vital Records"
+  ) + 
+  
+  ## Use facet_wrap to make one map per year
+  facet_wrap(~ Year, ncol = 4)
+```
+
+For example, for 3 of the 4 years, **Shasta County** (2017-2019) shows the **highest percent mortality** at over 1.39\%.  
+
+#### Question 13 [1 points]:
+What patterns do you observe now, if any? Do you think this is a true pattern? Aren't you being told that deaths are going **up** due to COVID-19??
+
+> Your answer here.
+
+## 2.8 The data for 2020 isn't complete... {#linegraph1}
+
+Ohhhh... that's right. The pattern observed is simply a by-product of an incomplete record from 2020, isn't it?! You only have 8 months' of observations. You realize at this point you were so excited to jump into map-making that you missed something in how you were doing your calculations and/or planning your maps. 
+
+You decide that you had better take a look at both annual and monthly trends in the total numbers of deaths to see if that sheds some light on things:
+
+```{r}
+#### Start from the totalDeaths dataframe for simplicity
+totalDeaths %>% 
+  ## Join with census by County
+  full_join(census, by = "County") %>%
+  ## Group by Year and then Month to aggregate the counties
+  group_by(Year, Month) %>% 
+  ## Calculate the percent mortality - it is a percen because multiply by 100
+  summarise(percMortality = sum(totalDeaths, na.rm = TRUE) / 
+              sum(totalN, na.rm = TRUE)*100) %>%
+## Make the plot of % mortality by month and year
+ggplot(aes(x = Month, y = percMortality, 
+           color = as.factor(Year), linetype = as.factor(Year))) +
+  ## Line plot
+  geom_line(alpha = 1, size = 1.1) +
+  scale_x_continuous(n.breaks = 10) +
+  ## Make separate colored, patterned lines for each of 4 years:
+  scale_color_manual(values = skittles[c(5,9:11)]) +
+  scale_linetype_manual(values=c("dashed", "dotdash", "dotted", "solid")) +
+  ## Add titles and axis, legend labels
+  labs(title = "Percent Mortality (All Causes)",
+       y = "% Mortality (Deaths per capita)", 
+       subtitle = "Cumulative for all California Counties",
+       caption = "Source: California DPH Vital Records",
+       color = "Year",
+       linetype = "Year") +
+  theme_minimal()
+```
+
+
+#### Question 14 [1 point]:
+Why did this happen and how could you fix it? (**There is more than one correct answer possible.**) Could you have made your maps the way you did in Section 2.7 and had them be accurate if we'd had a full 12 months' of data for each year?
+
+> Your answer here.
+
+## 3.1 Fixing the map's accuracy for 2020.
+
+Although there are several ways you could tackle this, what I show you below is how to take an average of monthly % mortality so that it no longer matters whether you have 8 months' or 12 months' of data available for any given year. **NOTE** that how you accomplish this is by grouping by county, year, AND month; this way, by looking at a monthly average of percent mortality, it no longer matters whether you have an entire year's data for 2020 or not!
+
+```{r}
+##### Calculate the monthly percent mortality
+mortalitySummary <- mortality_sf2 %>% 
+  ## Group by County as well as Year
+  group_by(COUNTY_NAM, Year, Month) %>%   ## <- WHERE A KEY CHANGE HAPPENS!
+  ## Summarize by calculating a monthly percent mortality
+  ## Note that I have to divide by the mean of the N from the Census  
+  ## or I'd get an error
+  summarize(monthlyPercMortality = sum(totalDeaths, 
+                                       na.rm = TRUE)/mean(totalN)*100) %>% 
+  ## Ungroup - necessary to remove the grouping for future use
+  ungroup() %>% 
+  ## NOW, you can group again by county and year and calculate the true annual
+  ## average that has been adjusted for differing number of months!
+  group_by(COUNTY_NAM, Year) %>%   ## <- no Month now!
+  summarize(annualPercMortality = mean(monthlyPercMortality, na.rm = TRUE)*12)
+
+#### Find the five number summary
+summ <- fivenum(mortalitySummary$annualPercMortality)
+paste0("The five-number summary of annual % total mortality is: ")
+paste(c("Min", "Lower Quartile", "Median", "Upper Quartile", "Max"), 
+      round(summ, 3))
+
+##### Now add on the cuts and labels for mapping:
+mortalitySummary <- mortalitySummary %>% 
+  mutate(deathLabels = cut(annualPercMortality, 
+                          breaks = c(summ, Inf),
+                          labels = c("0-0.571", "0.572-0.689", "0.690-0.861", 
+                                    "0.862-1.391", "1.392+"),
+                          ordered_result = TRUE, right = F)) 
+```
+
+```{r, echo = FALSE}
+## Initialize the plot
+ggplot(mortalitySummary) +
+  ## Chloropeth: draw the polygons of the counties and color by total deaths
+  geom_sf(aes(fill = deathLabels), color = "gray20", size = 0.2) +
+
+  ## Apply manual fill scale for total deaths
+  scale_fill_manual(
+    name = "% Mortality, All Causes",
+    values = c4a(palette="brewer.bu_pu", n=6),
+    drop = FALSE
+  ) +
+  ## Set map projection explicitly
+  coord_sf(expand = FALSE) +   ## <- keeps map tight to its bounding box
+  
+  theme_bw() +
+  ## Make a completely blank map background this time
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    strip.text = element_text(size = 12, face = "bold"),
+    legend.position = "bottom"
+  ) +
+
+
+  # Add title and caption
+  labs(
+    title = "California Monthly Percent Mortality by County (All Causes)",
+    subtitle = "2017 - 2020",
+    caption = "Source: California DPH Vital Records"
+  ) + 
+  
+  ## Use facet_wrap to make one map per year
+  facet_wrap(~ Year, ncol = 4)
+```
+
+#### Question 15 [1 points]:
+What patterns do you observe now in 2020? (**NOTE**: The maps for 2017-2019 are unchanged.) Does it now feel consistent with the idea that deaths could be increasing in 2020 compared to previous years? For which counties yes but others no?
+
+**Hint**: Take a look at counties in Southern CA, like Los Angeles, Orange, San Diego, Riverside, Imperial...
+
+> Your answer here.
+
+
+# 3 Project future mortality
+
+Your stakeholders have asked if you can quickly give them _any_ idea of what to expect mortality to be across the counties for the remaining months of 2020. Now, even though you knew it would not be the most robust method for time series projection available (**a caveat!**), you immediately think to yourself, "Oh, I could do a regression." So, you do.
+
+## 3.1 Regression predictions of mortality in 2020 {#monthlyMortality}
+First, you need to do a little prep to the data to get you started. You need to calculate the monthly percent mortality and attach it to your mortality shapefile, `mortality_sf2`.
+
+```{r}
+## First, calculate monthly percent mortality in your dataframe:
+mortality_sf2 <- mortality_sf2 %>% 
+  ## Group by County as well as Year
+  group_by(COUNTY_NAM, Year, Month) %>% 
+  ## Summarize by calculating a monthly percent mortality
+  ## Note that I have to divide by the mean of the N from the Census  
+  ## or I'd get an error
+  summarize(monthlyPercMortality = sum(totalDeaths, 
+                                       na.rm = TRUE)/mean(totalN)*100) %>% 
+  ## Ungroup - necessary to remove the grouping for future use
+  ungroup()
+```
+
+Now, fit the OLS linear regression.
+```{r}
+olsModel <- lm(monthlyPercMortality ~ COUNTY_NAM + Year + Month, data = mortality_sf2)
+```
+
+Next, make some new data (stored into `newdata`) so you can generate predictions for those new data.
+```{r}
+## Make the new data:
+## Get the names of the counties; repeat four times for the 4 months
+COUNTY_NAM <- rep(unique(mortality_sf2$COUNTY_NAM), 4)
+## Make a set of months for each of the 58 counties for Sept, Oct, Nov, Dec
+Month <- c(rep(9, 58),
+            rep(10, 58),
+            rep(11, 58),
+            rep(12, 58))
+Year <- rep(2020, length(Month))
+## Put this into a new dataframe called "newdata"
+newdata <- cbind.data.frame(COUNTY_NAM, Year, Month)
+```
+
+Now, generate the predictions using `newdata` and attach the predicted monthly percent mortality to `newdata`. This is necessary for plotting to occur! Make sure you **check out the dimensions of the `newdata`**. Since you are missing four months' of data (September - December) in 2020, there she be a row for every county for every month missing. 
+```{r}
+## Attach it to the dataframe and then call it the same name as the original Y
+newdata$percMortality <- predict(olsModel, newdata = newdata)
+## Also, add a flag so that you know it is predicted
+newdata$isPredicted <- "1"
+```
+
+Finally, you are ready to make a temporary dataframe, which you will call `temp`, which will pull everything together - the original data and the predictions - so that you can add them to your [line graphs from above](#linegraph1). Although I could choose to add the predictions to your mortality shapefile instead, I am choosing not to in order to keep that more pristine. I don't want to add predictions that I may not use in the future to my good dataframe!
+
+```{r}
+temp <- totalDeaths %>%   ## Start from totalDeaths for simplicity
+  ## Join with census by County
+  full_join(census, by = "County") %>%
+  ## Group by Year and then Month to aggregate the counties
+  group_by(Year, Month) %>% 
+  ## Calculate the percent mortality - it is a percent because multiply by 100
+  summarise(percMortality = sum(totalDeaths, na.rm = TRUE) / 
+              sum(totalN, na.rm = TRUE)*100) %>%  
+  ## Keep only the columns you need
+  select(Year, Month, percMortality) %>% 
+  ## Make an empty flag column filled with zeros to flag if the data are 
+  ## predicted
+  mutate(isPredicted = "0")
+
+## Clean up newdata a little: you need to aggregate across the counties by year  
+newdata <- newdata %>% 
+  ## Group by Year and then Month to aggregate the counties; add isPredicted
+  ## in there too so that it makes it into the final dataset!
+  group_by(Year, Month, isPredicted) %>% 
+  ## Remove what you don't need
+  select(-COUNTY_NAM) %>% 
+  ## Calculate a mean percent mortality
+  summarize(percMortality = mean(percMortality, na.rm = TRUE))
+
+## Row bind newdata onto temp to give you a complete, ordered, dataset for plots!
+temp <- rbind(temp, newdata)
+```
+
+Lastly, finish out the year of 2020 with predictions (shown in bubble points):
+```{r, echo = FALSE, warning=FALSE, message=FALSE}
+## Make the plot of % mortality by month and year
+ggplot(temp, aes(x = Month, y = percMortality, 
+           color = as.factor(Year), linetype = as.factor(Year))) +
+  ## Line plot
+  geom_line(alpha = 1, size = 1.1) +
+  ## Add the predictions on as bubbles!
+  geom_point(aes(size = isPredicted), show.legend = FALSE) +
+  scale_x_continuous(n.breaks = 10) +
+  ## Make separate colored, patterned lines for each of 4 years:
+  scale_color_manual(values = skittles[c(5,9:11)]) +
+  scale_linetype_manual(values=c("dashed", "dotdash", "dotted", "solid")) +
+  ## Add titles and axis, legend labels
+  labs(title = "Percent Mortality (All Causes)",
+       y = "% Mortality (Deaths per capita)", 
+       subtitle = "Cumulative for all California Counties",
+       caption = "Source: California DPH Vital Records",
+       color = "Year",
+       linetype = "Year") +
+  theme_minimal()
+```
+
+#### Question 16 [1 point]:
+
+Do you think this regression prediction is robust? Why or why not? (**Hint**: Check your assumptions with `plot(olsModel)`!!) 
+
+```{r}
+# Your code here.
+```
+
+> Your answer here.
+
+## 3.2 Spatial lag regression
+
+Then you recall that class you took during your Master's degree - what was it called again? Doesn't matter! You remember that calculating **spatial weights** would allow you to do a type of spatial regression, such as spatial lag regression, because it deals with **spatial autocorrelation**. Right, that was the term! 
+
+### 3.2.1 Calculate spatial weights matrix
+
+The first step in calculating a spatial weights matrix is to ensure geometry is retained in the shapefile, even if you plan to aggregate by month or by year for mapping. I actually [had you covered earlier](#monthlyMortality) when you first calculated the monthly percent mortality, `monthlyPercMortality`, in the **mortality shapefile**, `mortality_sf2`. By ungrouping at the end of the calculation, I ensured that you lost no data or geometry! This is also exactly WHY you did not do any aggregation directly on these data or attach the subpar predictions to `mortality_sf2`. 
+
+**Warning**: Careless aggregation WILL rob you of spatial or other information, which will make spatial modeling impossible. This is because, in order to run spatial models, the spatial object *must* retain geometry.
+
+Now that you know you have retained all of your spatial information in `mortality_sf2`, you can create the spatial weights matrix similarly to how you did it in Demo 2 using `spdep`.
+
+1. Create neighbor list using Queen contiguity. *This could take a minute to run, be patient.*
+
+*This identifies which counties touch each other (using `poly2nb()`). Note, however, that you are only looking at the* **unique pairs** *of county names and geometries, however, for this step.*
+```{r}
+mortality_nb <- poly2nb(mortality_sf2 %>% 
+                          ## Isolate the unique county name-geometry pairs
+                          select(COUNTY_NAM, geometry) %>% unique() %>% 
+                          ## Arrange the county names alphabetically (helps
+                          ## ensure no downstream issues)
+                          arrange(COUNTY_NAM) %>% 
+                          ## Turns the county name into a factor (helps ensure
+                          ## no downstream issues)
+                          mutate(COUNTY_NAM = as_factor(COUNTY_NAM)))
+  
+
+## Make sure the size matches the number of counties:
+length(mortality_nb)
+```
+
+#### Question 17A [0.5 points]
+Why am I calculating the neighbors on just the **distinct counties** in the mortality shapefile when I just finished saying you don't want to lose any of your spatial data for the model? 
+
+**Hint 1**: What are the dimensions of `mortality_sf2` and is it a multiple of 58?
+
+**Hint 2**: What happens if I calculate spatial weights on redundant data? Does it cost me computationally?
+
+> Your answer here.
+
+2. Calculate row-standardized spatial weights matrix based on the neighbors-list.
+*This converts the neighbor information stored in `mortality_nb` into a usable weight list using `nb2listw()`. Neighbors have equal influence (row-standardized: `style = "W"`).*
+
+```{r}
+mortality_sw <- nb2listw(mortality_nb, style = "W")
+```
+
+### 3.2.2 Join spatial weights to the mortality shapefile so that every datapoint has its spatial weight. {#calcSpatialLag}
+
+You want to calculate, for each county in each year and month, the average percent mortality of its neighboring counties (i.e., the spatial lag). This helps you model whether mortality in one county is influenced by nearby counties. Recall from lecture and Demo 2 that a **spatial lag** is the weighted average of a variable (here, mortality) in neighboring counties. For example, if Los Angeles county is surrounded by five counties, the spatial lag for L.A. county is the average mortality rate across those five neighbors, adjusted by the spatial weights.
+
+To accomplish this, what you need to do is loop over the time components (year and then month), and compute spatial lag for within each of the four years. you will use `purrr` to do this; it's more computationally efficient than writing a more simple `for()` loop. As it iterates over the dataset, by year, it will use `spdep::lag.listw()` to calculate the spatial lag for each time point. The result is a new column in `mortality_sf2` that contains the average monthly mortality of any given county's neighbors for every county-month-year combination. __Don't forget!__ You must center (not scale) the monthly percent mortality before computing the spatial weights. 
+
+```{r}
+## Make a centered transformation of monthly percent mortality
+mortality_sf2$monthlyPercMortalityCentered <- scale(mortality_sf2$monthlyPercMortality,
+                                    center = TRUE, scale = FALSE)
+
+## Initialize an empty vector to store spatial lag values
+mortality_sf2$lagged_monthlyPercMortality <- NA_real_
+
+## Calculate spatial weights for every time point
+mortality_sf2 <- mortality_sf2 %>%
+  arrange(COUNTY_NAM, Year, Month) %>%  ## Ensures it is in same order as weights
+  ## Handles each time slice separately
+  group_by(Year, Month) %>%
+  mutate(
+    lagged_monthlyPercMortality = {
+      ## Slice to get the current group's data (i.e., one month-year combo)
+      ## and then sort within group to match spatial weights
+      monYr <- arrange(cur_data(), COUNTY_NAM)$monthlyPercMortalityCentered
+      ## Compute the spatial lag using the spatial weights in mortality_sw
+      lag.listw(mortality_sw, monYr)
+    }
+  ) %>%
+  ungroup()
+```
+
+
+### 3.2.3 Run spatial lag regression using the lagged monthly mortality as a covariate
+In Demo 2, you used the `spatialreg` package's `lagsarlm()` function to perform a spatial lag regression. However, because you needed to compute the spatial lag within each year-month combo for each county, you have to perform your spatial lag regression a little differently using just the `lm()` function and explicitly using the spatially lagged monthly percent mortality ourselves. 
+
+#### Question 17B [0.25 points]
+Run a **spatial lag regression (SAR)** model using the spatial lag you just calculated. Save the model as an object called `sarModel`. I have gotten it started for you so you use the spatial lag correctly, but you need to fill in the blanks, run the analysis, and assess the results. 
+
+**Hint 1**: Your target (dependent variable) is unchanged from OLS regression.
+
+**Hint 2**: Make sure to include both time elements as covariates!
+
+```{r}
+# __ <- lm(__ ~ __ + __ + lagged_monthlyPercMortality, 
+#     data = __)
+```
+
+Now, let's compare `sarModel` to `olsModel` and see which model better explains monthly percent mortality in California (uncomment to run).
+```{r}
+# anova(sarModel, olsModel)
+```
+
+#### Question 17C [0.25 points]
+Which model, the spatial lag regression (`sarModel`) or the ordinary least squares regression (`olsModel`), is a better fit to the data? Why?
+
+> Your answer here.
+
+#### Question 17D [0.5 points]
+Using the model you chose as the better model, `sarModel` to `olsModel`, interpret the results of that model. **HINT**: Remember that `summary()` helps you access the results from the model! 
+
+Make sure to interpret both the coefficients and their significance as well as the $R^2$!
+
+```{r}
+## Your code here.
+```
+
+> Your answer here.
+
+#### Question 17E [0.25 points]
+Can you trust the results of the model? Why or why not?
+
+```{r}
+## Your code here.
+```
+
+> Your answer here.
+
+
+# 4 Improve Predictions with Machine Learning
+
+You are growing increasingly concerned that you will not be able to provide robust predictions to your stakeholder, and you're feeling nervous - it is a new job, after all! So, you think about other ways to try to **improve the prediction**. Although you technically can't see into the future, right now, you and I can - which is exactly what you are going to do! Unlike the random splits you have done before, you are actually going to perform what is called a **time-aware split**, where you use January 2017 to December 2019 as your training data and January to August 2020 as your testing data. This approach accounts for *temporal structure* in the data, as well as spatial structure in the data by using the lagged mortality you computed above as a spatial proxy. 
+
+*Perform a time-aware train-test split*
+```{r}
+## Make the training data
+mortalityTrain <- mortality_sf2 %>% 
+  ## Drop the geometry to make processing downstream faster
+  st_drop_geometry() %>% 
+  ## Filter for just the year-month combos you want
+  filter(Year != 2020) %>% 
+  ## Drop the previously centered monthly percent mortality from when you made
+  ## the spatial weights matrix
+  select(-monthlyPercMortalityCentered)
+
+## Make the testing data
+mortalityTest <- mortality_sf2 %>% 
+  ## Drop the geometry to make processing downstream faster
+  st_drop_geometry() %>% 
+  ## Filter for just the year-month combos you want
+  filter(Year == 2020) %>% 
+  ## Drop the previously centered monthly percent mortality from when you made
+  ## the spatial weights matrix
+  select(-monthlyPercMortalityCentered)
+```
+
+#### Question 18A [0.5 points]
+What percent of the data are in the training set and what percent in the testing set? You should use code to figure this out! How does it compare to the canonical 80-20 split?
+```{r}
+## Your code here.
+```
+
+> Your answer here.
+
+#### Question 18B [0.5 points]
+What caveats or limitations can you think of by using none of the 2020 data in the training set?
+
+> Your answer here.
+
+## 4.1 Fitting an out-of-bag (OOB) random forest (RF) model
+You decide to use random forest (RF) for this task because it handles non-linearity, which you know you have from your time plots above AND from the summaries of both your OLS and SAR regressions. You also choose to use RF because it can be more robust to outliers and still give some idea of importance for interpretability for your stakeholders. Your basic workflow will be to:
+
+1. Center and scale the predictors
+
+2. Fit the model with OOB error
+
+3. Fit the model with 10-fold cross-validation
+
+4. Compare the RMSE of the two models
+
+5. Show the variable importance of the final model
+
+You decide to leverage the `caret` package in R again for much of your model fitting and tuning needs. If you want to know more about what `caret` does and doesn't do, this [chapter](https://daviddalpiaz.github.io/r4sl/the-caret-package.html) can help.
+
+
+#### Question 19A [0.5 points]
+What does it mean to "fit a model with out-of-bag (OOB) error"? Why do we do it? What can it tell you here?
+
+> Your answer here.
+
+
+Even though you have no encoding, you know that you need to center and scale your data before running the random forest! So, you decide to leverage the `preProcess()` function in the `caret` package to help you center and scale the predictors. You perform the preprocessing explicitly here, storing the pre-processed training *instructions* in `preProcInstructions`. Then, you can apply the pre-processing to the training data, `mortalityTrain`, using the `predict()` function. Note that this is a different step than when you are predicting from a model for performance evaluation!
+
+```{r}
+## First, make a new object, preProcInstructions, that stores the 
+## pre-processing instructions from mortalityTrain:
+preProcInstructions <- preProcess(mortalityTrain, 
+                                    method = c("center", "scale"))
+
+## Now apply the pre-processing instructions using predict()
+mortalityTrain <- predict(preProcInstructions,
+                                      newdata = mortalityTrain)
+```
+
+Then, you fit the OOB RF model after using the `trainControl()` function to tell it to fit the training model with OOB error. 
+
+*Fit an OOB random forest (RF) model*
+```{r}
+## Define training control for OOB
+ctrlOOB <- trainControl(method = "oob")
+
+## Define the tuning grid
+tuneGrid <- expand.grid(mtry = 1:3)  ## Coerce it to use mtry 1 through 3
+
+## Run the OOB random forest, including preprocessing instructions
+rfOOB <- train(
+  ## Define the model - everything but COUNTY_NAM
+  monthlyPercMortality ~ Year + Month + lagged_monthlyPercMortality,
+  ## Set the data
+  data = mortalityTrain,
+  ## Indicate that it is a random forest
+  method = "rf",
+  ## Indicate the training control method to use, defined above
+  trControl = ctrlOOB,
+  ## Indicate that you want to extract importance at the end
+  importance = TRUE,
+  ## Indicate the tuning grid, defined explicitly above
+  tuneGrid = tuneGrid
+)
+```
+
+Note that here you coerce it to use an `mtry` hyperparameter grid search of 1 through 3. This is just because you have a really non-complex dataset (only 3 predictors!) and you want to force it to run _as if_ it had a little more complexity. Why? Just to make sure it searches long enough!
+
+#### Question 19B [0.5 points]
+What is `mtry` and what is it doing in the context of a random forest? What is the default `mtry` for a random forest regression? Why am I choosing to override it here, do you think?
+
+> Your answer here.
+
+*Look at the results ($RMSE$ and $R^2$) of the OOB random forest*
+```{r}
+rfOOB$results %>% 
+  kable(
+    format = "html",
+    caption = "Table 3. Results of the OOB random forest on California Mortality (All Causes).") %>%
+    kable_styling(bootstrap_options = c("hover"))
+```
+
+
+Recall from the Elastic Net you fitted a couple weeks ago on the hospital readmissions data that you optimized a hyperparameter, $\lambda$, to get the best-tuned model. It is the same idea here with `mtry`. Remember, optimized results will be the __lowest error__ as measured by Root Mean-Squared Error ($RMSE$) and the highest percent of the variance in the target explained, $R^2$. In other words, you want a model that uses as much information as it can, which results in lower error, and betters your chances that it will return a good prediction!
+
+
+
+#### Question 19C [0.5 points]
+Which value of  `mtry` gave the best results? (**Hint**: Can $R^2$ values be negative?!?). Are you able to compare the $RMSE$ of this model to the one you fitted in Question 16C? Why or why not? (**Hint**: Does your pre-processing step apply to the target too? You may have to do a little research!)
+
+> Your answer here.
+
+
+
+## 4.2 Fitting a 10-fold cross-validated random forest (RF) model
+You now feel decide to move forward with the 10-fold cross-validation. Remember that this is to __help control for overfitting__, which you can identify by looking at the error ($RMSE$) and fit ($R^2$) in each of the folds.
+
+*Define the training control method as 10-fold cross-validation (CV) and run the model*
+```{r}
+## Define training control for 10-fold cross-validation
+ctrlCV <- trainControl(method = "cv", number = 10)
+
+## Run the 10-fold CV random forest, including preprocessing instructions
+rfCV <- train(
+  ## Define the model
+  monthlyPercMortality ~ Year + Month + lagged_monthlyPercMortality,
+  ## Set the data
+  data = mortalityTrain,
+  ## Indicate that it is a random forest
+  method = "rf",
+  ## Indicate the training control method to use, defined above
+  trControl = ctrlCV,
+  ## Indicate that you want to extract importance at the end
+  importance = TRUE,
+  ## Indicate the tuning grid, defined explicitly earlier
+  tuneGrid = tuneGrid
+)
+```
+
+
+*Look at the results ($RMSE$ and $R^2$) of the OOB random forest*
+```{r}
+rfCV$results %>% 
+  kable(
+    format = "html",
+    caption = "Table 4. Results of the 10-fold CV random forest on California Mortality (All Causes).") %>%
+    kable_styling(bootstrap_options = c("hover"))
+```
+
+#### Question 19D [0.5 points]
+What do you notice about the effects of cross-validation on your model? (**Hint**: Do you see any negative $R^2$ values this time?) Which value of  `mtry` gave the best results? How does the $RMSE$ of that model compare to the one you chose as the optimal OOB model?
+
+> Your answer here.
+
+
+## 4.3  Test the training model with the 2020 data
+
+### 4.3.1 Preprocess your test data with the same centering/scaling
+
+Since you used `caret`'s `preProcess()` during model training, then you also have to apply the same transformation to your testing data for predictions! 
+
+Notice that you will _first_ store the pre-processed values for the training set in its own object, `preProcInstructions`, and then you apply the same pre-processing on the training set using the `predict()` function. This is **separate** from the predictions you will make on the testing set using the model! 
+
+```{r}
+## Apply the same preprocessing as training using predict(), 
+## using the test data
+mortalityTest <- predict(preProcInstructions, newdata = mortalityTest)
+```
+
+
+### 4.3.2 Predict using the best RF model
+
+An advantage of using `caret` is that it will automatically identify your best model for us, which you can access by simply using the model object `rfCV` with `predict()`. __Make sure you think about why you are using `rfCV` and not `rfOOB` here!__
+
+```{r}
+## Predict on pre-processed test data using the best trained RF model
+rfPredictions <- predict(rfCV, newdata = mortalityTest)
+```
+
+### 4.3.3 Evaluate performance with $RMSE$ and $MAE$
+
+`caret` also has built-in functions to calculate key performance metrics, like $RMSE$ and $MAE$ for regression models or a confusion matrix with accuracy for classification models. You can read more about them in this [chapter](https://topepo.github.io/caret/measuring-performance.html).
+
+```{r}
+### Compute RMSE (Root Mean Squared Error)
+rfRMSE <- RMSE(pred = rfPredictions, obs = mortalityTest$monthlyPercMortality)
+
+## Compute MAE (Mean Absolute Error) as well, optionally
+rfMAE <- MAE(pred = rfPredictions, obs = mortalityTest$monthlyPercMortality)
+
+## Print results
+print(paste0("Random Forest Test RMSE:   ", round(rfRMSE, 4)))
+print(paste0("Random Forest Test MAE:    ", round(rfMAE, 4)))
+```
+
+#### Question 19E [0.5 points]
+Can you interpret the $RMSE$ and $MAE$ values? **Remember** all of the data were subject to pre-processing, both target and predictors! 
+
+**How did the training model perform?** Does it seem to be overfitting (training error >> testing error), underfitting (training error and testing error both high but roughly equal with a low $R^2$), or doing okay?
+
+> Your answer here.
+
+### 4.3.4 Plot Actual vs. Predicted Values
+
+Unimpressed with the results so far, you decide to plot the actual vs. predicted values because that can tell you whether your training model is likely leading to an **under prediction** or an **over prediction** relative to the true values of mortality. Using the `ggExtra` package, you add histograms to the margins of the scatterplot as well to help you interpret correctly.
+
+```{r}
+## Make a scatterplot of the actual vs. predicted values
+p <- ggplot(mortalityTest, aes(x = monthlyPercMortality, y = rfPredictions)) +
+  ## Scatteplot with geom_point
+  geom_point(alpha = 0.5, color = skittles[4]) +
+  ## Add a line to help see the general trend
+  geom_abline(color = skittles[3], linetype = "dashed", size = 1.5) +
+  theme_minimal() +
+  labs(
+    title = "Actual vs. Predicted California Monthly Percent Mortality",
+    subtitle = "Random Forest Predictions on Jan - Aug 2020",
+    x = "Actual Mortality",
+    y = "Predicted Mortality"
+  )
+## Add marginal histograms with the ggExtra package
+ggMarginal(p, type = "histogram", fill = skittles[2], color = "gray30")
+```
+
+#### Question 19F [0.5 points]
+Interpret the scatterplot of the actual vs. predicted values. What is happening to the predicted values? (Use the histogram on the side to help you, that's why they're there!) Make sure to mention whether the training model is leading to an **under prediction** or an **over prediction** of mortality. What **real information** might that provide your stakeholders, even if the model is underperforming?
+
+> Your answer here.
+
+## 4.4 Extract variable importance from the final model
+
+You also decide to extract the variable importance from the final trained model to share with your stakeholders. 
+
+```{r, echo=FALSE}
+## Get variable importance
+varImp(rfCV)[[1]] %>%
+  ## Add row names and labels
+  mutate(Variable = rownames(.),
+         Label = case_when(
+           Variable == "Month" ~ "Month",
+           Variable == "lagged_monthlyPercMortality" ~ "Spatial Lag",
+           Variable == "Year" ~ "Year"
+         )) %>%
+  ## Make a column plot ordered from greatest to least
+  ggplot(aes(y = fct_reorder(Label, Overall), x = Overall, fill = Label)) + 
+  geom_col() +
+  scale_fill_manual(values = skittles[c(3,5,9)]) +
+  theme_minimal() +
+  labs(title = "Variable Importance from 10-fold CV Random Forest",
+       subtitle = "Monthly Percent Mortality (All Causes)",
+       caption = "Source: California DPH Vital Records, 2017-2019",
+       y = "Variable",
+       x = "% Importance",
+       fill = "Predictor")
+
+## Also print a table of the values 
+varImp(rfCV)[[1]] %>% 
+  mutate(Overall = round(Overall, 2)) %>% 
+  kable(
+    format = "html",
+    caption = "Table 5. Results of the 10-fold CV random forest on California Mortality (All Causes).") %>%
+    kable_styling(bootstrap_options = c("hover"))
+```
+
+
+## 4.5 Comparing your predictions to the real deaths data
+
+Now, let's pretend that you're skipping ahead a few months in time and you're actually able to assess just how well your prediction could do in reality. While what you _could_ do is fit a 10-fold, cross-validated random forest on all of the data and download the remaining months of 2020 and use all of 2020 as your test dataset, instead I'm just going to ask you to do a simple correlation to see how badly - or well - it did in reality.
+
+#### Question 19G [5 points]
+
+Since the pandemic is over in reality, you can find the actual number of deaths, per county, [here](https://data.chhs.ca.gov/dataset/death-profiles-by-county/resource/579cc04a-52d6-4c4c-b2df-ad901c9049b7).
+
+**Hint**: You can read this file in as a dataframe using `read.csv()` as follows! I also show you the structure (`str()`) of the data so you have an idea what you're getting.
+
+```{r}
+caliDeaths <- read.csv("https://s3.amazonaws.com/og-production-open-data-chelseama-892364687672/resources/078185a9-e3a7-403f-a546-b8c582f0a9d8/20241220_deaths_final_2019-2023_occurrence_county_month_sup.csv?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAJJIENTAPKHZMIPXQ%2F20250615%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250615T190154Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=61c4009b5979f2d74a95396e2f77ace3d13315fe166588cb1210ef46d292f759")
+
+caliDeaths %>% 
+  str()
+```
+
+**Remember** to filter for the proper condition, Year, and Months to get the data you need. Take time to explore the data, and make sure that you are matching the data we've been using (total mortality, all causes of death) to your filter. 
+
+```{r}
+## Your code here
+```
+
+Now make sure to compute the **monthly percent mortality** as you have done before. Otherwise, you won't be comparing apples-to-apples!
+
+```{r}
+## Your code here
+```
+
+Lastly, create (1) a scatterplot with trend line and (2) perform a correlation test on your **Sept to December 2020** predictions relative to the true **Sept to December 2020** monthly percent mortality. 
+
+```{r}
+## Your code here
+```
+
+__For full credit__ include a brief interpretation of your findings.
+
+#### Question 19H [1 point]
+
+By now, it should be clear that there is a **monthly seasonality** to deaths that has nothing to do with what year it is, even though 2020 was a pandemic year. In fact, that seasonality is so strong that it ends up as a very strong predictor - about as strong as the spatial autocorrelation! Although I wish I could dive into that with you deeply now, I would not be able to do the topic justice. Note that Merrimack offers an entire course on time series - but if you are unable to take the course but want to learn more on your own, one resource I can recommend is [A Little Book of R For Time Series by Avril Coghlan](https://app.readthedocs.org/projects/a-little-book-of-r-for-time-series/downloads/pdf/latest/).
+
+Since you can't go deeply into doing it, instead you will do a little reading/research. I suggest reading about *temporal autocorrelation* or *seasonal momentum* and how adding time-series lags can help. How might time series lags capture what the "Month" variable alone may not fully capture, in a similar way to how "County" alone may not fully capture spatial relationships? 
+
+**Note**: Doing the time-aware data partition into before 2020 and after 2020 IS a form of controlling for temporal patterns/seasonality, albeit not as robust as including temporally lagged variables.
+
+> Your answer here.
+
+
+#### Question 19I [1 point]
+Now, let's say you add several time-series lagged variables to your random forest; but with 10-fold CV, the testing MAE is 0.129. The scale of the target variable is unchanged - recall that previously, you got a testing MAE of 0.745. Does this suggest that the time series lagged variables are helping or hurting the model? If I tell you that the training MAE is 0.134, do you think the model is **overfitted**, **underfitted**, or doing pretty well?
+
+> Your answer here.
+
+**Would you like to see how I got this?** This source code contains all of the steps of analysis, with comments, and will show you these same results! Make sure to open the source code if you want to see the step-by-step instructions and not just the output! In brief, what I do is engineer temporal lag and rolling means features to inform the model how the target behaved in the past. Lags are explicitly accounting for temporal autocorrelation; rolling averages show recent trends and smooth noise. Then, I do the time-aware split again using the 2020 data as my holdout testing set. I then add the lagged and rolling means features, along with the spatial lag, month, and year variables as predictors to the RF model and assess performance on the testing holdout set. Note that RF is a particularly good choice for temporal models because it is non-linear; further, adding lags makes it partially time-aware. **However, don't forget to ALWAYS  validate with time held out, not random sampling, in temporal models!**
+
+```{r}
+source("mortalityTemporalLagRF.R")
+```
+
+
+#### Question 19J [1 point]
+What is something **else** you can do to improve your model that you have not discussed or explored at all here? **Hint**: Random forest models need complexity!
+
+> Your answer here.
+
+#### Question 19K [3 points]
+Take all of the findings and interpretations from questions 18A-J and write up a short paragraph or two summary for your stakeholders. Your writing should not be overly technical but it should include caveats and limitations. Make sure to include 1-2 sentences of recommendations about what you would do next.
+
+> Your answer here.
+
+
+
+
+# 5 Zooming in on Mortality Causes
+
+California was one of the strictest states when it came to shutdown measures during the COVID-19 pandemic, with both statewide enforcement and a duration longer than some other states in the country. California declared a state of emergency on **March 4, 2020** with a a mandatory statewide stay-at-home order issued on **March 19, 2020**. This statewide order didn't end until **January 25, 2021**, but it still wouldn't be until April 6, 2021 when the state announced plans to fully reopen the economy by **June 15, 2021**.
+
+Your stakeholder is actually not as interested in deaths from COVID-19, but actually more interested in how the mandatory stay-at-home order seems to affecting mortality due to certain conditions. __For example, are people less likely to die from accident or injury since they're under stay-at-home orders?__ 
+
+## 5.1 Death from Accident & Injury
+
+Because of the mandatory COVID-19 shutdown in California, which has led to generally reduced movement throughout California, your stakeholder would like to know if the number of accidental deaths declined enough **during COVID-19 shutdown** to generate a signal. 
+
+**HYPOTHESIS**: You hypothesize that because of intense, mandatory stay-at-home measures, deaths attributed to accidents and injuries (`INJ`) declined during the COVID-19 shutdown during the months of 2020 in California.
+
+You will start, as with all good analysis plans, with some more __Exploratory Data Analysis__.
+
+### 5.1.1 Sex-specific Effects on `INJ` Mortality
+
+#### 5.1.1.1 Total Deaths by Sex
+
+Your stakeholder asks you to be sure to **stratify by the sex of the decedent**, because they suspect there is a difference in death rates by the decedent's biological sex. 
+
+The leading causes of death are located in the `sexDeaths` table because that was how the data were provided to you. They are separated by sex, thus you can check to see if there are sex differences that could matter for your analysis. You need to join some of your tables and calculate some additional metrics as well, including:
+
+* Proportion of deaths from accident or injury out of all deaths (no longer adjusting for population size)
+
+* Ratio of adult females to males in the population
+
+* Ratio of females to males in the population among those over 65 years of age
+
+* Ratio of all adults over the age of 65 (retirement age) to those under retirement age
+
+You have opted to adjust per total deaths, rather than population size, so that you can better examine the fraction of deaths due to particular causes regardless of the underlying size of the population. However, you need to account for the ratio of females to males in the population, as it might be useful now or in future analyses to have access to the ratio of females to males. Similarly, having the ratio of retirees in the population (those over the age of 65 year) relative to non-retirees in the population may also be useful in future analyses. Further, the size of a county may still matter; so you will likely want to retain the total sample size of the county as a control variable as well. Note that, in a more detailed analysis, **population density** would be better than population size, but this is the proxy of county size you currently have to work with!
+
+```{r}
+## Join the sex deaths table with the census data; then filter for INJ
+injDeaths <- sexDeaths %>% 
+  full_join(census, by = "County") %>% 
+  ## Here is where you filter for a specific cause of death relative to sex
+  filter(leadingCauseDeath == "INJ") %>% 
+  ## Now full join with the first 4 columns of the totalDeaths table to get 
+  ## total deaths also
+  full_join(totalDeaths[ , 1:4], by = c("County", "Year", "Month")) %>%
+  ## Rename the sexDeaths column to something more appropriate
+  rename(injuryDeaths = sexDeaths) %>% 
+  ## Calculate the proportion of all deaths that are from injury 
+  ## RELATIVE TO ALL DEATHS (not population!!)
+  mutate(deathsInjuriesProportion = injuryDeaths/totalDeaths,
+         ## The ratio of females to males in the population
+         femaleMaleRatio = femalesN/malesN,   
+         ## The ratio of 65+ females to males in the population
+         femaleMaleRatio65 = females65plus/males65plus,  
+         ## Ratio of retirees to non-retirees
+         retireeRatio = over65/totalN,  
+         ## Convert the date to a date format for plotting
+         Date = as.Date(paste(Year, Month, "1", sep = "-"), 
+                        format = "%Y-%m-%d")) %>%    
+         ## Illegal div by 0 turned to NaN; turn back to 0
+  mutate(deathsInjuriesProportion = ifelse(deathsInjuriesProportion == "NaN", 
+                                           0, deathsInjuriesProportion))  
+```
+
+```{r, echo = FALSE}
+## Now plot the numbers of deaths per year due to accident and injury by sex
+injDeaths %>% 
+ggplot(aes(y = deathsInjuriesProportion, x = biologicalSex, fill = as.factor(Year))) +
+  geom_boxplot(alpha = 0.7) +
+  labs(x = "Biological Sex of Decedent", 
+       y = "Proportion of All Deaths Due to Accident or Injury", 
+       fill = "Year", 
+       title = "Proportion of All Deaths Due to Accident and Injury",
+       subtitle = "California Counties, Jan 2017 - Aug 2020") + 
+  scale_fill_manual(values = skittles[c(5, 9:11)]) + 
+  theme_classic()
+```
+
+#### Question 20A [0.5 points]:
+
+Would it be fair to model the proportion of deaths due to injury or accident without accounting for an effect of sex? Why or why not?
+
+> Your answer here.
+
+#### 5.1.1.2 Proportion of Deaths by Sex {#lineGraphInjSex}
+
+What if you calculate the proportion of deaths, for each sex, instead? Wouldn't that give you a more accurate portrait of any sex-level differences that might exist?
+
+```{r, echo=FALSE}
+injDeaths %>% 
+  group_by(Month, biologicalSex, Year) %>% 
+  summarise(deathsInjuriesProportion = mean(deathsInjuriesProportion, na.rm = TRUE)) %>% 
+ggplot(aes(x = Month, 
+           y = deathsInjuriesProportion, 
+           color = as.factor(Year), 
+           linetype = as.factor(biologicalSex))) +
+  geom_line(alpha = 0.7, size = 1.1) +
+  scale_x_continuous(n.breaks = 10) +
+  scale_color_manual(values = skittles[c(5, 9:11)]) +
+  scale_linetype_manual(values=c("dotdash", "solid")) +
+  labs(title = "Proportion all deaths due to accident or injury, by sex",
+       y = "Proportion of All Deaths Due to Accident or Injury", 
+       subtitle = "Cumulative for all California counties, Jan 2017 - Aug 2020",
+       color = "Year",
+       linetype = "Sex of Decedent") +
+  theme_minimal()
+```
+
+#### Question 20B [0.5 points]:
+
+What do you notice about the trend? Is there anything compelling here? Can you find any possible explanation for what happened in May (month 5) of 2020?
+
+> Your answer here.
+
+### 5.1.2 Mapping injury-related deaths by stay-at-home orders & sex {#chloropethInjSex}
+
+So, hopefully you've noticed what I've noticed about the relationship between the stay-at-home orders and the proportion of overall deaths due to accident or injury, as well as the effect of the shutdown in terms of both decedent biological sexes. You know from your earlier graph that females have a lower proportion of overall death due to accident or injury; next, it would be nice to see what the relationship is spatiotemporally (before and after shutdown) on average accident / injury mortality overall, as well as for each of the sexes separately. This will allow you to see if there is a geographic pattern, as one might expect in denser areas with more roadways, with the effect or not.
+
+Let's add a label to the dataset to identify whether a month was under stay-at-home orders or not, and call the new feature `stayAtHome`. Notice that I could have coded it as a dummy variable (0 or 1) where 1 is the stay-at-home order condition, but instead I chose to encode it as a category. I can also change the encoding later, if needed. Note also that although I chose to use `Date` as the condition for my `ifelse()`, you could just as easily have chosen a joint conditional using both`Month` and `Year` columns!
+
+```{r}
+## Encode stayAtHome as any date after March 19, 2020
+injDeaths <- injDeaths %>% 
+  mutate(stayAtHome = ifelse(Date >= "2020-03-19", "Stay-at-Home", "None"))
+```
+
+Next, let's calculate a summarized dataframe that groups by `stayAtHome`, `Year`, and `County`, then summarizes an average `deathsInjuriesProportion` for use with the maps. Notice that rather than storing the summarized dataframe, I simply piped it through to join it with the geometry from the shapefile for map-making this time. I was feeling a bit lazy. 
+```{r}
+##### Calculate the proportion of all deaths due to injury
+injuryDeathSummary <- injDeaths %>% 
+  ## Group by stay-at-home order, year, county, AND sex
+  group_by(stayAtHome, Year, County, biologicalSex) %>% 
+  ## Change the name to make the join easier
+  rename(COUNTY_NAM = County) %>% 
+  ## Mean proportion of deaths for each month-year-county-sex combo
+  summarise(deathsInjuriesPercent = mean(deathsInjuriesProportion, na.rm = TRUE)*100) %>% 
+  ## Join to get the geometries for mapping
+  full_join(cali_sf, by = "COUNTY_NAM", relationship = "many-to-many") %>% 
+  ## Coerce to make sure it is seen as a shapefile
+  st_as_sf() %>% 
+  ## Remove any of the island geometries as you did in the first part
+  filter(is.na(ISLAND)) %>% 
+  ungroup() 
+
+#### Find the five number summary
+summ <- fivenum(injuryDeathSummary$deathsInjuriesPercent)
+paste0("The five-number summary of % of deaths that are accident/injury-related is: ")
+paste(c("Min", "Lower Quartile", "Median", "Upper Quartile", "Max"), 
+      round(summ, 3))
+## Notice that, with the minimum, 1st quartile, AND median all equal to 0, we
+## really only have three groups
+
+##### Now add on the cuts injuryDeathSummary labels for mapping:
+injuryDeathSummary <- injuryDeathSummary %>% 
+  mutate(deathLabels = cut(deathsInjuriesPercent, 
+                          breaks = c(0, 3.343, 18.489, Inf),
+                          labels = c("0-3.342", "3.343-18.489", "18.489+"),
+                          ordered_result = TRUE, right = F)) 
+```
+
+```{r, echo=FALSE}
+## Initialize the plot
+ggplot(injuryDeathSummary) +
+  ## Chloropeth: draw the polygons of the counties and color by total deaths
+  geom_sf(aes(fill = deathLabels), color = "gray20", size = 0.2) +
+
+  ## Apply manual fill scale for total deaths
+  scale_fill_manual(
+    name = "% of Deaths Due to Accident or Injury",
+    values = c4a(palette="brewer.or_rd", n=3),
+    na.value = "gray70",
+    drop = FALSE
+  ) +
+  ## Set map projection explicitly
+  coord_sf(expand = FALSE) +   ## <- keeps map tight to its bounding box
+  
+  theme_bw() +
+  ## Make a completely blank map background this time
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    strip.text = element_text(size = 12, face = "bold"),
+    legend.position = "bottom"
+  ) +
+
+
+  # Add title and caption
+  labs(
+    title = "California Annual Percent Deaths due to Accident or Injury, by County",
+    subtitle = "Cumulative Monthly Deaths, Jan 2017 - Aug 2020",
+    caption = "Source: California DPH Vital Records"
+  ) + 
+  
+  ## Use facet_wrap to make one map per year
+  facet_wrap(~ Year, ncol = 4)
+```
+
+#### Question 21A [0.5 points]::
+
+Do you think there is any evidence that the percent of deaths due to accident & injury changed as a result of the stay-at-home orders? What would provide stronger evidence of a change in percent of deaths due to accident and injury as a result of the shutdown? Do these maps include any evidence of interaction with the sex of the decedent?
+
+**Hint**: Make sure to explain what you would want to do to these maps, either in terms of filtering and/or additional faceting, to better address whether (1) the shutdown has had a likely effect and (2) whether there is an interaction with biological sex on the proportion of deaths due to accident or injury.
+
+> Your answer here.
+
+#### Question 21B [0.5 points]::
+
+Why are some counties filled gray? Are the data truly missing or is it a data maturity problem? Or, is there another reason? (**Hint**: What will happen if the number of deaths in a county are very small?)
+
+> Your answer here.
+
+
+#### Question 21C [3 points]::
+
+Answer one of the two situations you answered in Question 21A. Either make more compelling maps before and after the shutdown OR show interactivity with biological sex, your choice. 
+
+```{r}
+## Your code here.
+```
+
+
+### 5.1.3 Controlling for population-level differences in sex ratio
+
+Even if you didn't explore biological sex on the map, it seems that there are likely some sex-specific effects in percent of deaths due to accident and injury. But what if some counties have a **skewed sex ratio**? You might need to adjust for that! Although you might expect, _a priori_, for all counties to have a female to male ratio of 1:1, in reality that isn't always the case. 
+
+In order to determine if you need to control for any underlying population-level differences in the sex ratio of each county, you make a simple histogram and plot a 1:1 line where the proportion of females in the population will equal males. You do this for each county. You make a **blue, solid line** for the mean sex-ratio, and a **black, dashed line** to show the reference 1:1 line. 
+
+**Note** that this ratio is coming from the Census data that you imported earlier; you calculated this sex ratio in an earlier code chunk from those data. Thus, these data are from 2020.
+
+```{r, echo = FALSE}
+injDeaths %>% 
+ggplot(aes(x = femaleMaleRatio)) +
+  ## Make a histogram showing the female:male sex ratio
+  geom_histogram(alpha = 0.7, fill = skittles[5], color = "white") +
+  ## Add the mean as a solid, dark blue line
+  geom_vline(aes(xintercept = mean(injDeaths$femaleMaleRatio)), 
+             color = skittles[9], 
+             linetype = "solid", 
+             size = 1.25)+
+  ## Add the reference 1:1 line as a black, dashed line
+  geom_vline(aes(xintercept = 1), 
+             color = "black", 
+             linetype = "dashed", size = 1.25)+
+  labs(title = "Female:Male adults in California counties",
+       subtitle = "Solid, blue line is mean ratio; black, dashed line represents 1:1 reference",
+       y = "Frequency", 
+       x = "Adult Female:Male",
+       caption = "Source: California Decennial Census, 2020") +
+  theme_minimal()
+```
+
+You can see that you have a very strongly __left-skewed__ distribution, with the mean of the female:male ratio dragged to the left. What does this mean, exactly? **You have more counties with a higher proportion of men than women than otherwise!** And since men seem to have a higher proportion of deaths by accident / injury as opposed to females, you need to decide if you think you need to account for this in your maps. Accounting for it in the model will be easy - you just include the female:male ratio as a predictor variable. However, in the maps it is actually a little trickier and would require a mathematical correction that could be difficult for your stakeholders to understand. Is it even necessary then?
+
+#### Question 22 [1 point]:
+
+Calculate the correlation of `femaleMaleRatio` and the `deathsInjuriesProportion`, making sure to be careful to drop or exclude any NAs before making your calculation. 
+
+```{r}
+## Your code here.
+```
+
+Do you think that this correlation coefficient indicates that you need to make a correction on your maps, or is it likely sufficient just to make the correction in your models? In other words, large correlation coefficients (in the absolute value sense) would indicate a need to correct the maps; smaller coefficients would indicate that it's probably not a big deal for your visualizations provided to stakeholders.
+
+> Your answer here.
+
+
+#### Question 23 [1 point]:
+
+Now, take a look at the scatter plot below with a best-fit line. Does the plot agree with the correlation coefficient (i.e., direction of slope) you obtained? Why or why not?
+
+```{r, echo = FALSE}
+injDeaths %>% 
+  group_by(County) %>%
+  summarise(femaleMaleRatio = mean(femaleMaleRatio),
+            deathsInjuriesPercent = mean(deathsInjuriesProportion, 
+                                         na.rm = TRUE)*100) %>% 
+
+  ggplot(aes(x = femaleMaleRatio, y = deathsInjuriesPercent)) +
+  geom_point(alpha = 0.7, color = skittles[5]) +
+  geom_smooth(color = skittles[8], method = "lm") +
+  labs(title = "Accident-related Deaths vs. Female:Male Adults in California counties",
+       subtitle = "Each point represents a county average",
+       y = "Average % of Total Deaths Due to Injury or Accident", 
+       x = "Adult Female:Male (California Decennial Census, 2020)",
+       caption = "Source: California DPH Vital Records") +
+  theme_minimal()
+```
+
+> Your answer here.
+
+#### Question 24 [3 points]:
+Originally, I was going to walk you through predictive modeling here as well - but given a need to abbreviate this project, instead I am going to ask you to simply construct **data science question** and **hypothesis** given the information you have here so far. Are there any variables you pulled from the Census that would be worth considering here as well?
+
+Choose what kind of model you would do. Would you include spatial lags? Ideally, would you include temporal lags?
+
+> Your answers here.
+
+## 5.2 Choose your own cause-of-death to explore.
+
+#### Question 25 [15 points]:
+
+Now for the choose your own adventure portion of this assignment! [Table 2](#providedData) gives you a list of ICD-10 codes for the causes of death available in the dataset. You should be able to use the code in Section 5.1, with minimal adjustment, to explore your data.
+
+Feel free to get creative! You are not required to continue stratifying by sex, unless you want to; in the Census data you pulled, you also have stratifications by **retirement age status** (over 65 years) or **double-stratified by both sex and retirement age**. You may also choose not to use any stratification if you wish. 
+
+##### For full credit, I will be looking for:
+
+1. **Annual chloropeth maps showing your cause-of-death**, like this [one](#chloropethInjSex)
+
+2. **A line graph showing changes, by month and year, in your cause-of-death**, somewhat like this [one](#lineGraphInjSex) with stratification _optional_
+
+3. **At least one other form of exploration to form a testable question or hypothesis, including but not limited to:**
+  - A correlation test
+  - A scatterplot
+  - Stratified boxplots
+  - Feel free to be creative!
+
+4. **Interpretation** of all graphs or analyses explored.
+
+5. **A data science question you would like to test**
+
+6. **A data science hypothesis based on what you found** [Note: if you find nothing compelling, you may defend with evidence why there is no point developing a hypothesis instead.]
