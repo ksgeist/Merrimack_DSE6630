@@ -1,0 +1,829 @@
+---
+title: 'Demo 1: Biomedical & Clinical Informatics'
+author: "Michelle Guppy"
+date: "12 May 2025"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: flatly
+  pdf_document:
+    toc: true
+always_allow_html: true
+subtitle: 'Merrimack College DSE6630: Healthcare & Life Sciences Analytics'
+bibliography: references.bib
+nocite: '@*'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      message = FALSE,
+                      cache = FALSE,
+                      cache.comments = FALSE,
+                      size = 13)
+```
+
+```{r, echo = FALSE, message=TRUE, include=FALSE}
+## ====== SAFETY WARNING ======
+## This script will clear your environment if you answer 'YES' to the prompt. 
+## This only applies to interactive sessions, not knitting.
+
+## Prompt user for confirmation in interactive sessions
+# if (interactive()) {
+#   message("This script will clear your environment. Proceed with caution.")
+#   confirm <- readline(prompt = "Type Y to clear the environment: ")
+#   if (toupper(confirm) == "Y") {
+#     rm(list = ls())
+#     gc()  ## Garbage collector - frees up memory
+#     cat("Environment cleared.\n")
+#   } else {
+#     #cat("Environment NOT cleared.\n")
+#   }
+# } else {
+#   ## In non-interactive sessions (e.g., RMarkdown), assume clean start is intended
+#   rm(list = ls())
+#   gc()
+# }
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
+# Turn off scientific notation
+options(scipen=999)
+
+# Set seed
+set.seed(50009)
+
+# Install pacman if it's missing:
+if (!requireNamespace("pacman", quietly = TRUE)) { install.packages("pacman") }
+
+# Clean, set up, and load
+pacman::p_unload(pacman::p_loaded(), character.only = TRUE)
+pacman::p_load(tidyverse,
+               janitor,
+               naniar,
+               stringr,
+               ggplot2, 
+               kableExtra,
+               RColorBrewer,
+               gridExtra,
+               ggrepel,
+               e1071,
+               caret
+)
+```
+
+# Introduction
+
+You have just been brought on as a data science consultant for a patient advocacy watchdog. They have asked you to source information about hospital readmissions, because they would like to flag specific geographic areas or types of hospitals where hospital readmission is unexpectedly high. They have heard that datasets exist to investigate these types of questions, but they are not really sure where to begin.
+
+You remember this one data science class you took - and the dataset from the __Centers for Medicare & Medicaid Services__ managed by [Medicare.gov](https://www.medicare.gov). You start poking around the [Hospitals](https://data.cms.gov/provider-data/topics/hospitals) dataset and decide it is exactly what you need.
+
+The problem is, this dataset is massive, so you are not only tasked with identifying a reasonable question you can ask from the dataset but managing the cleaning, pre-processing, and exploratory data analysis on the merged datasets you choose to explore.
+
+## Question
+
+For __Project 1__, you are going to choose your own question! But for this demo analysis, we are focusing on __pneumonia-related hospital readmissions__.
+
+### Why pneumonia-related readmissions?
+
+Hospital readmission rates for patients with pneumonia is almost unbelievably high, with about $\frac{1}{5}$ or 20% of patients hospitalized with pneumonia re-admitted within 30 days (de Alba and Amin, 2014). Further, pneumonia is both a leading cause of death among the elderly as well as a commonly communicated disease in hospitals (as in, people may come into a hospital for a different condition but be readmitted for pneumonia). Thus, given that pneumonia is the only communicable disease on this list, it is serving as our best proxy for diseases spread person-to-person within hospitals because of lack of availability.
+
+#### Our research question:
+
+Can we predict pneumonia-related hospital readmissions and, more generally, disease transfer within hospitals, based on hospital-level characteristics, including patient-ratings, Medicare money received, and other indicators of general performance in disease diagnosis and prevention?
+
+#### Our hypothesis & prediction:
+
+Hospitals are, by their very nature, hot zones for increased spread of disease, including pneumonia. We hypothesize that hospitals with lower indicators of patient care performance and lower Medicare funding rates will generally be unable to provide sufficient control of specific disease diagnosis and prevention, like pneumonia. This is because the same intrinsic and extrinsic factors that impact general patient quality of care is likely to extend to pneumonia, a _common, preventable, and treatable_ disease. Thus, we specifically predict that factors indicating lower quality-of-care will predict higher than average rates of pneumonia-related hospital readmissions.
+
+## Objective
+
+Our objective for the patient advocacy watchdog is clean, merge, explore, and predict which hospitals tend to have higher-than-average rates of pneumonia-related readmissions. This is to enable the watchdog group to put together a dashboard or otherwise deploy this information to share with patients so they know how their local hospitals are performing, allowing them to make healthier, more informed choices.
+
+# Data & Data Cleaning
+
+1. Download the [Hospitals](https://data.cms.gov/provider-data/topics/hospitals) dataset as a zip directory. 
+2. Unzip the directory. 
+3. Make sure to adjust the name and/or path of the directory in your directory if it is different from mine. *Note that mine is living on my Desktop.*
+
+**WARNING!** Do not try to put these data onto GitHub. They are too large to push. If you need help adjusting your path or have questions, please let me know.
+
+```{r}
+## Make sure to adjust your path!
+filepath <- "C:/Users/Owner/Desktop/HealthCare/Demo 1/"
+```
+
+
+### Read in the hospital-level data iteratively, while dynamically naming & storing each file as a dataframe.
+
+You may have to dig through the accompanying data dictionary **HOSPITAL_Data_Dictionary.pdf** to get a better handle on what is in the hospital-level files. 
+
+##### **Question 1**: [1 point] 
+Take a look at the chunk below, which performs **dynamic variable assignment** as it reads in each of the files. Your task is to add a comment to each line of code to describe what that line does.
+
+> Your answer in the code chunk as comments. Make sure to use the `#` sign!
+
+```{r}
+files <- list.files(path = filepath, pattern = "Hospital.csv") #this is creating a variable called files, which lists all of the names of the file that is selected 
+
+for(f in 1:length(files)) { #the start of a for loop, which is going to select every element in the file
+    dat <- clean_names(read_csv(paste0(filepath, files[f]), #we are creating the variable dat, which is going to #read the data then converts to characters 
+                                show_col_types = FALSE), #this is going to stop from the types showing
+                       case = "upper_camel") #this is going to capitalize each word
+    filename <- gsub(".Hospital\\.csv", "", files[f]) #creating a variable for each of the columns of the file
+    assign(filename, dat) #this is then assigning the name to the variable
+} #end of for loop
+
+files <- gsub(".Hospital\\.csv", "", files) %>% data.frame() #file now gets replaced with all the new names
+names(files) <- "File Name" # changing the name of to file name
+```
+
+#### Now, let's look at a list of the files that we've read in:
+```{r, echo = FALSE}
+files %>% 
+  kable(
+    format = "html",
+    caption = "Table 1. List of hospital-level data files.") %>%
+    kable_styling(bootstrap_options = c("striped", full_width = F)
+  )
+```
+
+##### **Question 2**: [1 point] 
+Take a look at some of the dataframes, e.g., `HCAHPS` and `FY_2024_Hospital_Readmissions_Reduction_Program`. What do you notice about the format / structure of the data? Does the data have an issue with the dimensionality? 
+**Hint: **Check to see if each row represents a single line of data or not!
+
+> It is common that there are multiple different lines that all have the same facility ID numer as well as having multiple points where there are reentry into the hospital. Each of the line represent a single part of data, but it is examining each of the reasons for reentry. This has caused repeats in the data having to reput in the facility ID. This type of data is set up in a long format rather than a wide format. If it was put in a wide format it would allow this information to be repeated, which could cause problems in the long run since it could cause errors in the data. If the datasets were put intO a wide format there are multiple ways that you can do this, like one-hot, dummy, binary, count, or target. With these they already have values they there is no need to use one of the other ones but changing the format will help with the repeating data. 
+
+
+### Tidy the data response variables' dataframe: Fiscal Year 2024 Hospital Readmissions Reduction Program.
+We are going to focus on the dataset `FY_2024_Hospital_Readmissions_Reduction_Program` to work on best practices to [tidy our data](https://vita.had.co.nz/papers/tidy-data.pdf). Although I do not personally choose to follow everything that Hadley Wickham and the __Tidy Data__ Movement has espoused, I do think a lot of the best practices are useful principles especially when we are just getting use to working with data. Further, we can leverage a lot of the functions to make our lives MUCH easier! And who doesn't like easier?!
+
+##### **Question 3**: [1 point] 
+Take a deeper look at `FY_2024_Hospital_Readmissions_Reduction_Program` at some of the numeric variables in the dataset, e.g., `NumberOfReadmissions`? 
+
+> When looking at the data specifically in the number of readmissions, there are a couple of things that is wrong with the data. There are three things that is in the column, there is first numbers which is what we are looking for. The next is N/A, in the column you can see that ther are two other entries, the second is "Too Few to Report" which could cause a problem since is neither of the entires that were expected but this can easily be changed though and be out in as just NA. The last entry is N/A which is the actual entry that is causing problems because as seen in column named "Footnote" it is entered as NA not N/A which is causing there to be two types of entries for the same value of NA, there is the actual entered value of NA and then the characteristics which is spelling N/A. 
+
+**Hint: **Columns 5 & 7:10 have problems with the `NA` class.
+
+##### **Question 4**: [1 point] 
+Investigate the `replace_with_na_all()` function that is part of the `naniar` package. Use this function to fix the `NA` class in the aberrant columns in `FY_2024_Hospital_Readmissions_Reduction_Program`.
+
+```{r}
+
+FY_2024_Hospital_Readmissions_Reduction_Program <- replace_with_na_all(FY_2024_Hospital_Readmissions_Reduction_Program, condition = ~.x == "N/A")
+
+
+# this is going to go into the FY_2024_Readmission_Reduction_Program and change all the instances of N/A with NA which should also change the color of it, to help notice the change
+```
+
+You will notice that this aberrant class of missing value __caused__ the numeric columns to be coerced into character columns when they were imported by `read_csv()`. Although we could try using `as.numeric()` by itself, which would assign `NA` to any non-numeric entry in `FY_2024_Hospital_Readmissions_Reduction_Program`, the problem is that we could lose important information that way. Thus, as annoying as this is, we should fix it a little more specifically...
+
+##### **Question 5**: [1 point] 
+Look more closely at the `NumberOfReadmissions` column in the `FY_2024_Hospital_Readmissions_Reduction_Program`. What other issue do you see with this specific column that is coercing it to the character type, and why does it exist? 
+
+**Hint: ** Make sure to use the accompanying data dictionary **HOSPITAL_Data_Dictionary.pdf** to also examine **WHY** this problem exists!
+
+> Within this spreadsheet there is an entry of "Too Few to Report", this is the other factor that is creating to column to be a character type. This is put in there for a reason though, in Appendix E it is explained that "this is applied when the number of cases does not meet required minimum amount for public reporting". This is to protect personal health informaiton, and the also isn't an reliable way to tell how the hospital is performing. 
+
+
+##### **Question 6**: [1 point] 
+Investigate the `gsub()` function that is part of base `R` or any other function of your choosing. Use the function you choose to **replace** the problematic text in  the `NumberOfReadmissions` column in `FY_2024_Hospital_Readmissions_Reduction_Program` with a **5**.
+```{r}
+FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions<-gsub('Too Few to Report', '5', FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions)
+
+# ?gsub
+# Your code here.
+```
+
+##### **Question 7**: [1 point] 
+Speculate as to why I asked you to replace the text with a **5** rather than a **0** or an `NA`. Can you think of any other logical choices for the substitution? Do you agree with my choice? (You're free to disagree, but please defend your decision either way!)
+
+> You asked us to replace too few to report with a 5 rather than a zero because first it would be inaccurate to put in NA to the data. The other reason that it was replaced with a 5 is because if it was actually recorded that way it would be too few to report and personal data may be compromized. We are doing this replacment in the data anlayzation part so there isn't any perosnal data linked to it, which allows us the best of both situations. We are getting data to put into the table and we aren't compromising any personal data. The other option that we had was putting an NA instead, this I feel like woule be the worst choice because this would be wrongfully representing data. In this situaion if it wasn't data not being entered properly or being forgotten, it was just too small of a number. In this situation they are saying that there is just too litte of the cases to report effectively which makes replacing this with 5 is the best decision.
+
+
+##### **Question 8**: [1 point] 
+Now, imagine an alternative scenario where instead of replacing it with a **5**, I instead asked you to replace it with a randomly sampled integer from 1 to 10. What would this do? Would `gsub()` work here or would I need to execute it a different way, e.g., with an `lapply()` function or a `for()` loop?
+
+> When replacing all of the too few instances with a 5 we were able to use gsub. When trying to generate a random number per instance, we aren't able to use gsub because it will generate just one random number and then replace it with just that one instace rather than making a new random number each time. If lappy was used then a new number will be generated everytime few too to report is located. There is another way to do this such as a for loop where every time, that phrase is encountered then it will create a new number to replace it with. The one main differences is that the for loop is going to required a bigger draw from the computing power where when using lappy it will be a lower draw.  
+
+##### **Question 9**: [3 points]
+You probably anticipated this! We just decided that, rather than a **5** we want a randomly sampled integer from 1 to 10. 
+
+**Hint 1: **You might find it easier to read the data in from fresh and, after commenting out your `gsub` from Question 5, pattern match on the problematic text.
+
+**Hint 2: **This is NOT the only way to do this, but I solved this using `gregexpr()`, `regmatches()`, and `lapply()`.
+
+```{r}
+
+matches <- gregexpr('5', FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions)
+
+regmatches(FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions, matches) <- lapply(lengths(matches), sample, x = seq(1, 10, by = 1))
+
+# Your code here.
+```
+
+
+##### **Question 10**: [1 point] 
+It is finally time to fix those aberrant character columns by making them  numeric. However, just using `as.numeric()` would require us to do it over and over on each of the columns in multiple lines of code. Instead, investigate the function `mutate_at()` which will allow you to pass it a list of columns you want to convert with the function you want to use.
+```{r}
+
+FY_2024_Hospital_Readmissions_Reduction_Program <- FY_2024_Hospital_Readmissions_Reduction_Program %>% mutate_at(c("NumberOfDischarges","ExcessReadmissionRatio","PredictedReadmissionRate","ExpectedReadmissionRate","NumberOfReadmissions"), as.numeric)
+
+
+# ?mutate_at
+# Your code here.
+```
+
+#### Let's look more closely at Measure Names.
+Notice, that what I have done here first is used the `gsub()` function to `mutate()` the `MeasureName` column to remove the text that flanked the medical conditions.
+```{r}
+FY_2024_Hospital_Readmissions_Reduction_Program <-  FY_2024_Hospital_Readmissions_Reduction_Program %>%
+  mutate(MeasureName = gsub("READM-30-", "", MeasureName)) %>% 
+  mutate(MeasureName = gsub("-HRRP", "", MeasureName)) 
+```
+
+**Note:** If at this point you've had any issues with any of the previous problems 2-10, you can load the cleaned readmissions data, `readmissionsClean.Rdata` so that you can proceed with the assignment.
+
+```{r}
+load(file = "C:/Users/Owner/Desktop/HealthCare/Demo 1/readmissionsClean.Rdata")
+```
+
+##### **Question 11**: [1 point] 
+Investigate the function `pivot_wider()` or `spread()` from the `tidyr` package, which comes bundled with `tidyverse`. Try pivoting the `FY_2024_Hospital_Readmissions_Reduction_Program` data set wider. Make sure you correctly identify the `names_from` and `values_from` column(s). **Make sure to save it as a separate dataframe called `wideDF`.** Use the `dim()` function to prove to me that you successfully pivoted wider.
+
+```{r}
+
+wideDF <- FY_2024_Hospital_Readmissions_Reduction_Program %>% pivot_wider(id_cols= c(1:3),names_from = "MeasureName",values_from = 4:12)
+
+dim(wideDF)
+
+#pivot_wider(FY_2024_Hospital_Readmissions_Reduction_Program, names_from = "MeasureName", 
+                       # values_from = 2:ncol(FY_2024_Hospital_Readmissions_Reduction_Program))
+
+#wideDF <- FY_2024_Hospital_Readmissions_Reduction_Program %>% pivot_wider(...) or spread(...)
+#dim(wideDF)
+```
+
+### Filtering for specific conditions.
+Ideally, though, before we'd pivot wider we would decide if we were going to filter for any specific hospital readmission conditions. For your __Project 1__, you will be choosing which medical condition(s) you want to focus on for predicting hospital readmission. However, for the remainder of this demo, we're going to focus on just __pneumonia__. 
+
+__Ideas you might consider for your Project_1 are:__
+
+* surgical interventions (`HIP-KNEE`, `CABG`)
+* heart-related conditions (`HF`, `AMI`, & `CABG`)
+* all conditions (warning: this might be too unwieldy!)
+* any other condition(s) that you motivate with a statement or two in support
+
+Therefore, let's filter for just pneumonia-related readmissions which will actually eliminate the need to pivot wider in just this case (because we only chose a single condition).
+```{r}
+readmissionsClean <- 
+  readmissionsClean %>% 
+  filter(MeasureName == "PN")
+```
+
+```{r, echo = FALSE}
+dict <- tribble(
+  ~Acronym, ~Definition,
+  "HIP-KNEE", "Total Hip/Knee Arthroplasty",
+  "HF", "Heart Failure",
+  "COPD", "Chronic Obstructive Pulmonary Disease",
+  "AMI", "Acute Myocardial Infarction",
+  "CABG", "Coronary Artery Bypass Graft",
+  "PN", "Pneumonia"
+)
+dict %>% 
+  kable(
+    format = "html",
+    caption = "Table 2. Acronyms of medical conditions for which hospital readmissions are tracked.") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F)
+  )
+```
+
+It's important to understand that these medical conditions are the **ones that Medicaid/Medicare tracks for hospital readmissions**. These are not the only conditions in which a patient might be readmitted, but these are the ones that the agency uses to keep track of hospital performance.
+
+### Dynamic creation of merged dataframe objects: supporting dataframes.
+
+We will often be asked to deal with large, unwieldy datasets and sometimes we need to be able to handle them dynamically. __Dynamic variable assignment__, as I demonstrated when we read in the files, is going to come in handy - but it can sometimes be tricky to accomplish. The whole point, though, is to create code that can handle ANYTHING you throw at it. 
+
+In a similar vein, we can also perform __dynamic dataframe creation__ when we need to modify and stitch together more than one pre-existing dataframe - ESPECIALLY when we might decide down the line to alter our choices by adding or removing other dataframes.
+
+#### Writing your own function to create objects dynamically.
+
+We are going to take all the cleaning steps we did above that was not specific to the `FY_2024_Hospital_Readmissions_Reduction_Program` dataframe and tidy, pivot, & filter for specific readmission conditions, and iteratively join as many dataframes as needed. The goal is to make something flexible enough that, if you change a set of inputs, it will create a joined table from ANY set of dataframe inputs. There is more than one way to do this; but leveraging some of the existing `tidyverse` and `tidyr` functions will likely help you make this very flexible. Please note, however, that you do not have to use those packages.
+
+I start you out with something I find helpful when joining together dataframes that sometimes have *redundant* columns BUT not every column is in every dataframe. I start by making a dataframe called `hospitalInfo` that contains the pertinent information on each hospital in the dataset, so you can drop those columns from the other dataframes to prevent inflation or issues when you later join the dataframes together. You may want to join each of the other dataframes to `hospitalInfo`. 
+
+As I was writing my own version of this function, I found that the `Payment and Value of Care` table must be separated into two tables to join well, at least with how I wrote my function. So, I do that for you below. I also clean up `HCAHPS` to make it easier to work for the function I wrote, so it may also be useful for you. Note that what I'm doing in these cases is making sure that `MeasureName` is the title of the column **I will join my tables on.** In this way, I'm using the `MeasureName` as the **key** for my table joins. 
+
+
+**First, make sure to separate the Payment and Values tables, giving each facility IDs:**
+
+```{r}
+paymentOnly <- Payment_and_Value_of_Care %>% 
+  select(FacilityId, PaymentMeasureName, PaymentCategory, Payment) %>% 
+  mutate(Payment = gsub("\\$", "", Payment)) %>% # Remove the dollar sign
+  mutate(Payment = gsub("\\,", "", Payment)) %>% # Remove the comma 
+  rename(MeasureName = PaymentMeasureName)  # Make consistent with other tables
+
+valueOnly <- Payment_and_Value_of_Care %>% 
+  select(FacilityId, ValueOfCareDisplayName, ValueOfCareCategory) %>% 
+  rename(MeasureName = ValueOfCareDisplayName)  # Make consistent with other tables
+```
+
+
+**HCAHPS is also a mess. Remove the columns that we will never use in any analysis, make a `MeasureName` column, and also drop the " - linear mean score" from some rows in the newly minted `MeasureName`**
+
+```{r}
+HCAHPS <- HCAHPS %>% 
+  select(-HcahpsMeasureId, -PatientSurveyStarRatingFootnote, 
+         -HcahpsAnswerPercentFootnote, -NumberOfCompletedSurveysFootnote,
+         -SurveyResponseRatePercentFootnote, -HcahpsAnswerDescription,
+         -PatientSurveyStarRating) %>%  ## Drops the columns we don't need
+  rename(MeasureName = HcahpsQuestion) %>%  ## Makes a new MeasureName column
+  mutate(MeasureName = gsub(" - linear mean score", "", MeasureName))
+  ## Takes off the phrase that we don't want
+```
+
+**Lastly, pull the hospital information off of the Payment and Value table because it is complete there. We can then drop this information from all the other tables:**
+
+```{r}
+hospitalInfo <- Payment_and_Value_of_Care %>% 
+              ## Information about the hospitals
+                select(FacilityId, FacilityName, Address, CityTown, 
+                         State, ZipCode, CountyParish, TelephoneNumber)
+```
+
+##### **Question 12**: [5 points] 
+
+Write a function that will:
+
+1. Fix any issues identified previously, e.g., issues with the `NA` class or pivoting, if needed
+
+2. Join any number of a list of dataframes you give it. For example, it should be able to join these 8 tables:
+
+```{r}
+datList <- list(Healthcare_Associated_Infections,
+                paymentOnly,
+                Outpatient_Imaging_Efficiency,
+                Complications_and_Deaths,
+                Medicare_Hospital_Spending_Per_Patient, 
+                Timely_and_Effective_Care, 
+                Unplanned_Hospital_Visits,
+                HCAHPS)
+
+#healthcare
+Healthcare_Associated_Infections <- Healthcare_Associated_Infections %>% select(-FacilityName,-Address,-CityTown,-State,-ZipCode,-CountyParish,-TelephoneNumber,-StartDate,-EndDate)
+Healthcare_Associated_Infections <- replace_with_na_all(Healthcare_Associated_Infections, condition = ~.x == "Not Available")
+Healthcare_Associated_Infections <- Healthcare_Associated_Infections %>% mutate_at(c("FacilityId","Score"), as.numeric)
+
+#payment only
+paymentOnly <- paymentOnly %>% mutate_at(c("Payment","FacilityId"), as.numeric)
+paymentOnly <- replace_with_na_all(paymentOnly, condition = ~.x == "Not Available")
+
+#outpatient
+Outpatient_Imaging_Efficiency <- Outpatient_Imaging_Efficiency %>% select(-FacilityName,-Address,-CityTown,-State,-ZipCode,-CountyParish,-TelephoneNumber,-StartDate,-EndDate)
+Outpatient_Imaging_Efficiency <- replace_with_na_all(Outpatient_Imaging_Efficiency, condition = ~.x == "Not Available")
+Outpatient_Imaging_Efficiency <- Outpatient_Imaging_Efficiency %>% mutate_at(c("FacilityId", "Score"), as.numeric)
+
+#complications and death
+Complications_and_Deaths <- Complications_and_Deaths %>% select(-FacilityName,-Address,-CityTown,-State,-ZipCode,-CountyParish,-TelephoneNumber,-Denominator,-LowerEstimate,-HigherEstimate,-StartDate,-EndDate)
+Complications_and_Deaths <- replace_with_na_all(Complications_and_Deaths, condition = ~.x == "Not Available")
+Complications_and_Deaths <- replace_with_na_all(Complications_and_Deaths, condition = ~.x == "Not Applicable")
+Complications_and_Deaths <- Complications_and_Deaths %>% mutate_at(c("FacilityId","Score"), as.numeric)
+
+#medicare hospital
+Medicare_Hospital_Spending_Per_Patient <- Medicare_Hospital_Spending_Per_Patient %>% select(-FacilityName,-Address,-CityTown,-State,-ZipCode,-CountyParish,-TelephoneNumber,-StartDate,-EndDate)
+Medicare_Hospital_Spending_Per_Patient <- replace_with_na_all(Medicare_Hospital_Spending_Per_Patient, condition = ~.x == "Not Available")
+Medicare_Hospital_Spending_Per_Patient <- Medicare_Hospital_Spending_Per_Patient %>% mutate_at(c("FacilityId","Score"), as.numeric)
+
+#timely and effectively
+Timely_and_Effective_Care <-Timely_and_Effective_Care %>% select(-FacilityName,-Address,-CityTown,-State,-ZipCode,-CountyParish,-TelephoneNumber,-StartDate,-EndDate)
+Timely_and_Effective_Care <- replace_with_na_all(Timely_and_Effective_Care, condition = ~.x =="Not Available")
+Timely_and_Effective_Care <- Timely_and_Effective_Care %>% mutate_at(c("FacilityId","Score","Sample"), as.numeric)
+
+#unplanned hospital
+Unplanned_Hospital_Visits <- Unplanned_Hospital_Visits %>% select(-FacilityName,-Address,-CityTown,-State,-ZipCode,-CountyParish,-TelephoneNumber,-Denominator, -LowerEstimate,-HigherEstimate,-StartDate,-EndDate)
+Unplanned_Hospital_Visits <-replace_with_na_all(Unplanned_Hospital_Visits, condition = ~.x =="Not Available")
+Unplanned_Hospital_Visits <- replace_with_na_all(Unplanned_Hospital_Visits,condition = ~.x =="Not Applicable")
+Unplanned_Hospital_Visits <- Unplanned_Hospital_Visits %>% mutate_at(c("FacilityId","Score","NumberOfPatients","NumberOfPatientsReturned"),as.numeric)
+
+#hcahps
+HCAHPS <- HCAHPS %>% select(-FacilityName,-Address,-CityTown,-State,-ZipCode,-CountyParish,-TelephoneNumber,-StartDate,-EndDate)
+HCAHPS <- replace_with_na_all(HCAHPS, condition = ~.x =="Not Available")
+HCAHPS <- replace_with_na_all(HCAHPS, condition = ~.x =="Not Applicable") 
+HCAHPS <- HCAHPS %>% mutate_at(c("FacilityId", "HcahpsLinearMeanValue", "HcahpsAnswerPercent", "NumberOfCompletedSurveys", "SurveyResponseRatePercent"), as.numeric)
+
+```
+
+3. Filters the data for given criteria and condition(s) prior to pivoting. For example, for the 8 tables listed above, perhaps to filter for these possible measures before pivoting, so that I'm not pivoting ALL of those measures! (That would likely crash R!). Notice that what we're filtering for - is really a selection criteria, but because the data are in **wide format**, we are selecting them by row (i.e., "filter") rather than selection by column (i.e., "select"). 
+
+```{r}
+filterList <- list("MRSA Bacteremia", 
+                   "Payment for pneumonia patients", 
+                   "Abdomen CT Use of Contrast Material", 
+                   
+                   c("Death rate for pneumonia patients", 
+                     "Perioperative pulmonary embolism or deep vein thrombosis rate",
+                     "CMS Medicare PSI 90: Patient safety and adverse events composite", 
+                     "Postoperative respiratory failure rate"),
+                   
+                   "Medicare spending per patient",
+                   
+                   c("Healthcare workers given influenza vaccination", 
+                     "Percentage of healthcare personnel who completed COVID-19 primary vaccination series", 
+                     "Average (median) time patients spent in the emergency department before leaving from the visit A lower number of minutes is better", 
+                     "Left before being seen",
+                     "Venous Thromboembolism Prophylaxis", 
+                     "Intensive Care Unit Venous Thromboembolism Prophylaxis", 
+                     "Emergency department volume"),
+                   
+                   "Hospital return days for pneumonia patients",
+                   
+                   c("Nurse communication",
+                     "Doctor communication",
+                     "Staff responsiveness",
+                     "Communication about medicines",
+                     "Discharge information",
+                     "Care transition",
+                     "Cleanliness",
+                     "Quietness",
+                     "Overall hospital rating",
+                     "Recommend hospital")
+)
+```
+
+4. For full credit, make sure that your function can clean up and join together at least three of the dataframes. **Note**: Make sure to join with `readmissionsClean` at the end!
+
+Perhaps you will choose to start your function like this (although you do not have to):
+```{r, eval=FALSE, echo=TRUE}
+tidyNjoin <- function(datList, filterList, hospitalInfo) {
+
+}
+```
+
+* **Hint 1: **Feel free to drop the `startDate` and `endDate` columns, as well as the `footnote` column. I would even suggest dropping `MeasureId`.
+
+* **Hint 2: **`select(-any_of(c(...)))` can be used to drop any of a list of columns, regardless of whether it exists in every dataframe or not.
+
+* **Hint 3: **If you choose to drop all those extraneous columns, then the column you will need to merge/join on will always be in the second position, `MeasureName`.
+
+* **Hint 4: **`full_join()` in `dplyr` is likely what you will need; you will want to execute the join on `FacilityId`.
+
+* **Hint 5: **Make sure to check for and/or remove duplicate rows.
+
+* **Hint 6: **If you are really stuck, move ahead and I give you a cleaned, merged data set to work with.
+
+Okay, take a stab at it!
+
+```{r}
+    
+select(-any_of(c("EndDate","StartDate","Footnote","MeasureID")))
+
+tidyNjoin(FY_2024_Hospital_Readmissions_Reduction_Program, , MeasureID)
+
+full_join(FY_2024_Hospital_Readmissions_Reduction_Program$FacilityId)
+    
+
+
+
+# Your function here.
+```
+
+##### **Question 13**: [1 point] 
+Why do you think I just made you work through this function? (**Hint**: What are you going to be asked to do in Project 1?)
+
+> This was a good exercise to work though because it allows us to gain a lot of experience with merging and dropping columns, and it helps us to put all the imporant information into one table. With all of this data in one location it allows data scientists to run diffrent conclusions all from one table rather than trying to pull different columns from different tables. This is going to be something that we are going to have to replicate in project 1 because we could be choosing a whole other readmissions reasons in which case we would have to replicate it for project 1. 
+
+### The full, merged, tidied dataset for pneumonia. 
+
+Please load if you are struggling to get a function that performs the task or if you aren't sure if it does what's expected.
+
+```{r}
+load(file ="C:/Users/Owner/Desktop/HealthCare/Demo 1/pneumoniaFull.Rdata")
+dim(pneumoniaFull)
+```
+
+As I mentioned in Question 12, I ultimately chose to merge 8 of the datasets together for this dataset, although I selectively filtered to focus on my question: **Can we predict pneumonia-related hospital readmissions based on factors that might indicate how well the hospital is doing at diagnostics and disease prevention?**
+
+Whew! Notice that this dataset currently has **100 features** and **4,816 rows**. That's definitely too many features, so let's perform some additional feature selection.
+
+**Let's start by examining the "big picture" of what's in this giant dataset**:
+
+```{r, echo = FALSE, collapse=TRUE}
+dict <- tribble(
+~Dataset, ~`Information Used`, ~Rationale,
+"Healthcare_Associated_Infections", "MRSA Bacteremia", "Hospital-transmitted disease rate",
+
+"paymentOnly", "Mean Medicare payment per patient received by hospital", "",
+
+"Outpatient_Imaging_Efficiency", "Abdomen CT Use of Contrast Material", "Proxy for imaging ability to diagnose pneumonia appropriately",
+
+"Complications_and_Deaths", "Death rate for pneumonia patients", "",
+
+"Complications_and_Deaths", "Perioperative pulmonary embolism or deep vein thrombosis rate", "Diagnostic ability of hospital",
+
+"Complications_and_Deaths", "CMS Medicare PSI 90: Patient safety and adverse events composite", "General hospital safety",
+
+"Complications_and_Deaths", "Postoperative respiratory failure rate", "General ability for respiratory diagnostics",
+
+"Medicare_Hospital_Spending_Per_Patient", "Score", "Score rather than $ amount",
+
+"Timely_and_Effective_Care", "Healthcare workers given influenza vaccination", "Likelihood of influenza transmission",
+
+"Timely_and_Effective_Care", "% healthcare personnel completed COVID-19 primary vaccination series", "Likelihood of COVID-19 transmission",
+
+"Timely_and_Effective_Care", "Average (median) minutes patients spent in the ED before leaving (lower is better)", "Proxy for overall effective diagnosis & treatment",
+
+"Timely_and_Effective_Care", "Left before being seen in ED", "Proxy for overall effective diagnosis & treatment",
+
+"Timely_and_Effective_Care", "Venous Thromboembolism Prophylaxis", "Diagnostic ability for another critical and silent disease",
+
+"Timely_and_Effective_Care", "ICU Thromboembolism Prophylaxis", "Diagnostic ability for another critical and silent disease",
+
+"Timely_and_Effective_Care", "Emergency department volume", "Proxy for how overwhelmed the hospital is",
+    
+"Unplanned_Hospital_Visits", "Hospital return days for pneumonia patients", "",
+
+"HCAHPS", "Nurse communication", "Overall rating as linear score",
+
+"HCAHPS", "Doctor communication", "Overall rating as linear score",
+
+"HCAHPS", "Staff responsiveness", "Overall rating as linear score",
+
+"HCAHPS", "Communication about medicines", "Overall rating as linear score",
+
+"HCAHPS", "Discharge information", "Overall rating as linear score",
+
+"HCAHPS", "Care transition", "Overall rating as linear score",
+
+"HCAHPS", "Cleanliness", "Overall rating as linear score",
+
+"HCAHPS", "Quietness", "Overall rating as linear score",
+
+"HCAHPS", "Overall hospital rating", "Overall rating as linear score",
+
+"HCAHPS", "Recommend hospital", "Overall rating as linear score",
+)
+
+dict %>% 
+  kable(
+    format = "html",
+    caption = "Table 3. List of hospital-level data sets chosen for the pneumonia-related readmissions analysis.") %>%
+    kable_styling(bootstrap_options = c("striped", full_width = F)
+  )
+```
+
+
+# Pre-processing & Feature Selection (Round 1)
+
+**WARNING**: Typically we would do a lot of this work AFTER splitting into a training and testing set. I'm not having you do that today so that you can write code that will help you with your Project1. Just be aware that this goes against the typical workflow a bit.
+
+Feature selection can take many forms, from what we've already done (choosing features relevant to our question) to culling non-informative columns to using more machine-guided approaches. We're going to leverage all types here.
+
+Additionally, we are going to perform **encoding** to our categorical variables. It will be important to perform encoding **BEFORE** using automated methods for feature selection.
+
+## Culling Features (and, yes, more tidying!)
+
+Although we ideally could just include these steps (and perhaps you did!) in our tidying & joining function from Question 12, I wanted to make sure we talk about this explicitly. 
+
+##### **Question 14**: [1 point] 
+Looking through the feature names, you probably notice names like `LowerEstimate_Death rate for pneumonia patients`. We do not need the higher and lower estimates in this case; just the point estimates. Use the `contains()` function to **drop** any columns that contain `LowerEstimate` or `HigherEstimate`. Let's also go ahead and drop any columns containing `Denominator` and `HcahpsAnswerPercent` as well. How many features did you drop? 
+
+>All of the columns that are going to be removed is going to have higher, lower, denominator, or hcahpsanswer percent in the name of it 
+
+```{r}
+pneumoniaFull <- pneumoniaFull %>% select(-`Denominator_Perioperative pulmonary embolism or deep vein thrombosis rate`,-`Denominator_Hospital return days for pneumonia patients`,-`Denominator_Postoperative respiratory failure rate`,-`Denominator_Death rate for pneumonia patients`,-`Denominator_CMS Medicare PSI 90: Patient safety and adverse events composite`)
+
+pneumoniaFull <- pneumoniaFull %>% select(-`HigherEstimate_Perioperative pulmonary embolism or deep vein thrombosis rate`,-`HigherEstimate_Death rate for pneumonia patients`,-`HigherEstimate_Hospital return days for pneumonia patients`,-`HigherEstimate_CMS Medicare PSI 90: Patient safety and adverse events composite`,-`HigherEstimate_Postoperative respiratory failure rate`)
+
+pneumoniaFull <- pneumoniaFull %>% select(-`LowerEstimate_Perioperative pulmonary embolism or deep vein thrombosis rate`,-`LowerEstimate_Hospital return days for pneumonia patients`,-`LowerEstimate_Postoperative respiratory failure rate`,-`LowerEstimate_CMS Medicare PSI 90: Patient safety and adverse events composite`,-`LowerEstimate_Death rate for pneumonia patients`)
+
+pneumoniaFull <- pneumoniaFull %>% select(-`HcahpsLinearMeanValue_Nurse communication`,-`HcahpsLinearMeanValue_Recommend hospital`,-`HcahpsLinearMeanValue_Doctor communication`,-`HcahpsLinearMeanValue_Communication about medicines`,-`HcahpsLinearMeanValue_Discharge information`,-`HcahpsAnswerPercent_Recommend hospital`,-`HcahpsAnswerPercent_Doctor communication`,-`HcahpsAnswerPercent_Nurse communication`,-`HcahpsAnswerPercent_Communication about medicines`,-`HcahpsAnswerPercent_Overall hospital rating`,-HcahpsAnswerPercent_Cleanliness,-`HcahpsAnswerPercent_Staff responsiveness`,-`HcahpsAnswerPercent_Care transition`,-HcahpsAnswerPercent_Quietness,-`HcahpsLinearMeanValue_Overall hospital rating`,-HcahpsLinearMeanValue_Quietness,-HcahpsLinearMeanValue_Cleanliness,-`HcahpsLinearMeanValue_Care transition`,-`HcahpsLinearMeanValue_Staff responsiveness`)
+
+#had to brute force it because contains waasn't working, tried to convert to characters or numeric and it still gave reject. 
+
+
+
+```
+
+
+**Note:** Please drop `FacilityName`, `TelephoneNumber`, `Address`, & `CityTown` at this stage as well, if they're still in your full dataset.
+
+```{r}
+
+pneumoniaFull <- pneumoniaFull %>% select(-FacilityName,-TelephoneNumber,-Address,-CityTown)
+
+
+# Your code here.
+```
+
+## Encoding
+
+### Mystery encoding! (Well, it won't be a mystery for long.)
+
+##### **Question 15**: [1 point] 
+We need to perform encoding on all of the categorical columns, ultimately. However, we will focus first on the columns that begin with ``ComparedToNational_`, e.g., `ComparedToNational_Death rate for pneumonia patients`. What kind of encoding should we perform on these columns? Why? 
+
+> There are a couple of different ways to be able to do this, the first way that comes to mind is do dummy encoding. In this case We would have no change in the national difference, then the other two will in be either better than national average or less than the national, if neither of them are checked then we can assume that it is going to be at the national average. The other way that we are able to encode this is though one-hot which will create two of them as columns and then will put a 1 in the one that it actually is.
+
+
+##### **Question 16**: [1 point] 
+What other column do we also need to perform this kind of encoding on?
+
+> There are a couple columns that need this same kind of encoding, such as payment category for pneumonia patients, they also have the same kind saying that there is more or less that pneumonia patients are paying or if it was around the national average. This also includes any of the comlumns that have compared to the national average in the name of it. This creates a total of 7 columns that need to be encoded. 
+
+
+##### **Question 17**: [3 points] 
+You probably expected this - attempt to encode those columns the method you selected. It's okay if you can only think of a way to brute-force this for now; I will show you code to you do it faster after the assignment. :)
+
+* **Hint 1: **You could use the `contains()` or `startsWith()` functions to help you quickly grab those columns so you can make the changes you want to make.
+
+* **Hint 2: **You may want to explore the `grepl()` function or regular expressions, as they can allow us to match in a "fuzzy" way.
+
+* **Hint 3: **You may want to create a temporary dataframe that you execute the changes on and then replace the original columns from there. That way, you don't have to keep reloading the original data if you make mistakes!
+
+* **Hint 3: **For full credit, don't forget to double check that you managed to preserve all the data! The `table()` function is sufficient here.
+
+```{r}
+tryEncoding <- pneumoniaFull 
+
+#compared to medicare MSI 90 
+tryEncoding$ComparedToNational_CMS_Medicare_PSI_90_worse_than_national <- ifelse(pneumoniaFull$`ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite` =="Worse than National Benchmark", 1, 0)
+
+tryEncoding$ComparedToNational_CMS_Medicare_PSI_90_better_than_national <- ifelse(pneumoniaFull$`ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`=="Better than the National Benchmark", 1, 0)
+
+#compared pulmonary embolism
+tryEncoding$ComparedToNational_Perioperative_pulmonary_embolism_worse_than_national <- ifelse(pneumoniaFull$`ComparedToNational_Perioperative pulmonary embolism or deep vein thrombosis rate` =="Worse than National Benchmark", 1, 0)
+
+tryEncoding$ComparedToNational_Periopertive_pulmonary_embolism_better_than_national <- ifelse(pneumoniaFull$`ComparedToNational_Perioperative pulmonary embolism or deep vein thrombosis rate`=="Better than the National Benchmark", 1, 0)
+
+#compared death rate of pneummonia 
+tryEncoding$ComparedToNational_Death_rate_pneumonia_patients_worse_than_national <- ifelse(pneumoniaFull$`ComparedToNational_Death rate for pneumonia patients` =="Worse than National Benchmark", 1, 0)
+
+tryEncoding$ComparedToNational_Death_rate_for_pneumonia_patients_better_than_national <- ifelse(pneumoniaFull$`ComparedToNational_Death rate for pneumonia patients`=="Better than the National Benchmark", 1, 0)
+
+#compared to postoperative respiratory failure rate
+tryEncoding$ComparedToNational_Postoperative_respiratory_failure_worse_than_national <- ifelse(pneumoniaFull$`ComparedToNational_Postoperative respiratory failure rate`== "Worse than National Benchmark",1,0)
+
+tryEncoding$ComparedToNational_Postoperative_respiratory_failure_rate_better_then_national <- ifelse(pneumoniaFull$`ComparedToNational_Postoperative respiratory failure rate`=="Better than the National Benchmark",1,0)
+
+#compared to hospital return days  
+tryEncoding$ComparedToNational_Hospital_return_days_for_pneumonia_patients_worse_than_national <- ifelse(pneumoniaFull$`ComparedToNational_Hospital return days for pneumonia patients` == "Worse than the National Benchmark",1,0)
+
+tryEncoding$ComparedToNational_Hospital_return_days_for_pneumonia_patients <- ifelse(pneumoniaFull$`ComparedToNational_Hospital return days for pneumonia patients`== "Better than the National Benchmark", 1,0)
+
+#compared to MRSA 
+tryEncoding$ComparedToNational_MRSA_Bacteremia_worse_than_national <- ifelse(pneumoniaFull$`ComparedToNational_MRSA Bacteremia` == "Worse than the National Benchmark",1,0)
+
+tryEncoding$ComparedToNational_MRSA_Bacteremia_better_than_national <- ifelse(pneumoniaFull$`ComparedToNational_MRSA Bacteremia`=="Better than the National Benchmark",1,0)
+
+#compared to payment
+tryEncoding$PaymentCategory_Payment_for_pneumonia_patients_worse_than_national <- ifelse(pneumoniaFull$`PaymentCategory_Payment for pneumonia patients`=="Less than the National Average Payment",1,0)
+
+tryEncoding$PaymentCategory_Payment_for_pneumonia_patients_better_than_national <- ifelse(pneumoniaFull$`PaymentCategory_Payment for pneumonia patients`=="Greater Than the National Average Payment",1,0)
+
+#score emergency department 
+tryEncoding$Score_Emergency_department_volume_low <- ifelse(pneumoniaFull$`Score_Emergency department volume`=="low",1,0)
+
+tryEncoding$Score_Emergency_department_volume_medium <- ifelse(pneumoniaFull$`Score_Emergency department volume`=="medium",1,0)
+
+tryEncoding$Score_Emergency_department_volume_high <- ifelse(pneumoniaFull$`Score_Emergency department volume`=="high",1,0)
+
+tryEncoding$Score_Emergency_department_volume_very_high <- ifelse(pneumoniaFull$`Score_Emergency department volume`=="very high",1,0)
+
+
+```
+
+
+**Note**: If you struggled with Question 17, load the data below and keep going:
+```{r}
+load("C:/Users/Owner/Desktop/HealthCare/Demo 1/pneumoniaFullEncoded.Rdata")
+```
+
+
+
+### Frequency encoding state and county.
+We also decide that we want a way to try to preserve and analyze the geographic information without causing terrible overfitting. So, we will try to apply **frequency encoding** to those two categorical columns.
+
+
+##### **Question 18**: [1 points] 
+
+Go through the **frequency encoding** code chunk below and comment each line. What does it do? *Make sure to comment why you think the choice was made*, if appropriate.
+
+> Your answer in comments in the code chunk.
+
+```{r}
+cols2encode <- c("State", 
+               "CountyParish") #creating a variable which is selecting both state as well as county parish
+
+temp <- pneumoniaFullEncoded[, names(pneumoniaFullEncoded) %in% cols2encode] #creating a variable that is going into the table and is making sure that both columns in the previous variable is there 
+
+add_freq <- function(data, column_name) {
+  frequency_map <- table(data[[column_name]], useNA = "always")
+  data[[column_name]] <- frequency_map[match(data[[column_name]],
+                                             names(frequency_map))] #this is creating a frequency table, there are specific column names. This code also ensures that all the NA are also going to be counted in the function. The match function it finding the exact location of the columns in the table. 
+  return(data)
+}
+
+for (col in names(temp)) {
+  temp <- add_freq(temp, col) #this is saying that for all the columns in temp it is going to create an count for each of the temp columns 
+}
+
+for (c in 1:length(cols2encode)) {
+  pneumoniaFullEncoded[, cols2encode[c]] <- temp[, cols2encode[c]] #this is saying that from 1 to the length of variable col2encode, will be making sure that each column name is in the other data base from the encoded and temp area.  
+}
+```             
+
+
+##### **Question 19**: [1 point] 
+
+Use your finally & freshly encoded version of `pneumoniaFullEncoded` to answer this vital question for `State` and `CountyParish` features: are we justified using these features? Why or why not? You will need to write code to answer this question.
+
+**Hint 1: **Use your original `pneumoniaFull` dataset to compare the features in `pneumoniaFullEncoded`.
+
+**Hint 2: ** **Heavily** duplicated frequency values can make it ill-advised to proceed with a frequency encoded feature. Low to moderate duplication can be kept if there is a strong justification for doing so.
+
+**Hint 3: **If you decide it is ill-advised for either or both columns, make sure to remove those features from the dataset!
+
+```{r}
+# Your code here.
+```
+
+> When it comes to if the State and CountryParish are justified features I think, if we are doing something that has to do with the spread of Pnemonia or in a specific region then I think it would be important to at have at least one of those things. But in this we aren't focusing on hospital or facility specific not an area or region. I think excluding this from this conclusion won't have a drastic impact on the conclusions. If a list of facilities with the worst was going to be created it could also be useful but since we have the facility ID it allows us to still have access to all of that informaiton. 
+
+
+### Finishing touches
+
+#### 1. Ensure that every feature is numeric.
+
+```{r, warning=FALSE, message=FALSE}
+load("C:/Users/Owner/Desktop/HealthCare/Demo 1/pneumoniaAnalyze.Rdata")
+
+pneumoniaAnalyze <- pneumoniaAnalyze %>%  mutate(across(where(is.character), as.numeric))
+```
+
+#### 2. Collapse the `NumberOfCompletedSurveys_`... and `SurveyResponseRatePercent_`... features into a single one, as they are identical / redundant:
+
+```{r}
+pneumoniaAnalyze <- pneumoniaAnalyze %>% 
+  ## arbitrarily chose as the rep as they are identical
+  mutate(NumberSurveysCompleted = NumberOfCompletedSurveys_Cleanliness,              
+         SurveyResponseRate = SurveyResponseRatePercent_Cleanliness/100) %>%       ## Turned into an actual rate 
+  select(-contains(c("NumberOfCompletedSurveys_", "SurveyResponseRatePercent_")))   ## drop the others
+```
+
+Excellent! Now we are down to just 51 features...
+
+```{r, echo=FALSE}
+## We can remove the datasets we are no longer using:
+rm(pneumoniaFull, pneumoniaFullEncoded, Timely_and_Effective_Care, Unplanned_Hospital_Visits, valueOnly, Outpatient_Imaging_Efficiency, Payment_and_Value_of_Care, paymentOnly, readmissionsClean, valueOnly, hospitalInfo, Maternal_Health, Medicare_Hospital_Spending_Per_Patient, FY_2024_HAC_Reduction_Program, FY_2024_Hospital_Readmissions_Reduction_Program, files, HCAHPS, Healthcare_Associated_Infections, Complications_and_Deaths, dat, temp)
+```
+
+
+#### 3. Identify the target variable.
+
+__Our very, very last steps!__ Your task is to identify the appropriate target variable from the dataset. I have purposefully not gone into great detail about what it would be because choosing the best target is sometimes tricky. 
+
+##### **Question 20**: [2 points] 
+
+Use `pneumoniaAnalyze` to calculate an  `observed_readmission_rate` as the number of readmissions divided by the number of discharges, multiplied by 100, then drop the two columns used to make this new one. Now, using the data and the data dictionary, try to understand the relationship between `observed_readmission_rate` that we just created, the `PredictedReadmissionRate`, `ExpectedReadmissionRate`, and the `ExcessReadmissionRatio`. What is the relationship? What is the appropriate target to choose and why? 
+
+**Hint: **Think about (or perhaps try to investigate) why the **predicted** rate exists. What would be the (dis)advantage to using the predicted vs. the newly created `observed_readmission_rate`? 
+
+> There are usually disadvatages and advantages to using the predicted values rather than the obserced readmission rate. There are advantages of using predicted values, these values help to focus on improving decision making and optimizing resources to the best of their abilities. There is the disadvantages of using predicted values which means that there could be overpredicting or underpredicting values. These are some of the things that need to be careful when also calculating the predicted values. The appropriate variable to choose for the most accurate would be the observed readmission rate because these are using the data that was actually gathered and then apply basic math to be able for it to be shown in the best way. In these sitaution there are also moments when to use these as well as not, we should use these when trying to accuratly show data that was being collected. 
+
+##### **Question 21**: [1 points] 
+
+Why did I have you drop the two columns used to make `observed_readmission_rate`?
+
+> The two coloumns were a form of placeholder for columns, because they were just showing data in a form in which wasn't needed. If these two columns were to stay in use then it would make the dataset itself more extented and convoluted and wouldn't be used in any other reason, so having them still in the database it would cause confusion and more storage space to the datasets.  
+
+
+# Exploratory Data Analysis
+
+For your final question, you will kick start our EDA by focusing on the target variable that you identified in Question 20. **You will not be penalized for choosing the wrong target as long as you made an attempt to choose and defend a rational choice.**
+
+##### **Question 22**: [3 points] 
+
+Explore the target variable you identified in Question 20 with at least one other variable. Try to push yourself to try a new style of plot; for example, have you ever made a `density` or `violin` plot? These can be excellent choices when exploring the distribution of a target variable against another variable. Note that, if you choose to compare the target against one of the encoded categorical variables, you will need to properly re-label the categories for your plot.
+
+Full points are awarded for professional plots with axis labels, labeled legends (if appropriate), and creative use of multivariable information. **One bonus point will be awarded if you make a faceted plot or otherwise include information from at least 3 variables.** 
+
+Need inspiration that comes with code?!? Check out the [R Graph Gallery](https://r-graph-gallery.com)!
+
+```{r}
+
+densityplot(pneumoniaAnalyze$NumberOfReadmissions,pneumoniaAnalyze)
+
+
+# Your code here.
+```
+
+Lastly, make sure to **interpret** your graphic.
+
+> When looking at the density distribution above, we can see that there is a skew right. This shows that most of the desity for readmission rates is between 0 to 100 readmissions. This though is a good thing because this means that all of hospitals that were observed has lower reamissions rates. THere are though a few that have high levels of reamissions rates. These outliers are the facilities that need to be examined, since there are some that are close to 500 readmssions. After 200 there are very few points which again is a good sign since we are hoping for less readmissions as the hospitals come along. 
+
+
+# References
