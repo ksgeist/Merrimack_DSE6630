@@ -1,0 +1,2295 @@
+---
+title: 'Demo 2: Public Health & Epidemiology'
+author: "Tim Souza & Chinonso Chilobe"
+date: "10 June 2025"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: flatly
+    fig_crop: false
+  word_document:
+    toc: true
+subtitle: 'Merrimack College DSE6630: Healthcare & Life Sciences Analytics'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE,
+                      cache = FALSE,
+                      cache.comments = FALSE,
+                      size = 13)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
+# Turn off scientific notation
+options(scipen=999)
+
+# Set seed
+set.seed(98501)
+
+
+# Clean, set up, and load
+pacman::p_unload(pacman::p_loaded(), character.only = TRUE)
+rm(list = ls(all = TRUE))
+
+pacman::p_load(tidyverse,
+               maps,
+               zipcodeR,
+               ggplot2, 
+               RColorBrewer,
+               gridExtra,
+               ggrepel,
+               kableExtra,
+               e1071,
+               moments,
+               tmap,
+               sf,
+               spdep,
+               spData,
+               spatialreg,
+               gtsummary
+)
+
+skittles <- c("#314070","#627fde", "#a83448", "#075557", "#38878a", "#cb3200", "#db6f4b","#45012d","#b27891", "#213b20", "#3a693a")
+```
+
+# Introduction: Epidemiology of pneumonia-related hospital readmissions
+
+One thing that we largely glossed over as you worked through the hospital readmissions data was that there was actually a strong __spatial component__. Yes, we address state using frequency encoding, but we actually could have chosen to focus more heavily on these spatial components. As data scientists of public health and epidemiology, we likely would not have chosen to ignore it - and in fact one of the __most powerful__ tools in our toolkit for analysis are maps. 
+
+So, in this demo, we are going to take advantage of the fact that there is a lot of spatial data in the pneumonia-related hospital readmissions dataset that we *could* use: _address_, _county_, _state_, _zip code_... wow! We will first on the __state level__ data together and then we will take a more granular look using county-level data. We will also discuss __spatial statistics__ we would calculate and even include in our machine learning models if desired!
+
+# 1 State-level Analysis of Pneuomonia-related Hospital Readmissions {#section1}
+
+## 1.1 Make a base map 
+
+Let's practice bring up a very simple little map of the US from `maps` and `ggplot2`. The `maps` package provides latitude and longitude data for various in the package. The vignette for the package can be found [here](https://cran.r-project.org/web/packages/maps/maps.pdf) if you'd more information on the package. Although we will do something much more complicated for our Project 2, for this little exploration let's just keep it simple by taking advantage of everything that is pre-loaded in `maps`.
+
+First, we need to extract state-level geographic information using the `map_data()` function. Similar functions exist for other geographic levels of data, including world (country), county, or other regions of the world, but we will be using `state`. 
+
+```{r}
+states <- map_data("state")
+```
+
+```{r, echo = FALSE}
+head(states) %>% 
+  kable(
+    format = "html",
+    caption = "Table 1. The first 6 rows of the states dataframe") %>%
+    kable_styling(bootstrap_options = c("striped", full_width = F)
+  )
+```
+
+#### The 6 columns in the `states` variables are:
+
+1. `long` = **longitude** in unprojected geographic coordinates (i.e., longitude and latitude on a sphere or ellipsoid like WGS84); ranges from -180 to 180
+
+2. `lat` = **latitude** in unprojected geographic coordinates (i.e., longitude and latitude on a sphere or ellipsoid like WGS84); ranges from -90 to 90
+
+3. `group` = grouping variable for polygon boundaries where all points in a given group represent a single polygon, like parts of a country, state or county. E.g., here Alabama is treated as a single group (labeled as 1 because its the first state alphabetically
+
+4. `order` = indicates the order in which points should be connected to draw the polygon; helps when connecting `long` and `lat` coordinates to ensure the shape is drawn in the correct sequence
+
+5. `region` = represents the primary geographic unit requested, e.g., here, we requested "state" so the region is takes the state names as labels
+
+6. `subregion` = refers to a subdivision within a region, but is only present for detailed maps like "county" not "state", hence we have no subregion here
+
+#### **Question 1A**: [0.5 points]
+
+Now, let's make a base map leveraging the `ggplot2` package using the `states` dataset. Notice that `x` will always be longitude, `y` will always be latitude, and that we must also pass it a grouping variable. Why do you think we need the `group` variable here?
+
+```{r, echo=FALSE}
+                ## x = longitude, y = latitude, group must be set!
+ggplot(states, aes(x = long, y = lat, group = group)) + 
+  ## geom_polygon draws the states 
+  geom_polygon(color = "darkgray",    ## border color
+               fill = skittles[1], ## inside of polygon color
+               size = 0.2, alpha = 1) +
+  ## Makes a completely blank map background
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank()
+  ) +
+  ## Sets the aspect ratio to roughly match US map proportions
+  coord_fixed(1.3) +
+  ## Creates a title
+  ggtitle("A beautiful, blank map of the continental United States")
+```
+
+Great, we've made our first map of the continental US! It's pretty uninteresting just as-is, so let's use this map to overlay our pneumonia-related hospital readmissions data.
+
+## 1.2 Prepare the pneumonia-related hospital readmissions data
+
+### 1.2.1 Bring in the hospital readmissions data
+
+```{r}
+load("../../../../I. Biomedical & Clinical Informatics/Demo_1/pneumoniaFull.Rdata")
+## Let's change some key data types as well:
+pneumoniaFull <- pneumoniaFull %>% 
+  mutate_at(c("Score_Death rate for pneumonia patients", 
+              "Score_Medicare spending per patient", 
+              "Score_Hospital return days for pneumonia patients"), 
+            as.numeric)
+```
+
+Notice that I brought in our **fully merged, but otherwise unmodified (non-encoded, non-transformed)** dataset from Demo 1 called `pneumoniaAnalyzeNoEncoding2024.Rdata`!
+
+#### **Question 1B**: [0.5 points]
+
+Why didn't I choose to bring in the fully-processed dataset from Project 1? What does this suggest about our choice of data for spatial analyses versus machine learning models like elastic net?
+
+**Hint**: What information was deleted and/or changes were made downstream that would make those later datasets poor choices for spatial analysis?
+
+> This is because we have also performed centering, scaling, and encoding on the fully-processed dataset from Project 1, which has changed the original data.
+
+### 1.2.2 Make sure the geographic levels match
+
+Now, take a look at the names of the states in the `states` dataset (from the `region`) column and compare that with the names of the states in our dataset. How do they differ? *You may choose to answer this with code or by otherwise visually inspecting the dataset.*
+
+#### **Question 2A**: [0.25 points]
+
+```{r}
+
+head(states)
+head(pneumoniaFull)
+
+```
+
+> The `pneumoniaFull` has state abbreviations (State column) while the `states` dataset contains full state names (region column).
+
+I am sure you've now realized that before we can merge them with the state data that we extracted for the map we must make the state names match. This is because `State` in our pneumonia-related readmissions data is an abbreviation (e.g., "AL") but it's the name of the state in the `map_data` ("alabama"). **How can we fix that?**
+
+#### **Question 2B**: [0.75 points]
+
+Explore how you can use the `state.fips` packaged dataset from the `maps` package to do the conversion for you.
+
+Here are the first 6 rows of the the `state.fips` dataset to get you started.
+
+```{r, echo=FALSE}
+head(state.fips) %>% 
+  kable(
+    format = "html",
+    caption = "Table 2. The first 6 rows of the state.fips dataframe") %>%
+    kable_styling(bootstrap_options = c("striped", full_width = F)
+  )
+```
+
+Now, write code that would allow you to replace the two-letter abbreviation for `State` in the `pneumoniaFull` dataset with the full-name of the state in `states$region` to allow merging.
+
+```{r}
+# Your code here.
+
+#join state abbreviation as a column (Location in this example is the state name)
+#pneumoniaFull1 <- pneumoniaFull %>% left_join(state.fips, by = c('polyname' = 'region'))
+
+```
+
+Sadly, sometimes this can fall short. For example, take a look at the state of Washington:
+```{r, echo=FALSE}
+state.fips %>% 
+  filter(abb == "WA") %>% 
+  kable(
+    format = "html",
+    caption = "Table 3. The state.fips dataframe for just Washington state") %>%
+    kable_styling(bootstrap_options = c("striped", full_width = F)
+  )
+```
+
+States with islands, like WA state or NY, can have additional mappings that we'd miss if we weren't aware of this issue.
+
+#### **Question 3**: [1 point]
+
+What could we do to `state.fips` to fix this problem? Would your solution become tedious if, for example, we were doing counties instead?
+
+> We could mutate polyname column so that any string after ":" is dropped (leaving just the state name in the polyname column)
+
+
+An alternative solution (and not the only one by any means) could be to write a function to do the mapping ourselves. It's easier in this particular case to write our own little function, I think. Notice also that I am choosing to name the new column in `pneumoniaFull.Rdata` as `region`; this is to match the column name in the `states` dataframe that we use for mapping so we can merge the tables more easily.
+
+```{r, echo = TRUE}
+## Use this to see which states we have in our dataset, if needed
+# unique(states$region)
+
+## Set up a lookup table that goes abbr = state_name
+stateNames <- c(
+  "AL" = "alabama", "AK" = "alaska", "AZ" = "arizona", "AR" = "arkansas", 
+  "CA" = "california", "CO" = "colorado", "CT" = "connecticut", 
+  "DC" = "district of columbia", "DE" = "delaware", "FL" = "florida", 
+  "GA" = "georgia", "HI" = "hawaii", "ID" = "idaho", "IL" = "illinois", 
+  "IN" = "indiana", "IA" = "iowa", "KS" = "kansas", "KY" = "kentucky", 
+  "LA" = "louisiana", "ME" = "maine", "MD" = "maryland", "MA" = "massachusetts", 
+  "MI" = "michigan", "MN" = "minnesota", "MS" = "mississippi", "MO" = "missouri", 
+  "MT" = "montana", "NE" = "nebraska", "NV" = "nevada", "NH" = "new hampshire", 
+  "NJ" = "new jersey", "NM" = "new mexico", "NY" = "new york", 
+  "NC" = "north carolina", "ND" = "north dakota", "OH" = "ohio", 
+  "OK" = "oklahoma", "OR" = "oregon", "PA" = "pennsylvania", 
+  "RI" = "rhode island", "SC" = "south carolina", "SD" = "south dakota", 
+  "TN" = "tennessee", "TX" = "texas", "UT" = "utah", "VT" = "vermont", 
+  "VA" = "virginia", "WA" = "washington", "WV" = "west virginia",
+  "WI" = "wisconsin", "WY" = "wyoming")
+
+## Function to look up the state name based on abbreviation
+getStateName <- function(abbr) {
+  stateNames[abbr]
+}
+```
+
+#### **Question 4**: [1 point]
+
+Show that you understand how the `getStateName` works by using it to replace the abbreviation with the statename into a new column you call `feature` in the `pneumoniaFull` dataframe.
+
+**HINT**: You can use the `mutate()` function or you could just use the base `R` way, either one!
+
+```{r}
+# using the function getStateName to add a column called feature with the full state name
+
+pneumoniaFull <- mutate(pneumoniaFull, feature = getStateName(pneumoniaFull$State) )
+
+```
+
+### 1.2.3 Aggregate `PredictedReadmissionsRate` by state
+
+Now, before we add the pneumonia-related hospital readmissions to the map, we need to **aggregate** it at the state-level. We will want to do that by aggregating across states and taking the `mean()` and `median()`.
+
+#### **Question 5**: [1 point]
+
+Start from my code and finish the aggregation by state for the `mean()` and `median()` by filling in the blanks. Notice that we are making a separate dataset called `stateAggPneumonia`. Make sure to uncomment the code when you're ready to run it.
+
+```{r}
+ #stateAggPneumonia <- pneumoniaFull %>%
+   ## Grab readmissions and region
+  # select(PredictedReadmissionRate, State, 
+  #        `Score_Death rate for pneumonia patients`, 
+  #        `Score_Hospital return days for pneumonia patients`, 
+  #        `Score_Medicare spending per patient`) %>%  
+   ## Change region to a factor
+   #mutate(region = as.factor(State)) %>% 
+   ## Change any other columns from character to numeric
+   #mutate_if(is.character, as.numeric) %>% 
+   ## Group by region
+   #group_by(State) %>%  
+   ## Create the new aggregated variables for each measure
+   #summarize(meanReadmissions = mean(PredictedReadmissionRate, na.rm = TRUE),
+  #           medianReadmissions = median(PredictedReadmissionRate, na.rm = TRUE),
+  #           meanDeathRate = mean(`Score_Death rate for pneumonia patients`, na.rm = TRUE),
+  #          medianDeathRate = median(`Score_Death rate for pneumonia patients`, na.rm = TRUE),
+  #           meanHospitalReturnDays = mean(HospitalReturnDays, na.rm = TRUE),
+  #           medianHospitalReturnDays = median(HospitalReturnDays, na.rm = TRUE),
+  #           meanMedicareSpending = mean(MedicareSpending, na.rm = TRUE),
+  #           medianMedicareSpending = median(MedicareSpending, na.rm = TRUE)) %>% 
+#   ## Remove the missing region
+  # filter(!is.na(region))
+```
+
+### 1.2.4 If you were not able to figure it out, load the state-level aggregated data set
+
+```{r}
+load(file = "stateAggPneumonia.Rdata")
+```
+
+#### **Question 6**: [1 point]
+Are there any missing data? If so, what data are missing? Did you make a mistake?
+
+> It appears that Maryland did not report Medicare spending for some years.
+
+### 1.2.5 Means or medians? How do you choose?
+
+Choosing the mean or median value here is going to be really important for anyone interpreting our maps, as well as spatial statistics we will calculate downstream. Recall that we can choose the **mean** when:
+
+ - The data is symmetric (i.e., it is approximately normal or has that beautiful bell-shaped curve!)
+
+ - There are no extreme outliers or heavy skew
+
+ - You are working with data that were measured on a *truly continuous scale* (i.e., height, weight) OR can be approximated by a normal distribution because of a sufficiently large sample size (see the [Central Limit Theorem](https://math.mit.edu/~dav/05.dir/class6-prep.pdf))
+
+ - You want to describe an "average"
+
+ - You are using statistical methods that assume normality (i.e., **parametric** tests)
+
+On the other hand, we will choose the **median** when:
+
+ - The data are skewed (i.e., there us long tail on one side of the curve) OR the data are lepto- or platykurtic (overly "peaked" or flattened, respectively)
+
+  - **Skewness** Guidelines:
+
+    - Skewness > 0 $\rightarrow$ right-skewed $\rightarrow$ prefer __median__
+
+    - Skewness $\approx$ 0 $\rightarrow$ symmetric $\rightarrow$ prefer __mean__
+
+    - Skewness < 0 $\rightarrow$ left-skewed $\rightarrow$ prefer __median__
+
+  - **Kurtosis** Guidelines:
+
+    - Kurtosis > 3 $\rightarrow$ Leptokurtic (sharp peak, heavy tails) $\rightarrow$ prefer __median__
+
+    - Kurtosis $\approx$ 3 $\rightarrow$ Mesokurtic (bell-shaped) $\rightarrow$ prefer __mean__
+
+    - Kurtosis < 3 $\rightarrow$ Platykurtic (flat peak, light tails) $\rightarrow$ prefer __median__
+
+ - There are outliers that could distort the mean
+
+ - You want to describe the "typical value" or "middle case"
+
+ - You have ordinal data (e.g., patient satisfaction ratings)
+
+ - You are using **non-parametric** statistical methods that do not assume normality because you found that your data were not normally distributed
+
+#### **Question 7**: [1 point]
+You may have to do some research if you do not recall, but why would showing someone a mean when we should have showed them a median, or vice versa, potentially create interpretation problems for us or our stakeholders?
+
+> Depending on the shape of the distribution, a mean or median may not be the best statistic of central tendency. This is related to the skewness of the distribution.
+
+\   
+
+#### 1.2.5.1 Using boxplots embedded in violin plots to assess distribution symmetry
+
+#### **Question 8A**: [1 points]
+Practice reading boxplots to decide, for each measure, whether you should use the mean or median, or whether it matters. Need some help with boxplots? This [article](https://www.labxchange.org/library/items/lb:LabXchange:d8863c77:html:1) breaks it down nicely.
+
+**Based on Figure 1 below**, which measure(s) do you think would benefit from the median over the mean? Why?
+
+> Looking at the violin plots, `Pneumonia Hospital Return Days` and `Pneumonia Readmission Rate` appear the most skewed and would benefit the most from using median.
+
+
+```{r, echo = FALSE, fig.height=8, fig.width=10, fig.cap="Figure 1. Violin and boxplots to assess distribution symmetry"}
+pneumoniaFull %>% 
+ select(PredictedReadmissionRate,
+         `Score_Death rate for pneumonia patients`, 
+         `Score_Hospital return days for pneumonia patients`, 
+         `Score_Medicare spending per patient`) %>%  
+  rename(`Pneumonia Readmission Rate` =  PredictedReadmissionRate,
+         `Pneumonia Hospital Return Days` = `Score_Hospital return days for pneumonia patients`,
+         `Pneumonia Death Rate` = `Score_Death rate for pneumonia patients`,
+         `Medicare Spending per Patient` = `Score_Medicare spending per patient`) %>% 
+    ## Change any other columns from character to numeric
+  mutate_if(is.character, as.numeric) %>% 
+  pivot_longer(cols = 1:4, names_to = "Measure", values_to = "Value") %>% 
+  ggplot(aes(y = Value, x = Measure, fill = Measure)) + 
+  geom_violin(alpha = 0.65) + 
+  geom_boxplot(width = 0.25, alpha = 1, fill = "white") +
+  scale_fill_manual(values = skittles[c(7,5,3,2)]) +
+  theme_bw() +
+  facet_wrap(~Measure, scales = "free", nrow = 1, shrink = TRUE) + 
+  theme(legend.position = "bottom",
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank()) +
+  ggtitle("Figure 1. Mean or median? Which is skewed?")
+```
+
+#### 1.2.5.2 D'Agostino's $K^2$ Skewness Test to assess distribution symmetry
+
+In Project 1, I introduced the Shapiro-Wilk test for normality for those who were not familiar with it. As a reminder, the Shapiro-Wilk test is a goodness-of-fit test to assess whether an approximately normal transformation matches our data, with the null hypothesis that it does. It does this by computing a $W$ statistic compares ordered sample values to the corresponding normal distribution quantiles. As I mentioned before, it typically has high power to detect deviations from normality in most situations unless $N>5000$.
+
+But normality tests (and Shapiro-Wilk is not the only one!) is not a sufficient test of __skewness__ or __kurtosis__. E.g., we can have enough skew or kurtosis that our distribution would be better described by a median over a mean, yet it does not deviate at the 5% significance threshold from a normal approximation! In other words, it can look normal, not deviate from normal per a Shapiro-Wilk test, and _yet_ still be sufficiently skewed that the median is a better choice. One reason this can happen, for example, is if you have a lot of repeats of the same value, as seen in count data or some quantitative measures that have been rounded to integers. 
+
+__Enter [D'Agostino's $K^2$ or Skewness Test](https://en.wikipedia.org/wiki/D%27Agostino%27s_K-squared_test).__ Also sometimes referred to as the "D'Agostino-Pearson Test" in some statistics sources, the D'Agostino test was also designed as a goodness-of-fit test for distribution departures from normality. However, it simply doesn't perform quite as well overall as a Shapiro-Wilk for tests of deviation from normality BUT it is superior for assessing differences in skewness or kurtosis! What the test does is computes two components, (1) _Skewness_ to check for asymmetry and (2) _Kurtosis_ to check for peakedness or flatness, and combines these components into a $K^2$ test statistic, a version of the $\chi^2$ statistic. 
+
+Let's use the `agostino.test()` from the `moments` package to apply this to our data. For our first example, I will use `PredictedReadmissionRate`. Remember, the null hypothesis, $H_0$, is that there is **no** skew. So, a $p < 0.05$ means we __reject the null hypothesis of symmetry__ and conclude that the data are significantly skewed. However, is $p \ge 0.05$, then there is no significant skewness to the data.
+
+```{r}
+agostino.test(pneumoniaFull$PredictedReadmissionRate)
+```
+
+___Interpretation___: Because $p<0.05$, we reject the hypothesis of symmetry and conclude that predicted readmissions are __significantly skewed__. We should use the median to aggregate this variable.
+
+#### **Question 8B**: [1 point]
+Your task is to repeat this test, with interpretations, for `Score_Death rate for pneumonia patients`, `Score_Hospital return days for pneumonia patients`, and          `Score_Medicare spending per patient`:
+
+```{r}
+# Your code here.
+
+agostino.test(pneumoniaFull$`Score_Death rate for pneumonia patients`)
+
+
+```
+
+___Interpretation___: ...
+
+```{r}
+
+agostino.test(pneumoniaFull$`Score_Hospital return days for pneumonia patients`)
+
+```
+
+___Interpretation___: ...
+
+```{r}
+
+agostino.test(pneumoniaFull$`Score_Medicare spending per patient`)
+
+```
+
+___Interpretation___: ...
+
+#### 1.2.5.3 Assessing stability of central tendency estimates
+
+One final thing we can do is assess the stability of the estimates of central tendency we've calculated, the __mean__ and the __median__ to ensure that, post-aggregation, we don't see any issues in the resulting distribution. If we did, we would want to consider another estimate we haven't yet explored - e.g., another percentile or even a weighted-mean. 
+
+#### **Question 8C**: [1 points]
+**Based on Figure 2 below**, and using your choices from questions 8A and 8B, assess the __stability__ (i.e., symmetry) of the estimates you selected as the best (either mean or median) for each of the four variables. Do you see any cause for concern with your choice, or do you feel comfortable to proceed with what you've selected?
+
+```{r, echo = FALSE, fig.height=10, fig.width=5, fig.cap="Figure 2. Compare stability of mean vs. median after aggregation"}
+stateAggPneumonia %>% 
+  select(region, contains(c("mean", "median"))) %>% 
+  distinct() %>% 
+  pivot_longer(cols = -1, names_to = "Measure", values_to = "Estimate") %>% 
+  mutate(Group = case_when(grepl("Readmissions", Measure)~ "Predicted Pneumonia Readmission Rate",
+                           grepl("Hospital", Measure)~ "Pneumonia Hospital Return Days",
+                           grepl("DeathRate", Measure)~ "Pneumonia Death Rate",
+                           grepl("Medicare", Measure)~ "Medicare Spending per Patient")) %>%
+  mutate(Measure = case_when(grepl("mean", Measure) ~ "Mean",
+                             grepl("median", Measure) ~ "Median")) %>% 
+ggplot(aes(y = Estimate, x = Measure, fill = Measure)) + 
+  geom_boxplot(width = 0.25, alpha = 0.6) +
+  theme_bw() +
+  scale_fill_manual(values = c(skittles[2], skittles[3])) +
+  facet_wrap(~Group, scales = "free", nrow = 4, shrink = TRUE) + 
+  ggtitle("Figure 2. Assessing stability of central tendency \nestimates")
+```
+
+#### 1.2.5.4 Final selection of mean vs. median {#choice}
+
+The time has come to make your final selection! Your job is to __remove__ the columns from `stateAggPneumonia` that do not correspond with your final decisions of mean or median for questions 8A-C. 
+
+#### **Question 8D**: [1 points]
+```{r}
+
+# remove any variables that contain 'mean'
+stateAggPneumonia <- select(stateAggPneumonia, -contains('mean'))
+
+```
+
+
+### 1.3 Merge `stateAggPneumonia` with the `states` data for mapping.
+
+Let's use a `left_join` on `stateAggPneumonia` on the `states` dataframe we made in [Section 1](#section1). __Make sure to join by the shared geographic identifier__; here that is `region`.
+
+```{r}
+
+mergedStateAggPneumonia <- left_join(stateAggPneumonia, states, by = "region")
+
+```
+
+### 1.4 Chloropeth map: predicted pneumonia readmissions
+
+Recall from lecture that a choropleth map is a type of thematic map where areas (such as states, counties, or other geographic regions) are shaded or colored in relative proportion to the quantative value of a variable.
+
+What follows is code to perform chloropeth mapping in `ggplot2` building on our base map from [Section 1](#section1). I will show you how to do the first one for __median__ Predicted Readmission Rate. You will be mapping the subsequent variables based on your choices of mean or median! 
+
+**NOTE**: At this stage, you will get an error if you did NOT choose to retain `medianReadmissions`! If you made that mistake, return to this [step](#choice)!  
+
+```{r, echo = FALSE}
+## Store the plot into a variable called p1
+p1 <- ggplot(mergedStateAggPneumonia, aes(x = long, y = lat, group = group, 
+                               ## !!Update the fill to the variable you want
+                               fill = medianReadmissions)) +  
+  geom_polygon(color = "grey20", size = 0.2, alpha = 1) +
+  ## !!Update this change the legend and color scale
+  scale_fill_continuous(name="Median predicted % readmissions within 30 days", 
+            low = "white", high = skittles[1]) +       ## !!Update color here   
+            ## Leave low as white; only !!update high!
+  
+  ## !!Update the title to reflect a better map title
+  labs(title = "Median pneumonia-related hospital readmissions by state",
+   ## Leave the caption as-is
+   caption = "Source: Centers for Medicare & Medicaid Services (CMS), 2024") +
+  
+  ## -- This makes the map pretty. No need to change any of this -- ##
+  ## Makes a completely blank map background
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    legend.position = "bottom"
+  ) +
+  ## Sets the aspect ratio to roughly match US map proportions
+  coord_fixed(1.3)
+
+## Displays the map
+p1
+```
+
+#### **Question 9A**: [0.25 points] {#table4}
+Do you notice any trends that could be worth testing? If you're not sure, take a look at this sorted table showing the top 10 states for median pneumonia-related hospital readmissions:
+
+> Coastal states, which often have urban centers, seem to have a higher predicted readmission rates.
+
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+stateAggPneumonia %>% 
+  arrange(desc(medianReadmissions)) %>%
+  select(region, medianReadmissions) %>% 
+  rename(Region = region, 
+         `Median Predicted Pneumonia Readmissions` = medianReadmissions) %>% 
+  top_n(10) %>% 
+   kable(digits = 2,
+    format = "html",
+    caption = "Table 4. Top 10 states for pneumonia-related readmissions.") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F)
+  )
+```
+
+**HINT**: It may not be readily obvious from the map or table! If you don't see a hypothesis, that's okay. But try to think about anything some of these states might have in common, if anything.
+
+#### **Question 9B**: [1.75 points]
+
+Your task is to now update the code I used to make `p1` for the remaining three variables. I suggest copying the code and following the comments to update everywhere I have `!!Update` written. You should update per the following specification for __full credit__:
+
+- `Pneumonia Death Rate` (whether mean or median, your choice from earlier) $\rightarrow$ color should be `skittles[3]`
+  - Don't forget to update the axis labels and titles appropriately. Death rate was measured as number of deaths per pneumonia cases in 30 days.
+
+
+```{r}
+## Store the plot into a variable called p1
+p1 <- ggplot(mergedStateAggPneumonia, aes(x = long, y = lat, group = group, 
+                               ## !!Update the fill to the variable you want
+                               fill = medianDeathRate)) +  
+  geom_polygon(color = "grey20", size = 0.2, alpha = 1) +
+  ## !!Update this change the legend and color scale
+  scale_fill_continuous(name="Median pneumonia death rate", 
+            low = "white", high = skittles[3]) +       ## !!Update color here   
+            ## Leave low as white; only !!update high!
+  
+  ## !!Update the title to reflect a better map title
+  labs(title = "Median pneumonia-related hospital death rate by state",
+   ## Leave the caption as-is
+   caption = "Source: Centers for Medicare & Medicaid Services (CMS), 2024") +
+  
+  ## -- This makes the map pretty. No need to change any of this -- ##
+  ## Makes a completely blank map background
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    legend.position = "bottom"
+  ) +
+  ## Sets the aspect ratio to roughly match US map proportions
+  coord_fixed(1.3)
+
+## Displays the map
+p1
+```
+
+
+- `Medicare Spending` (whether mean or median, your choice from earlier) $\rightarrow$ color should be `skittles[7]`
+  - Don't forget to update the axis labels and titles appropriately. Medicare spending was measured at each hospital per patient.
+
+
+```{r}
+## Store the plot into a variable called p1
+p1 <- ggplot(mergedStateAggPneumonia, aes(x = long, y = lat, group = group, 
+                               ## !!Update the fill to the variable you want
+                               fill = medianMedicareSpending)) +  
+  geom_polygon(color = "grey20", size = 0.2, alpha = 1) +
+  ## !!Update this change the legend and color scale
+  scale_fill_continuous(name="Median Medicare spending per patient", 
+            low = "white", high = skittles[7]) +       ## !!Update color here   
+            ## Leave low as white; only !!update high!
+  
+  ## !!Update the title to reflect a better map title
+  labs(title = "Median Medicare spending per patient by state",
+   ## Leave the caption as-is
+   caption = "Source: Centers for Medicare & Medicaid Services (CMS), 2024") +
+  
+  ## -- This makes the map pretty. No need to change any of this -- ##
+  ## Makes a completely blank map background
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    legend.position = "bottom"
+  ) +
+  ## Sets the aspect ratio to roughly match US map proportions
+  coord_fixed(1.3)
+
+## Displays the map
+p1
+```
+
+
+- `Pneumonia Hospital Return Days` (whether mean or median, your choice from earlier) $\rightarrow$ color should be `skittles[5]`
+  - Don't forget to update the axis labels and titles appropriately. Hospital return days are the number of days readmitted pneumonia patients spend in the hospital. Readmissions are only measured within 30 days of the original admission to the hospital for pneumonia.
+
+
+```{r}
+## Store the plot into a variable called p1
+p1 <- ggplot(mergedStateAggPneumonia, aes(x = long, y = lat, group = group, 
+                               ## !!Update the fill to the variable you want
+                               fill = medianHospitalReturnDays)) +  
+  geom_polygon(color = "grey20", size = 0.2, alpha = 1) +
+  ## !!Update this change the legend and color scale
+  scale_fill_continuous(name="Median hospital return days", 
+            low = "white", high = skittles[5]) +       ## !!Update color here   
+            ## Leave low as white; only !!update high!
+  
+  ## !!Update the title to reflect a better map title
+  labs(title = "Median hospital return days, within 30 days, by state",
+   ## Leave the caption as-is
+   caption = "Source: Centers for Medicare & Medicaid Services (CMS), 2024") +
+  
+  ## -- This makes the map pretty. No need to change any of this -- ##
+  ## Makes a completely blank map background
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    legend.position = "bottom"
+  ) +
+  ## Sets the aspect ratio to roughly match US map proportions
+  coord_fixed(1.3)
+
+## Displays the map
+p1
+```
+
+
+# 2 State-level Spatial Analysis
+
+To perform spatial analysis, one needs geographic-level aggregate data that has been joined with geometry. Although it might feel like we technically have everything we need, alas, we do not - quite. Remember that our ultimate goal for our stakeholder is __prediction__ - so what this means is that we need to determine whether spatial structure is a problem before we proceed with predictions. If it is, we can include spatially lagged variables in our analysis; if not, we can proceed with exactly what we pre-processed in Project 1. 
+
+## 2.1 Spatial Analysis Pre-processing Steps
+
+### 2.1.1 Identify your appropriate method of aggregation for each variable, but **especially** your outcome of interest! 
+
+But because our ultimate goal is to try to tie this back with all of the work we did in Project 1, I will actually give you data, which you get by running this code chunk. This returns both the training and testing sets, aggregated but not yet merged with geometries, so we don't lose our other encoding and especially our transformations for OLS. They are going to be called `stateAggTrain` and `stateAggTest`, respectively.
+
+```{r}
+
+#getwd()
+#source(file = "loadTrainTest.R")
+
+########################################
+## Author: K.S. Geist
+## Helper code to load, aggregate, and
+## join with spatial information the 
+## training and testing sets from Proj 1 
+## TO RUN:
+## source(file = "loadTrainTest.R")
+########################################
+
+## Load the packages needed
+pacman::p_load(tidyverse)
+
+
+## Load the training and testing sets
+if(exists("readyTrain")) {
+  rm("readyTrain") } else { 
+    load("../../../../I. Biomedical & Clinical Informatics/Project_1/FY2024_data_files/readyTrain.Rdata") 
+  }
+
+if(exists("readyTest")) {
+  rm("readyTest") } else { 
+    load("../../../../I. Biomedical & Clinical Informatics/Project_1/FY2024_data_files/readyTest.Rdata") 
+}
+
+#### TRAIN
+readyTrain <- readyTrain %>% 
+## We have to move the rownames back to FacilityId temporarily
+  mutate(FacilityId = rownames(readyTrain)) %>%
+## Rename the column we want to keep
+  rename(Hospital.return.days.for.pneumonia.patients = ComparedToNational_Hospital.return.days.for.pneumonia.patients) %>% 
+## Also drop the columns from the VIF and other redundant one from Project 1
+  select(-Nurse.communication, -Overall.hospital.rating, -Staff.responsiveness, -Care.transition, 
+         -Recommend.hospital, -contains("Compared"), -contains("PaymentCategory"), -SurveyResponseRate,
+## But also remove encoded state now
+         -State)
+
+#### TEST
+## We first have to move the rownames back to FacilityId temporarily
+readyTest <- readyTest %>% 
+  ## We have to move the rownames back to FacilityId temporarily
+  mutate(FacilityId = rownames(readyTest)) %>%
+  ## Rename the column we want to keep
+  rename(Hospital.return.days.for.pneumonia.patients = ComparedToNational_Hospital.return.days.for.pneumonia.patients) %>% 
+  ## Also drop the columns from the VIF and other redundant one from Project 1
+  select(-Nurse.communication, -Overall.hospital.rating, -Staff.responsiveness, -Care.transition, 
+         -Recommend.hospital, -contains("Compared"), -contains("PaymentCategory"), -SurveyResponseRate,
+         ## But also remove encoded state now
+         -State)
+
+#############
+## Merge with pneumoniaFull just to get the state names again...
+############
+## Assumes that pneumoniaFull is already in your environment
+if(!exists("pneumoniaFull")) {
+  message("Do you need to run all the previous code again? pneumoniaFull is MISSING!")
+} else {
+  pneumoniaFull <- pneumoniaFull %>% 
+    mutate(region = getStateName(State))      ## Naming it 'region' to make the name in the states dataframe
+  
+  #### TRAIN
+  stateTrain <- readyTrain %>% 
+    ## Merge with pneumoniaFull to get the state names
+    left_join((pneumoniaFull %>%
+              ## Don't want to merge with all features from pneumoniaFull
+               select(FacilityId, 
+                      region, 
+                      PredictedReadmissionRate, 
+                      `Score_Hospital return days for pneumonia patients`, 
+                      `Score_Medicare spending per patient`,
+                      `Score_Death rate for pneumonia patients`)), by = "FacilityId") %>% 
+      ## Now move FacilityId back to rownames
+      column_to_rownames("FacilityId") %>% 
+      ## Rename the median raw values so we can distinguish from the transformed and scaled
+      rename(Median_RawPredictedReadmissionRate = PredictedReadmissionRate, 
+             Median_RawMedicareSpending = `Score_Medicare spending per patient`,
+             Median_RawDeathRate = `Score_Death rate for pneumonia patients`,
+             Median_RawHospitalReturnDays = `Score_Hospital return days for pneumonia patients`)
+  
+  #### TEST
+  
+## now merge with pneumoniaFull to get the state names
+  stateTest <- readyTest %>% 
+    ## Merge with pneumoniaFull to get the state names
+    left_join((pneumoniaFull %>%
+               ## Don't want to merge with all features from pneumoniaFull
+               select(FacilityId, 
+                      region, 
+                      PredictedReadmissionRate, 
+                      `Score_Hospital return days for pneumonia patients`,
+                      `Score_Medicare spending per patient`,
+                      `Score_Death rate for pneumonia patients`)), by = "FacilityId") %>% 
+    ## Now move FacilityId back to rownames
+    column_to_rownames("FacilityId") %>% 
+    ## Rename the median raw values so we can distinguish from the transformed and scaled
+    rename(Median_RawPredictedReadmissionRate = PredictedReadmissionRate, 
+           Median_RawMedicareSpending = `Score_Medicare spending per patient`,
+           Median_RawDeathRate = `Score_Death rate for pneumonia patients`,
+           Median_RawHospitalReturnDays = `Score_Hospital return days for pneumonia patients`)
+
+#############
+## Merge with pneumoniaFull just to get the state names again...
+############
+## Now aggregate again - medians all around!
+stateAggTrain <- stateTrain %>%
+  group_by(region) %>%
+  summarise(across(where(is.numeric), median, na.rm = TRUE))
+
+## Now aggregate again - medians all around!
+stateAggTest <- stateTest %>%
+  group_by(region) %>%
+  summarise(across(where(is.numeric), median, na.rm = TRUE))
+}
+
+## Remove for cleanup and to save confusion
+rm(readyTest, readyTrain)
+
+
+
+```
+
+**NOTE 1** that these new aggregated training and testing states have `region` in them instead of `state`. This is so that they are already cleaned up for merging with geometries.
+
+**NOTE 2**: All of the raw variables have been named `Median_Raw...` to distinguish them from their transformed and scaled counterparts!
+
+#### **Question 10A**: [0.25 points]
+
+Check that all of the states (in `region`) made it into the training set. If you choose to do this by counting, say with `unique()` or `distinct()`, you should get __52__ if they are all present.
+
+```{r}
+# count the number of unique values in stateTest$region
+
+length(unique(stateTrain$region))
+
+
+```
+
+> There are 52 unique states in the region column
+
+#### **Question 10B**: [0.25 points]
+
+Why am I not asking you to check the states in the testing data?
+
+> Since that is the testing data, the model will not be trained on it (so it is normal that some values may be missing in a test dataset)
+
+#### **Question 10C**: [0.25 points]
+
+In the aggregation that I did for both `stateAggTrain` and `stateAggTest` I took the __median__ for everything. Why, when we just went through all the rigmarole of figuring out if we should display the mean or the median of variables like Predicted Pneumonia Readmissions? 
+
+**HINT 1**: What have we already done to the training and testing sets that we had not done here because we went back to the raw data? 
+
+**HINT 2**: Why is a median _or_ a mean acceptable if we're working with scaled and centered data?
+
+> Since the data have been both centered and scaled, the mean and median should be the same value of central tendency.
+
+### 2.1.2 Identify your geographic level of aggregation for each variable. 
+
+__Here, we have selected state__. We already decided this going into the previous analysis; it only makes sense to continue that level of spatial analysis first. 
+
+### 2.1.3 Get the right geometries for spatial analysis. 
+
+Sadly, what we used for mapping will not be sufficient. Recall that, in lecture, I kept referring to something called __shapefiles__ and I said we wouldn't have to worry about them a ton (yet) but that we were going to need them already. Well, here they are! 
+
+A shapefile is a widely used geospatial vector data format for geographic information system (GIS) software, storing the location, shape, and attributes of geographic features such as points, lines, and polygons. This is is typically across a set of related files with file extensions of `.shp`, `.shx`, or `.dbf`. Because __shapefiles are the gold-standard__ of spatial analysis, our spatial statistics packages in R similarly expect geometrics in __shapefile__ (often abbreviates as __sf__) format. We could either import shapefiles (which we will do in Project 2) or, here, we will simply convert the geometrics from the `maps` package into shapefile format so we can calculate our spatial statistics. 
+
+Complicated, right? Thankfully, most of that magic will be performed for us using the `sf` package in R. If you want to learn more about the `sf` package, you can find that [here](https://r-spatial.github.io/sf/). 
+
+_We can convert to shapefile format in a single line of code:_
+```{r}
+## Get state map geometries in shapefile format
+states_sf <- st_as_sf(map("state", plot = FALSE, fill = TRUE))
+```  
+
+#### **Question 10D**: [0.25 points]
+
+You may need to do a little digging, but what exactly is the `st_as_sf()` function from the `sf` package doing? Can you figure out why I didn't just use the `states` object we already used for mapping?
+
+> The `st_as_sf()` function creates a 'simple feature object` (shapefile object).  It appears that now each state row contains the geometry coordinates of each state for mapping.
+
+
+### 2.1.4 Calculate spatial weights for our target, predicted pneumonia readmission rate. {#findSW}
+
+Now, we finally get to the meat of it! __Spatial weights__ represent the spatial relationships (or influence) between geographic units (here, states). In other words, spatial weights define how much nearby observations contribute to calculations for a given location. These weights are typically based on proximity, contiguity (shared borders), or distance, but it depends on the type of spatial autocorrelation or dependence in the data.
+
+Recall that, in lecture, I mentioned that we were going to look at spatial autocorrelation. Spatial autocorrelation is the relative degree to which the value of a variable (e.g., hospital readmissions) at one location is similar to values at nearby locations. When nearby areas have similar values (e.g., high readmission rates clustered together), it's called _positive_ spatial autocorrelation (**clustering**); when nearby areas have very different values, it's _negative_ spatial autocorrelation (**dispersal**). Thus, you can think of **spatial weights** as measures of the spatial correlation in hospital readmissions between states, in our case!
+
+We will use a package called spatial dependence (`spdep`, more information [here](https://r-spatial.github.io/spdep/index.html)) to calculate our spatial weights. We have a series of small sub-steps to go through to get there.
+
+#### 2.1.4.1 Turn off S2 geometry engine, if needed (usually a good idea if you didn't import shapefiles directly or if they are older shapefiles)
+
+By default, the `sf` package now uses Google's S2 geometry engine (a library for geometric calculations on the sphere developed by Google for their maps), which is strict and throws errors when geometries are even slightly invalid (like if edges should cross each other even slightly). We will choose to turn off the S2 engine just for this step because it will fail otherwise. This is often going to be the case _when you are not importing shapefiles directly or if your shapefiles are older and predate the S2 engine__. But, we will turn it back on when we're done. 
+
+_We can disable the S2 engine like this:_
+```{r}
+## Disable Google S2 engine
+sf_use_s2(FALSE)
+```
+
+We will also just do a quick cleanup using the `st_make_valid` function **just to be safe**. It never hurts! All it does is clean up any of those cases where the borders do cross (i.e., are invalid) so we don't get any errors.
+
+_We can validate the geometry edges like this:_
+```{r}
+## Clean up the edges of `states_sf` to be safe
+states_sf <- st_make_valid(states_sf)
+```
+
+**Find Neighboring States**
+
+Next, we will use the `poly2nb()` function from the `spdep` package to create a _neighborhood list_ based on the polygon boundaries of our spatial objects (states). It is using the shapefile (sf) object we already made, `states_sf`, to do this. What it will do is defines which polygons (states) are neighbors by looking for which ones share borders with each other (called __contiguity__). By default, it uses what is called "queen" continuity (derived from chess); it would define a neighboring state as one that shares any point (edge OR corner) as neighbors. 
+
+As an example, Colorado and Arizona do not share a border only a corner, right? But according to "queen" contiguity, they are still neighbors. 
+
+#### **Question 11A**: [0.5 points]
+Look up "rook" continuity and explain what (1) what it means, (2) how the neighbor relationship of Colorado and Arizona would change, if it would, and (3) how we change to this type of contiguity in the `poly2nb()` function. (You don't need to actually change it in the code, however.)
+
+> Rook and Queen continuity are named based on the movement of chess pieces (Queen vs Rook). Queen continuity in polygons means that two areas share a border or even a single point, Rook continuity means that two areas must share a border (more than 1 point) https://www.biomedware.com/files/documentation/spacestat/Data_Preparation/adj/Polygon_contiguities.htm
+
+_We can find neighboring states using queen contiguity like this:_
+```{r}
+## Create neighbors using queen contiguity
+states_nb <- poly2nb(states_sf, queen = TRUE)
+```
+
+**Calculate Spatial Weights Between Neighbors**
+
+Next, we will use the `nb2listw()` function from `spdep` to convert the neighborhood list that we created with `poly2nb()` (called `states_nb`) into a spatial weights object that we can use in spatial analysis like Moran’s $I$, LISA, and spatial regression. What `nb2listw()` does is assigns weights to the neighbors identified in the `nb` object, and those weights define how strongly each neighbor influences a spatial unit (state). 
+
+There are actually several styles of weighting; we will be using row-standardizing (`style = "W"`) as it is the most appropriate for spatial autocorrelation. Row-standardized weights are spatial weights where each row sums to 1. This means the influence of all neighbors on a given spatial unit is normalized, so the total influence is consistent across all units regardless of how many neighbors they have. Without standardization, units with more neighbors could have a greater total weight, biasing spatial statistics. This means that states like Colorado, that have lots of neighbors, are not weighted more heavily than states like Alaska or Hawaii, which are effectively islands. **This will make Moran's $I$ more comparable across the states.** 
+
+_We can calculate the spatial weights as folows:_
+```{r}
+## Calculate the state-level spatial weights
+states_sw <- nb2listw(states_nb, style = "W")
+
+## Turn Google S2 engine back on
+sf_use_s2(TRUE)
+```
+
+#### **Question 11B**: [0.5 points]
+
+The first state in our dataset is Alabama. Take a look at one of our maps if needed. How many neighbors do you expect it to have?
+
+> Alabama has four neighboring states; (Tennessee, Georgia, Florida, Mississippi)
+
+Now investigate Alabama's spatial weights:
+
+```{r}
+states_sw$weights[[1]]
+```
+
+Does this feel consistent (1) with what you know about the number of neighbors Alabama has and (2) what I mentioned above about row-standardizing our weights? Why or why not?
+
+> Yes, since Alabama has 4 neighbors, each appears to have 0.25 of the weight.
+
+Lastly, investigate the spatial weights for Massachusetts (number __20__). Does it fit with your expectations given the number of neighbors?
+
+```{r}
+
+states_sw$weights[[20]]
+```
+
+> Massachusetts actually has 5 neighbors (NH, VT, RI, CT, NY) so each is 0.2% of the total weight (which makes sense).
+
+**Join the Spatial Weights back to our Training Data**
+
+Our final step is to attach the neighbor lists and spatial weights back to the training data and the shapefile we already have. This way, we can proceed with the rest of our spatial analyses. 
+
+**NOTE** that if the shapefile spatial names (`ID`) did not already match `region` in `stateAggTrain` we'd have to convert that first! Further, it is at this stage you would add FIPS to facilitate merging, if needed.
+
+_We can calculate the spatial weights as folows:_
+```{r}
+## If we want to make sure that the shapefile ID matches region:
+ unique(states_sf$ID)
+
+## Join the shapefile with spatial weights and neighbor lists back to the 
+## training data
+states_sf_AggTrain <- left_join(states_sf, stateAggTrain, 
+                                by = c("ID" = "region"))
+```
+
+#### **Question 12**: [1 point]
+
+I am sure you caught this, but spatial weights and everything are being done on the **training** data only. What key issue am I trying to __avoid__ by performing all of my spatial pre-processing steps on the training data only? Why am I not using the full dataset for this?
+
+**HINT**: It is the same reason we did all of our other pre-processing AFTER splitting the data!
+
+> This is done to avoid overfitting 
+
+## 2.2 Global Spatial Autocorrelation: Global Moran’s $I$
+
+Recall from lecture that I mentioned that our goal is to determine if there is clustering (positive spatial autocorrelation) or dispersal/dispersion (negative spatial autocorrelation). Global Moran’s $I$ is a way to measure clustering and will tell us whether clustering exists overall. Moran's $I$ statistic ranges from -1 to +1, just like a typical correlation coefficient! Significant positive $I$ inidicates clustering of similar values (high with high, low with low) whereas significant negative $I$ indicates dispersion (high values near low values; or "opposites attract"). Just as with a canonical correlation, $p$-values < 0.05 suggest significant spatial autocorrelation (assuming we are using the 5% significance threshold). It's important to note that an $I$ = 0 would indicate randomness; thus, the null hypothesis ($H_0$) is that median pneumonia readmission rates are randomly distributed across the states.
+  
+
+### 2.2 1. Set the target {#setTarget}
+We are going to set the target like this to facilitate making it easier to swap out at a later question. **NOTE** that we are centering but NOT scaling it - why? This is because we want it to be comparable to the lagged values; this will make a little more sense as we go.
+
+```{r}
+## Change this to change the target!
+
+y <- scale(states_sf_AggTrain$Median_RawPredictedReadmissionRate,
+           center = TRUE, scale = FALSE)
+```
+
+
+
+### 2.2.2 Calculate the global Moran's $I$
+Using the `moran.test()` function from the spatial dependence (`spdep`) package, we will calculate the global Moran's $I$ statistic first. If you would like more details about this function, you can find that [here](https://r-spatial.github.io/spdep/reference/moran.test.html).
+
+```{r}
+## Calculate the global Moran's I for states on training data
+## Use scaled y & apply spatial weights
+global_moran <- moran.test(y, states_sw)
+
+## View the results
+global_moran
+
+## Show a plot of the top most outlier states
+moran.plot(as.vector(y), 
+           listw = states_sw,
+           ylab = "Spatially-lagged Median Pneumonia Readmissions",
+           xlab = "Median Pneumonia Readmissions (No Lag)", pch = 16,
+           col = skittles[2], xlim = c(-3,3), 
+           main = "Figure 3. Global Moran's I (State-Level Aggregation)")
+```
+
+**Interpretation**:
+Our global spatial autocorrelation test found a Moran's $I$ of 0.268 with a $p$-value of 0.0014, which is less than 0.05. Thus, we reject the $H_0$ of a random distribution and conclude that we have __significant positive spatial autocorrelation__ for median pneumonia-related readmissions! This suggests that states with similar median readmission rates _tend to be clustered geographically_ in the U.S.!
+
+The accompanying scatterplot produced with `moran.plot()` confirms this. On the $x$-axis we have median pneumonia-related readmission rates for each spatial unit (state) and on the $y$-axis the spatially lagged version of readmission rates. __Spatial lags are the weighted average value of neighboring states (spatial units)__.
+Thus, this plot shows that high readmission states tend to cluster with other high states and low states with other low states (i.e., positive spatial autocorrelation).
+Outlier states in each of the quadrants of the graph are also identified.
+
+- **High-high outliers** (Quadrant I)
+  - These states have especially high readmission rates and are generally surrounded by neighboring states that are also high.
+  
+- **Low-high outliers**  (Quadrant II) 
+  - These states have low readmission rates but are generally surrounded by neighboring states that are high.
+  
+- **Low-low outliers** (Quadrant III)
+  - These states have especially low readmission rates and are generally surrounded by neighboring states that are also low.
+  
+- **High-low outliers**  (Quadrant IV) 
+  - These states have high readmission rates but are generally surrounded by neighboring states that are low.
+
+#### **Question 13**: [1 point]
+Identify each of the outliers from the graph and interpret the type of outlier (high-high, low-high, etc.) that they are. 
+
+> Delaware (High-low outlier) - has a HIGH readmission rate but surrounded by neighboring states that are low.
+> Utah (Low-low outlier) - has a LOW readmission rates, and surrounded by other states that are also low.
+> West Virginia, District of Columbia, New Jersey (high-high outliers) - have HIGH readmission rates, and are surrounded by states that area also high. 
+
+#### **Question 14A**: [0.5 points]
+**NOTICE** that I had you define the target as a _centered_ version of `Median_RawPredictedReadmissionRate`, which is the median of the _untransformed, unscaled_ readmissions. Shouldn't I have used the transformed and scaled version, `bc_PredictedReadmissionRate`? Can you think of any reason why I chose to use the centered median of the raw readmissions rather than the transformed version?
+
+> Centering shifts data so the mean is 0, while scaling adjusts the range of the data (both are used to standardize the data)
+
+**HINT 1**: What does centering do that scaling does not? Could centering be important, for example, to make sure that $y$ is going in the same direction as lagged $y$?
+
+**HINT 2**: Why do we need $y$ and lagged $y$ going in the same general directions? Could it have anything to do with identifying which __quadrant__ they fall into?
+
+**HINT 3**: [Chapter 8](https://www.paulamoraga.com/book-spatial/spatial-autocorrelation.html) by Paul Moraga on Spatial Autocorrelation may be helpful, but it also gets a bit deep in the weeds too.
+
+#### **Question 14B**: [0.5 points]
+
+Now go back up to temporarily **reset the target** to `bc_PredictedReadmissionRate` [here](#setTarget). **There is no need to scale it again!** Then, re-run the Global Moran's $I$. make sure to update the limits of the $x$-axis or just comment that line out (`xlim(...)`) to look at the graph. Looking at the value of $I$, the $p$-value, and the graph output - does the conclusion change? Does it matter which value we choose for the analysis?
+
+```{r}
+
+# reset the target** to `bc_PredictedReadmissionRate`, re-run Global Moran's
+
+global_moran_y1 <- moran.test(states_sf_AggTrain$bc_PredictedReadmissionRate, states_sw)
+
+## View the results
+global_moran_y1
+
+## Show a plot of the top most outlier states
+moran.plot(as.vector(states_sf_AggTrain$bc_PredictedReadmissionRate), 
+           listw = states_sw,
+           ylab = "Spatially-lagged Median Pneumonia Readmissions",
+           xlab = "Median Pneumonia Readmissions (No Lag)", pch = 16,
+           col = skittles[2], #xlim = c(-3,3), 
+           main = "Figure 3A. Global Moran's I (State-Level Aggregation)")
+
+
+```
+
+> The outlier states are the same, and in the same quadrants, so it might not matter much which values we use for analysis.
+
+**NOTE**: Make sure to change $y$ back to the scaled version of `Median_RawPredictedReadmissionRate` before moving to the next analysis!
+
+
+## 2.3 Local Spatial Autocorrelation (LISA): Local Moran's $I$
+
+Now that we've gotten a sense for possible outlier states and we know that we have global spatial autocorrelation in median readmission rates, it would be nice to concretely identify hotspots and coldspots. Unlike the global Moran's $I$, which provides an overall measure of spatial autocorrelation across the entire nation, LISA (**L**ocal **I**ndicators of **S**patial **A**ssociation) helps pinpoint specific states that significantly contribute to that global pattern. LISA identifies clusters of similar values, such as high-high (hotspots) and low-low (coldspots). It can also be used to identify spatial high-low and low-high outliers, just as the global test did. This local approach is so powerful though because it __enables us to map and interpret where spatial clustering or dispersion is happening__, which is especially valuable for targeted policy intervention or resource allocation. So, even though it may not be as vital for our predictions, it can help us to better understand the spatial pattern of pneumonia-related hospital readmissions more generally.
+
+## 2.3.1 Run local Moran's I for LISA
+
+To perform the LISA, we will use the `localmoran()` function from `spdep`. More information on the function can be found [here](https://r-spatial.github.io/spdep/reference/localmoran.html). After, instead of printing the `summary()` I show you the `head()` of the first rows produced by the LISA.
+
+```{r}
+## Run local Moran's I for LISA on vectorized y & applying same spatial weights
+local_moran <- localmoran(as.vector(y), states_sw)
+```
+
+```{r, echo=FALSE}
+head(local_moran) %>% kable(digits = 2,
+    format = "html",
+    caption = "Table 5. First 6 rows of Local Indicators of Spatial Awareness (LISA) output") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F)
+  )
+```
+
+- `Ii` = Stands for $I_i$, which is the local Moran's $I$ estimate for that state. $I_i$ is a measure of local spatial autocorrelation for the given state. If positive, it is similar to its neighbors, if negative it is dissimilar. 
+
+- `E.Ii` = Stands for $\mathbb{E}(I_i)$, which is the expected value of $I_i$ under the null hypothesis of spatial randomness. This value is usually close to 0.
+
+- `Var.Ii` = Stands for $Var(I_i)$, which is the variance of $I_i$ under the null hypothesis. It is used to assess the significance of $I_i$.
+
+- `Z.Ii` = Stands for $Z_{I_i}$, which is the $Z$-score calculated as $Z = \frac{I_i − \mathbb{E}(I_i)}{\sqrt{Var(I_i)}}$, which indicates how extreme $I_i$ is compared to the random expectation. Used to derive statistical significance.
+
+- `Pr(z!=E(Ii))` = Stands for $Probability(Z_{I_i} \ne \mathbb{E}(I_i))$, which is the probability that  $I_i$ is not equal to the expected value $\mathbb{E}(I_i)$. In other words, it's the p-value associated with $Z_{I_i}$! So, it tells you whether the local spatial autocorrelation is statistically significant for any given state.
+
+That might feel like a lot of confusing math, but let's start to put it together into something meaningful we can use: __HOTSPOTS__ vs. __COLDSPOTS__.
+
+### 2.3.2 Criteria for hotspots vs. coldspots {#hotVScold}
+
+- **Hotspots** (High-High). States with a high median readmission value surrounded by other high value states. As you get to the fringes of hotspots, other states that have high readmission rates but are surrounded by low states will not be labeled as part of the hotspot but could be labeled an outlier (high-low).
+
+- **Coldspots** (Low-Low). States with a low median readmission value surrounded by other low value states. As you get to the fringes of coldspots, other states that have low readmission rates but are surrounded by high states will not be labeled as part of the coldspot but could be labeled an outlier (low-high).
+
+We can actually break this down a bit to help us better understand the difference between hot/coldspots and _outliers_ - outliers are states with high readmission values that are near states really different from them in terms of readmission rates. 
+
+\   
+
+##### Table 6. Description of the quadrants and their corresponding LISA cluster categories.
+
+|**Readmissions**|**Neighbors**|**LISA Category**|**Quadrant**| **Explanation**|
+|:---------------:|:---------:|:----------------:|:--------:|:----------------------------------------------------------------|
+| High	          | High      | Hotspot (H-H)    | I        | State with high readmissions is surrounded by other high states |
+| Low	            | Low	      | Coldspot (L-L)   | III      | State with low readmissions is surrounded by other low states   |
+| High	          | Low	      | Outlier (H-L)    | IV       | State with high readmissions is surrounded by low rate states   | 
+| Low	            | High	    | Outlier (L-H)    | II       | State with low readmissions is surrounded by high rate states   | 
+| High or Low     | Random    |	Not Sign. (N.S.) | -        | No difference from random (dispersed)                           |
+
+This implies, then, that if we __identify the quadrants__ we identify the hot/coldspots! So, let's do that.
+
+#### **Question 15A**: [1 point]
+
+- Hotspots (Quadrant I, "High-High") will be states that have:
+
+ - A significant $p$-value ($p < 0.05$), which suggests that local $I_i$ is significantly __positive__ ($I_i > 0$) 
+ - A _centered_ median hospital pneumonia-related readmissions rate that is positive
+ - A __spatially-lagged__ median hospital pneumonia-related readmissions rate that is positive
+
+**What will the criteria for coldspot (quadrant III) states be?**
+
+> A significant $p$-value ($p < 0.05$), which suggests that local $I_i$ is significantly __positive__ ($I_i > 0$) 
+> A _centered_ median hospital pneumonia-related readmissions rate that is negative
+> A __spatially-lagged__ median hospital pneumonia-related readmissions rate that is negative
+
+
+
+#### 2.3.2.1 Extract the spatially-lagged median hospital readmission rates
+We can use the `lag.listw()` to extract the spatial lag of the target. So, these values are the __spatially-adjusted__ median pneumonia-related 
+
+```{r}
+lag_medianReadmissions <- lag.listw(states_sw, y)
+## Run this is you want to see what they look like!
+lag_medianReadmissions
+
+## Just Massachusetts' value:
+lag_medianReadmissions[20]
+```
+
+#### **Question 15B**: [0.5 points]
+The raw target is the % of all pnuemonia patients discharged who are predicted to be readmitted within 30 days after being released from the hospital. So, e.g., the _raw_ median pneumonia-related readmissions rate for Massachusetts is 16.6789, meaning that $\approx$ 16.7% (no multiplication by 100 needed here!) are predicted to be readmitted based on a sliding-window average of 30-day readmissions. 
+
+Yet, the _spatially-lagged_ pneumonia-readmissions for Massachusetts is only 0.2126469! 
+
+**QUESTION**: Why do the spatially-lagged variables seem SO shifted compared to the original value?
+
+**HINT**: What did we do to the raw hospital readmissions before we calculated the spatial weights in this [section](#findSW)?
+
+> This is because the spatially lagged values are influenced by neighboring states values.
+
+#### **Question 15C**: [0.5 points]
+Show just Massachusetts' median readmissions to see its value after performing the step I am referring to in the hint. 
+
+**HINT**: Massachusetts is at row 20 in the `states_sf_AggTrain` dataframe, which will make it easier to locate its value in the vector created by looking at just the `Median_RawPredictedReadmissionRate` column.
+
+```{r}
+## Show just Massachusetts' median readmissions value
+
+states_sf_AggTrain$`Median_RawPredictedReadmissionRate`[20]
+
+```
+
+**QUESTION**: Is this a lot closer to the spatially-lagged value?
+
+> Yes, this is closer.
+
+#### 2.3.2.2 Convert the LISA results to a dataframe
+
+```{r}
+local_df <- local_moran %>% as_data_frame()
+```
+
+#### 2.3.2.3 Add the local $I_i$, $p$-value, and lagged readmissions to the `states_sf_AggTrain` dataset
+
+```{r}
+states_sf_AggTrain <- states_sf_AggTrain %>%
+  mutate(
+    ## adds the local I
+    localI = local_df$Ii,
+    ## adds the p-value
+    pValue = local_df$`Pr(z != E(Ii))`,
+    ## adds the lagged median readmissions
+    lag_medianReadmissions = lag_medianReadmissions
+  )
+```
+
+#### 2.3.2.4 Classify the LISA quadrants (hot/coldspots) based on the criteria 
+The criteria we used (in case you already forgot!) were set [here]{#hotVScold}. All of the steps might make it easy to forget what we are trying to do, but we're finally at the important part: **identifying the quadrants**. 
+
+#### **Question 15D**: [0.5 points]
+The code below identifies the quadrants and adds them to the `states_sf_AggTrain` dataset. Your task is to add comments to the code below where indicated. Make sure to refer back to the criteria we set [here]{#hotVScold} if needed!
+
+> Answer in the comments.
+
+```{r}
+## modify the dataframe (mutate new vars using case_when)
+states_sf_AggTrain <- states_sf_AggTrain %>%
+  mutate(
+    ## specify a quadrant to assign these cases to when the following are true
+    quadrant = case_when(
+      ## p value is > 0.05
+      pValue > 0.05 ~ "N.S.",
+      ## these are labelled as Not Sign (N.S) - not significant, no difference from random dispersion
+      
+      ## A state with high median pneumonia readmission surrounded by other similar states (Quadrant I)
+      y > 0 & lag_medianReadmissions > 0 ~ "Hotspot",
+      
+      ## A state with low median pneumonia readmissions surrounded by other similar states with low readmissions (Quadrant III)
+      y < 0 & lag_medianReadmissions < 0 ~ "Coldspot",
+
+      ## A state with high median readmissions surrounded by states with low median readmissions (Quadrant IV)
+      y > 0 & lag_medianReadmissions < 0 ~ "High-Low Outlier",
+
+      ## A state with low median readmissions surrounded by states with high median readmissions (Quadrant II)
+      y < 0 & lag_medianReadmissions > 0 ~ "Low-High Outlier",
+
+      ## 
+      TRUE ~ NA
+    )
+  )
+```
+
+#### 2.3.2.5 Map the LISA cluster (quadrants)
+Lastly, let's visualize our hot/cold spots on the map! Note that we are now using `geom_sf()` for mapping rather than `geom_polygon()`. This is because our dataframe now contains **shapefile** geometries instead of just the polygons that it did earlier, hence the change.
+
+```{r}
+ggplot(states_sf_AggTrain) +
+  ## Now using geom_sf() because we have shapefile data rather than just
+  ## polygons; geom_polygon() will no longer work here!
+  geom_sf(aes(fill = quadrant), size = 0.2, 
+          alpha = 1, color = "darkgray") +
+  
+  ## Fill based on the quadrants!
+   scale_fill_manual(name = "LISA Cluster (Quadrant)",
+    values = c("Hotspot" = skittles[6],
+               "Coldspot" = skittles[1],
+               "High-Low Outlier" = skittles[7],
+               "Low-High Outlier" = skittles[2],
+               "N.S." = "#dadbd7")) +
+  
+  ## Makes a completely blank map background
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    legend.position = "bottom"
+  ) +
+  labs(title = "LISA Clustering of Median Pneumonia-related Hospital Readmission Rates",
+    subtitle = "Hotspots and coldspots show spatial clusters of similar values",
+    caption = "Source: Centers for Medicare & Medicaid Services (CMS), 2024")
+```
+
+#### **Question 15E**: [0.5 points]
+Interpret what it means if Indiana is a "low-high" outlier.
+
+> It is a state of low median pneumonia readmissions surrounded by states of high median pneumonia readmissions.
+
+#### **Question 15F**: [1 point]
+Do the hot and coldspots make sense with your observations of graph `p1`? Why or why not? Can you explain why hot/coldspots will not necessarily correspond with __individual states'__ high and low median readmission rates?
+
+> observations of the graph p1 do not take into consideration the spatial nature of the surrounding states and their influence on each other.
+
+## 2.4 Spatial Regression Models
+
+__Spatial regression models__ explicitly account for spatial relationships in data, which is something we encounter constantly in public health and epidemiology, as well as environmental studies (e.g., climate change, pollution, wildfire risk), agriculture (e.g., soil nutrients, water availability), sociology and social work (e.g., poverty, social justice), criminology (e.g., real-time crime predictions), and business (e.g., real-estate and housing prices). In other words, spatial regression gives us tools to analyze _how nearby locations influence each other_, especially when spatial relationships __violate the assumption of independence in OLS regression!__
+
+There are two common issues that spatial regression addresses:
+
+1. **Spatial dependence**, in which outcomes in nearby locations tend to be similar (e.g., rates of a transmissable disease tend to be higher in nearby areas vs. farther areas).
+
+2. **Spatial heterogeneity**, in which relationships between variables may vary across space (e.g., housing prices, climate, or wildfire risk depend on geographic features of the landscape, sometimes features we have not even measured).
+
+### 2.4.1 Spatial Lag/Autoregressive Regression (SAR)
+
+There are three types of spatial regression models worth mentioning. The **spatial lag model (aka, Spatial Autoregressive Model or SAR)** is the one we will focus on first. In this regression model, the outcome depends on neighboring outcomes. This makes sense for us because we know from the LISA analysis that we have hot/coldspots of pneumonia-related readmissions! 
+
+The general structure of the SAR model is:
+
+$y = \rho Wy + \beta_1 X_1 + \beta_2 X_2 + ... \beta_n X_n +\epsilon$
+
+where $y$ is the target variable (median pneumonia-related readmissions), $W$ is the spatial weights matrix, which defines the neighborhoods (stored in `states_sw`!), and $\rho$ is the _spatial lag coefficient__. This means that the first term of the equation, $\rho Wy$, measures the spatial lag of the target variable as the average of neighbors’ outcomes multiplied by the spatial lag coefficient. It tells us __how much the outcome deviates just do to spatial relationships with neighbors!__. The remaining terms, $\beta_1 X_1 + \beta_2 X_2 + ... \beta_n X_n$ are just the standard regression coefficients for each of the $n$ predictors. $\epsilon$ is an unmeasured error term, which we also have in OLS regression. 
+
+We are justified in proceeding with a SAR because, as you hopefully remember from the end of Project 1, pneumonia-related hospital readmissions could be predicted with an OLS regression! However, we also know we have spatial patterns here that we want to try account for in our predictive models, so let's do that now.
+
+#### **Question 16**: [1 point]
+Your data have already been partitioned into training and testing sets, preprocessed and normalized, and we just calculated the spatial weights matrix, $W$. What if we did NOT already have the data fully pre-processed? In a few sentences, describe the steps we would have to take if we were starting from the raw data.
+
+**HINT**: Think of the data science lifecycle/flow we keep coming back to!
+
+> If we were starting the process from scratch, we would need to proceed through the steps of the pre-processing flow. 1) determine the train-test split ratio and splot into training and test sets. 2) Encode any categorical variables 3) impute missing values 4) perform transformations of vars 5) normalize and scale.
+
+### 2.4.1.1 For our convenience, make a dataframe that contains just the information we want for fitting the SAR and store it into `sarTrain`
+
+```{r}
+
+## Start from the training data
+sarTrain <- states_sf_AggTrain %>% 
+  ## Make it a dataframe/tibble
+  as_data_frame() %>% 
+  ## Drop the features that we dropped before the analysis in Project 1, as 
+  ## well as the features we do NOT want to use as predictors!
+  select(-Median_RawPredictedReadmissionRate, 
+         -Median_RawMedicareSpending, 
+         -Median_RawHospitalReturnDays, 
+         -Median_RawDeathRate, 
+         -ID,
+         -localI, 
+         -pValue, 
+         -quadrant, 
+         -geom, 
+         -lag_medianReadmissions)
+```
+
+### 2.4.1.2 For comparison, let's fit the OLS regression of the Box-Cox transformed pneumonia-related readmissions against the predictors
+
+```{r}
+OLS <- lm(bc_PredictedReadmissionRate ~ ., data = sarTrain)
+```
+
+#### **Question 17A**: [0.5 points]
+Why am I fitting an OLS regression again? 
+
+**HINT 1**: There are actually TWO reasons! But you only need one for full credit...
+
+**HINT 2**: What did aggregation do to our sample size?
+
+> Because it is possible that an OLS regression may be able to predict predicted readmission rates using spatial data
+
+### 2.4.1.3 Check residuals for spatial autocorrelation
+If we didn't already know that we have spatial relationships from the Moran's $I$ and the LISA, we could also consider calculating a Moran's $I$ on the residuals of the OLS regression. This would tell us, even if we had NOT yet done a Moran's $I$ or LISA, that whether we should pay more attention to our spatial relationships and explicitly include them in our regression model. 
+
+$H_0$: The null hypothesis is that the residuals are not spatially autocorrelated. Thus, the OLS is not misspecified and we do not need to worry about spatial relationships in our target.
+
+```{r}
+## Moran's I test on residuals
+moran.test(residuals(OLS), states_sw)
+```
+
+#### **Question 17B**: [1.5 points]
+- What would we conclude from the results of the Moran's $I$ test on the __residuals__? 
+
+> Because the p value is > 0.05, it appears that a spatial relationship in the data is not significant.
+
+- If we had started here, rather than calculating the Moran's $I$ and LISA first, could we have been potentially mistaken about spatial relationships? Why or why not?
+
+> Yes, we may have accepted the null hypothesis (that there is no spatial relationship)
+
+- Why might these results disagree with what we found from the Moran's $I$ and LISA on the scaled target?
+
+> Since this is just a linear regression, it does not fully examine the spatial component of the data.
+
+### 2.4.1.4 Fit the SAR model
+The `lagsarlm()` from the `spatialreg` package will fit the SAR for us, allowing us to specify the spatial weights matrix, `states_sw`, that we calculated all the way back [here](#findSW).
+
+```{r}
+## SAR (spatial lag model)
+SAR <- lagsarlm(bc_PredictedReadmissionRate ~ ., data = sarTrain, 
+                      listw = states_sw)
+
+summary(SAR)
+```
+
+### 2.4.1.5 Interpret the SAR model 
+The `summary()` output of the SAR model shows a lot going on. Let's go through the three key pieces of evidence we want to assess from these results.
+
+1. Spatial Autoregressive Coefficient ($\rho$, "Rho")
+
+Here, we find that $\rho = 0.33291$ with an estimated p-value of $p = 0.012065$ based on a Z-statistic of $Z = 2.5102$. What the Wald Z-test is doing is testing whether $\rho = 0$, just like in Pearson correlation tests! 
+
+**CONCLUSION**: With a p-value LESS than 0.05, we would conclude that $p \ne 0$ - thus there is *sufficient spatial dependency in the target variable to justify including the lag term in this model*. That's opposite what the Moran's $I$ on the residuals implied but feels very consistent with what we found for both global and local Moran's $I$ earlier.  
+
+2. Likelihood Ratio Test
+
+More generally, Likelihood Ratio Tests (LRTs) are used to compare **well one nested regression model fits compared to an unnested model**. If you've ever done stepwise regression, you've inherently done a Likelihood Ratio Test possibly without knowing it! Note that because SAR is a nested model, it reduces to OLS when the spatial lag coefficient $\rho = 0$. When there is NO spatial lag ($\rho = 0$), the first term of the SAR model cancels out! 
+
+The `lagsarlm()` unfortunately will not automatically compare the Spatial Lag Model (SAR) with the Ordinary Least Squares (OLS) model - **but we can**. We will do this by separately performing a Likelihood Ratio Test (LRT). But the LRT test is very simple. The formula for the likelihood ratio (LR) of the two models can be found by:
+
+$LR = 2 \times (\log L_{SAR}  - \log L_{OLS})$ 
+
+where $\log L_{SAR}$ is the log-likelihood of the SAR model and $\log L_{OLS}$ of the OLS model. The LR test statistic follows a $\chi^2$ distribution with 1 degree of freedom. 
+
+But if that feels too mathy for your, just remember this: **A LR of 0 means there is NO difference between the two models being compared, but the bigger the LR the higher the probability that the two models are different.** Thus, our $H_0$ (null hypothesis) is that there is no difference between the SAR model and the OLS. So, if our $p$-value is less than 0.05, we will reject that null hypothesis. 
+
+In the output, the $\log L_{SAR} = -12.75$ but the $\log L_{OLS}$ isn't shown. We can very quickly perform the LRT in `R` using the `anova()` function. **NOTE** that this function is confusingly named here; it will either do an Analysis of Variance (ANOVA) or an Analysis of Deviance, also known as the Likelihood Ratio Test which is what we are doing here!
+
+```{r}
+## Give it the larger model first, then the null model.
+## SAR is our larger model; the null OLS is nested within the SAR because
+## the SAR = OLS when rho = 0!
+anova(SAR, OLS)
+```
+
+This tells us that the log-likelihood of SAR ($\log L_{SAR}$) is -12.75, the log-likelihood of OLS is ($\log L_{OLS}$) is -15.146, and the likelihood ratio (LR) statistic is 4.7905 with an estimated $p$-value of 0.028616. Although it does not say this, the degrees of freedom is 1 here: 19 df from SAR - 18 df from OLS. 
+
+Thus, if we wanted to do it by "hand" (i.e., calculate it according to the formula), it would look like this:
+
+```{r}
+## Likelihood ratio test by "hand"
+
+## Extract the log-likelihoods for each model
+logLik_OLS <- logLik(OLS)
+logLik_SAR <- logLik(SAR)
+
+## Calculate the likelihood ratio (LR) - make sure to use as.numeric()!
+LR <- 2 * (as.numeric(logLik_SAR) - as.numeric(logLik_OLS))
+## Find the estimated p-value for the LR statistic using the chi-squared 
+## distribution. Use the df = 19-18 that we observed above. 
+p <- pchisq(LR, df = 1, lower.tail = FALSE)
+
+## Print the results!
+cat("The likelihood ratio LR =", LR, "with 1 degree of freedom has p =", p)
+```
+
+Which is the same as what the `anova()` function gave us!
+
+**CONCLUSION**: With a $p$-value LESS than 0.05, we would conclude that there is a difference between the two models. The more complex model, SAR, adds sufficient information to the model to help its fit. Thus, there is *sufficient evidence that a spatial model improves our predictive ability over what an OLS alone would*. Again, that's opposite what the Moran's $I$ on the residuals implied but feels very consistent with what we found for both global and local Moran's $I$ earlier.  
+
+3. Lagrange Multiplier (LM) Test for Residual Spatial Autocorrelation
+
+The LM test is based on the spatially lagged residuals and compares the residual spatial pattern to what would be expected under independence - meaning that it's similar to the test we did earlier when we tested whether there was a spatial pattern to the OLS residuals! These are very similar tests, albeit calculated in slightly different ways. 
+
+The null hypothesis ($H_0$) again is that there is NO spatial pattern to the residuals; the difference now is that **we are testing if there's still "leftover" spatial autocorrelation in the residuals AFTER fitting our SAR model**. In other words - did the SAR model do a sufficiently good job at dealing with spatial autocorrelation? If yes, yay! We're done! If no, we'd need to do a Spatial Error Model (SEM) or Spatial Durbin Model (SDM), the other two types of regression I alluded to wayyyy back at the beginning of this section.
+ 
+Our LM test statistic, per the `summary()` output, is 0.05318 with a $p$-value of 0.81762. 
+
+**CONCLUSION**: With a $p$-value MORE than 0.05, we could conclude that there is NO residual spatial autocorrelation after fitting the SAR. Thus, the SAR model is sufficient for explaining the spatial autocorrelation in the target!
+
+#### **Question 18**: [3 points]
+Briefly summarize everything we know at this point: (1) Global Moran's $I$ results, (2) Local Moran's $I$ (LISA) results, (3) Moran's $I$ on the residuals of the OLS model, (4) the test for spatial autoregression using the coefficient $\rho$, (5) the Likelihood Ratio Test (LRT), and (6) the LM test for residual spatial autocorrelation after fitting the SAR model. DO NOT simply copy my interpretations but instead try to make sure you understand each of these pieces of evidence and what they tell us.
+
+> 1. Global Moran's I results: p value of 0.0014 showed significant positive spatial autocorreltation for median pneumonia related readmissions.
+> 2. Local Moran's I (LISA) results: helped us to identify hotspots and coldspots in the spatial data
+> 3. Moran's I on the residuals of the OLS model: p value is > 0.05, it appears that a spatial relationship in the data is not significant with this model.
+> 4. Test for spatial autoregression using the coefficient rho: p value is not < .05, so no spatial dependcy found in the target variable.
+> 5. Likelihood Ratio Test (LRT): p < 0.05, so there is sufficient evidence that a spatial model improves our predictive ability over OLS model alone.
+> 6. LM test for residual spatial autocorrelation after fitting the SAR model:  p value of 0.8176, so the SAR model is the right choice for explaining spatial autocorrelation in median pneumonia related readmissions.
+
+What is your **final takeaway**? Do we need to account for spatial autocorrelation in our regression model?
+
+> The regression model is not the best model in this case.
+
+### 2.4.1.6 Inferential statistics - which predictors are important?
+
+```{r, echo = FALSE}
+## Print a table using gtsummary
+tbl_regression(SAR) %>% 
+  modify_caption("Table 7. Spatial Lag (SAR) Regression results.") %>% 
+  modify_header(label = "**Coefficient**") %>% 
+  add_significance_stars(hide_p = FALSE)
+```
+
+#### **Question 19**: [2 points]
+We can think of dealing with **spatial spillover** as helping us distinguish the wheat from the chaff (truth from noise). **Interpret** which of the coefficients are significant ($p$-value < 0.05) AND compare that to both Table 10 (parsimonious OLS model results) AND Figure 20 (Feature Importance from Elastic Net) from __Project 1__. Now that we are accounting for spatial autocorrelation, which predictors are still important? Did any become significant (important) now that weren't before?
+
+> The significant coefficients (p<.05) are 
+Perioperative.pulmonary.embolism.or.deep.vein.thrombosis.rate	(<0.001)
+Medicare.spending.per.patient (<0.001)
+Quietness (0.019)
+
+
+### 2.4.1.6 Inferential statistics - which predictors are important?
+
+Recall that our goal for our stakeholder is to be able to __predict(!)__ which hospitals perform better than others. They want to make a deployable tool for patients/customers. So, let's test the predictive ability of our model by using our testing data to calculate the $RMSE$. 
+
+1. _First, join the testing data with the shapefile, then create a test dataset suitable for SAR:_
+
+This is called "spatially embedding" our testing data. Notice that we are using the spatial weights **from the training set** to prevent data leakage!!
+
+```{r}
+## Join the shapefile with spatial weights and neighbor lists back to the 
+## testing data
+states_sf_AggTest <- left_join(states_sf, stateAggTest, 
+                                by = c("ID" = "region"))
+
+            ## Start from the testing data
+sarTest <- states_sf_AggTest %>% 
+  ## Make it a dataframe/tibble
+  as_data_frame() %>% 
+  ## Move the ID column to the rownames
+  column_to_rownames("ID") %>% 
+  ## Drop the features that we dropped before the analysis in Project 1, as 
+  ## well as the features we do NOT want to use as predictors!
+  select(-Median_RawPredictedReadmissionRate, 
+         -Median_RawMedicareSpending, 
+         -Median_RawHospitalReturnDays, 
+         -Median_RawDeathRate,
+         -geom) %>% 
+  ## Have to drop any missing values from the testing data
+  drop_na()
+```
+
+2. _Now, perform the predictions using the testing data and the SAR model we already fit:_
+
+The `spatialreg` package has its own version of the `predict` function, which will take the SAR model, the testing data, and the spatial weights (`states_sw`).
+
+```{r}
+predictions <- predict(SAR, newdata = sarTest, listw = states_sw) %>% as_tibble()
+## Returns as a list; so make sure to turn into a dataframe for convenience
+```
+
+```{r, echo = FALSE, warning = FALSE, message=FALSE}
+predictions %>% 
+  ## Add a new column for the states, which comes from the rownames
+  mutate(State = rownames(sarTest)) %>% 
+  ## Reorganize the columns to show State first, then everything else
+  select(State, everything()) %>% 
+  ## Just show the first 6 rows
+  head() %>% 
+  kable(digits = 2,
+    format = "html",
+    caption = "Table 8. First 6 rows of SAR predictions using the testing data.") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F)
+  )
+```
+
+We can see that the predictions contain the following components:
+
+- `fit`: the __predicted outcome__ $\hat{y}$; here, this includes the influence of the spatial lag!
+- `trend`: the combination of linear predictor(s) for each value of the target $y$; here, this is a combination of all $\beta_1X_1 + ... \beta_nX_n$ in our model - so all of the predictors and their coefficients
+- `signal`: the spatial term, $\rho Wy$; this is the influence that the spatial autocorrelation has on each value of the target $y$ 
+
+3. _Calculate the RMSE:_
+
+We will use the `fit` component from the predictions to calculate RMSE. 
+```{r}
+## Calculate RMSE using the `fit` values
+sarRMSE <- sqrt(mean((sarTest$bc_PredictedReadmissionRate - predictions$fit)^2))
+```
+
+4. _Compare that with the RMSE from the OLS:_
+
+To be able to determine how much better a job its doing (if any), we need to compare the RMSE of the new OLS (not the one from Project 1) to the RMSE from the SAR model we just calculated.
+
+```{r}
+olsPredictions <- predict(OLS, newdata = sarTest)
+olsRMSE <- sqrt(mean((sarTest$bc_PredictedReadmissionRate - olsPredictions)^2))
+```
+
+```{r, echo = FALSE, warning = FALSE, message=FALSE}
+## Make a dataframe for comparison of RMSE values
+data.frame(Model = c("OLS", "SAR (Spatial Lag)"),
+  RMSE = round(c(olsRMSE, sarRMSE), 2)) %>% 
+  ## Display with kable
+  kable(digits = 2,
+    format = "html",
+    caption = "Table 9. Comparison of RMSE for OLS and SAR models.") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F)
+  )
+```
+
+
+#### **Question 20A**: [0.5 points]
+Why is it challenging to interpret this RMSE in terms of the original/raw median pneumonia-related hospital readmissions? (I know.. I know... you've gotten it by now. Just checking.)
+
+> This is because the RMSE alone isn't sufficient in explaining spatial autocorrelation in the targer (which is why we used other tests to help explain)
+
+**So, let's add the Mean Absolute Error (MAE) as well, which may be easier to interpret**.
+```{r}
+## OLS MAE
+olsMAE <- mean(abs(sarTest$bc_PredictedReadmissionRate - olsPredictions))
+
+## SAR MAE
+sarMAE <- mean(abs(sarTest$bc_PredictedReadmissionRate - predictions$fit))
+```
+
+```{r, echo = FALSE, warning = FALSE, message=FALSE}
+## Make a dataframe for comparison of RMSE values
+data.frame(Model = c("OLS", "SAR (Spatial Lag)"),
+  RMSE = round(c(olsRMSE, sarRMSE), 2),
+  MAE = round(c(olsMAE, sarMAE),2)) %>% 
+  ## Display with kable
+  kable(digits = 2,
+    format = "html",
+    caption = "Table 10. Comparison of RMSE for OLS and SAR models.") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F)
+  )
+```
+
+#### **Question 20B**: [1.5 points]
+Interpret the MAE **and** the RMSE. Which model is better? Don't forget to interpret the RMSE in terms of the transformed target!
+
+> Since both a lower MAE and RMSE indicates greater accuracy, the SAR (Spatial Lag) model is better than the OLS regression model.
+
+### 2.4.2 Other Types of Spatial Regression Models
+The results of our SAR showed that we did not need to worry about any other types of spatial regression because the LM Test for spatial autocorrelation of the residuals was not significant. Still, I want to take a brief moment to explain what those models are and how we do them, using our current data as an example. They are important enough alternatives to the SAR we may need them in the future!
+
+**In both of these cases**, you'd consider these if your LM Test for residual spatial autocorrelation was **significant**.
+
+### 2.4.2.1 Spatial Error Model
+We've discussed how the SAR only models spatial "spillover" into the target, but we've also peeked at whether we have spatial spillover in the residuals (errors). Why would we care? **One of the fundamental assumptions of an OLS regression is independence of our error terms**, which is something we typically do not test for because we assume we have it based on our research/experiment/analytical design. But the moment we have spatial dependence, well, we may potentially violate this key assumption!
+
+In our case, after controlling for all known predictors and modeling spatial dependence in the target only, we were able to uphold the assumption of independence (that's what the LM test showed). But sometimes, even after SAR, our data may still show similar residual patterns. At such a point, the next step would be to fit a Spatial Error Model (SEM). 
+
+The general structure of the SEM is:
+
+$y = + \lambda W \epsilon + \beta_1 X_1 + ... +\beta_n X_n + E$
+
+where $y$ is the target variable (median pneumonia-related readmissions), $W$ is the spatial weights matrix, which defines the neighborhoods (stored in `states_sw`!), and $\lambda$ is the _spatial error coefficient__. This means that the first term of the equation, $\lambda W \epsilon$, measures the spatial correlation between our errors. So, if $\lambda = 0$, the spatial correlation between the errors isn't enough to bias the standard errors. As with SAR, the remaining terms, $\beta_1 X_1 + \beta_2 X_2 + ... \beta_n X_n$ are just the standard regression coefficients for each of the $n$ predictors. $E$ is an unmeasured error term, which is now the overall error leftover after fitting the SEM regression. 
+
+Fitting the model is pretty easy using the `errorsarlm()` function:
+
+```{r}
+## Fit the SEM (spatial error model) using the training data and weights matrix
+SEM <- errorsarlm(bc_PredictedReadmissionRate ~ ., data = sarTrain, 
+                        listw = states_sw)
+
+## Uncomment to view results!
+summary(SEM)
+```
+
+#### **Question 21A**: [1 point]
+Test the null hypothesis that $\lambda = 0$, i.e., that there is spatial autocorrelation in the residuals. What p-value do you get and what conclusions do you make?
+
+> The Lambda value is positve (0.61363) which is greater than 0, and therefore indicates the residuals exhibit spatial clustering.
+
+**WHY** might you find a significant SEM but the LM test from the SAR is NOT significant? What does that suggest about our SAR model? (This is not a trick question, we've already discussed it.)
+
+> Yes, since the LM test will either conclude there is no residual spatial autocorrelation (p>0.05), or that there is residual spatial autocorrelation (p<0.05)
+
+### 2.4.2.2 Spatial Durbin Model
+
+The Spatial Durbin Model (SDM) extends the Spatial Lag Model (SAR) by incorporating spatial lags of both the target variable AND the predictors. The idea here is that not there may be spatial autocorrelation in not only the target but also some (if not all) of the predictors. For example, if there was a policy or some underlying demography that affected the pneumonia-related hospital readmissions of one state that ALSO influenced that of a neighboring state, and we had measured that as a predictor (e.g., poverty rates or the number of elderly in the population), then an SDM would be a good idea provided that you had a significant LM test.
+
+The general structure of the SDM is:
+
+$y = \rho Wy + \{\beta_1 X_1 + ... +\beta_n X_n\} + \{W_1X_1\theta_1 + ... + W_nX_n\theta_n\} + \epsilon$
+
+where $y$ is the target variable (median pneumonia-related readmissions), $W$ is the spatial weights matrix, which defines the neighborhoods (stored in `states_sw`!), and $\rho$ is the spatial lag coefficient, making the first term of the equation, $\rho Wy$, the same as it was in SAR! The next term, $\beta_1 X_1 + \beta_2 X_2 + ... \beta_n X_n$ are just the standard regression coefficients for each of the $n$ predictors. Then comes the third term, $\{W_1X_1\theta_1 + ... + W_nX_n\theta_n\}$, which represents EACH of the spatially-lagged predictors we are including. Note that we would not have to spatially lag all predictors. As before, $\epsilon$ is an unmeasured error term. 
+
+So, just by looking at all that mathy-math, we can see this model is a lot more complicated! The advantage, however, is that it would allow us to account for spatial autocorrelation in the target and predictors simultaneously, which is immensely powerful. And I like power! (Statistical power, that is.)
+
+Fitting the model is pretty easy using the `lagsarlm()` function:
+
+```{r}
+SDM <- lagsarlm(formula = bc_PredictedReadmissionRate ~ ., data = sarTrain, 
+  listw = states_sw, type = "mixed") ## "mixed" is necessary to specify as SDM
+
+## Uncomment to view results!
+summary(SDM)
+```
+
+**Now, you might notice something a bit odd here**. Now, the test of the $H_0: \rho = 0$ is NOT significant (p = 0.17868) but the LM test IS significant (p = 0.012548), which is a **complete reversal**. What gives?!
+
+The reality is that we likely have **yet unaccounted for spatial structure in the data**, in the form of OMITTED VARIABLES. Yikes! How can we deal with that if we have no idea what we omitted?!
+
+#### TAKEAWAYS 
+
+- The SAR did a "good enough" job at inference. We've muddied the waters a bit by doing the SDM. Sometimes "good enough" is totally okay! However, don't forget that for **prediction** purposes, the SAR model is not going to work. 
+
+- There are very likely to be **omitted** spatial variables. We haven't, for example, included anything about underlying demographics or **Social Determinants of Health**. 
+
+- If we were determined to improve this, we would either 
+  - (1) Try a Spatial Durbin Error Model (SDEM) or 
+  - (2) Try to find the ommitted variables. **We are going to go with option 2!**
+
+
+#### **Question 21B**: [1 point]
+Briefly summarize a possible workflow, based on what we've done here as well as with help from other sources if needed, to use (1) Moran's $I$ and/or LISA, (2) SAR, (3) SEM, and (4) SDM. Table 8 (below) may help you or you're free to refer to it to save writing. Feel free to write this is as numbered or bulleted list, if you'd like!
+
+> The first step would likely be using Moran's I to determine if spatial autocorrelation exists in your data.  If it does, you may proceed to use LISA to look for local hotspots/coldspots.  If the target varaible may be influenced by neighbors, you may try to use SAR for spatial lag values. You can then try to use SEM if the error terms might be spatially autocorrelated. SDM combines both SAR and SEM (spatial lag and spatial error).  
+
+\  
+
+##### Table 11. Comparison of spatial regression models and when to use them.
+| **Model**                            | **Spatial Dependence In**   | **Use When**                                               |
+| ------------------------------------ | --------------------------- | ---------------------------------------------------------- |
+| **SAR** (Spatial Lag/Autoregressive) | Target variable             | Outcome in one area is influenced by neighboring outcomes  |
+| **SEM** (Spatial Error)              | Residuals $\epsilon$        | Unmeasured spatial effects or spatial error correlation    |
+| **SDM** (Spatial Durbin)             | Both target and predictors  | Capture spatial spillover of both outcomes and predictors  |
+
+
+#### **Question 22**: [2 points]
+**DATA SCIENCE EXTENSIONS OF SPATIAL MODELING** $\rightarrow$ At this point, it should feel clear that we have spatial influence in our data with state-level differences in pneumonia-related hospital readmissions. Yet, building a robust predictive model is still not within our grasp. How could we get there?
+
+Our next steps will involve moving in the direction of __adding omitted spatially correlated features__, but your first task is a thought experiment and a little research. 
+
+Do data scientists ever extract the spatially lagged targets/predictors and put them into machine learning models, like Elastic Net - or others like Random Forest or Neural Networks? Make sure to give an example from a scholarly or journalistic article. 
+
+
+
+
+**HINT 1**: Searching [Google Scholar](https://scholar.google.com) can be a starting point for academic articles. 
+
+**HINT 2**: The [Harvard Data Science Review](https://hdsr.mitpress.mit.edu) can be a solid starting point for articles that are more hybrid academic/journalistic.
+
+**HINT 3**: [Medium](https://medium.com) or LinkedIn can sometimes have decent how-to guides, but these articles are NOT validated in any way. If you choose an article from here, make sure you validate it with what we've done here and discussed in class!
+
+> Yes, I found an article "Incorporating Spatial Autocorrelation in Machine Learning Models Using Spatial Lag and Eigenvector Spatial Filtering Features"
+> The authors "explore two types of spatial features, namely spatial lag and eigenvector spatial filtering (ESF). These features are used within the widely used random forest (RF) method, and their effect is illustrated on two public datasets of varying sizes"
+> citation:
+Liu, X., Kounadi, O., & Zurita-Milla, R. (2022). Incorporating Spatial Autocorrelation in Machine Learning Models Using Spatial Lag and Eigenvector Spatial Filtering Features. ISPRS International Journal of Geo-Information, 11(4), 242. https://doi.org/10.3390/ijgi11040242
+
+
+#### **Question 23**: [2 points]
+**DATA SCIENCE EXTENSIONS OF SPATIAL MODELING** $\rightarrow$ Why is the **state-level** spatial dataset inappropriate for any further machine-learning? In other words, why are we currently restricted __with the dataset exactly as it is__ to just the SAR, SEM, or SDM?
+
+**HINT**: Check the dimensions of `sarTrain` if you need to!
+
+> sarTrain has 18 variables.
+
+#### **Question 24**: [1 point]
+**DATA SCIENCE EXTENSIONS OF SPATIAL MODELING** $\rightarrow$ Is there another spatial structure to this dataset that we could explore for use with machine learning instead of state-level?
+
+> Not sure.
+
+# 3 Finding omitted spatially-autocorrelated variables
+
+At this stage, we know that the SAR model is "good enough" - if we want to do inference only, that is! The SDM "hinted" at some likely omitted variables that are spatially correlated with the predictors in our dataset. The tricky this is - how do we figure out what we've omitted?
+
+Perhaps you noticed, as I did, that some of the higher rates of pneumonia-related readmissions tend to be in denser regions, like D.C. New Jersey, or states with larger elderly populations, like Florida and California (see [Table 4](#table4)). Perhaps poverty rates are also important, like West Virginia or Kentucky. The point is, we could _speculate_ about possible demographic or socially-determined causes of poor health outcomes, all of which are likely to have their _own_ underlying spatial structure as well! 
+
+#### **Question 25**: [1 point]
+What is a **Social Determinant of Health (SDOH)**? Where does this phrase come from?
+
+> Social determinants of health (SDOH) are the conditions in the environments where people are born, live, learn, work, play, worship, and age that affect a wide range of health, functioning, and quality-of-life outcomes and risks.  There are 5 domains (economic stability, education access and quality, health care access and quality, neighborhood and the built environment, social and community context.)
+> Source: https://odphp.health.gov/healthypeople/priority-areas/social-determinants-health
+
+
+## 3.1 Pre-processing population-level data to test SDOH hypotheses
+
+Let's bring in some data from the 2023 [US Census](https://www.census.gov) (these are projections based on the 2020 Census), as well from the [Administration for Community Living (ACL)](https://acl.gov) which had conveniently already compiled further data we could use from the US Census. The 2023 US Census Bureau projections were downloaded from [here](https://www.census.gov/data/tables/time-series/demo/popest/2020s-state-detail.html), and the ACL data were downloaded from [here](https://acl.gov/aging-and-disability-in-america/data-and-research/profile-older-americans). For our convenience, I already put them into a `csv` we can import. The geographic measurements also come from the US Census Bureau, which I obtained
+[here](https://www.census.gov/geographies/reference-files/2010/geo/state-area.html). 
+
+**Note** that, if our administrative data from the Centers for Medicare and Medicaid Services (CMS) that we're using are from fiscal year 2024, then we would want to use the 2023 census data! This is because of [how federal government fiscal years run](https://www.usa.gov/federal-budget-process).
+
+```{r}
+## Read in, calculate the percent of the total adult population over 65,
+## Make the states lowercase
+## Calculate population density as hundreds of people per square mile
+
+pop <- read_csv("2023_US_Census.csv", show_col_types = FALSE) %>% 
+  mutate(over65PercentPop = over65Pop / adultPop,
+         region = tolower(region),
+         popDensity = (totalPop/100)/(landSqMi))      
+```
+
+```{r, echo = FALSE, warning = FALSE, message=FALSE}
+pop %>% 
+  arrange() %>% 
+  top_n(6) %>% 
+   kable(digits = 2,
+    format = "html",
+    caption = "Table 12. First 6 rows of US Census Bureau data.") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F)
+  )
+```
+
+**Take a look** at the original `csv` file. It included `totalPop` (includes children), `adultPop` (all individuals 16+ years), `over65pop` (all adults 65+ years), `percBelowPoverty` (percent of the total population living at or below the Poverty Index for 2023), and `landSqMi` (the land area in square miles). I then calculated the `over65PercentPop` as the percent of the population that is over the age of 65 relative to the total adult population over the age of 65. I also calculated `popDensity`, which is the population per land in square miles. This gives us a better sense of how dense vs. spread out a geographic area may be. Note too that these data have _already been aggregated to the state-level_. 
+
+
+**Lastly**, let's join the census data with the training and testing data (`states_sf_AggTrain` and `states_sf_AggTest`) so that we have those data downstream for analysis.
+
+```{r}
+## Join with the states aggregated shapefile training data from Section 2 
+states_sf_AggTrain <- left_join(states_sf_AggTrain, pop, 
+                            by = c("ID" = "region"))
+
+## And do testing data as well:
+states_sf_AggTest <- left_join(states_sf_AggTest, pop, 
+                            by = c("ID" = "region"))
+```
+
+## 3.2 Testing Hypotheses: Readmissions by Population Density
+
+I didn't formally lay these out as **hypotheses** (statements that explain WHY something happens) that we could test, but I sure could! Let's start by formulating and testing a hypothesis about population density. 
+
+**Formulation of Hypothesis 1**: States with high population density have higher median pneumonia-related readmissions **because** denser populations support more hospital facilities, are likelier to reflect more urban areas, and may even enable faster spread of pneumonia as compared to states with less dense populations.
+
+We have a hypothesis now, but how can we test it? (Hypotheses will always be a "because" statement!)
+
+### 3.2.1 Heuristic (Visual) Tests
+
+A heuristic is a solution that we arrive at by trial-and-error or, very oftenly, by visual or some other kind of inspection. It's different from statistical testing but often as valid because it allows us to **explore** the data. Every time we do Exploratory Data Analysis we're doing heuristic assessment of our datasets!
+
+So, let's use our mapping skills to help us to assess whether we think there is any support for a correlation between population density and median pneumonia-related hospital readmissions. We will print four plots (one we've previously made, `p1`) for analysis.
+
+#### **Question 26**: [1 point]
+Add your comments to the code that makes the three new plots: `p2`, `p3`, and `p4`. 
+
+> Answer in the comments.
+
+```{r, echo = TRUE, warning = FALSE, message = FALSE}
+## Make a map `p2` of population density:
+p2 <- states_sf_AggTrain %>% 
+## Filter out 'district of columbia from map
+  filter(ID != "district of columbia") %>%  ## <- Comment this out to see why!
+  
+  
+## call ggplot
+ggplot() +
+  ## color the geographic shapes with greyscale based on the popDensity data
+  geom_sf(aes(fill = popDensity), color = "grey20", alpha = 1, size = 0.2) +
+  ## create a scale gradient for the map key
+  scale_fill_gradient(
+    name = "Hundreds per sq. mi.",
+    low = "white", high = skittles[3],
+    na.value = "grey90"
+  ) +
+  ## titles an captions
+  labs(title = "Adult population density by state",
+    caption = "Source: U.S. Census Bureau, 2023") +
+  ## these format the theme of the plot
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    legend.position = "bottom"
+  ) +
+  ## coordinates of sf
+  coord_sf()
+
+## Make a scatterplot called `p3` with best-fit reference line between 
+## population density and the pneumonia-related hospital readmissions
+
+p3 <- states_sf_AggTrain %>% 
+## filter out disctict of columbia
+  filter(ID != "district of columbia") %>%  ## <- Comment this out to see why!
+## call ggplot and make a scatterplot
+ggplot(aes(x = popDensity, y = Median_RawPredictedReadmissionRate)) +
+## point (scatterplot) with a linear regression line, use skittles (3) as the color
+  geom_point(alpha = 0.5) + 
+  geom_smooth(method = "lm", se = T, color = skittles[3]) +
+  theme_minimal() +
+  ## titles and axis labels
+  labs(title = "Hospital readmissions by population density",
+       x = "Hundreds per sq. mi.",
+       y = "Predicted Pneumonia-related Hospital Readmissions")
+
+## Make a barplot `p4` that shows the highest density states with their median
+p4 <- states_sf_AggTrain %>% 
+## filter out district of columbia
+  filter(ID != "district of columbia") %>%  ## <- Comment this out to see why!
+  ## arrange ordered by popDensity data
+  arrange(desc(popDensity)) %>% 
+  ## only show the top 10 states of popDensity
+  head(10) %>% 
+  ## call ggplot
+ggplot(aes(x = fct_reorder(ID, popDensity), y = Median_RawPredictedReadmissionRate)) +
+  ## a bar chart
+  geom_col(fill = skittles[3]) +
+  theme_minimal() + 
+  ## make it a horizontal bar chart
+  coord_flip() +
+  ## title and axis labels
+  labs(title = "Top 10 Most Dense States",
+     y = "Median % hospital readmissions",
+     x = "",
+     caption = "Source: CMS, 2024 & U.S. Census, 2023; n.b. Wash D.C. excluded")
+```
+
+```{r, echo=FALSE}
+## This prints the plots in a nice arrangement when knitted
+p1
+p2
+grid.arrange(p3, p4, ncol = 2)
+```
+
+#### **Question 27A**: [0.5 points]
+Compare the new map, `p2` of population density to the original map, `p1`. It may be hard to tell at first, but do you see a correlation between population density and median pneumonia-related admissions?
+
+> It is difficult to tell, but there does seem to be a correlation with some states (New Jersey, Illinois, Florida)
+
+#### **Question 27B**: [0.5 points]
+Now look at the scatterplot, `p3`, and the column graph, `p4`. What conclusions can you make, if any, from these two graphs and why?
+
+> The scatterplot `p3` does seem to show a linear trend, but most of the data points are for lower population states (so the regression line has weak support, since there are only a few data points representing very high population dense states).  The column chart `p4` shows that more densely populated states have similar rates of hospital readmission
+
+### 3.2.2 Adding Population Density to the SAR
+
+Now, we can also calculate the spatial statistics using the updated dataset now that we've add population density. Let's make a new `sarTrain` and `sarTest` so we can repeat the spatial regressions we did in Part 2.
+
+#### 3.2.2.1 Make the updated `sarTrain` and `sarTest`
+```{r}
+## TRAINING
+## Start from the training data
+sarTrain <- states_sf_AggTrain %>% 
+  ## Make it a dataframe/tibble
+  as_data_frame() %>% 
+  ## Drop the features that we dropped before the analysis in Project 1, as 
+  ## well as the features we do NOT want to use as predictors!
+  select(-Median_RawPredictedReadmissionRate, 
+         -Median_RawMedicareSpending, 
+         -Median_RawHospitalReturnDays, 
+         -Median_RawDeathRate, 
+         -ID,
+         -localI, 
+         -pValue, 
+         -quadrant, 
+         -geom, 
+         -lag_medianReadmissions,
+  ## Make sure to remove any correlated variables/variables we don't want to
+  ## test from the Census data!!
+         -totalPop,
+         -adultPop,
+         -over65Pop, 
+         -percBelowPoverty,
+         -landSqMi, 
+         -over65PercentPop)
+
+## TESTING
+  ## Start from the testing data
+sarTest <- states_sf_AggTest %>% 
+  ## Make it a dataframe/tibble
+  as_data_frame() %>% 
+  ## Move the ID column to the rownames
+  column_to_rownames("ID") %>% 
+  ## Drop the features that we dropped before the analysis in Project 1, as 
+  ## well as the features we do NOT want to use as predictors!
+  select(-Median_RawPredictedReadmissionRate, 
+         -Median_RawMedicareSpending, 
+         -Median_RawHospitalReturnDays, 
+         -Median_RawDeathRate,
+         -geom,
+         ## Make sure to remove any correlated variables/variables we don't want to
+         ## test from the Census data!!
+         -totalPop,
+         -adultPop,
+         -over65Pop, 
+         -percBelowPoverty,
+         -landSqMi, 
+         -over65PercentPop) %>% 
+  ## Have to drop any missing values from the testing data
+  drop_na()
+```
+
+#### **Question 28**: [3 points]
+We are about to walk through the spatial regressions again now that we have added `popDensity` to the dataset. You will need to answer an interpretation question after **each** code chunk!
+
+#### 3.2.2.2 Fit the OLS regression and test Moran's I on the residuals
+```{r}
+OLS <- lm(bc_PredictedReadmissionRate ~ ., data = sarTrain)
+## Moran's I test on residuals
+moran.test(residuals(OLS), states_sw)
+```
+
+**QUESTION**: What does Moran's $I$ test on the residuals tell us about spatial autocorrelation of the residual (error) terms?
+
+> The Moran's I statistic is > 0 which suggests a positive spatial autocorrelation, but the p value is slighlty > 0.05, so it is not significant.
+
+
+#### 3.2.2.3 Fit the SAR and look at $\rho$ and the LM test
+```{r}
+## SAR (spatial lag model)
+SAR <- lagsarlm(bc_PredictedReadmissionRate ~ ., data = sarTrain, 
+                listw = states_sw)
+## Uncomment to view results!
+summary(SAR)
+```
+
+**QUESTION**: What is the value of $\rho$ and its $p$-value? Does it suggest that we have spatial dependence in our target variable still? Are you surprised? What about the LM test?
+
+> The rho value of .36 suggests a weak/moderate spatial clustering. The p value is < 0.05, which suggests the spatial lag contributed to the target variable.  
+
+#### 3.2.2.4 Compare the SAR to the OLS model with a Likelihood Ratio Test (LRT)
+```{r}
+## Give it the larger model first, then the null model.
+## SAR is our larger model; the null OLS is nested within the SAR because
+## the SAR = OLS when rho = 0!
+anova(SAR, OLS)
+```
+
+**QUESTION**: Which model is the better fitting model and why?
+
+> Not sure.
+
+#### 3.2.2.5 Inferential statistics
+```{r}
+## Print a table using gtsummary
+tbl_regression(SAR) %>% 
+  modify_caption("Table 7. Spatial Lag (SAR) Regression results.") %>% 
+  modify_header(label = "**Coefficient**") %>% 
+  add_significance_stars(hide_p = FALSE)
+```
+
+**QUESTION**: Did any of the predictors change significance from the first SAR we ran? What about `popDensity`? Is it significant, and how do you interpret its beta coefficient (the slope) AFTER adjusting for spatial dependence in readmission rate?
+
+> popDensity is significant (p=0.042)
+
+
+
+#### 3.2.2.6 Fit SEM and SDM
+```{r}
+## Fit the SEM (spatial error model) using the training data and weights matrix
+SEM <- errorsarlm(bc_PredictedReadmissionRate ~ ., data = sarTrain, 
+                  listw = states_sw)
+## Uncomment to view results!
+summary(SEM)
+
+## Fit the SDM (spatial Durbin model) using the training data and weights matrix
+SDM <- lagsarlm(formula = bc_PredictedReadmissionRate ~ ., data = sarTrain, 
+    listw = states_sw, type = "mixed") ## "mixed" is necessary to specify as SDM
+## Uncomment to view results!
+summary(SDM)
+```
+
+#### 3.2.2.6 Predictions using the testing data on SAR, SEM, and SDM
+
+```{r}
+## Fit the predictions for the FOUR models using the testing data!
+olsPredictions <- predict(OLS, newdata = sarTest)
+
+sarPredictions <- predict(SAR, newdata = sarTest, listw = states_sw) %>% 
+  as_tibble()
+
+semPredictions <- predict(SAR, newdata = sarTest, listw = states_sw) %>% 
+  as_tibble()
+
+sdmPredictions <- predict(SAR, newdata = sarTest, listw = states_sw) %>% 
+  as_tibble()
+```
+
+#### 3.2.2.7 Calculate the $RMSE$ and $MAE$ and compare
+
+```{r}
+## RMSE
+olsRMSE <- sqrt(mean((sarTest$bc_PredictedReadmissionRate - olsPredictions)^2))
+sarRMSE <- sqrt(mean((sarTest$bc_PredictedReadmissionRate - sarPredictions$fit)^2))
+semRMSE <- sqrt(mean((sarTest$bc_PredictedReadmissionRate - semPredictions$fit)^2))
+sdmRMSE <- sqrt(mean((sarTest$bc_PredictedReadmissionRate - sdmPredictions$fit)^2))
+
+## MAE
+olsMAE <- mean(abs(sarTest$bc_PredictedReadmissionRate - olsPredictions))
+sarMAE <- mean(abs(sarTest$bc_PredictedReadmissionRate - sarPredictions$fit))
+semMAE <- mean(abs(sarTest$bc_PredictedReadmissionRate - semPredictions$fit))
+sdmMAE <- mean(abs(sarTest$bc_PredictedReadmissionRate - sdmPredictions$fit))
+
+## Make a dataframe for comparison of RMSE and MAE values
+data.frame(Model = c("OLS", "SAR (Spatial Lag)", "SEM (Spatial Error)", "SDM (Durbin)"),
+           RMSE = round(c(olsRMSE, sarRMSE, semRMSE, sdmRMSE), 2),
+           MAE = round(c(olsMAE, sarMAE, semMAE, sdmMAE),2)) %>% 
+  ## Display with kable
+  kable(digits = 2,
+        format = "html",
+        caption = "Table 13. Comparison of RMSE and MAE for all models.") %>%
+  kable_styling(bootstrap_options = c("hover", full_width = F)
+  )
+```
+
+**QUESTION**: What does the comparison of the four models' $RMSE$ and $MAE$ imply? Which model is the superior model? Is SAR still "good enough"? Do you think that, despite adding population density, we're likely STILL omitting spatial variables? Explain.
+
+> Looking at the RMSE and MAE, it appears that SAR,SEM, aNd SDM are all equivalent (same RMSE and MAE), but all 3 are superior to the OLS model.
+
+
+## 3.3 Testing Another Hypothesis: Readmissions by ?
+
+The time has finally come for you to choose your own adventure again! There are two more hypotheses we could test using spatially-influenced, social determinants of health (SDOH) that we imported with population density from the U.S. Census. 
+
+#### **Question 29**: [10 points]
+Choose ONE of the two hypotheses to explore and, using the code from Section 3.2, walk through both the heuristic and spatial regression tests of your chosen hypothesis. The hypotheses have been provided for you this time. 
+
+- **Hypothesis 2: High Elderly Populations**: States with a higher proportion of their adult population over the age of 65 have higher rates of readmission __because__ of age-related factors that increase the likelihood of severe illness, like pneumonia, and increased risk of complications that could lead to higher hospital readmissions. 
+
+But these are not the only population-related hypotheses we could pose. Perhaps, instead, it has to do with poverty - perhaps states with higher poverty rates also tend to see lower rates of medical coverage, thereby leading hospitals to release patients too early to spare costs. Thus, we might also ask if states with higher poverty rates are more likely to see higher pneumonia readmissions?
+
+- **Hypothesis 3: High Poverty Populations**: Higher rates of pneumonia-related readmissions may be associated with higher proportions of the poverty living at or below the poverty threshold __because__ those individuals may have poorer medical coverage, including non- and under-insuredness, or a stronger drive to try to return to work, both of which could in turn pressure some hospitals to discharge sick patients sooner than they otherwise would.
+
+**For full credit**, walk through all of the steps from Section 3.2. Make sure to answer the interpretation questions, too!
+
+
+
+
+
+### Working through **Hypothesis 2: High Elderly Populations**
+
+States with a higher proportion of their adult population over the age of 65 have higher rates of readmission __because__ of age-related factors that increase the likelihood of severe illness, like pneumonia, and increased risk of complications that could lead to higher hospital readmissions. 
+
+### 3.3.1 Heuristic (Visual) Tests of Hypothesis 2: High Elderly Populations.
+
+```{r, echo = TRUE, warning = FALSE, message = FALSE}
+
+#using variable over65PercentPop
+
+## Make a map `p2` of population percent elderly population (over 65 yrs):
+p2 <- states_sf_AggTrain %>% 
+  filter(ID != "district of columbia") %>%
+ggplot() +
+  geom_sf(aes(fill = over65PercentPop), color = "grey20", alpha = 1, size = 0.2) +
+  scale_fill_gradient(
+    name = "% of population.",
+    low = "white", high = skittles[5],
+    na.value = "grey90"
+  ) +
+  labs(title = "Percent of Population 65+, by State",
+    caption = "Source: U.S. Census Bureau, 2023") +
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    legend.position = "bottom"
+  ) +
+  coord_sf()
+
+## Make a scatterplot called `p3` with best-fit reference line between 
+## Percent of population over the age of 65, and the pneumonia-related hospital readmissions
+
+p3 <- states_sf_AggTrain %>% 
+  filter(ID != "district of columbia") %>%
+ggplot(aes(x = over65PercentPop, y = Median_RawPredictedReadmissionRate)) +
+  geom_point(alpha = 0.5) + 
+  geom_smooth(method = "lm", se = T, color = skittles[5]) +
+  theme_minimal() +
+  labs(title = "Hospital readmissions by % of population 65+",
+       x = "% of population",
+       y = "Predicted Pneumonia-related Hospital Readmissions")
+
+## Make a barplot `p4` that shows the highest % opp 65+ with their median
+p4 <- states_sf_AggTrain %>% 
+  filter(ID != "district of columbia") %>%
+  arrange(desc(over65PercentPop)) %>% 
+  head(10) %>% 
+ggplot(aes(x = fct_reorder(ID, over65PercentPop), y = Median_RawPredictedReadmissionRate)) +
+  geom_col(fill = skittles[5]) +
+  theme_minimal() + 
+  coord_flip() +
+  labs(title = "Top 10 States with Highest % of Pop 65+",
+     y = "Median % hospital readmissions",
+     x = "",
+     caption = "Source: CMS, 2024 & U.S. Census, 2023; n.b. Wash D.C. excluded")
+
+```
+
+```{r, echo=FALSE}
+## This prints the plots in a nice arrangement when knitted
+p1
+p2
+grid.arrange(p3, p4, ncol = 2)
+```
+
+#### 3.3.2 Make the updated `sarTrain` and `sarTest` add percent population over 65 (over65PercentPop).
+
+```{r}
+## TRAINING
+## Start from the training data
+sarTrain <- states_sf_AggTrain %>% 
+  ## Make it a dataframe/tibble
+  as_data_frame() %>% 
+  ## Drop the features that we dropped before the analysis in Project 1, as 
+  ## well as the features we do NOT want to use as predictors!
+  select(-Median_RawPredictedReadmissionRate, 
+         -Median_RawMedicareSpending, 
+         -Median_RawHospitalReturnDays, 
+         -Median_RawDeathRate, 
+         -ID,
+         -localI, 
+         -pValue, 
+         -quadrant, 
+         -geom, 
+         -lag_medianReadmissions,
+  ## Make sure to remove any correlated variables/variables we don't want to
+  ## test from the Census data!!
+         -popDensity,
+         -totalPop,
+         -adultPop,
+         -over65Pop, 
+         -percBelowPoverty,
+         -landSqMi)
+
+## TESTING
+  ## Start from the testing data
+sarTest <- states_sf_AggTest %>% 
+  ## Make it a dataframe/tibble
+  as_data_frame() %>% 
+  ## Move the ID column to the rownames
+  column_to_rownames("ID") %>% 
+  ## Drop the features that we dropped before the analysis in Project 1, as 
+  ## well as the features we do NOT want to use as predictors!
+  select(-Median_RawPredictedReadmissionRate, 
+         -Median_RawMedicareSpending, 
+         -Median_RawHospitalReturnDays, 
+         -Median_RawDeathRate,
+         -geom,
+         ## Make sure to remove any correlated variables/variables we don't want to
+         ## test from the Census data!!
+         -popDensity,
+         -totalPop,
+         -adultPop,
+         -over65Pop, 
+         -percBelowPoverty,
+         -landSqMi) %>% 
+  ## Have to drop any missing values from the testing data
+  drop_na()
+```
+
+#### 3.3.3 Fit the OLS regression and test Moran's I on the residuals
+```{r}
+OLS <- lm(bc_PredictedReadmissionRate ~ ., data = sarTrain)
+## Moran's I test on residuals
+moran.test(residuals(OLS), states_sw)
+```
+#### 3.3.4 Fit the SAR and look at $\rho$ and the LM test
+```{r}
+## SAR (spatial lag model)
+SAR <- lagsarlm(bc_PredictedReadmissionRate ~ ., data = sarTrain, 
+                listw = states_sw)
+summary(SAR)
+```
+
+#### 3.3.5 Compare the SAR to the OLS model with a Likelihood Ratio Test (LRT)
+```{r}
+## Give it the larger model first, then the null model.
+## SAR is our larger model; the null OLS is nested within the SAR because
+## the SAR = OLS when rho = 0!
+anova(SAR, OLS)
+```
+#### 3.3.6 Inferential statistics
+```{r}
+## Print a table using gtsummary
+tbl_regression(SAR) %>% 
+  modify_caption("Table 7. Spatial Lag (SAR) Regression results.") %>% 
+  modify_header(label = "**Coefficient**") %>% 
+  add_significance_stars(hide_p = FALSE)
+```
+
+
+
+#### 3.3.7 Fit SEM and SDM
+```{r}
+## Fit the SEM (spatial error model) using the training data and weights matrix
+SEM <- errorsarlm(bc_PredictedReadmissionRate ~ ., data = sarTrain, 
+                  listw = states_sw)
+## Uncomment to view results!
+summary(SEM)
+
+## Fit the SDM (spatial Durbin model) using the training data and weights matrix
+SDM <- lagsarlm(formula = bc_PredictedReadmissionRate ~ ., data = sarTrain, 
+    listw = states_sw, type = "mixed") ## "mixed" is necessary to specify as SDM
+## Uncomment to view results!
+summary(SDM)
+```
+
+#### 3.3.8 Predictions using the testing data on SAR, SEM, and SDM
+
+```{r}
+## Fit the predictions for the FOUR models using the testing data!
+olsPredictions <- predict(OLS, newdata = sarTest)
+
+sarPredictions <- predict(SAR, newdata = sarTest, listw = states_sw) %>% 
+  as_tibble()
+
+semPredictions <- predict(SAR, newdata = sarTest, listw = states_sw) %>% 
+  as_tibble()
+
+sdmPredictions <- predict(SAR, newdata = sarTest, listw = states_sw) %>% 
+  as_tibble()
+```
+
+#### 3.3.9 Calculate the $RMSE$ and $MAE$ and compare
+
+```{r}
+## RMSE
+olsRMSE <- sqrt(mean((sarTest$bc_PredictedReadmissionRate - olsPredictions)^2))
+sarRMSE <- sqrt(mean((sarTest$bc_PredictedReadmissionRate - sarPredictions$fit)^2))
+semRMSE <- sqrt(mean((sarTest$bc_PredictedReadmissionRate - semPredictions$fit)^2))
+sdmRMSE <- sqrt(mean((sarTest$bc_PredictedReadmissionRate - sdmPredictions$fit)^2))
+
+## MAE
+olsMAE <- mean(abs(sarTest$bc_PredictedReadmissionRate - olsPredictions))
+sarMAE <- mean(abs(sarTest$bc_PredictedReadmissionRate - sarPredictions$fit))
+semMAE <- mean(abs(sarTest$bc_PredictedReadmissionRate - semPredictions$fit))
+sdmMAE <- mean(abs(sarTest$bc_PredictedReadmissionRate - sdmPredictions$fit))
+
+## Make a dataframe for comparison of RMSE and MAE values
+data.frame(Model = c("OLS", "SAR (Spatial Lag)", "SEM (Spatial Error)", "SDM (Durbin)"),
+           RMSE = round(c(olsRMSE, sarRMSE, semRMSE, sdmRMSE), 2),
+           MAE = round(c(olsMAE, sarMAE, semMAE, sdmMAE),2)) %>% 
+  ## Display with kable
+  kable(digits = 2,
+        format = "html",
+        caption = "Table 13. Comparison of RMSE and MAE for all models.") %>%
+  kable_styling(bootstrap_options = c("hover", full_width = F)
+  )
+```
+
+> Percent of the population over 65 by state does not appear to predict hospital readmission rate, and there is no significant spatial autocorrelation
+
