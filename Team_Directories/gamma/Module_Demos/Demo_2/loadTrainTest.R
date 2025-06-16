@@ -13,12 +13,14 @@ pacman::p_load(tidyverse)
 ## Load the training and testing sets
 if(exists("readyTrain")) {
   rm("readyTrain") } else { 
-    load("../../I. Biomedical & Clinical Informatics/Project_1/FY2024_data_files/readyTrain.Rdata") 
+    load("C:/data_science/DSE6003OM_SP2025R1/Merrimack_DSE6630/I. Biomedical & Clinical Informatics/Project_1/FY2024_data_files/readyTrain.Rdata")
+    #("../../I. Biomedical & Clinical Informatics/Project_1/FY2024_data_files/readyTrain.Rdata")
 }
 
 if(exists("readyTest")) {
   rm("readyTest") } else { 
-    load("../../I. Biomedical & Clinical Informatics/Project_1/FY2024_data_files/readyTest.Rdata") 
+    load("C:/data_science/DSE6003OM_SP2025R1/Merrimack_DSE6630/I. Biomedical & Clinical Informatics/Project_1/FY2024_data_files/readyTest.Rdata")
+    #("../../I. Biomedical & Clinical Informatics/Project_1/FY2024_data_files/readyTest.Rdata")
 }
 
 #### TRAIN
