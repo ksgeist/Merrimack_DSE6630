@@ -1,8 +1,8 @@
 ---
 title: "Project 2: Public Health & Epidemiology"
 subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
-author: "Katherine S. Geist, PhD"
-date: "10 June 2025"
+author: "Krisha Bugajski-Sharp, Nicholas Lagoni, Trinity Tobin"
+date: "24 June 2025"
 output:
   html_document:
     toc: true
@@ -151,11 +151,23 @@ Notice that the directory contains six files, three of them with file extensions
 * `cnty19_1.shp.xml`
 * `cnty19_1.shx`
 
-#### Question 1 [1 point]:
+#### Question 1 [1 point]: -KB
 
 What do each of these six files represent? You will not be able to open them directly on your computer, so you may need to refer back to lecture and do a little digging to figure out the type of data you would expect each of these files to contain.
 
-> Your answer here.
+> cnty19_1.cpg is the code page file, which indicates the character encoding used in the .dbf file. It 
+helps to interpret text data correctly, especially the non-ASCII characters.
+cnty19_1.dbf is the attribute table in dBASE format. It contains tabular data about each of the features like county name, FIPS code, area, population, etc.
+cnty19_1.prj is the projection file that describes the coordinate system and map projection used. It contains information that is needed to properly align the spatial data with other spatial datasets.
+cnty19_1.shp is the main file that stores the actual geometry such as points, lines, and polygons, for all the features. In our case, it is the California county boundaries. It contains spatial data such as shapes and coordinates of counties.
+cnty19_1.shp.xml is an XML metadata file describing the dataset. It contains metadata such as dataset descriptions, sources, creation dates, fields info, etc.
+cnty19_1.shx is the index file that stores the positional index of the geometry in the .shp file. It contains a way to quickly look up spatial features in the .shp.
+Source: 
+Esri. (n.d.). Shapefile file extensions. ArcGIS Desktop. https://desktop.arcgis.com/en/arcmap/latest/manage-data/shapefiles/shapefile-file-extensions.htm
+
+
+
+
 
 ## 2.2 Your objective
 
@@ -204,14 +216,18 @@ plot(cali_sf)
 st_is_valid(cali_sf)
 ```
 
-#### Question 2 [1 point]:
+#### Question 2 [1 point]: -KB
 Why did `TRUE` print 69 times? What are the "69 features" in the geometry? 
 
 **Hint 1**: Are all of them counties? If not, what are they? Try running `print(calif_sf$COUNTY_NAME`. What do you see?
 
 **Hint 2**: There are islands in California. What happens to islands in terms of `COUNTY_NAM`?
 
-> Your answer here.
+```{r}
+#print(cali_sf$COUNTY_NAM)
+```
+
+> The reason TRUE printed 69 times was becaue the shapefile has 69 geometries. However, the state of California has only 58 counties, some counties, such as Los Angeles, Santa Barbara, and Ventura, include multiple geographic parts (like islands), and therefore they were represented as a separate feature in the spatial dataset. These island features are still part of their counties but are stored as individual geometries.
 
 *Next, let's take a look at the geometry of the shapefile that you loaded.*
 ```{r}
@@ -220,15 +236,15 @@ cali_sf$geometry
 
 Notice that, just like Demo 2, you only have the __polygon__ geometry in your shapefile. If you were to investigate further, you would find that currently there are no other geometries (e.g., lines or points) in this shapefile. You could add them and export the shapefile, if you ever needed to do so, like to share with someone else. For example, if you wanted to add points for the county seats of each county, you could add them based on longitude and latitude; similarly, you could add just points for major California cities, which I will demonstrate below.
 
-#### Question 3A [0.5 points]:
+#### Question 3A [0.5 points]: -KB
 What is the bounding box that comes with your shapefile and what does it tell us? **What would you do to the bounding box if you wanted to zoom in or out on a geographic feature?**
 
-> Your answer here.
+> The bounding box that comes with the shapefile is "xmin: -13849230 ymin: 3833650 xmax: -12704980 ymax: 5162403". This tells us what the outer limits of the map area are in the shapefile using the projected coordinates. It also helps us know how much of the map is being shown. In order to zoom in, I would shrink the box around the area I want. To zoom out, I would enlarge the box to have it include more of the surrounding area.
 
-#### Question 3B [0.5 points]:
+#### Question 3B [0.5 points]: -KB
 What is the projection? What does it tell you and why does projection matter? **What will change if you change the projection?**
 
-> Your answer here.
+> The projection is "WGS 84 / Pseudo-Mercator". This tells us that it is a projected coordinate system based on the WGS 84 datum, specifically, Pseudo-Mercator. It represents the earth as a flat, rectangular map in meters and not degrees. Projection matters because the Earth is 3D and has this curve, but maps are 2D and have no curve. A projection defines how the curved Earth is flattened, which affects distance, area, shape, and direction. Also, different projections preserve different properties. If we change the projection, we can alter the appearance and the accuracy of the spatial data. Therefore, it is important to pick a projection based on the analysis we want such as one that  preserves area or one that preserves the shape. 
 
 ### 2.3.2 Create a basic map of California
 
@@ -247,14 +263,14 @@ ggplot(data = cali_sf) +
   coord_sf(expand = FALSE) +   ## <- keeps map tight to its bounding box
   
   ## Uncomment to make a completely blank map background
-  # theme(
-  #   panel.grid = element_blank(),
-  #   panel.background = element_rect(fill = "white"),
-  #   plot.background = element_rect(fill = "white"),
-  #   axis.text = element_blank(),
-  #   axis.ticks = element_blank(),
-  #   axis.title = element_blank(),
-  # ) +
+   theme(
+     panel.grid = element_blank(),
+     panel.background = element_rect(fill = "white"),
+     plot.background = element_rect(fill = "white"),
+     axis.text = element_blank(),
+     axis.ticks = element_blank(),
+     axis.title = element_blank(),
+   ) +
   
   ## Give it a title and footnote/caption 
   labs(title = "California Counties",
@@ -271,16 +287,43 @@ Now, what if you only wanted to visualize a few counties? Let's look at the thre
 
 Notice that the county names are accessible through `cali_sf$COUNTY_NAM`. Thus, you can just use the `filter()` function from `dplyr` to be able to grab the three northernmost counties you want by name, which I have started for you.
 
-#### Question 4 [1 point]:
+#### Question 4 [1 point]: - KB
 Finish the code below to create a map of the northernmost 3 counties in California. You can copy and paste, with minor modifications, the code for the entire state map to do this. **NOTE** that you are storing your map into `map1`. This is because I will show you how to add labels in the next section! Don't forget to update your plot title for full credit!
 
 ```{r}
 # ## Start from the California spatial tibble - Uncomment to run
-# map1 <- cali_sf %>% 
-#   ## Filter to just the 3 counties that border Oregon - Uncomment to run
-#   filter(COUNTY_NAM == "Del Norte" | COUNTY_NAM == "Siskiyou" | COUNTY_NAM == "Modoc") %>% 
+ map1 <- cali_sf %>% 
+   ## Filter to just the 3 counties that border Oregon - Uncomment to run
+   filter(COUNTY_NAM == "Del Norte" | COUNTY_NAM == "Siskiyou" | COUNTY_NAM == "Modoc") %>% 
 
 ## YOUR CODE HERE.
+  ## Begin ggplot
+  ggplot(data = .) +
+  
+  ## Give it specific fill and border colors
+  geom_sf(fill = skittles[3], 
+          color = "gray20", 
+          linewidth = 0.25, 
+          alpha = 0.65) +
+  
+  ## Set map projection explicitly
+  coord_sf(expand = FALSE) +
+  
+  ## Clean up the map background
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank()
+  ) +
+  
+  ## Title and caption
+  labs(title = "Northernmost California Counties: Del Norte, Siskiyou, and Modoc",
+       caption = "Source: California State Geoportal")
+
+ map1
 ```
 
 *Now let's add labels!* 
@@ -289,17 +332,17 @@ This code will not run unless you have made `map1` correctly!
 ```{r}
 ### UNCOMMENT THIS CODE TO RUN:
 
-# ## Calculate the county centers:
-# county_centroids <- st_centroid(cali_sf) %>% 
-# ## Filter for just the northern centroids
-#     filter(COUNTY_NAM == "Del Norte" | COUNTY_NAM == "Siskiyou" | COUNTY_NAM == "Modoc") 
-# 
-# ## Now, add the labels to the map:
-# map1 + geom_sf_text(data = county_centroids, 
-#                     aes(label = COUNTY_NAM), 
-#                     size = 3.5, fontface = "bold") +
-#   ## fix the x and y axis labels to make a beautiful map!
-#   theme(axis.title = element_blank())
+ ## Calculate the county centers:
+ county_centroids <- st_centroid(cali_sf) %>% 
+ ## Filter for just the northern centroids
+     filter(COUNTY_NAM == "Del Norte" | COUNTY_NAM == "Siskiyou" | COUNTY_NAM == "Modoc") 
+ 
+ ## Now, add the labels to the map:
+ map1 + geom_sf_text(data = county_centroids, 
+                     aes(label = COUNTY_NAM), 
+                     size = 3.5, fontface = "bold") +
+   ## fix the x and y axis labels to make a beautiful map!
+   theme(axis.title = element_blank())
 ```
 
 ## 2.3.4 Creating points for major cities in California {#overlayPoints}
@@ -357,7 +400,7 @@ ggplot(data = cali_sf) +
        caption = "Source: California State Geoportal") 
 ```
 
-#### Question 5 [1 point]:
+#### Question 5 [1 point]: -KB
 Your stakeholders point out that you have forgotten San Jose, one of the most populated cities in California! They ask you to go back to the map and add it on. 
 
 **Hint 1**: The coordinates of San Jose are 37.3387° N, 121.8853° W
@@ -366,6 +409,42 @@ Your stakeholders point out that you have forgotten San Jose, one of the most po
 
 ```{r}
 ## YOUR CODE HERE.
+## Create a cities data frame with the newly added coordinates
+cities <- data.frame(
+  city = c("Sacramento", "San Diego", "Los Angeles", "San Francisco", "San Jose"),
+  lon = c(-121.4944, -117.1611, -118.2437, -122.4194, -121.8853),
+  lat = c(38.5816, 32.7157, 34.0522, 37.7749, 37.3387),
+  cityType = c("capital", "major", "major", "major", "major")
+)
+
+## Convert to shapefile object with the same projection as what you had
+cities_sf <- st_as_sf(cities, coords = c("lon", "lat"), crs = 4326)
+# Plot California counties with city points
+ggplot(data = cali_sf) +
+  ## Give it specific fill and border colors
+  geom_sf(fill = skittles[6], 
+          color = "gray20", 
+          linewidth = 0.25, 
+          alpha = 0.65) +
+  
+  ## Set ap projection explicitly
+  coord_sf(expand = FALSE) +   ## <- keeps map tight to its bounding box
+  
+  #### ----- Here is where you overlay the points! -------- ####
+  geom_sf(data = cities_sf, 
+          ## Different colors & shapes & sizes for different cities
+          aes(color = city, shape = cityType, size = cityType)) + 
+  
+  ## Define shapes and sizes manually for cityType
+  scale_shape_manual(values = c(capital = 18, major = 16), guide = "none") +  
+  scale_size_manual(values = c(capital = 6, major = 3), guide = "none") +
+  
+  ## Define the fill color for the city shapes
+  scale_color_manual(values = skittles[1:5], name = "City") +
+
+  ## Give it a title and footnote/caption 
+  labs(title = "California Counties with Major Cities Marked",
+       caption = "Source: California State Geoportal") 
 ```
 
 ## 2.4 Joining shapefiles with a tibble or dataframe
@@ -384,49 +463,61 @@ __Our Process:__
 
 5. You are going to remove the islands, not because you dislike islands but because they get labeled separately and make your map look cluttered. Further, the few people who reside on the islands of California will still be included in their onshore county, so you are not ignoring anyone. *Feel free to experiment removing that filter to see what I mean!*
 
-#### Question 6 [1 point]:
+#### Question 6 [1 point]: -KB
 Annotate the following code chunk with comments to make sure you understand what you are doing here. **HINT**: refer back to the earlier tables with the data descriptions to help you understand the data better!
 
 ```{r, echo = TRUE, warning=FALSE, message=FALSE}
 ## YOUR COMMENT HERE - make sure to comment on the choice of data
+## Starting with the `totalDeaths` table, which contains the monthly counts of non-COVID deaths across the California counties. This is important for building a spatiotemporal picture of the baseline mortality trends.
 mortality_sf <- totalDeaths %>% 
   ## YOUR COMMENT HERE
+  ## Renaming 'County' to 'COUNTY_NAM' so it matches the column name in the shapefile 'cali_sf'. This is important so we can join between the mortality data and the spatial data.
   rename(COUNTY_NAM = County) %>%
   ## YOUR COMMENT HERE
+  ## Grouping the data by county, year, and month, where 'Year' and 'Month' are the time aspect and 'COUNTY_NAM' is where the death occurred. This is important to summarize monthly deaths at the county level
   group_by(COUNTY_NAM, Year, Month) %>% 
   ## YOUR COMMENT HERE
+  ## This sums the total deaths in each of the groups.`totalDeaths` is defined as the number of deaths per month, year, & county. `na.rm = TRUE` makes sure that missing values do not mess with the totals.
   summarise(totalDeaths = sum(totalDeaths, na.rm = TRUE)) %>%
   ## YOUR COMMENT HERE - make sure to comment on the relationship parameter
+  ## This does a full join on the summarized mortality data with the geographic shapefile cali_sf. This allows you to attach each row of mortality data to a county shape. The 'many-to-many' relationship is used to support counties with multiple geometries, such as the islands.
   full_join(cali_sf, by = "COUNTY_NAM", relationship = "many-to-many") %>% 
   ## YOUR COMMENT HERE
+  ## Converting the rest if the dataframe back into a spatial feature, sf object. This is important for spatial analysis and visualization, so it can be treated as a shapefile.
   st_as_sf() %>% 
   ## YOUR COMMENT HERE
+  ## Filtering out the island geometries to avoid map cluttering while still keeping their data in the parent county's mainland geometry.
   filter(is.na(ISLAND))
 ```
 
-#### Question 7A [0.5 points]:
+#### Question 7A [0.5 points]: -KB
 What does `st_join()` do? Could you have executed the join with `st_join()` instead of `full_join()` here? Why or why not? 
 
-> Your answer here.
+> The st_join() function does spatial join between two spatial (sf) objects. It joins parts from one object to another based on their spatial relationship, for example, whether a point is within a polygon, or whether two geometries intersect. On the other hand, a  full_join() function performs a regular attribute-based join, using matching values in specified columns (like COUNTY_NAM in this case), not spatial relationships. So no, st_join() couldnt not be used in this case, because the totalDeaths data is not a spatial object and is a regular tibble with no geometry. st_join() only works between two sf objects. The join here is just based on matching county names (COUNTY_NAM), not based on any spatial data.
 
 
-#### Question 7B [0.5 points]:
+
+#### Question 7B [0.5 points]: -KB
 This question has three subparts.
 
 1. How many features are there in `mortality_sf`? 
 ```{r}
 # Your code here.
+# Getting the number of features
+nrow(mortality_sf)
 ```
 
 2. Why is it so many more than in `cali_sf`?
-> Your answer here.
+> The cali_sf dataset just shows the shapes of California counties, where California has 58 counties and a few have islands, making the shapefile 69 in total. But mortality_sf combines both space and time. It tracks the monthly nonCOVID death counts for every county over several years. Therefore, instead of just one entry per county, we now have one entry per county per month per year.
+(counties × years × months = 2552 potential rows) That’s why mortality_sf has 2,552 features, it is not just showing where counties are, but also what happened there over time.
 
 3. How many counties are there now in `COUNTY_NAM`? (Hint: Use `unique()` or `n_distinct()` to help you get the true number!) Why is it different from the number you saw in Question 2?  
 ```{r}
 # Your code here.
+n_distinct(mortality_sf$COUNTY_NAM)
 ```
 
-> Your answer here.
+> The number of counties is now different and at 58 because we got rid of the islands. After the join with the mortality data and converting it back to a shapefile, we grouped and filtered the data so that each county appears only once, resulting in a count of the 58 counties that California has.
 
 
 ## 2.5 Visualizing annual trends in overall mortality
@@ -479,13 +570,13 @@ ggplot(mortalitySummary) +
 
 ### 2.5.1 Uh oh, can you spot the problem?
 
-#### Question 8 [1 point]:
+#### Question 8 [1 point]: -KB
 Is there any pattern that is a cause for concern in your interpretation of **total deaths**? 
 
 **Hint 1**: The county with the highest number of deaths (darkest purple) is **Los Angeles county**. What is special about LA county?
 **Hint 2**: Do you see other similar darker colors in counties around cities?
 
-> Your answer here.
+> Looking at the four plots of the different year, it is concerning to see that the counties that are more populated seem to also have the most amount of deaths. This means that the counties such as Los Angeles county, that has the big city of LA, are showing the most dealths. There also is not much of a change through the years, with the exeption of a few counties that seem to have less deaths in 2020. This means that we need to do some weighing on the data, so that the counties are accounting for the populations and the dealths can be seens more cleary in relation to on another.  
 
 ## 2.6 Accessing the 2020 US Census API
 
