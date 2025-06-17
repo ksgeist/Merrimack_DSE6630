@@ -631,7 +631,7 @@ You will sign up for your API census key [here](https://api.census.gov/data/key_
 Once your have your key, fill it into this code chunk here:
 ```{r}
 ## Set your API key (put it between the quotation marks):
-key <- " "
+key <- "4d6b8285971b0ee1a0bd207088b6c263abcd2475"
 ```
 
 ### 2.6.2 Downloading data tables from the 2020 Census API
@@ -680,7 +680,11 @@ The custom function, `getPopSizes()`, pulls population data from the U.S. Census
 #### Question 10A [0.5 points]:
 Using a search engine or the [Census table explorer](https://data.census.gov), whichever you find easier to use, look for the differences between table variables `DP1_0048C` and  `DP1_0048P`. What different information do these two variables hold?
 
-> Your answer here.
+> DP1_0048C contains the count of males 65 years and older.
+> The data is stored as an integer value.
+
+> DP1_0048P contains the percent of males 65 years and older.
+> The data is stored as a float value.
 
 *Digging into the Function*
 
@@ -714,7 +718,7 @@ This line runs the function using your API key and saves the result to a variabl
 
 **NOTE** Make sure to change `include=FALSE` to `TRUE` in the first line (the `{r}` setup line) the chunk or you will get an error upon knitting.
 
-```{r, eval = FALSE, echo = TRUE}
+```{r, include=TRUE, eval = FALSE, echo = TRUE}
 ## Set the state want you in double-digit FIPS; if you want all states, use *
 state = "06" ## California
 
@@ -771,9 +775,24 @@ census <- census %>%
 **Did you notice how quickly it accessed the information?** That is one of the strengths of APIs. You also get to customize the tables to only grab what you want and you can imagine how you might iterative over multiple years or other structures using a function similar to what I coded for you above. APIs are wonderful to become familiar with as a data scientist; I highly recommend practicing more with APIs as you move toward the job market as it is a highly sought after skill! I also strongly recommend the R package [`tidycensus`](https://walker-data.com/tidycensus/); I did not choose to use that here so you would have __generic code__ you could use for many API endpoints going forward in your career! Additionally, `tidycensus` is restrictive since it only access some tables of the Census (notably the American Community Survey or ACS), but you were using a different table here.
 
 #### Question 10B [0.5 points]:
-Use code or some other method to explore the resulting dataframe, `census`. Explain what this dataframe contains. 
+Use code or some other method to explore the resulting dataframe, `census`. Explain what this dataframe contains.
 
-> Your answer here
+```{r}
+# Exploring the census data
+
+head(census) # Display first 6 rows
+
+names(census) # List variable names
+
+n_distinct(census$STATE) # Check that only California is included in the data
+```
+
+
+> This dataframe contains census data for the state of California (State 06).
+> The data contains the population counts and percentages of each county,
+> and also the counts and percentages divided by male and female.
+> In addition, it contains the counts and percentages per county of those
+> who are 65 and older, as well as such data divided by male and female. 
 
 #### Question 11 [1 point]:
 Now that you know more generally how this function works and have seen it in action, in your own words, explain how you could adapt this approach (or even this function!) to work with a different API (not the Census). I am not asking you to code, but I am asking you to think through:
@@ -785,7 +804,33 @@ Now that you know more generally how this function works and have seen it in act
 - **Hint 2**: Think about how the data is retrieved (e.g., using `fromJSON()`) and cleaned afterward.
 - **Hint 3**: For simplicity, assume that the data retrieved are in `JSON` format, since that is the most commonly used format.
 
-> Your answer here.
+> There are several key components of this function that would need to be
+> adapted to work with a different API.
+
+> First, the URL needs to be adjusted for the API being used.
+> Fields such as get=, for=, in=, and key= were defined in a way specific for
+> our census API and our purpose with it.
+> Thus, they would need to be corrected for the specific API.
+
+> Second, the state, vars, and header sections are also set up for our specific use
+> case, and would need to be altered based on the API being used.
+
+> Third, our data cleaning targets columns and values that are specific to our
+> census data.
+> This would need to be removed or altered to fit the data of the API of choice. 
+
+> Despite these specific changes, several general structural choices would
+> remain the same, regardless of the API.
+
+> One necessary component is constructing the URL.
+> While some of the parameters need to change, we will still be constructing
+> a URL in the same general format to locate the data we are trying to pull.
+
+> Likewise, presuming the data is still JSON, we will be able to still use the 
+> fromJSON() to pull the data from the URL. 
+
+> Lastly, cleaning and returning the data will still be required, but will
+> need to be adjusted as discussed above. 
 
 
 ### 2.6.3 Joining the census with the spatial data and updating the maps
@@ -800,15 +845,23 @@ Now, it's your turn to do some work! Your task is to join the census data to the
 * **Hint 3**: If you're having problems, check your data types!
 
 ```{r}
-# Your code here.
+# JOINing the data
+
+# Alter census COUNTY as a 3-digit code
+census2 <- census %>%
+  mutate(COUNTY = sprintf("%03d", as.numeric(COUNTY)))
+
+# Full Join
+mortality_sf2 <- mortality_sf %>%
+  full_join(census, by = c("COUNTY_FIP" = "COUNTY"))
 ```
 
 **Note**: If you're unable to do this for any reason, you can pick back up here. You will need to download the data from [Google Drive](https://drive.google.com/file/d/15MT127zoySDS7kOfr9uhLwPSIWBCok1W/view?usp=sharing), as the shapefile is too large for GitHub yet again. I have placed mine on my Desktop, but you can put it anywhere you like and update the directory path. Just make sure not to put it in your GitHub repo!
 
 ```{r, eval = TRUE}
 ## Comment me out or change EVAL=FALSE to run your own versions!
-load("~/Desktop/mortality_sf2.Rdata")
-load("census.Rdata")
+#load("~/Desktop/mortality_sf2.Rdata")
+#load("census.Rdata")
 ```
 
 ## 2.7 Mapping population-adjusted mortality
@@ -892,7 +945,11 @@ For example, for 3 of the 4 years, **Shasta County** (2017-2019) shows the **hig
 #### Question 13 [1 points]:
 What patterns do you observe now, if any? Do you think this is a true pattern? Aren't you being told that deaths are going **up** due to COVID-19??
 
-> Your answer here.
+> Counter-intuitively, it appears as if mortality rates see a peak in 2018 and
+> then decrease as the years progress. 
+> This pattern goes against the idea that deaths go up due to COVID-19.
+> However, this is likely due to the fact that our 2020 data does not include
+> data for the entire year. 
 
 ## 2.8 The data for 2020 isn't complete... {#linegraph1}
 
@@ -933,7 +990,22 @@ ggplot(aes(x = Month, y = percMortality,
 #### Question 14 [1 point]:
 Why did this happen and how could you fix it? (**There is more than one correct answer possible.**) Could you have made your maps the way you did in Section 2.7 and had them be accurate if we'd had a full 12 months' of data for each year?
 
-> Your answer here.
+> The COVID-19 pandemic made census taking challenging, and thus left us with
+> incomplete data.
+> One potential idea for correction is to sample artificial values for the remaining
+> 4 months.
+> This could be done using averages or by imputation with a prediction model.
+> However, these values may not be accurate and could distort the true picture.
+
+> Another idea could be to cut off each year at the 8 month mark, but
+> this would also limit the scope of our analysis and potentially paint an 
+> incorrect picture. 
+
+> Thirdly, we could use a measure such as the mean or median of death rates
+> for each year.
+
+> If we had a full 12 months of data for each year, then we'd likely be able
+> to use our prior method for creating maps. 
 
 ## 3.1 Fixing the map's accuracy for 2020.
 
