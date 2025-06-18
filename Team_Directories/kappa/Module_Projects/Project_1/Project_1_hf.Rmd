@@ -92,9 +92,9 @@ Load my version of the fully cleaned, encoded, & ready-to-proceed dataset from t
 
 ```{r}
 #team, i had to direct R as to where my source code was. You may not need this line 
-source("/Users/sharonsingh/Documents/GitHub/Merrimack_DSE6630/Team_Directories/kappa/Module_Projects/Project_1/reRunDemoData.R")
+source("/Users/stephgarofalo/Documents/GitHub/Merrimack_DSE6630/Team_Directories/kappa/Module_Projects/Project_1/reRunDemoData.R")
 ## Uncomment if this is your choice:
-load("/Users/sharonsingh/Documents/GitHub/Merrimack_DSE6630/Team_Directories/kappa/Module_Projects/Project_1/FY2024_data_files/dataFull2024.Rdata")
+load("/Users/stephgarofalo/Documents/GitHub/Merrimack_DSE6630/Team_Directories/kappa/Module_Projects/Project_1/FY2024_data_files/dataFull2024.Rdata")
 dat2Analyze <- dataFull
 
 ```
@@ -105,7 +105,7 @@ dat2Analyze <- dataFull
 ```{r}
 ## Comment out if this is NOT your choice:
 ## Uncomment if this is your choice:
-load("/Users/sharonsingh/Documents/GitHub/Merrimack_DSE6630/Team_Directories/kappa/Module_Projects/Project_1/FY2024_data_files/dataAnalyzeNoEncoding2024.Rdata")
+load("/Users/stephgarofalo/Documents/GitHub/Merrimack_DSE6630/Team_Directories/kappa/Module_Projects/Project_1/FY2024_data_files/dataAnalyzeNoEncoding2024.Rdata")
 ##dat2Analyze <- dataAnalyzeNoEncoding
 ```
 
@@ -305,25 +305,29 @@ We could also choose to overlay density plots instead of violin or boxplots, as 
 
 ```{r, "Figure 2. Readmission Rates vs. readmitted hospital LOS", warning=FALSE, message=FALSE, echo=FALSE}
 longTargets %>% 
-  filter(NatlComparisonHospitalDays != "Unknown") %>% 
   ggplot(aes(x = Value, fill = NatlComparisonHospitalDays)) +
   geom_density(alpha = 0.45) +
-  labs(title = "Which target to use?",
-       subtitle = "By readmitted LOS in hospital compared to national average",
-        x = "",
-        y = "Rate or Score",
-        fill = "HF-related hospital days (compared to national average):") +
-  scale_fill_manual(values = c("gold", "cadetblue", "maroon", "darkgreen"),
-                    labels = c("Better", "Same", "Worse", "Unknown")) +
+  labs(
+    title = "Which target to use?",
+    subtitle = "By readmitted LOS in hospital compared to national average",
+    x = "",
+    y = "Rate or Score",
+    fill = "HF-related hospital days (compared to national average):"
+  ) +
+  scale_fill_manual(
+    values = c("gold", "cadetblue", "maroon", "darkgreen"),
+    labels = c("Better", "Same", "Worse", "Unknown")
+  ) +
   theme_minimal() +
-  theme(legend.position = "bottom",
-        strip.text = element_text(size=9),
-        legend.text = element_text(size = 7),
-        legend.title = element_text(size = 10),
-        title = element_text(size = 12, color = "maroon")) + 
-  facet_wrap(~Variable, 
-             scales = "free",
-             ncol = 2)
+  theme(
+    legend.position = "bottom",
+    strip.text = element_text(size = 9),
+    legend.text = element_text(size = 7),
+    legend.title = element_text(size = 10),
+    title = element_text(size = 12, color = "maroon")
+  ) +
+  facet_wrap(~Variable, scales = "free", ncol = 2)
+
 ```
 
 #### **Question 3**: [0.5 points]
@@ -425,6 +429,7 @@ longScore %>%
 Now let's do a similar analysis but for the `HcahpsLinear...` variables. The __HCAHPS (Hospital Consumer Assessment of Healthcare Providers and Systems)__ is a standardized survey that measures adult inpatient perceptions of hospital care. It's a national, publicly reported survey mandated by the Centers for Medicare & Medicaid Services (CMS). Because it focuses on aspects of hospital care that are important to patients, it is often used to improve patient satisfaction and hospital quality. 
 
 ```{r, echo = FALSE}
+load("~/Documents/GitHub/Merrimack_DSE6630/Team_Directories/kappa/Module_Projects/Project_1/FY2024_data_files/pneumoniaAnalyzeNoEncoding2024.Rdata")
 longHCAHPS <- pneumoniaAnalyzeNoEncoding %>%
   rename(NatlComparisonHospitalDays = `ComparedToNational_Hospital return days for pneumonia patients`) %>% 
   select(contains(c("HcahpsLinear", "NatlComparisonHospitalDays", "readmission"))) %>% 
@@ -568,22 +573,24 @@ Add your comments to the code as indicated to explain what I was doing at each o
 
 ```{r}
 dat2Analyze <- dat2Analyze %>% 
-## Drop columns we no longer need—this includes the other readmission target variables we aren't using, sample size columns, and number of surveys completed.
-  select(-ExpectedReadmissionRate, 
-         -ExcessReadmissionRatio,
-         -observed_readmission_rate, 
-         -contains(c("Sample_", "NumberOfPatients")),
-         -NumberSurveysCompleted) %>% 
-## Rename columns for clarity—make long and unwieldy column names shorter and easier to work with.
-  rename(`Median time (minutes) patients spent in ED` = 
-         `Score_Average (median) time patients spent in the emergency department before leaving from the visit A lower number of minutes is better`,
-         `Composite patient safety` = `Score_CMS Medicare PSI 90: Patient safety and adverse events composite`,
-         `ComparedToNational_Composite patient safety` = `ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`) %>% 
- ## Reorder columns so that our target variable, PredictedReadmissionRate, comes first for convenience.
+  select(-any_of(c("ExpectedReadmissionRate", 
+                   "ExcessReadmissionRatio",
+                   "observed_readmission_rate", 
+                   "NumberSurveysCompleted")),
+         -contains(c("Sample_", "NumberOfPatients"))) %>%
+  rename(
+    `Median time (minutes) patients spent in ED` = 
+      `Score_Average (median) time patients spent in the emergency department before leaving from the visit A lower number of minutes is better`,
+    `Composite patient safety` = 
+      `Score_CMS Medicare PSI 90: Patient safety and adverse events composite`,
+    `ComparedToNational_Composite patient safety` = 
+      `ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`
+  ) %>%
   select(PredictedReadmissionRate, everything())
 
-## Clean up column names by removing unnecessary prefixes from the names.
+# Clean up remaining column name prefixes
 colnames(dat2Analyze) <- gsub('Score_|HcahpsLinearMeanValue_|_Payment', '', colnames(dat2Analyze))
+
 ```
 
 
@@ -716,11 +723,21 @@ In non-mathy speak, it's the fraction of the times that variable $j$ is observed
  - If this ratio is close to 0, $j$ is usually missing when $i$ is missing, so it’s not helpful for imputing $i$. You can also use this to tell you about **patterns of missingness with regard to your target variable when you target is** $i$. 
 
 ```{r, fig.cap="Figure 5. Correlation between Missing and Response", echo = FALSE, fig.width = 9, fig.height = 9}
+options(repos = c(CRAN = "https://cran.rstudio.com"))
+install.packages("mice")  
+install.packages("RColorBrewer")
+library(mice)
+library(RColorBrewer)
+
+miceMatrix <- md.pairs(dat2Analyze)
 ## Calculate proportion from pairwise pattern of missingness
 p <- as.matrix(miceMatrix$mr/(miceMatrix$mr+miceMatrix$mm))
 
 ## Set a color palette
 prettyPurples <- colorRampPalette(brewer.pal(8, "PuRd"))(8)
+
+p[!is.finite(p)] <- 0  # Replace Inf, -Inf, NaN with 0
+p[is.na(p)] <- 0       # Replace NA with 0
 
 ## Make a heatmap
 heatmap(p, 
@@ -740,7 +757,7 @@ But what if we wanted to know about patterns of missingness with regard to our t
 p <- as.matrix(miceMatrix$mm/(miceMatrix$mr+miceMatrix$mm))
 
 ## Set a color palette
-prettyPurples <- colorRampPalette(brewer.pal(10, "PuRd"))(30)
+prettyPurples <- colorRampPalette(brewer.pal(9, "PuRd"))(75)
 
 ## Make a heatmap
 p[1, ] %>% 
