@@ -1328,19 +1328,23 @@ Run a **spatial lag regression (SAR)** model using the spatial lag you just calc
 **Hint 2**: Make sure to include both time elements as covariates!
 
 ```{r}
-# __ <- lm(__ ~ __ + __ + lagged_monthlyPercMortality, 
-#     data = __)
+sarModel <- lm(monthlyPercMortality ~  Year + Month + lagged_monthlyPercMortality, 
+     data = mortality_sf2)
 ```
 
 Now, let's compare `sarModel` to `olsModel` and see which model better explains monthly percent mortality in California (uncomment to run).
 ```{r}
-# anova(sarModel, olsModel)
+anova(sarModel, olsModel)
 ```
 
 #### Question 17C [0.25 points]
 Which model, the spatial lag regression (`sarModel`) or the ordinary least squares regression (`olsModel`), is a better fit to the data? Why?
 
-> Your answer here.
+> Overall, the OLS model appears to be a better fit for the data.
+> The model has a lower RSS than the sarModel (0.52334 vs 1.86374),
+> which tells us that it leaves less unexplained error.
+> In addition, the F statistic has a very low p-value,
+> which tells us that it is a better fit than the sarModel. 
 
 #### Question 17D [0.5 points]
 Using the model you chose as the better model, `sarModel` to `olsModel`, interpret the results of that model. **HINT**: Remember that `summary()` helps you access the results from the model! 
@@ -1348,19 +1352,42 @@ Using the model you chose as the better model, `sarModel` to `olsModel`, interpr
 Make sure to interpret both the coefficients and their significance as well as the $R^2$!
 
 ```{r}
-## Your code here.
+# Summary of OLS model
+
+summary(olsModel)
+options(scipen = 999)
 ```
 
-> Your answer here.
+> The most significant predictors are COUNTY_NAMAlpine,
+> COUNTY_NAMMono, and COUNTY_NAMSierra which all have coefficients of
+> -0.05112698. 
+> This suggests that these counties have significantly lower mortality rates.
+
+> The adjusted R-squared value is 0.7165. 
+> This suggests that the model is fairly strong.
+> However, this number is likely inflated due to the large
+> number of predictors within the model. 
 
 #### Question 17E [0.25 points]
 Can you trust the results of the model? Why or why not?
 
 ```{r}
-## Your code here.
+# Checking conditions (as we did before)
+
+plot(olsModel)
+
+# Check normality of residuals
+shapiro.test(residuals(olsModel))
 ```
 
-> Your answer here.
+> As discussed earlier, the data does not appear to meet the required
+> expectations for an OLS model. 
+
+> Refering back to question 16, we determined that the results of the model
+> are likely not trustworthy. 
+
+> However, this model seemed to be a better fit than the sarModel,
+> which suggests that neither model does a great job at predicting our target. 
 
 
 # 4 Improve Predictions with Machine Learning
@@ -1393,15 +1420,37 @@ mortalityTest <- mortality_sf2 %>%
 #### Question 18A [0.5 points]
 What percent of the data are in the training set and what percent in the testing set? You should use code to figure this out! How does it compare to the canonical 80-20 split?
 ```{r}
-## Your code here.
+# Determining percentage of data in each set
+
+# Total number of rows in the original data
+total_rows <- nrow(st_drop_geometry(mortality_sf2))
+
+# Number of rows in the training set
+train_rows <- nrow(mortalityTrain)
+
+# Number of rows in the testing set
+test_rows <- nrow(mortalityTest)
+
+# Percentages
+train_percent <- (train_rows / total_rows) * 100
+test_percent <- (test_rows / total_rows) * 100
+
+# Print results
+train_percent # Aprox. 82%
+test_percent # Aprox. 18%
 ```
 
-> Your answer here.
+> There is aproximately 82% of the data in the train set and
+> aproximately 18% of the data in the test set.
+> These numbers are very close to the canonical 80-20 split.
 
 #### Question 18B [0.5 points]
 What caveats or limitations can you think of by using none of the 2020 data in the training set?
 
-> Your answer here.
+> Since 2020 was a year with an unusual mortality pattern,
+> the model will not learn those patterns during training.
+> This might mean that the model will struggle to generalize onto the
+> new data from 2020 during testing. 
 
 ## 4.1 Fitting an out-of-bag (OOB) random forest (RF) model
 You decide to use random forest (RF) for this task because it handles non-linearity, which you know you have from your time plots above AND from the summaries of both your OLS and SAR regressions. You also choose to use RF because it can be more robust to outliers and still give some idea of importance for interpretability for your stakeholders. Your basic workflow will be to:
