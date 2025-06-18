@@ -21,7 +21,11 @@ knitr::opts_chunk$set(echo = TRUE,
 ```
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
-# clean, set up, and load
+options(scipen=999)
+
+set.seed(98501)
+
+## clean, set up, and load
 pacman::p_unload(pacman::p_loaded(), character.only = TRUE)
 rm(list = ls(all = TRUE))
 
@@ -505,7 +509,7 @@ You will sign up for your API census key [here](https://api.census.gov/data/key_
 Once your have your key, fill it into this code chunk here:
 ```{r}
 ## Set your API key (put it between the quotation marks):
-key <- " "
+key <- "c97023d5abec46e195c7bf2c16ffaf23c05623c7"
 ```
 
 ### 2.6.2 Downloading data tables from the 2020 Census API
@@ -774,7 +778,7 @@ Ohhhh... that's right. The pattern observed is simply a by-product of an incompl
 
 You decide that you had better take a look at both annual and monthly trends in the total numbers of deaths to see if that sheds some light on things:
 
-```{r}
+```{r, echo = FALSE}
 #### Start from the totalDeaths dataframe for simplicity
 totalDeaths %>% 
   ## Join with census by County
@@ -1420,13 +1424,18 @@ Now, let's pretend that you're skipping ahead a few months in time and you're ac
 
 Since the pandemic is over in reality, you can find the actual number of deaths, per county, [here](https://data.chhs.ca.gov/dataset/death-profiles-by-county/resource/579cc04a-52d6-4c4c-b2df-ad901c9049b7).
 
-**Hint**: You can read this file in as a dataframe using `read.csv()` as follows! I also show you the structure (`str()`) of the data so you have an idea what you're getting.
+**Hint**: You can read this file in as a dataframe using an API and `fromJSON()` as follows! Note the structure of the data - it returns a list of a list, so in order to extract the data as a dataframe we have to go two layers deep. I also show you the structure (`str()`) of the data so you have an idea what you're getting.
 
 ```{r}
-caliDeaths <- read.csv("https://s3.amazonaws.com/og-production-open-data-chelseama-892364687672/resources/078185a9-e3a7-403f-a546-b8c582f0a9d8/20241220_deaths_final_2019-2023_occurrence_county_month_sup.csv?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAJJIENTAPKHZMIPXQ%2F20250615%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250615T190154Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=61c4009b5979f2d74a95396e2f77ace3d13315fe166588cb1210ef46d292f759")
+caliDeaths <- fromJSON("https://data.chhs.ca.gov/api/3/action/datastore_search?resource_id=078185a9-e3a7-403f-a546-b8c582f0a9d8")
+
+caliDeaths <- caliDeaths$result$records
 
 caliDeaths %>% 
   str()
+
+## Alternatively, load from Rdata:
+# source("caliDeaths.Rdata")
 ```
 
 **Remember** to filter for the proper condition, Year, and Months to get the data you need. Take time to explore the data, and make sure that you are matching the data we've been using (total mortality, all causes of death) to your filter. 
