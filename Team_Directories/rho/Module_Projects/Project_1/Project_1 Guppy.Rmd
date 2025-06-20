@@ -716,9 +716,9 @@ p[1, ] %>%
 
 What columns seem to be most correlated in terms of missingness to our target, `PredictedReadmissionRate`? Does this give you any cause for concern? Feel free to speculate as to why you might see this.
 
-> The most correlation between missingness and our target is, MRSA Bacteremia, Postoperative respiratory failure rate and medicare spending per patient.  
+> The most correlation between missingness and our target is, MRSA Bacteremia, Postoperative respiratory failure rate and medicare spending per patient. All of these are very high on the realtionship between predictedt readmissions rates and missingness. Even when looking at these these there is even a big jump between the variables. The variable that has the biggest relationship even above the others is MRSA. I think that this has the biggest correlation becauase MRSA is first not very common, there is a very small amount of people that carry MRSA. The first probelem is already that it is very uncommon, the follow up thing is that MRSA is also one of the bacterias that can cause pneumonia. In these situations where when a patient comes in and the yget tested for pneumonia, then most hospitals will start treating the pneumonia rather than continuing testing. Once treatments stop working and the person is still sick then there is a reason to continue testing. 
 
-## 3.3 Drop rows that are missing from the target variable. 
+## 3.3 Drop rows that are missing from the target variable.
 
 We will not be able to use those rows at all moving forward, sadly. That is going to reduce our sample size pretty sizably, from $N = 4,816$ to only $N = 2,726$ (or from $N = 4,775$ to only $N = 2,731$ .
 
@@ -733,16 +733,16 @@ paste0(c("Rows: ", "Columns: "), dim(dat2Analyze))
 #### **Question 12**: [0.5 points]
 Thinking back to your answer to Question 9D, do you feel any differently given these dimensions of the dataset?
 
-> Your answer here.
+> I don't feel any differently about the dimensions than previously in question 9D. Even with us dropping the variables there are still so many observations that even if we dropped these variables it still would cause a concern with big p little N. If we were starring to drop observations because of missingness, this would then cause the problem to maybe come into the situation. If we decided to drop observations becuase of missingness, then this could cause problems. In this situation we are just dropping variables which in the long run we can drop variables and it can actually help to create a more accurate model when predicting. In this case it would be predicting of penumonia readmission. 
 
-## 3.4 Do the splits! 
+## 3.4 Do the splits 
 
 At this stage, we are almost ready to __impute__ - but not until we have done our data partitioning first! In fact, splitting our data into training and testing partitions first is really important to prevent __data leakage__.
 
 #### **Question 13**: [1 point]
 Explain to your stakeholder, in simpler language, (1) why we partition data into testing and training sets and (2) what data leakage is. You do not need to go into great detail, but it should explain enough that they understand the basic ideas.
 
-> Your answer here.
+> When we starting to create a model we need to create a training set and a test set. In these situations we split the data as evenly as possible. We are going to be splitting data for a couple reasons, the first being that we first need to train the model. The analogy that I like to use is to a pet, where you need to teach a pet to follow orders but slowly it starts to do those things without having to say the command out loud. There are some simulatrities between this and training a machine. The data sets that we are going to create are the commands, we are separating it into a test set and triaing set. The training set we create are now going to be given to the machine, where the machine will use this data to create an initial model of the data. The more training sets that you give to the machine the better it will be able to predict the variable better. Back to the analogy the more you train the pet the better they will do at it. We know what we are doing with the training set, and we now have a trained model. Now we have a trained model we are going to use the test set, and we are going to put it into the trained model. After putting them into the model we hope that it will create the most accurate predictions of some of the predicted variable. Back to our analolgy, this is like showing your friends the pet's trick and them following it, and not just suddenly ignorning you. When looking at some problems that could occur is data leakage, this can happen when that machine has access to information that normally wouldn't be with there when the time of predictions. This means that if there are variables that are uncounted for in the training set and then in the test set it could cause problems such as overestimating and unreliable predictions. This is why in the beginning we are going to make sure that the test set and training set are very similar so that when making predictions the model is encountering anything it hasn't seeen already. 
 
 You may recall that I mentioned that the optimal ratio is has been argued to be $\sqrt{p} : 1$, where $p$ is the number of parameters (which may or may not equal your predictors depending on your planned analysis). Note that you do not have to split only a single time; you could make different splits for different analyses, if needed. However, we are going to use a single split here for convenience. 
 
@@ -762,45 +762,44 @@ calcSplitRatio <- function(p = NA, df) {
   ## @p  = the number of parameters. by default, if none are provided, the number of columns (predictors) in the dataset are used
   ## @df = the dataframe that will be used for the analysis
   
-  ## COMMENT HERE
+  ## this is the function that if a parameter is found to be NA then it is going to count the number of columns and subtract by 1 and making the p variable equal to that. 
   if(is.na(p)) {
-    p <- ncol(df) -1   ## COMMENT HERE
+    p <- ncol(df) -1   ## this is where p is being assinged as the number of columns minus 1 from the database 
   }
   
-  ## COMMENT HERE
+  ## This is defining test_N and this is going to be calculated from doing 1 over the square root of the variable p which we defined earlier. It is then multiplied by the number of rows in the array dat2Analyze
   test_N <- (1/sqrt(p))*nrow(dat2Analyze)
-  ## COMMENT HERE
+  ## In this portion of code we are defining test_prop, where we are doing some similar calculations as previous. We are doing 1 over the square root of p multiplied buy the rows of the dataset then divide that but hte number of rows in the dataset. We have an additional function which is the round function and this is going to take the value of the calculations and its going to round it to the nearest 2 digits. 
   test_prop <- round((1/sqrt(p))*nrow(dat2Analyze)/nrow(dat2Analyze), 2)
-  ## COMMENT HERE
+  ## This function below is defining train_prop and we are doing 1 minus the test_prop 
   train_prop <- 1-test_prop
   
-  ## COMMENT HERE
+  ## This is a print function where it is going to paste together the words as well as the train_prop and test_prop 
   print(paste0("The ideal split ratio is ", train_prop, ":", test_prop, " training:testing"))
-  
-  ## COMMENT HERE
+  ## this is going to return the train_prop
   return(train_prop)
 }
 
 ## Fill in the blanks to run:
-# train_prop <- ___(df = ___)
+ train_prop <- calcSplitRatio(df = dat2Analyze)
 ```
 
 **Hint**: One important note here is that if the number of parameters are not provided (which is true for the starter code I gave you to run it - it does NOT pass any parameters to that argument!), then by default our function is designed to take the number of columns of the dataframe and subtract one for the target variable. Neat, huh?
 
 Now, uncomment this code and fill it out to run it. 
 ```{r}
-# ind <- createDataPartition(dat2Analyze$___,   ## Put the target here!
-#                            p = ___,           ## Use the object you just made!
-#                            list = FALSE)
-# 
-# train <- dat2Analyze[___, ]
-# test <- dat2Analyze[-c(ind), ]
+ind <- createDataPartition(dat2Analyze$PredictedReadmissionRate,   ## Put the target here!
+                           p = train_prop,           ## Use the object you just made!
+                            list = FALSE)
+ 
+ train <- dat2Analyze[(ind), ]
+ test <- dat2Analyze[-c(ind), ]
 ```
 
 #### **Question 14B**: [0.5 points]
 What split ratio did you get? Is it close to the canonical 80-20 split? Why do you think that happened?
 
-> Your answer here.
+> We got a split of the training set of 2238 observation and a test set has 488 observations, this is very close to the 80-20 split originally thought. The split shoule be that the training set should be around 80 percent where the test should be 20 percent. In reality the split that we have is an 82-18 split which is as close to the 80-20 split as we can get. This is a great split that we can use for making an accurate model. 
 
 
 __Did you get stuck somewhere?__ If so, load the `test` and `train` data in case you struggled with Question 18 so you can proceed:
