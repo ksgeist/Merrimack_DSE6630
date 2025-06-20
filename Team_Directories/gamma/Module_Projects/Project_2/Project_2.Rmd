@@ -11,7 +11,7 @@ output:
     fig_crop: no
 ---
 
-```{r setup, include=FALSE}
+```{r setup, include=TRUE}
 knitr::opts_chunk$set(echo = TRUE,
                       message = FALSE,
                       warning = FALSE,
@@ -226,7 +226,7 @@ print(cali_sf$COUNTY_NAM)
 **Hint 2**: There are islands in California. What happens to islands in terms of `COUNTY_NAM`?
 
 > Your answer here. by collins
-calif_sf object contains 69 observations (samples) and 8 features/ variables (columns). of the 69 observations we have 58 counties. 3 counties that is santa barbara, Ventura and Los Angeles are islands. Santa Barbara and Ventura appears five times with a unique GlobalID and Geometry. this is the same for Ventura, appearing five times and Los Angeles three times.
+calif_sf object contains 69 observations (features) and 8 variables (columns). of the 69 features we have 58 counties. 3 counties that is santa barbara, Ventura and Los Angeles are islands. Santa Barbara and Ventura appears five times with a unique GlobalID and Geometry. this is the same for Ventura, appearing five times and Los Angeles three times.
 
 *Next, let's take a look at the geometry of the shapefile that you loaded.*
 ```{r}
@@ -404,6 +404,45 @@ Your stakeholders point out that you have forgotten San Jose, one of the most po
 
 ```{r}
 ## YOUR CODE HERE.
+cities <- data.frame(
+  city = c("Sacramento", "San Diego", "Los Angeles", "San Francisco", "San Jose"),
+  lon = c(-121.4944, -117.1611, -118.2437, -122.4194, -121.8853),
+  lat = c(38.5816, 32.7157, 34.0522, 37.7749, 37.3387),
+  cityType = c("capital", "major", "major", "major", "major")
+)
+
+## Convert to shapefile object with the same projection as what you had
+cities_sf <- st_as_sf(cities, coords = c("lon", "lat"), crs = 4326)
+
+```
+
+
+```{r}
+ggplot(data = cali_sf) +
+  ## Give it specific fill and border colors
+  geom_sf(fill = skittles[6], 
+          color = "gray20", 
+          linewidth = 0.25, 
+          alpha = 0.65) +
+  
+  ## Set ap projection explicitly
+  coord_sf(expand = FALSE) +   ## <- keeps map tight to its bounding box
+  
+  #### ----- Here is where you overlay the points! -------- ####
+  geom_sf(data = cities_sf, 
+          ## Different colors & shapes & sizes for different cities
+          aes(color = city, shape = cityType, size = cityType)) + 
+  
+  ## Define shapes and sizes manually for cityType
+  scale_shape_manual(values = c(capital = 18, major = 16), guide = "none") +  
+  scale_size_manual(values = c(capital = 6, major = 3), guide = "none") +
+  
+  ## Define the fill color for the city shapes
+  scale_color_manual(values = skittles[1:5], name = "City") +
+
+  ## Give it a title and footnote/caption 
+  labs(title = "California Counties with Major Cities Marked",
+       caption = "Source: California State Geoportal")
 ```
 
 ## 2.4 Joining shapefiles with a tibble or dataframe
@@ -427,25 +466,27 @@ Annotate the following code chunk with comments to make sure you understand what
 
 ```{r, echo = TRUE, warning=FALSE, message=FALSE}
 ## YOUR COMMENT HERE - make sure to comment on the choice of data
-mortality_sf <- totalDeaths %>% 
-  ## YOUR COMMENT HERE
+mortality_sf <- totalDeaths %>% # creating an object mortality_sf
+  ## YOUR COMMENT HERE using rename function to rename county in totalDeaths into COUNTY_NAM so as to match COUNTT-NAM column in calif_sf
   rename(COUNTY_NAM = County) %>%
-  ## YOUR COMMENT HERE
+  ## YOUR COMMENT HERE use group_by function to aggregate data by COUNTY_NAM, Year, and Month
   group_by(COUNTY_NAM, Year, Month) %>% 
-  ## YOUR COMMENT HERE
+  ## YOUR COMMENT HERE summarise here is being used to calculate totaDeaths using sum () and na.rm = True to ignore any missing value
   summarise(totalDeaths = sum(totalDeaths, na.rm = TRUE)) %>%
   ## YOUR COMMENT HERE - make sure to comment on the relationship parameter
-  full_join(cali_sf, by = "COUNTY_NAM", relationship = "many-to-many") %>% 
-  ## YOUR COMMENT HERE
-  st_as_sf() %>% 
-  ## YOUR COMMENT HERE
+  full_join(cali_sf, by = "COUNTY_NAM", relationship = "many-to-many") %>% # joins cali_sf with mortality_sf using COUNTY_NAM
+  ## YOUR COMMENT HERE relationship = "many-to-many" is set to allow for multiple matches between the two datasets
+  st_as_sf() %>%  #converts the joined tibble back to shapefile
+  ## YOUR COMMENT HERE filters out ISLAND
   filter(is.na(ISLAND))
 ```
 
 #### Question 7A [0.5 points]:
 What does `st_join()` do? Could you have executed the join with `st_join()` instead of `full_join()` here? Why or why not? 
 
-> Your answer here.
+> Your answer here. By Collins
+`st_join()` function is used to perform spatial join between two datasets. It allows to combine data from two sources based on their spatial relationships. In our case, while cali_sf has spatial information, totalDeath dataset which initiates mortality_sf has none.
+>full_join function is preferred for non-spatial or spatial + non-spatial like in our case. Where we are using COUNTY_NAM to join.
 
 
 #### Question 7B [0.5 points]:
@@ -453,18 +494,22 @@ This question has three subparts.
 
 1. How many features are there in `mortality_sf`? 
 ```{r}
-# Your code here.
+# Your code here. By cOLLINS
+nrow(mortality_sf)
 ```
 
 2. Why is it so many more than in `cali_sf`?
-> Your answer here.
+> Your answer here. By Collins
+By performing a full_join, it meant that the resulting dataset (motality_sf) is supposed to contain all features (rows) from both datasets and since mortality_sf has more rows than cali_sf then the total rows of mortality_sf is observed on the joined dataset
 
 3. How many counties are there now in `COUNTY_NAM`? (Hint: Use `unique()` or `n_distinct()` to help you get the true number!) Why is it different from the number you saw in Question 2?  
 ```{r}
 # Your code here.
+unique(mortality_sf$COUNTY_NAM)
 ```
 
-> Your answer here.
+> Your answer here. By Collins
+we have 58 counties. 11 counties less than they were in cali_sf. This is because we dropped all the Islands when creating mortality_sf
 
 
 ## 2.5 Visualizing annual trends in overall mortality
@@ -523,7 +568,10 @@ Is there any pattern that is a cause for concern in your interpretation of **tot
 **Hint 1**: The county with the highest number of deaths (darkest purple) is **Los Angeles county**. What is special about LA county?
 **Hint 2**: Do you see other similar darker colors in counties around cities?
 
-> Your answer here.
+> Your answer here. By Collins
+for year 2017, 2018, and 2019 the total deaths pattern seems to be pretty consistent. This pattern changes for the year 2020 with a significant drop in total deaths. But after a little digging I realised that year 2020 has only 8 months worth of data. Therefore, its obvious total deaths for this year will be less compared to other years.
+
+>Los Angeles is the most populated county in California with close to 10 million people. A similar trend in big cities. High populated areas are expected to have high total deaths in relation to their population size. This explains why there is more total deaths in the cities as compared to outside cities.
 
 ## 2.6 Accessing the 2020 US Census API
 
@@ -543,7 +591,7 @@ You will sign up for your API census key [here](https://api.census.gov/data/key_
 Once your have your key, fill it into this code chunk here:
 ```{r}
 ## Set your API key (put it between the quotation marks):
-key <- " "
+key <- "4551b0aef112cfb37dee5c5fcafe14b1858b8325"
 ```
 
 ### 2.6.2 Downloading data tables from the 2020 Census API
@@ -592,8 +640,12 @@ The custom function, `getPopSizes()`, pulls population data from the U.S. Census
 #### Question 10A [0.5 points]:
 Using a search engine or the [Census table explorer](https://data.census.gov), whichever you find easier to use, look for the differences between table variables `DP1_0048C` and  `DP1_0048P`. What different information do these two variables hold?
 
-> Your answer here.
+> Your answer here. By Collins
+`DP1_0048C` Annotation of Number!!SEX AND AGE!!Male population!!Selected Age Categories!!65 years and over
 
+>`DP1_0048P` Annotation of Percent!!SEX AND AGE!!Male population!!Selected Age Categories!!65 years and over
+
+> variable `DP1_0048P` is a proportion (Percentage) representation of variable `DP1_0048C`. in brief suffix C in `DP1_0048C`represents count while suffix P in `DP1_0048P` represents percentage. This offers an alternative to analyze the data in different perspectives and gain more comprehensive understanding of the demographic characteristics of the population.
 *Digging into the Function*
 
 The function `getPopSizes()` takes in the following information as **arguments** to be able to run correctly:
@@ -685,7 +737,12 @@ census <- census %>%
 #### Question 10B [0.5 points]:
 Use code or some other method to explore the resulting dataframe, `census`. Explain what this dataframe contains. 
 
-> Your answer here
+> Your answer here By Collins
+
+```{r}
+summary(census)
+```
+
 
 #### Question 11 [1 point]:
 Now that you know more generally how this function works and have seen it in action, in your own words, explain how you could adapt this approach (or even this function!) to work with a different API (not the Census). I am not asking you to code, but I am asking you to think through:
@@ -697,7 +754,17 @@ Now that you know more generally how this function works and have seen it in act
 - **Hint 2**: Think about how the data is retrieved (e.g., using `fromJSON()`) and cleaned afterward.
 - **Hint 3**: For simplicity, assume that the data retrieved are in `JSON` format, since that is the most commonly used format.
 
-> Your answer here.
+> Your answer here. By Collins
+1. What key pieces of the function would you need to change?
+The URL: since the URL is case specific, it will need to be tweeked to suit the emerging needs
+API KEY: if a new API (Application Programming Interface) requires a new API Key then it will have to change but i want to believe API KEY is more constant in nature
+Parameters: parameters passed in the request changes with the needs/(data type).
+
+> 2. What general steps stay the same regardless of the API?
+sending a request to an API endpoint remains the same
+regardless of the API we need to handle the response that is checking for errors and parsing the data
+data cleaning is usually important it cuts across all APIs
+
 
 
 ### 2.6.3 Joining the census with the spatial data and updating the maps
@@ -713,7 +780,20 @@ Now, it's your turn to do some work! Your task is to join the census data to the
 
 ```{r}
 # Your code here.
+
+census <- census%>%
+  rename(COUNTY_FIP = COUNTY)
+  
+mortality_sf2 <- mortality_sf %>%
+  left_join(census, by = "COUNTY_FIP", relationship = "many-to-many") %>%
+  st_as_sf()
+
+mortality_sf2 <- mortality_sf2 %>%
+  select(-County)
+  
 ```
+
+
 
 **Note**: If you're unable to do this for any reason, you can pick back up here. You will need to download the data from [Google Drive](https://drive.google.com/file/d/15MT127zoySDS7kOfr9uhLwPSIWBCok1W/view?usp=sharing), as the shapefile is too large for GitHub yet again. I have placed mine on my Desktop, but you can put it anywhere you like and update the directory path. Just make sure not to put it in your GitHub repo!
 
