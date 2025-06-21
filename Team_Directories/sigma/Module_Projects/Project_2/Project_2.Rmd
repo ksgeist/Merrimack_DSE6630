@@ -681,7 +681,7 @@ Now, it's your turn to do some work! Your task is to join the census data to the
 
 ```{r, eval = TRUE}
 ## Comment me out or change EVAL=FALSE to run your own versions!
-load("~/Desktop/mortality_sf2.Rdata")
+load("C:/Users/mnoon/OneDrive/Desktop/mortality_sf2.Rdata")
 load("census.Rdata")
 ```
 
@@ -1120,7 +1120,7 @@ summary(olsModel)
 summary(sarModel)
 ```
 
-> MN: 
+> MN: Using the olsModel, the R-squared is 0.723 which means this models explains 72.3% of variance, suggesting a strong fit. Alipne and Mono counyies had the least mortality rates, while Shasta and Tuolumne had the highest. We can also see that Year and Month had significance. All other variables equal, Year has a 0.72 increae in mortality.
 
 #### Question 17E [0.25 points]
 Can you trust the results of the model? Why or why not?
@@ -1129,8 +1129,7 @@ Can you trust the results of the model? Why or why not?
 ## Your code here.
 ```
 
-> Your answer here.
-
+> MN: I feel that the olsModel is a good baseline model based on the higher R-squared result, and statistically significant coefficient results, but there is room for improvement. There is no spatial autocorrelation showing how counties influence each other, and there could be omitted variables underlying county name. Therefore, I don't feel we can entirely trust this model.
 
 # 4 Improve Predictions with Machine Learning
 
@@ -1162,15 +1161,18 @@ mortalityTest <- mortality_sf2 %>%
 #### Question 18A [0.5 points]
 What percent of the data are in the training set and what percent in the testing set? You should use code to figure this out! How does it compare to the canonical 80-20 split?
 ```{r}
-## Your code here.
+round(100 * c(
+  train <- nrow(mortalityTrain) / (nrow(mortalityTrain) + nrow(mortalityTest)),
+  test <- nrow(mortalityTest) / (nrow(mortalityTrain) + nrow(mortalityTest))
+), 2)
 ```
 
-> Your answer here.
+> MN: With a train/test spli of 81.82 and 18.18, this is very close to 80/20, and I feel this is still a safe split ratio to continue.
 
 #### Question 18B [0.5 points]
 What caveats or limitations can you think of by using none of the 2020 data in the training set?
 
-> Your answer here.
+> MN; While 2020 was a stand-out year and far from typical, leaving it out could provide some limitations. Reduced training set size which would mean weaker estimations of seasonal trends, and if the model only learns trends prior to 2020, it could under predict mortality in the pandemic era data.
 
 ## 4.1 Fitting an out-of-bag (OOB) random forest (RF) model
 You decide to use random forest (RF) for this task because it handles non-linearity, which you know you have from your time plots above AND from the summaries of both your OLS and SAR regressions. You also choose to use RF because it can be more robust to outliers and still give some idea of importance for interpretability for your stakeholders. Your basic workflow will be to:
@@ -1191,7 +1193,7 @@ You decide to leverage the `caret` package in R again for much of your model fit
 #### Question 19A [0.5 points]
 What does it mean to "fit a model with out-of-bag (OOB) error"? Why do we do it? What can it tell you here?
 
-> Your answer here.
+> MN: Out-of-bag error is a technique to check how good model is without having a separate test set. It can give a quick reference for model performance, and helps to avoid overfitting.
 
 
 Even though you have no encoding, you know that you need to center and scale your data before running the random forest! So, you decide to leverage the `preProcess()` function in the `caret` package to help you center and scale the predictors. You perform the preprocessing explicitly here, storing the pre-processed training *instructions* in `preProcInstructions`. Then, you can apply the pre-processing to the training data, `mortalityTrain`, using the `predict()` function. Note that this is a different step than when you are predicting from a model for performance evaluation!
@@ -1239,7 +1241,8 @@ Note that here you coerce it to use an `mtry` hyperparameter grid search of 1 th
 #### Question 19B [0.5 points]
 What is `mtry` and what is it doing in the context of a random forest? What is the default `mtry` for a random forest regression? Why am I choosing to override it here, do you think?
 
-> Your answer here.
+> MN: The mtry is number of variables selected at each split to find the best one. The default mtry for an RF regression is the number of predictors divinded by 3. https://parsnip.tidymodels.org/reference/details_rand_forest_randomForest.html
+We are trying to overide it because we want to find the best spot between bias and variance. If the default mtry was left alone, it would only use 1.
 
 *Look at the results ($RMSE$ and $R^2$) of the OOB random forest*
 ```{r}
@@ -1258,7 +1261,7 @@ Recall from the Elastic Net you fitted a couple weeks ago on the hospital readmi
 #### Question 19C [0.5 points]
 Which value of  `mtry` gave the best results? (**Hint**: Can $R^2$ values be negative?!?). Are you able to compare the $RMSE$ of this model to the one you fitted in Question 16C? Why or why not? (**Hint**: Does your pre-processing step apply to the target too? You may have to do a little research!)
 
-> Your answer here.
+> MN: Mtry of 1 provided the best results. R-squared values should not be negative. In question 16 my residual standard error was 0.01449, which lower than oob RF of 0.98538, however, the olsModel was not centered and scaled, so I don't believe we can make a direct comparison.
 
 
 
@@ -1300,7 +1303,7 @@ rfCV$results %>%
 #### Question 19D [0.5 points]
 What do you notice about the effects of cross-validation on your model? (**Hint**: Do you see any negative $R^2$ values this time?) Which value of  `mtry` gave the best results? How does the $RMSE$ of that model compare to the one you chose as the optimal OOB model?
 
-> Your answer here.
+> MN: In this CV model, we no longer see negative R-squared. The best mtry again looks to be 1. The RMSE and R-squared are SLIGHTLY lower than the OOB, which suggests small improvements. If both models showed mtry of 1 as the bestoption, then I think that is a good indicator it's the best choice.
 
 
 ## 4.3  Test the training model with the 2020 data
@@ -1348,7 +1351,7 @@ Can you interpret the $RMSE$ and $MAE$ values? **Remember** all of the data were
 
 **How did the training model perform?** Does it seem to be overfitting (training error >> testing error), underfitting (training error and testing error both high but roughly equal with a low $R^2$), or doing okay?
 
-> Your answer here.
+> MN: There does not seem to be a big gap between training and test errors, so I don't think overfitting is a concern here. There may be some slight underfitting due to RMSE and MAE being very similar. 
 
 ### 4.3.4 Plot Actual vs. Predicted Values
 
