@@ -178,7 +178,7 @@ __The initial processing steps will include:__
 You will leverage the `read_sf()` function that is part of the `sf` package. As you might have guessed, `sf` refers to __shapefile__. Note that there is an alternative method to read in shapefiles called `st_read`, which is an alias for `read_sf()` with some different default arguments. By default, `read_sf()` is quiet, whereas `read_st()` will print information about the data source by default. Additionally, `read_sf()` returns a tibble rather than a dataframe. So which to choose? It's your preference, in this case. By default, your code below will use `read_sf()` but you could instead use `read_st()` if you wanted.
 
 ```{r}
-cali_sf <- read_sf("/Users/stephgarofalo/Desktop/California_County_Boundaries/cnty19_1.shp") 
+cali_sf <- read_sf("/Users/j_cicero/Desktop/California_County_Boundaries/cnty19_1.shp") 
 
 ## Alternatively, you can read in the shapefile using the 'st_read()' function
 ## cali_st <- st_read("./California_County_Boundaries/cnty19_1.shp") 
@@ -481,7 +481,7 @@ mortality_sf
 > There are 2,552 features in `mortality_sf`.
 
 2. Why is it so many more than in `cali_sf`?
-> mortality_sf has many more features than cali_sf because it includes data broken down by county, year, and month, while cali_sf only contains one row per geographic feature (such as a county or island). After joining the monthly mortality data to the shapefile, each county is repeated multiple times—once for each time period—resulting in a much larger dataset.
+> mortality_sf has many more features than cali_sf because it includes data broken down by county, year, and month, while cali_sf only contains one row per geographic feature (such as a county or island). After joining the monthly mortality data to the shapefile, each county is repeated multiple times—once for each time period, resulting in a much larger dataset.
 
 3. How many counties are there now in `COUNTY_NAM`? (Hint: Use `unique()` or `n_distinct()` to help you get the true number!) Why is it different from the number you saw in Question 2?  
 ```{r}
@@ -569,7 +569,7 @@ You will sign up for your API census key [here](https://api.census.gov/data/key_
 Once your have your key, fill it into this code chunk here:
 ```{r}
 ## Set your API key (put it between the quotation marks):
-key <- " "
+key <- "8df5fb174aa23bc8d7e1194b99a54b5041058a2c"
 ```
 
 ### 2.6.2 Downloading data tables from the 2020 Census API
@@ -618,7 +618,7 @@ The custom function, `getPopSizes()`, pulls population data from the U.S. Census
 #### Question 10A [0.5 points]:
 Using a search engine or the [Census table explorer](https://data.census.gov), whichever you find easier to use, look for the differences between table variables `DP1_0048C` and  `DP1_0048P`. What different information do these two variables hold?
 
-> Your answer here.
+> These are both data profiles (DP) in the Profile of General Population and Housing Characteristics table. They are the 48th characteristic. The "C" represents the absolute count and the "P" represents the percentage. 
 
 *Digging into the Function*
 
@@ -711,7 +711,8 @@ census <- census %>%
 #### Question 10B [0.5 points]:
 Use code or some other method to explore the resulting dataframe, `census`. Explain what this dataframe contains. 
 
-> Your answer here
+> The `census` dataframe contains demographic data for counties in California, focusing on the population aged 65 and older. It includes the total population, as well as breakdowns by gender and age group (specifically those aged 65+). The data provide both the count and percentage of older adults within each county.
+
 
 #### Question 11 [1 point]:
 Now that you know more generally how this function works and have seen it in action, in your own words, explain how you could adapt this approach (or even this function!) to work with a different API (not the Census). I am not asking you to code, but I am asking you to think through:
@@ -723,7 +724,8 @@ Now that you know more generally how this function works and have seen it in act
 - **Hint 2**: Think about how the data is retrieved (e.g., using `fromJSON()`) and cleaned afterward.
 - **Hint 3**: For simplicity, assume that the data retrieved are in `JSON` format, since that is the most commonly used format.
 
-> Your answer here.
+> To adapt this function for use with a different API, you would need to change the base URL and the structure of the question parameters to match the specifics of the new API. This includes how variables are named, how the API key is passed, and what data fields you want to retrieve. The renaming and cleaning steps in the function would need to reflect the structure of the new data. As far as what steps stay the same, the general process wouldn't change- construct a URL to request specific data, use a function like fromJSON( ) to retrieve the JSON response, convert the data into a data frame, and then clean and format it for analysis.
+
 
 
 ### 2.6.3 Joining the census with the spatial data and updating the maps
@@ -738,7 +740,14 @@ Now, it's your turn to do some work! Your task is to join the census data to the
 * **Hint 3**: If you're having problems, check your data types!
 
 ```{r}
-# Your code here.
+# Ensure FIPS codes are characters with leading zeros if necessary
+census <- census %>%
+  mutate(FIPS = sprintf("%02s%03s", STATE, COUNTY))
+
+# join the data using the FIPS and County_Fip column
+mortality_sf2 <- mortality_sf %>%
+  left_join(census, by = c("COUNTY_FIP" = "FIPS"))
+
 ```
 
 **Note**: If you're unable to do this for any reason, you can pick back up here. You will need to download the data from [Google Drive](https://drive.google.com/file/d/15MT127zoySDS7kOfr9uhLwPSIWBCok1W/view?usp=sharing), as the shapefile is too large for GitHub yet again. I have placed mine on my Desktop, but you can put it anywhere you like and update the directory path. Just make sure not to put it in your GitHub repo!
@@ -830,7 +839,9 @@ For example, for 3 of the 4 years, **Shasta County** (2017-2019) shows the **hig
 #### Question 13 [1 points]:
 What patterns do you observe now, if any? Do you think this is a true pattern? Aren't you being told that deaths are going **up** due to COVID-19??
 
-> Your answer here.
+> Most counties fall within the 0.494–0.777% range, shown in medium shades of blue, indicating relatively consistent mortality rates across the state. A few counties in northern and rural areas stand out in darker purple, particularly in 2018 and 2019, possibly due to localized events such as wildfires or aging populations. 2020 does not appear to show a statewide spike in mortality despite the onset of the COVID-19 pandemic, suggesting that its effects may have varied regionally or were mitigated by other demographic factors. The map shows relatively stable percent mortality across California counties from 2017 to 2020. This pattern may not reflect the actual reality of rising deaths during the COVID-19 pandemic. 2020 does not show a dramatic increase in percent mortality compared to previous years. This may be due to how the data is structured. Percent mortality is calculated relative to total population, so even if deaths increased, a large population base could lessen the impact that the map colorization has. Also, using annual data can smooth out more frequent spikes that may have occurred during specific months of the pandemic. There may also be reporting delays or incomplete data for 2020 that could artificially lower the mortality figures. COVID-19 affected counties differently, with some rural areas experiencing fewer cases early on. And on top of all this, the data are incomplete for 2020 since it's only 8 months into 2020.
+
+
 
 ## 2.8 The data for 2020 isn't complete... {#linegraph1}
 
@@ -871,7 +882,8 @@ ggplot(aes(x = Month, y = percMortality,
 #### Question 14 [1 point]:
 Why did this happen and how could you fix it? (**There is more than one correct answer possible.**) Could you have made your maps the way you did in Section 2.7 and had them be accurate if we'd had a full 12 months' of data for each year?
 
-> Your answer here.
+> The map created in Section 2.7 is a useful tool for visualizing annual percent mortality by county, but it can be misleading if the data for each year are not complete. If 2020 includes only deaths through August rather than the full 12 months, then the calculated annual percent mortality will be artificially low compared to previous years. This makes it appear as though mortality in 2020 was not significantly higher, even though we know COVID-19 increased death rates. However, if complete data were available for each year, this mapping approach would be valid and effective. It would allow for fair year-to-year comparisons and reveal true spatial and temporal patterns in mortality. To improve accuracy in the meantime, we could either use only months common to all years or adjust partial-year mortality to annualized rates.
+
 
 ## 3.1 Fixing the map's accuracy for 2020.
 
@@ -954,7 +966,8 @@ What patterns do you observe now in 2020? (**NOTE**: The maps for 2017-2019 are 
 
 **Hint**: Take a look at counties in Southern CA, like Los Angeles, Orange, San Diego, Riverside, Imperial...
 
-> Your answer here.
+> The 2020 map now more clearly reflects patterns that are consistent with the increase in deaths during the COVID-19 pandemic. While the maps for 2017 to 2019 remain unchanged, the 2020 panel shows a noticeable shift in several counties, particularly in Southern California. Counties such as Los Angeles, Riverside, San Bernardino, and Imperial now display higher percent mortality rates. Even counties like Orange and San Diego, which were previously moderate, show elevated mortality compared to earlier years. Some northern or rural counties show less dramatic change, either because their mortality was already high or because they were less affected early in the pandemic.&#x20;
+
 
 
 # 3 Project future mortality
@@ -1065,10 +1078,12 @@ ggplot(temp, aes(x = Month, y = percMortality,
 Do you think this regression prediction is robust? Why or why not? (**Hint**: Check your assumptions with `plot(olsModel)`!!) 
 
 ```{r}
-# Your code here.
+plot(olsModel)
+
 ```
 
-> Your answer here.
+> The diagnostic plots indicate that the regression model used to predict monthly percent mortality is not fully robust. The Q-Q plot shows that the residuals deviate significantly from the expected normal distribution, especially in the tails. This suggests the presence of extreme values that the model does not account for. The Scale-Location plot shows that the variance of the residuals is not constant across all levels of fitted values. The Residuals vs. Leverage plot identifies a few high-residual points, which are likely outliers associated with mortality spikes during the pandemic. Overall, these diagnostics confirm that the model does not meet key OLS assumptions and its predictions, particularly for late 2020, likely include bias.
+
 
 ## 3.2 Spatial lag regression
 
@@ -1108,7 +1123,8 @@ Why am I calculating the neighbors on just the **distinct counties** in the mort
 
 **Hint 2**: What happens if I calculate spatial weights on redundant data? Does it cost me computationally?
 
-> Your answer here.
+> The spatial weights matrix should reflect the fixed geographic relationships between counties, not the repeated observations tied to each month or year. Although mortality_sf2 contains multiple rows per county (one for each time period), there are still only 58 unique county geometries. The number of rows is equal to the (number of counties x 12 x 3) + (the number of counties x 8). Calculating spatial neighbors on the full dataset would be computationally inefficient and potentially incorrect, as it would treat identical geometries as separate entities. It would have to run computations on 2552 observations as opposed to 58. It could also introduce redundancy or errors into the spatial structure.&#x20;
+
 
 2. Calculate row-standardized spatial weights matrix based on the neighbors-list.
 *This converts the neighbor information stored in `mortality_nb` into a usable weight list using `nb2listw()`. Neighbors have equal influence (row-standardized: `style = "W"`).*
@@ -1160,19 +1176,20 @@ Run a **spatial lag regression (SAR)** model using the spatial lag you just calc
 **Hint 2**: Make sure to include both time elements as covariates!
 
 ```{r}
-# __ <- lm(__ ~ __ + __ + lagged_monthlyPercMortality, 
-#     data = __)
+sarModel<- lm(monthlyPercMortality ~ Year + Month + lagged_monthlyPercMortality, 
+   data = mortality_sf2)
 ```
 
 Now, let's compare `sarModel` to `olsModel` and see which model better explains monthly percent mortality in California (uncomment to run).
 ```{r}
-# anova(sarModel, olsModel)
+anova(sarModel, olsModel)
 ```
 
 #### Question 17C [0.25 points]
 Which model, the spatial lag regression (`sarModel`) or the ordinary least squares regression (`olsModel`), is a better fit to the data? Why?
 
-> Your answer here.
+> The ANOVA comparison between the spatial lag model and the original OLS model demonstrates that the spatial lag model provides a significantly better fit. The F-statistic of 113.97 and a p-value less than 2.2e-16 show that the spatially lagged percent mortality explains significantly more variance in the data. The residual sum of squares dropped from 1.86 in the OLS model to 0.52 in the spatial model, which also shows improved model performance. This provides statistical evidence that there is spatial dependence in the data, suggesting that mortality in one county is influenced by mortality rates in its neighboring counties. 
+
 
 #### Question 17D [0.5 points]
 Using the model you chose as the better model, `sarModel` to `olsModel`, interpret the results of that model. **HINT**: Remember that `summary()` helps you access the results from the model! 
@@ -1180,19 +1197,23 @@ Using the model you chose as the better model, `sarModel` to `olsModel`, interpr
 Make sure to interpret both the coefficients and their significance as well as the $R^2$!
 
 ```{r}
-## Your code here.
+summary(sarModel)
 ```
 
-> Your answer here.
+> The spatial lag model provides decent insights into the factors associated with monthly percent mortality across California counties. The coefficient for the spatial lag variable is negative (-0.219) and statistically significant (low p-value), indicating that after accounting for time, counties tend to have lower mortality when their neighboring counties experience higher mortality. This may reflect indirect effects such as strain on shared healthcare resources or other confounding variables. The month variable also shows a significant negative relationship, suggesting a slight decline in mortality rates as the year progresses. The year variable has a small, barely significant positive effect, pointing to a weak upward trend in mortality over the four-year period. The R-squared value is very low at just 0.0136, meaning the model explains only a small portion of the variation in mortality. This suggests that other unmeasured factors likely play a larger role. The spatial lag model is definitely an improvement over the OLS model, but its explanatory power is limited.
+
 
 #### Question 17E [0.25 points]
 Can you trust the results of the model? Why or why not?
 
 ```{r}
-## Your code here.
+par(mfrow = c(2, 2))
+plot(sarModel)
 ```
 
-> Your answer here.
+> While the spatial lag model offers a slight improvement over the OLS model, the diagnostic plots suggest that its assumptions are not fully met. The residuals versus fitted values plot shows  that the variance of the errors may not be constant across all levels of fitted values. The Q-Q plot reveals deviations from normality, particularly at the tails, which suggests the model's residuals are not normally distributed. Also, a few points in the leverage plot indicate that certain counties may be exerting a disproportional amount of influence on the model's results. The model is going to need some improving.
+
+
 
 
 # 4 Improve Predictions with Machine Learning
@@ -1225,15 +1246,24 @@ mortalityTest <- mortality_sf2 %>%
 #### Question 18A [0.5 points]
 What percent of the data are in the training set and what percent in the testing set? You should use code to figure this out! How does it compare to the canonical 80-20 split?
 ```{r}
-## Your code here.
+total_n <- nrow(mortalityTrain) + nrow(mortalityTest)
+
+# Training and testing percentages
+train_pct <- (nrow(mortalityTrain) / total_n) * 100
+test_pct <- (nrow(mortalityTest) / total_n) * 100
+
+train_pct
+test_pct
+
 ```
 
-> Your answer here.
+> The split percentages are 81.8% train and 18.2% test. These are pretty close to the typical 80-20 split.
 
 #### Question 18B [0.5 points]
 What caveats or limitations can you think of by using none of the 2020 data in the training set?
 
-> Your answer here.
+> There are a few things I can think of; first, the model is blind to any pandemic-specific shifts in mortality patterns that began in 2020.  Second, if there are structural changes in relationships—like how mortality correlates with neighboring counties due to COVID-19 effects, the model won't have learned them. Third, this setup assumes that patterns before 2020 are good predictors of patterns during 2020, which may not hold with such an unprecedented event.
+
 
 ## 4.1 Fitting an out-of-bag (OOB) random forest (RF) model
 You decide to use random forest (RF) for this task because it handles non-linearity, which you know you have from your time plots above AND from the summaries of both your OLS and SAR regressions. You also choose to use RF because it can be more robust to outliers and still give some idea of importance for interpretability for your stakeholders. Your basic workflow will be to:
