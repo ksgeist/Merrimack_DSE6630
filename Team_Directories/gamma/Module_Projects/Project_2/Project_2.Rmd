@@ -799,8 +799,8 @@ mortality_sf2 <- mortality_sf2 %>%
 
 ```{r, eval = TRUE}
 ## Comment me out or change EVAL=FALSE to run your own versions!
-load("~/Desktop/mortality_sf2.Rdata")
-load("census.Rdata")
+#load("~/Desktop/mortality_sf2.Rdata")
+#load("census.Rdata")
 ```
 
 ## 2.7 Mapping population-adjusted mortality
@@ -884,7 +884,14 @@ For example, for 3 of the 4 years, **Shasta County** (2017-2019) shows the **hig
 #### Question 13 [1 points]:
 What patterns do you observe now, if any? Do you think this is a true pattern? Aren't you being told that deaths are going **up** due to COVID-19??
 
-> Your answer here.
+> Your answer here. By Collins
+The maps of 2017, 2018, & 2019 show a very consistent death rates. With some subtle increases and decreases in different states. For example a close comparison of year 2017, 2018, and 2019, we deduce the following:
+>Mendocino county death rate was high in 2017 decreased in 2018 and increased again in 2019
+>shasta county death rate was higher in 2018 compared to 2017 and remained same level in 2019
+>Glenn County had lower deaths in both 2017 and 2019 compared to 2018
+>Calavelas county death rates was low in 2017, increased in 2018 and decreased again in 2019
+>Mariposa county death rates were high in 2017, reduced in both 2018 and 2019.
+2020 shows a decline pattern in deathrates but we do know the decrese is caused largely by the absence of 4 months of data.
 
 ## 2.8 The data for 2020 isn't complete... {#linegraph1}
 
@@ -925,7 +932,10 @@ ggplot(aes(x = Month, y = percMortality,
 #### Question 14 [1 point]:
 Why did this happen and how could you fix it? (**There is more than one correct answer possible.**) Could you have made your maps the way you did in Section 2.7 and had them be accurate if we'd had a full 12 months' of data for each year?
 
-> Your answer here.
+> Your answer here. Collins
+While a Map in section 2.7 shows some informative patterns for year 2017, 2018, and 2019. It fails to incorporate the absence of data in 2020. 
+>Our formula: summarize(annualPercMortality = 100*(sum(totalDeaths, na.rm = TRUE)/mean(totalN))). TotalN fails to consider the fact that in 2020, we accounted for only 8 months, therefore, our map was bound to show a decrease in death rates for this year even a complete would have changed the trend of the death rates. 
+>Adjusting the data to analyse per month has helped significantly to understand death rates in year 2020 as compared to similar months of years 2017, 2018, and 2019.
 
 ## 3.1 Fixing the map's accuracy for 2020.
 
@@ -1008,7 +1018,9 @@ What patterns do you observe now in 2020? (**NOTE**: The maps for 2017-2019 are 
 
 **Hint**: Take a look at counties in Southern CA, like Los Angeles, Orange, San Diego, Riverside, Imperial...
 
-> Your answer here.
+> Your answer here. By Collins
+Yes there seems to be an increase in death rates in 2020 as compared to previous years. For example the forllowing counties have showed an upward trajectory in relation to death rate increase: Los Angeles, Orange, Imperial, Ventura, Kern, San Bernardino, Tulare, Kings, Madera, Mendocino, Plumas, and Sonoma. Riverside and  San Diego death rates remained relatively the same.
+>Mariposa county shows a decline in number of Death rates in 2020
 
 
 # 3 Project future mortality
@@ -1120,9 +1132,17 @@ Do you think this regression prediction is robust? Why or why not? (**Hint**: Ch
 
 ```{r}
 # Your code here.
+plot(olsModel)
 ```
 
-> Your answer here.
+> Your answer here. By Collins
+
+>1. Checking Linearity using Residuals Vs Fitted Plot. This plot does not show a clear linear relationship, which could indicate a non-linear relationship between the dependent and independent variables. Based on linearity assumption, our OLS model is not rubust.
+
+>2. Checking for Normal distribution assumption using Q-Q plot: The heavy_tailed nature of residuals indicate that there are outliers/ Extreme values in the data that are not accounted for in the model.Therefore, residuals from our OLS model are not normally distributed a further indication that our model is not robust enough.
+
+>3. Homoscedasticity: the non-horizontal red line in the scale location plot, suggest some level of heteroscedasticity. That is a varying spread of of residuals across different fitted values, negating the assumption of constant variance.
+>Based on Residuals VS Leverage plot. points 1084, 1091, and 1097 seems to be influential observations in our linear regression model. These points have high leverage and large residuals which could impact the robustness of our model.
 
 ## 3.2 Spatial lag regression
 
@@ -1153,6 +1173,7 @@ mortality_nb <- poly2nb(mortality_sf2 %>%
 
 ## Make sure the size matches the number of counties:
 length(mortality_nb)
+
 ```
 
 #### Question 17A [0.5 points]
@@ -1160,9 +1181,15 @@ Why am I calculating the neighbors on just the **distinct counties** in the mort
 
 **Hint 1**: What are the dimensions of `mortality_sf2` and is it a multiple of 58?
 
+```{r}
+dim(mortality_sf2)
+```
+
+
 **Hint 2**: What happens if I calculate spatial weights on redundant data? Does it cost me computationally?
 
-> Your answer here.
+> Your answer here. By Collins
+Calculating neighbors on just the distinct counties is preferred because it avoids redundant computations.And since mortality_sf2 has dimensions of 2552, 5 which is a multiple of 58, then it suggests there are approximately 44X duplicates entries. Computing spatial weights or neighbors on such redundant data would be computationally wasteful and could lead to inefficiencies in the model. Therefore by isolating unique counties using (unique()), we ensure that each county is only considered once.
 
 2. Calculate row-standardized spatial weights matrix based on the neighbors-list.
 *This converts the neighbor information stored in `mortality_nb` into a usable weight list using `nb2listw()`. Neighbors have equal influence (row-standardized: `style = "W"`).*
@@ -1214,19 +1241,21 @@ Run a **spatial lag regression (SAR)** model using the spatial lag you just calc
 **Hint 2**: Make sure to include both time elements as covariates!
 
 ```{r}
-# __ <- lm(__ ~ __ + __ + lagged_monthlyPercMortality, 
-#     data = __)
+sarModel <- lm(monthlyPercMortality ~ Year + Month + lagged_monthlyPercMortality, 
+     data = mortality_sf2)
+
 ```
 
 Now, let's compare `sarModel` to `olsModel` and see which model better explains monthly percent mortality in California (uncomment to run).
 ```{r}
-# anova(sarModel, olsModel)
+ anova(sarModel, olsModel)
 ```
 
 #### Question 17C [0.25 points]
 Which model, the spatial lag regression (`sarModel`) or the ordinary least squares regression (`olsModel`), is a better fit to the data? Why?
 
-> Your answer here.
+> Your answer here. By Collins
+Pr(>F) in Anova indicates that our P-value = 2.2e-16 *** which is a very small number, less than 0.05. Therefore, we reject the Null hypothesis and conclude there is a significant difference between sarModel and OLS. This tells us that sarModel is a better fit to our data because it accounts for spatial autocorrelation in the data, which is not captured by the OLS
 
 #### Question 17D [0.5 points]
 Using the model you chose as the better model, `sarModel` to `olsModel`, interpret the results of that model. **HINT**: Remember that `summary()` helps you access the results from the model! 
@@ -1235,18 +1264,34 @@ Make sure to interpret both the coefficients and their significance as well as t
 
 ```{r}
 ## Your code here.
+summary(sarModel)
 ```
 
-> Your answer here.
+> Your answer here. By Collins
+The coefficient for the "year" is 0.0008920, which means that for every one-unit increase in year, monthlyPercMortality increases by 0.0008920 units cetriparibus. However, the p-value for the year is 0.080223 which is greater than 0.05, indicating that the year and monthlyPercMortality is not statistically significant.
+
+>The coefficient for Month is -0.0006300, which means for every one unit increase in month, monthlyPercMortality decreases by -0.0006300 cetriparibus. The P-value for the month 0.000118 *** is less than 0.05, therefore we conclude that the relationship between month and monthlyPercMortality are statistically significant.
+
+>The coefficient for lagged_monthlyPercMortality is -0.2190860, which means for every one-unit increase in lagged_monthlyPercMortality, monthlyPercMortality decreases by -0.2190860 units, ceteriparibus. The P-value for lagged_monthlyPercMortality is 4.95e-06 *** which is less than 0.05 indicating that the relationship between lagged_monthlyPercMortality and monthlyPercMortality is statistically significant.
+
+>Multiple R-squared:  0.01361 indicates that the sarModel explains only a small proportion (1.36%) of the variance in monthlyPercMortality. This suggests that the model may not be a good fit to the data. and that other factors may be influencing monthlyPercMortality that are not captured by the current model.
 
 #### Question 17E [0.25 points]
 Can you trust the results of the model? Why or why not?
 
 ```{r}
 ## Your code here.
+plot(sarModel) # am not sure if this was necessarily or the right way
 ```
 
-> Your answer here.
+> Your answer here. By Collins
+based on R^2 of just 0.01361 (1.36) i would not trust the results of the model. It explains very little relationship between independent and dependent variables.
+
+>Residual standard error: 0.02705. In comparison to the range of our target monthlyPercMortality, the RSE is approximately 16.68%. This explains that for every predicted value of monthlyPercMortality we are making approximately 16.68% error. based on our stakeholders and how accurate they want the prediction, I would not trust the results of this model
+
+```{r}
+range(mortality_sf2$monthlyPercMortality)
+```
 
 
 # 4 Improve Predictions with Machine Learning
@@ -1280,14 +1325,20 @@ mortalityTest <- mortality_sf2 %>%
 What percent of the data are in the training set and what percent in the testing set? You should use code to figure this out! How does it compare to the canonical 80-20 split?
 ```{r}
 ## Your code here.
+train_split <- 100*(nrow(mortalityTrain)/ nrow(mortality_sf2))
+print(train_split)
 ```
 
-> Your answer here.
+> Your answer here. By Collins
+yes the split ratio is 81.81-18.19 which is very close to canonical 80-20 split
 
 #### Question 18B [0.5 points]
 What caveats or limitations can you think of by using none of the 2020 data in the training set?
 
-> Your answer here.
+> Your answer here.By Collins
+1. Lack of Representation: By excluding 2020 data from the training set, the model may not be able to capture patterns or trends that are specific to that year.
+2. Inability to Account for changes.
+3.limited generalizability: The model may not generalize well to new, unseen data, especially if the underlying patterns or relationships change over time.
 
 ## 4.1 Fitting an out-of-bag (OOB) random forest (RF) model
 You decide to use random forest (RF) for this task because it handles non-linearity, which you know you have from your time plots above AND from the summaries of both your OLS and SAR regressions. You also choose to use RF because it can be more robust to outliers and still give some idea of importance for interpretability for your stakeholders. Your basic workflow will be to:
@@ -1308,9 +1359,20 @@ You decide to leverage the `caret` package in R again for much of your model fit
 #### Question 19A [0.5 points]
 What does it mean to "fit a model with out-of-bag (OOB) error"? Why do we do it? What can it tell you here?
 
-> Your answer here.
+> Your answer here. By Collins
+We use out-of-bag (OOB) error in random forest to evaluate the performance of the model without the need for a separate validation set. Each decision tree is trained on a bootstrap sample of training data, This means that some samples are left out of the training process for each tree. The OOB error is calculated by predicting the response variable for these left-out samples using the tree that did not see them during training.
 
-
+Why do we do it?
+>
+1. no need for a separate validation set
+2. Hyperparameter tuning. by trying a range of number of trees
+3. Ubiased estimate of the model performance: OOB error is calculated on samples that were not used during training
+ 
+ What can it tell you here? 
+ > Model performance
+ >comparison with cross-validation: By comparing OOB error and 10 fold cross-validation, we can determine if the model is overfitting or underfitting.
+ >Variable Importance. the OOB error can be used to calculate variable importance
+ 
 Even though you have no encoding, you know that you need to center and scale your data before running the random forest! So, you decide to leverage the `preProcess()` function in the `caret` package to help you center and scale the predictors. You perform the preprocessing explicitly here, storing the pre-processed training *instructions* in `preProcInstructions`. Then, you can apply the pre-processing to the training data, `mortalityTrain`, using the `predict()` function. Note that this is a different step than when you are predicting from a model for performance evaluation!
 
 ```{r}
@@ -1356,7 +1418,10 @@ Note that here you coerce it to use an `mtry` hyperparameter grid search of 1 th
 #### Question 19B [0.5 points]
 What is `mtry` and what is it doing in the context of a random forest? What is the default `mtry` for a random forest regression? Why am I choosing to override it here, do you think?
 
-> Your answer here.
+> Your answer here. By Collins
+mtry is a hyperparameter that determines the number of features to consider at each split when building trees in a random forest
+>The default mtry is set to a square root of the number of features in the dataset
+>We are overi=riding the default mtry value to be able to experiment with differnt values and find the best for our small non-complex dataset. This will improve computational efficiency and interpretability.
 
 *Look at the results ($RMSE$ and $R^2$) of the OOB random forest*
 ```{r}
@@ -1373,9 +1438,10 @@ Recall from the Elastic Net you fitted a couple weeks ago on the hospital readmi
 
 
 #### Question 19C [0.5 points]
-Which value of  `mtry` gave the best results? (**Hint**: Can $R^2$ values be negative?!?). Are you able to compare the $RMSE$ of this model to the one you fitted in Question 16C? Why or why not? (**Hint**: Does your pre-processing step apply to the target too? You may have to do a little research!)
+Which value of  `mtry` gave the best results? (**Hint**: Can $R^2$ values be negative?!?). Are you able to compare the $RMSE$ of this model to the one you fitted in Question 17C? Why or why not? (**Hint**: Does your pre-processing step apply to the target too? You may have to do a little research!)
 
-> Your answer here.
+> Your answer here. By Collins
+mtry of 1 shows the best Rsquared of 0.0322177 (3.22%) and low RMSE of 0.9835237. No the R62 cannot be negative, because its used to explain the variance in the model. No we can't compare the results of random Forest R^2 to sarModel R^2, this is beacuse in random forest we center and scaled unlike in sarModel. The pre-processing steps include the target variable
 
 
 
