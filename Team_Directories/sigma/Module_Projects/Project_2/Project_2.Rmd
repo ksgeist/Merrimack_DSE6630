@@ -1378,7 +1378,7 @@ ggMarginal(p, type = "histogram", fill = skittles[2], color = "gray30")
 #### Question 19F [0.5 points]
 Interpret the scatterplot of the actual vs. predicted values. What is happening to the predicted values? (Use the histogram on the side to help you, that's why they're there!) Make sure to mention whether the training model is leading to an **under prediction** or an **over prediction** of mortality. What **real information** might that provide your stakeholders, even if the model is underperforming?
 
-> Your answer here.
+> MN: I think what this plot is showing is that actual mortality values look more evenly spread across, while the predicted mortality values are more centered around the 0 to -0.25 area, when comparing the histograms. I would say this model under predicting high mortality and over predicting low mortality. This could still be valuable to stakeholders because we can go back and with limitations of current data and ask for better or newer data and predictors. There is more to the story.
 
 ## 4.4 Extract variable importance from the final model
 
@@ -1421,13 +1421,26 @@ varImp(rfCV)[[1]] %>%
 Now, let's pretend that you're skipping ahead a few months in time and you're actually able to assess just how well your prediction could do in reality. While what you _could_ do is fit a 10-fold, cross-validated random forest on all of the data and download the remaining months of 2020 and use all of 2020 as your test dataset, instead I'm just going to ask you to do a simple correlation to see how badly - or well - it did in reality.
 
 #### Question 19G [5 points]
+>MN:
 
 Since the pandemic is over in reality, you can find the actual number of deaths, per county, [here](https://data.chhs.ca.gov/dataset/death-profiles-by-county/resource/579cc04a-52d6-4c4c-b2df-ad901c9049b7).
 
 **Hint**: You can read this file in as a dataframe using `read.csv()` as follows! I also show you the structure (`str()`) of the data so you have an idea what you're getting.
 
 ```{r}
-caliDeaths <- read.csv("https://s3.amazonaws.com/og-production-open-data-chelseama-892364687672/resources/078185a9-e3a7-403f-a546-b8c582f0a9d8/20241220_deaths_final_2019-2023_occurrence_county_month_sup.csv?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAJJIENTAPKHZMIPXQ%2F20250615%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250615T190154Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=61c4009b5979f2d74a95396e2f77ace3d13315fe166588cb1210ef46d292f759")
+#caliDeaths <- read.csv("https://s3.amazonaws.com/og-production-open-data-chelseama-892364687672/resources/078185a9-e3a7-403f-a546-b8c582f0a9d8/20241220_deaths_final_2019-2023_occurrence_county_month_sup.csv?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAJJIENTAPKHZMIPXQ%2F20250615%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250615T190154Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=61c4009b5979f2d74a95396e2f77ace3d13315fe166588cb1210ef46d292f759")
+
+#caliDeaths %>% 
+ # str()
+
+
+##JML figured out this code
+filters <- URLencode('{"Year":"2020","Cause":"ALL"}')
+url <- paste0('https://data.chhs.ca.gov/api/3/action/datastore_search?resource_id=078185a9-e3a7-403f-a546-b8c582f0a9d8&limit=50000&filters=', filters)
+
+caliDeaths <- fromJSON(url)
+
+caliDeaths <- caliDeaths$result$records
 
 caliDeaths %>% 
   str()
@@ -1436,22 +1449,97 @@ caliDeaths %>%
 **Remember** to filter for the proper condition, Year, and Months to get the data you need. Take time to explore the data, and make sure that you are matching the data we've been using (total mortality, all causes of death) to your filter. 
 
 ```{r}
-## Your code here
+## See above
 ```
 
 Now make sure to compute the **monthly percent mortality** as you have done before. Otherwise, you won't be comparing apples-to-apples!
+>MN:
 
 ```{r}
-## Your code here
+#wanted to not mess up my good census dataframe
+census_clean <- census %>%
+  distinct(County, .keep_all = TRUE)
+
+caliDeaths <- caliDeaths %>%
+  mutate(Count = as.numeric(Count))  #converts character to numeric, turning "NA" into NA
+##### Calculate the monthly percent mortality
+mortalitySummary_cali_deaths <- caliDeaths %>% 
+  left_join(census_clean, by = "County") %>%
+  ## Group by County as well as Year
+  group_by(County, Month) %>%   
+  ## Summarize by calculating a monthly percent mortality
+  ## Note that I have to divide by the mean of the N from the Census  
+  ## or I'd get an error
+  summarize(monthlyPercMortality_new = sum(Count, 
+                                       na.rm = TRUE)/mean(totalN)*100) %>% 
+  ## Ungroup - necessary to remove the grouping for future use
+  ungroup() #%>% 
+  ## NOW, you can group again by county and year and calculate the true annual
+  ## average that has been adjusted for differing number of months!
+  #group_by(County, Year) %>%   ## <- no Month now!
+  #summarize(annualPercMortality_new = mean(monthlyPercMortality_new, na.rm = TRUE)*12)
+
+#### Find the five number summary
+summ_cali_deaths <- fivenum(mortalitySummary_cali_deaths$monthlyPercMortality_new)
+paste0("The five-number summary of monthly % total mortality is: ")
+paste(c("Min", "Lower Quartile", "Median", "Upper Quartile", "Max"), 
+      round(summ_cali_deaths, 3))
+
+##### Now add on the cuts and labels for mapping:
+mortalitySummary_cali_deaths <- mortalitySummary_cali_deaths %>% 
+  mutate(deathLabels = cut(monthlyPercMortality_new, 
+                          breaks = c(summ_cali_deaths, Inf),
+                          labels = c("0-0.571", "0.572-0.689", "0.690-0.861", 
+                                    "0.862-1.391", "1.392+"),
+                          ordered_result = TRUE, right = F)) 
 ```
 
 Lastly, create (1) a scatterplot with trend line and (2) perform a correlation test on your **Sept to December 2020** predictions relative to the true **Sept to December 2020** monthly percent mortality. 
+>MN:
 
 ```{r}
-## Your code here
+# Filter to Sept–Dec 2020
+plot_data <- mortalitySummary_cali_deaths %>%
+  filter(Month %in% c("09", "10", "11", "12"))
+
+#wanted to plot month as continuous so my trend line would follow the data
+mortalitySummary_cali_deaths$Month <- as.numeric(mortalitySummary_cali_deaths$Month)
+
+#updated plot
+plot2 <- ggplot(mortalitySummary_cali_deaths, aes(x = Month, y = monthlyPercMortality_new)) +
+  geom_point(alpha = 0.5, color = skittles[4]) +
+  geom_smooth(method = "lm", color = skittles[3], linetype = "dashed", se = TRUE, size = 1.5) + 
+  theme_minimal() +
+  labs(
+    title = "2020 Monthly Mortality Trend",
+    x = "Month",
+    y = "% Mortality"
+  )
+
+print(plot2)
+
+corr_data <- plot_data %>% #to perform the correlation test I need the same length of values
+  group_by(Month) %>%
+  summarize(actual = mean(monthlyPercMortality_new, na.rm = TRUE)) %>%
+  mutate(Month = as.numeric(Month))
+
+corr_joined <- inner_join(corr_data, temp, by = "Month") #join dataframes so that i can perform correlation test
+
+#filter to Sept–Dec 2020 before correlation test
+corr_filtered <- corr_joined %>%
+  filter(Year == 2020, Month %in% c(9, 10, 11, 12))
+
+cor.test(corr_filtered$actual, corr_filtered$percMortality)
+
+
+
+
 ```
 
 __For full credit__ include a brief interpretation of your findings.
+>MN: According to the scatterplot, the trend line has a slight upward path from roughly month 3-12. While I was expeting a more dramatic slope, there is obviously an upward trend.
+Looking at the correlation test, the correlaton coefficient is -0.88, so as predicted values go up, actual values tend to go down. A high p-value would suggest thatthis is not significant. There are also only 4 values, so not a lot of data to go on. 
+
 
 #### Question 19H [1 point]
 
@@ -1461,13 +1549,15 @@ Since you can't go deeply into doing it, instead you will do a little reading/re
 
 **Note**: Doing the time-aware data partition into before 2020 and after 2020 IS a form of controlling for temporal patterns/seasonality, albeit not as robust as including temporally lagged variables.
 
-> Your answer here.
+> >MN: Using a predictor such as Month alone, may not fully capture the full picture because it is just telling you when something occured as opposed to the history behind it, or causes. The same for County, it can tell you where something happened but not history of county insights. 
+A time-series lag can capture past trends leading up to current data, and how current data is correlated to past data. 
+https://www.geeksforgeeks.org/machine-learning/what-is-lag-in-time-series-forecasting/
 
 
 #### Question 19I [1 point]
 Now, let's say you add several time-series lagged variables to your random forest; but with 10-fold CV, the testing MAE is 0.129. The scale of the target variable is unchanged - recall that previously, you got a testing MAE of 0.745. Does this suggest that the time series lagged variables are helping or hurting the model? If I tell you that the training MAE is 0.134, do you think the model is **overfitted**, **underfitted**, or doing pretty well?
 
-> Your answer here.
+>MN: I would say with the large drop in MAE is a good sign that time-lagged is helping the model. With the training and testing MAE nearly identical, the model is generalizing well.
 
 **Would you like to see how I got this?** This source code contains all of the steps of analysis, with comments, and will show you these same results! Make sure to open the source code if you want to see the step-by-step instructions and not just the output! In brief, what I do is engineer temporal lag and rolling means features to inform the model how the target behaved in the past. Lags are explicitly accounting for temporal autocorrelation; rolling averages show recent trends and smooth noise. Then, I do the time-aware split again using the 2020 data as my holdout testing set. I then add the lagged and rolling means features, along with the spatial lag, month, and year variables as predictors to the RF model and assess performance on the testing holdout set. Note that RF is a particularly good choice for temporal models because it is non-linear; further, adding lags makes it partially time-aware. **However, don't forget to ALWAYS  validate with time held out, not random sampling, in temporal models!**
 
@@ -1479,12 +1569,15 @@ source("mortalityTemporalLagRF.R")
 #### Question 19J [1 point]
 What is something **else** you can do to improve your model that you have not discussed or explored at all here? **Hint**: Random forest models need complexity!
 
-> Your answer here.
+> MN: We could use some interactions between predictors instead of just treating them as independant factors. Perhaps treating the months as quarters(seasons, pre/post-holiday) and treating the counties as rural or urban. I think creativity is the limit with feature engineering. 
 
 #### Question 19K [3 points]
 Take all of the findings and interpretations from questions 18A-J and write up a short paragraph or two summary for your stakeholders. Your writing should not be overly technical but it should include caveats and limitations. Make sure to include 1-2 sentences of recommendations about what you would do next.
 
-> Your answer here.
+> MN: The model's initial predictions didn’t align closely with the actual data. The estimates were off by a noticeable margin. After adding new features that help the model learn from past months, accuracy improved dramatically. The predictions are now much closer after adjusting for time. 
+That said, when we looked specifically at September through December 2020, the relationship between predicted and actual values wasn’t as strong as expected. With only four data points, it’s hard to draw firm conclusions.
+Next steps: we recommend exploring region-specific seasonal patterns and layering in additional data sources like population changes, or social determinants of health.  This would help the model become more resilient with public health planning.
+
 
 
 
@@ -1567,7 +1660,7 @@ ggplot(aes(y = deathsInjuriesProportion, x = biologicalSex, fill = as.factor(Yea
 
 Would it be fair to model the proportion of deaths due to injury or accident without accounting for an effect of sex? Why or why not?
 
-> Your answer here.
+> MN: I think that you could not bring sex into the proportion if you only were interested in overall numbers. By seperating the genders, you can see a pattern of death between the two, with females clearly being lower across all years. I think there is value in that information and could be helpful in further analysis. If we lumped both genders together, with males being so much higher than females, this could cause some disproportionate results.
 
 #### 5.1.1.2 Proportion of Deaths by Sex {#lineGraphInjSex}
 
@@ -1597,7 +1690,7 @@ ggplot(aes(x = Month,
 
 What do you notice about the trend? Is there anything compelling here? Can you find any possible explanation for what happened in May (month 5) of 2020?
 
-> Your answer here.
+> MN: Overall, males are still much higher than females. Aside from 2020, both groups follow similar trends year to year. The possible cause of the May 2020 drop could be due in fact to the stay at home orders. Though that is 2 mpnths after the issue of that order, so could be another cause?
 
 ### 5.1.2 Mapping injury-related deaths by stay-at-home orders & sex {#chloropethInjSex}
 
@@ -1692,13 +1785,13 @@ Do you think there is any evidence that the percent of deaths due to accident & 
 
 **Hint**: Make sure to explain what you would want to do to these maps, either in terms of filtering and/or additional faceting, to better address whether (1) the shutdown has had a likely effect and (2) whether there is an interaction with biological sex on the proportion of deaths due to accident or injury.
 
-> Your answer here.
+> MN: Based on these maps, I would say there is limited evidence that there is a change in trend due to stay ay home order. While on a county level there are some variations, statewide there is limited change. To address shuutdown, we could focus on monthly or quarterly data, and filter the maps by sex, and even possibly age, and type of death.
 
 #### Question 21B [0.5 points]::
 
 Why are some counties filled gray? Are the data truly missing or is it a data maturity problem? Or, is there another reason? (**Hint**: What will happen if the number of deaths in a county are very small?)
 
-> Your answer here.
+> MN: Some counties are filled in gray because there were too few deaths in that category for the data to be reported. This isnt always missing data, it can be an intentional suppression to protect individual privacy and avoid misleading statistics based on very small numbers. In small counties, only a few deaths could make someone identifiable, and going from a death rate of 1 to 3 in a small county can look like a VERY large increase.
 
 
 #### Question 21C [3 points]::
