@@ -155,7 +155,7 @@ Notice that the directory contains six files, three of them with file extensions
 
 What do each of these six files represent? You will not be able to open them directly on your computer, so you may need to refer back to lecture and do a little digging to figure out the type of data you would expect each of these files to contain.
 
-> AJ- These files are a  family of files and  work together as a set of components that define both the geometry (shapes and locations) and attributes (names, codes, and metadata) of geographic features for counties in California  and  must keep them together in the same folder for your GIS or R software to read the shapefile correctly:
+> AJ- These files are a family of files and work together as a set of components that define both the geometry (shapes and locations) and attributes (names, codes, and metadata) of geographic features for counties in California  and  must keep them together in the same folder in order for the GIS or R software to read the shapefile correctly:
 
 1. `cnty19_1.cpg` – Specifies the character encoding (e.g., UTF-8) used for reading the text in the .dbf file. It ensures special characters or multilingual text are interpreted correctly.
 
@@ -189,11 +189,6 @@ __The initial processing steps will include:__
 ### 2.3.1 Read in the shapefile & validate geometries
 
 You will leverage the `read_sf()` function that is part of the `sf` package. As you might have guessed, `sf` refers to __shapefile__. Note that there is an alternative method to read in shapefiles called `st_read`, which is an alias for `read_sf()` with some different default arguments. By default, `read_sf()` is quiet, whereas `read_st()` will print information about the data source by default. Additionally, `read_sf()` returns a tibble rather than a dataframe. So which to choose? It's your preference, in this case. By default, your code below will use `read_sf()` but you could instead use `read_st()` if you wanted.
-```{r}
-getwd()
-
-
-```
 
 
 
@@ -201,7 +196,6 @@ getwd()
 read_sf("/Users/aleej/Desktop/California_County_Boundaries/cnty19_1.shp") 
 
 ```
-
 
 
 
@@ -239,7 +233,7 @@ Why did `TRUE` print 69 times? What are the "69 features" in the geometry?
 
 **Hint 2**: There are islands in California. What happens to islands in terms of `COUNTY_NAM`?
 
-> AJ-TRUE printed 69 times because the shapefile contains 69 geographic features, each representing a polygon (or multiple polygon) that maps a spatial area. Since California has only 58 counties, it is likely that some counties are represented by multiple polygons especially those with island or non-contiguous regions, such as parts of San Francisco, Marin, or Los Angeles Counties.
+> AJ-`TRUE` printed 69 times because the shapefile contains 69 geographic features, each representing a polygon (or multiple polygon) that maps a spatial area. Since California has only 58 counties, it is likely that some counties are represented by multiple polygons especially those with island or non-contiguous regions, such as parts of San Francisco, Marin, or Los Angeles Counties.
 
 *Next, let's take a look at the geometry of the shapefile that you loaded.*
 ```{r}
@@ -256,13 +250,13 @@ xmin: -13849230
 ymin: 3833650  
 xmax: -12704980  
 ymax: 5162403
-The bounding box defines the spatial extent of the California shapefile in the WGS 84 / Pseudo-Mercator projection and  adjusting it lets you zoom in or out of your map. It tells us the rectangular boundary that contains all 69 geometries which includes counties and islands and any spatial feature outside this box will not be displayed.
+The bounding box defines the spatial extent of the California shapefile in the WGS 84 / Pseudo-Mercator projection and  adjusting it allows zooming in or out of the  map. It tells us the rectangular boundary that contains all 69 geometries which includes counties and islands and any spatial feature outside this box will not be displayed.
 
 
 #### Question 3B [0.5 points]:
 What is the projection? What does it tell you and why does projection matter? **What will change if you change the projection?**
 
-> AJ-The file uses the WGS 84 / Pseudo-Mercator projection, which is ideal for web mapping due to its simplicity and 2D structure, though it's known to  distort area and distance, especially at larger scales. Projection defines how spatial data is transformed from the Earth’s curved surface to a flat map. It determines the coordinate system whether the measurements are in degrees, meters and feet etc.and affects how shape, area, and distance are represented.  Changing the projection alters the spatial reference system and can impact how your data looks and behaves: Coordinate values will differ (e.g., from meters to degrees), and map features may shift slightly depending on the distortion characteristics of the new projection.  Therefore, it’s important to choose a projection suited to your region and analysis type more and also that  preserves area and distance relationships more accurately for regional analysis.
+> AJ-The file uses the WGS 84 / Pseudo-Mercator projection, which is ideal for web mapping due to its simplicity and 2D structure, though it's known to  distort area and distance, especially at larger scales. Projection defines how spatial data is transformed from the Earth’s curved surface to a flat map. It determines the coordinate system whether the measurements are in degrees, meters and feet etc.and affects how shape, area, and distance are represented. Changing the projection alters the spatial reference system and can impact how the data looks and behaves: Coordinate values will differ (e.g., from meters to degrees), and map features may shift slightly depending on the distortion characteristics of the new projection.  Therefore, it’s important to choose a projection  more suited to the region and analysis type which also  preserves area and distance relationships more accurately for regional analysis.
 
 ### 2.3.2 Create a basic map of California
 
@@ -481,6 +475,7 @@ mortality_sf <- totalDeaths %>%
   st_as_sf() %>% 
   ## Filter out separate island geometries to reduce clutter in maps,keep only rows where ISLAND is NA
   filter(is.na(ISLAND))
+
 ```
 
 
@@ -488,7 +483,7 @@ mortality_sf <- totalDeaths %>%
 #### Question 7A [0.5 points]:
 What does `st_join()` do? Could you have executed the join with `st_join()` instead of `full_join()` here? Why or why not? 
 
-> AJ-`st_join()` performs a spatial join by  merging  attributes from one sf object to another based on a spatial predicate (e.g., intersection, contains). It is not designed for simple attribute-based joins. In this case, since we are matching on the county name column rather than on spatial relationships, `full_join()` or another dplyr join is appropriate. Since your mortality data is a non-spatial tibble and being matched based on a shared attribute (COUNTY_NAM), a dplyr join is what is  needed. Spatial joins like `st_join()` only come into play when both data layers have geometries and  their physical relationships (e.g., containment, distance, intersection) can be rely on.
+> AJ-`st_join()` performs a spatial join by  merging  attributes from one sf object to another based on a spatial predicate (e.g., intersection, contains). It is not designed for simple attribute-based joins. In this case, since we are matching on the county name column rather than on spatial relationships, `full_join()` or another dplyr join is appropriate. Since your mortality data is a non-spatial tibble and being matched based on a shared attribute (COUNTY_NAM), a dplyr join is what is  needed. Spatial joins like `st_join()` only come into play when both data layers have geometries and their physical relationships (e.g., containment, distance, intersection) can be rely on.
 
 
 #### Question 7B [0.5 points]:
@@ -640,7 +635,7 @@ The custom function, `getPopSizes()`, pulls population data from the U.S. Census
 #### Question 10A [0.5 points]:
 Using a search engine or the [Census table explorer](https://data.census.gov), whichever you find easier to use, look for the differences between table variables `DP1_0048C` and  `DP1_0048P`. What different information do these two variables hold?
 
-> AJ-`DP1_0048C` gives you the raw number, while `DP1_0048P` gives you the proportion relative to the total population but both refer to the same demographic group (male population aged 65 years and over). This distinction is important depending on whether  analyzing absolute population size or demographic composition.
+> AJ-`DP1_0048C` gives the raw number, while `DP1_0048P` gives  the proportion relative to the total population but both refer to the same demographic group (male population aged 65 years and over). This distinction is important depending on whether analyzing absolute population size or calculating demographic composition.
 
 *Digging into the Function*
 
