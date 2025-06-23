@@ -1483,7 +1483,10 @@ rfCV$results %>%
 #### Question 19D [0.5 points]
 What do you notice about the effects of cross-validation on your model? (**Hint**: Do you see any negative $R^2$ values this time?) Which value of  `mtry` gave the best results? How does the $RMSE$ of that model compare to the one you chose as the optimal OOB model?
 
-> Your answer here.
+> Your answer here. By Collins
+the Cross-validation 10 fold, transforms R^2 from negative to positive as witnessed in mtry 2 and 3. 
+mtry 1 still post the best results with an Rsquared of 0.0452929 (4.53%) variance explained and a low RMSE of 0.9846155.
+mtry 1 of cross-validation (10-fold) is 0.9846155 which is slightly higher compared to RMSE of OOB model 0.9835237. though the difference is very minute!
 
 
 ## 4.3  Test the training model with the 2020 data
@@ -1531,7 +1534,14 @@ Can you interpret the $RMSE$ and $MAE$ values? **Remember** all of the data were
 
 **How did the training model perform?** Does it seem to be overfitting (training error >> testing error), underfitting (training error and testing error both high but roughly equal with a low $R^2$), or doing okay?
 
-> Your answer here.
+> Your answer here. By Collins
+Given that the data was centered and scaled, the RMSE and MAE values (1.0076 and 0.7424 respectively) are in transformed units. Therefore to interpret these results meaningfully, we will ideally need to know the original scale of the data before scalling. However, we can still make a general observation based on the relative performance. That is if the RMSE and MAE values are close, it would suggest the model's errors are relatively consistent across the dataset. A large difference indicates presense of outliers. Given our difference between RMSE and MAE 1.0076 - 0.7424 = 0.2652. In my own opinion i can conclude that this difference is not large enough and therefore the model's performance is somewhat acceptable, But further analysis is necessary to draw concrete conclusions.
+
+>RMSE Comparison: The RMSE values from the training set range from approximately 0.98 to 1.06 across mtry 1,2 & 3. The test set RMSE is 1.0076, which falls within the range of training set RMSE values but is more close to high end of the range (high RMSE/ less robust model)
+
+>MAE Comparison: The MAE values from the training set range from approximately 0.71 to 0.79. the test set Mae is 0.7424, which also falls within the range of the training set MAE just around the middle point.
+
+>Given that the test RMSE and MAE values are within the ranges observed in the training set and are not significantly higher than the training set metrics, it suggest that the model is not severly overfitting. That being said, since the test metrics are comparable to training set metrics, then we can conclude that the performance of the model is more balanced. However, the overall performance as indicated by both RMSE and MAE  suggest that there might be room for improvement in terms of model accuracy.
 
 ### 4.3.4 Plot Actual vs. Predicted Values
 
@@ -1558,7 +1568,19 @@ ggMarginal(p, type = "histogram", fill = skittles[2], color = "gray30")
 #### Question 19F [0.5 points]
 Interpret the scatterplot of the actual vs. predicted values. What is happening to the predicted values? (Use the histogram on the side to help you, that's why they're there!) Make sure to mention whether the training model is leading to an **under prediction** or an **over prediction** of mortality. What **real information** might that provide your stakeholders, even if the model is underperforming?
 
-> Your answer here.
+> Your answer here. Collins
+The Histogram on the right side of the plot indicates that the predicted values are concentrated between -0.25 and 0.25, while the actual values range from -2 to 4.
+
+>we can make the following observations
+1. the predicted values are not accurately capturing the full range of actual values
+2. the model tends to underpredict mortality rates, as most predicted values are lower than the actual values
+
+>Therefore, the scatter plot and the Histogram suggest that the training model is leading to an underprediction of mortality rates. That is the model is consistently predicting lower mortality rates that the actual values.
+
+>Despite the model underperformance, the scatterplot and Histogram provide valuable insights for stakeholders:
+1.Model Limitations. The underprediction of mortality rates suggests that the model may not be suitable for making accurate predictions, especially in situations where high mortality rates are expected
+2. Mortality Rates trends. The actual values show a range of mortality rates, indicating that there may be underlying trends or patterns that the model is not capturing.
+
 
 ## 4.4 Extract variable importance from the final model
 
@@ -1593,6 +1615,7 @@ varImp(rfCV)[[1]] %>%
     format = "html",
     caption = "Table 5. Results of the 10-fold CV random forest on California Mortality (All Causes).") %>%
     kable_styling(bootstrap_options = c("hover"))
+
 ```
 
 
@@ -1642,12 +1665,14 @@ Since you can't go deeply into doing it, instead you will do a little reading/re
 **Note**: Doing the time-aware data partition into before 2020 and after 2020 IS a form of controlling for temporal patterns/seasonality, albeit not as robust as including temporally lagged variables.
 
 > Your answer here.
-
+Time series lags can help capture the monthly seasonality in deaths that is not fully explained by the month variable alone. By including lagged values of the death rate we can better model the temporal autocorrelation and seasonal momentum in the data. This will allow us to model our past values influence the current values and better capture periodic patterns in the data
 
 #### Question 19I [1 point]
 Now, let's say you add several time-series lagged variables to your random forest; but with 10-fold CV, the testing MAE is 0.129. The scale of the target variable is unchanged - recall that previously, you got a testing MAE of 0.745. Does this suggest that the time series lagged variables are helping or hurting the model? If I tell you that the training MAE is 0.134, do you think the model is **overfitted**, **underfitted**, or doing pretty well?
 
-> Your answer here.
+> Your answer here. By Collins
+Adding time-series lagged variables reduced the testing MAE from 0.745 to 0.129. This indicates an improvement in the model's performance on the test data.
+> The training MAE is 0.134, this is slightly higher than the testing MAE with the lagged variables (0.129). In an ideal situation, we would expect the training MAE to be smaller than the test MAE due to overfitting. However, since the difference is small, then it suggest that the model is not severly overfitting but doing pretty well. This conclusion would need further annlysis since the target and predictors are scalled.
 
 **Would you like to see how I got this?** This source code contains all of the steps of analysis, with comments, and will show you these same results! Make sure to open the source code if you want to see the step-by-step instructions and not just the output! In brief, what I do is engineer temporal lag and rolling means features to inform the model how the target behaved in the past. Lags are explicitly accounting for temporal autocorrelation; rolling averages show recent trends and smooth noise. Then, I do the time-aware split again using the 2020 data as my holdout testing set. I then add the lagged and rolling means features, along with the spatial lag, month, and year variables as predictors to the RF model and assess performance on the testing holdout set. Note that RF is a particularly good choice for temporal models because it is non-linear; further, adding lags makes it partially time-aware. **However, don't forget to ALWAYS  validate with time held out, not random sampling, in temporal models!**
 
@@ -1659,14 +1684,15 @@ source("mortalityTemporalLagRF.R")
 #### Question 19J [1 point]
 What is something **else** you can do to improve your model that you have not discussed or explored at all here? **Hint**: Random forest models need complexity!
 
-> Your answer here.
+> Your answer here. By Collins
+I think adding the number of features can introduce more complexity to the Random Forest model thus improving the model.
 
 #### Question 19K [3 points]
 Take all of the findings and interpretations from questions 18A-J and write up a short paragraph or two summary for your stakeholders. Your writing should not be overly technical but it should include caveats and limitations. Make sure to include 1-2 sentences of recommendations about what you would do next.
 
-> Your answer here.
-
-
+> Your answer here. By Collins
+Our analysis of Non-Covid mortality trends from 2017 to 2020 using random forest model has provided valuable insights. The model has shown promising performance in predicting mortality rates, although it tends to slightly underestimate them. Notably, incorporating time-series lagged variables has enhanced the model's accuracy, highlighting the significance of temporal patterns in mortality trends. This suggest that mortality rates are influenced by factors that exhibit patterns over time, and capturing these patterns can improve our understanding and prediction of mortality trends.
+To build upon this work, we recommend continuing to refine the model by exploring additional features and or alternative machine learning  approaches. Regular updates and  monitoring of the model will also be crucial to ensure continued relevance and accuracy in tracking evolving mortality trends.
 
 
 # 5 Zooming in on Mortality Causes
@@ -1747,7 +1773,8 @@ ggplot(aes(y = deathsInjuriesProportion, x = biologicalSex, fill = as.factor(Yea
 
 Would it be fair to model the proportion of deaths due to injury or accident without accounting for an effect of sex? Why or why not?
 
-> Your answer here.
+> Your answer here. By Collins
+based on the box plot, it wouldn't be fair to ignore the effects of sex. The plot suggests there is a significant difference in the proportion of deaths due to accident and injury between males and females, with males having a higher median proportion and greater variability. Ignoring sex could lead to biased or inaccurate models, as it would fail to capture this important factor.
 
 #### 5.1.1.2 Proportion of Deaths by Sex {#lineGraphInjSex}
 
@@ -1777,7 +1804,9 @@ ggplot(aes(x = Month,
 
 What do you notice about the trend? Is there anything compelling here? Can you find any possible explanation for what happened in May (month 5) of 2020?
 
-> Your answer here.
+> Your answer here. By Collins
+it shows there was higher proportion of males death compared to females. The trend for females was more subtle as compared to males. For males it show huge highs and lows.
+I think the dip in the trend of death starting the 5th month of 2020 was hugely contributed by stay at home orders
 
 ### 5.1.2 Mapping injury-related deaths by stay-at-home orders & sex {#chloropethInjSex}
 
@@ -1872,13 +1901,16 @@ Do you think there is any evidence that the percent of deaths due to accident & 
 
 **Hint**: Make sure to explain what you would want to do to these maps, either in terms of filtering and/or additional faceting, to better address whether (1) the shutdown has had a likely effect and (2) whether there is an interaction with biological sex on the proportion of deaths due to accident or injury.
 
-> Your answer here.
+> Your answer here. By Collins
+Based on the maps above there is no clear evidence that the percent of deaths due to accident and injury changed as a result of the stay-at-home orders. However, to provide stronger evidence, we would need to filter the data to only include deaths from April to August 2020 and facet the data by bilogical sex to check for ineraction
+
 
 #### Question 21B [0.5 points]::
 
 Why are some counties filled gray? Are the data truly missing or is it a data maturity problem? Or, is there another reason? (**Hint**: What will happen if the number of deaths in a county are very small?)
 
-> Your answer here.
+> Your answer here. By Collins
+one reason could be the data was not submitted by respective counties or another reason which i think is the main reason. Is that the data was intentionally ommitted to for data privacy purposes to protect Personal Identifying Information. The data was suppressed, maybe because the number of death was too small that it could lead to imdividual identification.
 
 
 #### Question 21C [3 points]::
@@ -1887,6 +1919,90 @@ Answer one of the two situations you answered in Question 21A. Either make more 
 
 ```{r}
 ## Your code here.
+
+before_shutdown <- injuryDeathSummary %>% filter(Year < 2020) #filtering data for year before the shutdown
+
+After_shutdown <- injuryDeathSummary %>% filter(Year >= 2020) #filtering data for year after the shutdown
+
+
+## creating map for years before shutdown
+ggplot(before_shutdown) +
+  ## Chloropeth: draw the polygons of the counties and color by total deaths
+  geom_sf(aes(fill = deathLabels), color = "gray20", size = 0.2) +
+
+  ## Apply manual fill scale for total deaths
+  scale_fill_manual(
+    name = "% of Deaths Due to Accident or Injury",
+    values = c4a(palette="brewer.or_rd", n=3),
+    na.value = "gray70",
+    drop = FALSE
+  ) +
+  ## Set map projection explicitly
+  coord_sf(expand = FALSE) +   ## <- keeps map tight to its bounding box
+  
+  theme_bw() +
+  ## Make a completely blank map background this time
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    strip.text = element_text(size = 12, face = "bold"),
+    legend.position = "bottom"
+  ) +
+
+
+  # Add title and caption
+  labs(
+    title = "California Annual Percent Deaths due to Accident or Injury, by County",
+    subtitle = "Cumulative Monthly Deaths, Jan 2017 - Aug 2020",
+    caption = "Source: California DPH Vital Records"
+  ) + 
+  
+  ## Use facet_wrap to make one map per year
+  facet_wrap(~ Year)
+
+
+## creating map for years before shutdown
+ggplot(After_shutdown) +
+  ## Chloropeth: draw the polygons of the counties and color by total deaths
+  geom_sf(aes(fill = deathLabels), color = "gray20", size = 0.2) +
+
+  ## Apply manual fill scale for total deaths
+  scale_fill_manual(
+    name = "% of Deaths Due to Accident or Injury",
+    values = c4a(palette="brewer.or_rd", n=3),
+    na.value = "gray70",
+    drop = FALSE
+  ) +
+  ## Set map projection explicitly
+  coord_sf(expand = FALSE) +   ## <- keeps map tight to its bounding box
+  
+  theme_bw() +
+  ## Make a completely blank map background this time
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    strip.text = element_text(size = 12, face = "bold"),
+    legend.position = "bottom"
+  ) +
+
+
+  # Add title and caption
+  labs(
+    title = "California Annual Percent Deaths due to Accident or Injury, by County",
+    subtitle = "Cumulative Monthly Deaths, Jan 2017 - Aug 2020",
+    caption = "Source: California DPH Vital Records"
+  ) + 
+  
+  ## Use facet_wrap to make one map per year
+  facet_wrap(~ Year)
 ```
 
 
