@@ -190,7 +190,10 @@ __The initial processing steps will include:__
 You will leverage the `read_sf()` function that is part of the `sf` package. As you might have guessed, `sf` refers to __shapefile__. Note that there is an alternative method to read in shapefiles called `st_read`, which is an alias for `read_sf()` with some different default arguments. By default, `read_sf()` is quiet, whereas `read_st()` will print information about the data source by default. Additionally, `read_sf()` returns a tibble rather than a dataframe. So which to choose? It's your preference, in this case. By default, your code below will use `read_sf()` but you could instead use `read_st()` if you wanted.
 
 ```{r}
-cali_sf <- read_sf("~/Desktop/California_County_Boundaries/cnty19_1.shp") 
+#cali_sf <- read_sf("\Desktop\California_County_Boundaries\cnty19_1.shp") 
+
+#For TT
+cali_sf <- read_sf("C:/Users/trini/Desktop/California_County_Boundaries/cnty19_1.shp") 
 
 ## Alternatively, you can read in the shapefile using the 'st_read()' function
 ## cali_st <- st_read("./California_County_Boundaries/cnty19_1.shp") 
@@ -590,13 +593,13 @@ Because the US Census API uses JSON formatted files, you will be using the `json
 
 In order to access the Census API, you will need your own Census API key. I could give you mine, but it's generally not good practice to share API keys unless you trust the person. Why? (1) If someone misuses your API key, you could get banned from accessing the API. (2) Especially for government or non-profit agencies, it can be a good idea to have your own so that they can keep track of how many users they have. Not all API access is free, but for government, non-profit, or institutionally held data, access is free although you may have different hoops to jump through for access depending on how secure they want to keep the data. (e.g., to protect survey respondents).
 
-#### Question 9 [1 point]:
+#### Question 9 [1 point]:   TT
 You will sign up for your API census key [here](https://api.census.gov/data/key_signup.html). You should be able to obtain your key very quickly, but if you run into trouble then I will give you the data I have downloaded through __my__ API key so that you can still keep going with the project.
 
 Once your have your key, fill it into this code chunk here:
 ```{r}
 ## Set your API key (put it between the quotation marks):
-key <- " "
+key <- "48614dddb4d6d519550610e4333aef73107afbb"
 ```
 
 ### 2.6.2 Downloading data tables from the 2020 Census API
@@ -680,6 +683,9 @@ This line runs the function using your API key and saves the result to a variabl
 **NOTE** Make sure to change `include=FALSE` to `TRUE` in the first line (the `{r}` setup line) the chunk or you will get an error upon knitting.
 
 ```{r, eval = FALSE, echo = TRUE}
+library(jsonlite)
+library(dplyr)
+
 ## Set the state want you in double-digit FIPS; if you want all states, use *
 state = "06" ## California
 
@@ -706,7 +712,7 @@ getPopSizes <- function(key, vars, header) {
   }
   ## Add in more of the necessary pieces into the API address
   for.statemt <- paste0("&for=county:*&in=state:", state) 
-  base.url <- "https://api.census.gov/data/2020/dec/dp"
+  base.url <- "https://api.census.gov/data/2020/dec/dp1"
   ## The finished URL that you will use to get the JSON file
   url <- paste0(base.url, "?get=", get, for.statemt, "&key=", key)
 
@@ -735,12 +741,17 @@ census <- census %>%
 
 **Did you notice how quickly it accessed the information?** That is one of the strengths of APIs. You also get to customize the tables to only grab what you want and you can imagine how you might iterative over multiple years or other structures using a function similar to what I coded for you above. APIs are wonderful to become familiar with as a data scientist; I highly recommend practicing more with APIs as you move toward the job market as it is a highly sought after skill! I also strongly recommend the R package [`tidycensus`](https://walker-data.com/tidycensus/); I did not choose to use that here so you would have __generic code__ you could use for many API endpoints going forward in your career! Additionally, `tidycensus` is restrictive since it only access some tables of the Census (notably the American Community Survey or ACS), but you were using a different table here.
 
-#### Question 10B [0.5 points]:
+#### Question 10B [0.5 points]:       TT
 Use code or some other method to explore the resulting dataframe, `census`. Explain what this dataframe contains. 
 
-> Your answer here
+```{r}
+View(census)
+```
 
-#### Question 11 [1 point]:
+> Your answer here
+The census dataframe contains 2020 demographic data for all California counties, including total population, gender counts, and age 65+ statistics. Each row represents a county, with columns detailing both raw counts and percentages for key age and gender groups.
+
+#### Question 11 [1 point]:          TT
 Now that you know more generally how this function works and have seen it in action, in your own words, explain how you could adapt this approach (or even this function!) to work with a different API (not the Census). I am not asking you to code, but I am asking you to think through:
 
 1. What key pieces of the function would you need to change?
@@ -751,11 +762,12 @@ Now that you know more generally how this function works and have seen it in act
 - **Hint 3**: For simplicity, assume that the data retrieved are in `JSON` format, since that is the most commonly used format.
 
 > Your answer here.
+To adapt this function for a different API, I would need to change the URL used in the code, the variables and filters, and how the API key is passed, since those details are specific to the Census API. The general steps that stay the same are building the request URL, using from JSON() to retrieve the data, converting the results into a dataframe, and cleaning or renaming columns to make the data easier to work with.
 
 
 ### 2.6.3 Joining the census with the spatial data and updating the maps
 
-#### Question 12 [3 points]:
+#### Question 12 [3 points]:       TT
 Now, it's your turn to do some work! Your task is to join the census data to the shapefile of overall mortality we've already made. You want a tibble that contains all of the data from the census dataframe and all of the data from `mortality_sf`. I called mine `mortality_sf2`, so you will want to call yours the same unless you plan to change the variable name everywhere else downstream. 
 
 * **Hint 1**: The easiest way is to use the FIPS data to join.
@@ -766,6 +778,20 @@ Now, it's your turn to do some work! Your task is to join the census data to the
 
 ```{r}
 # Your code here.
+library(dplyr)
+
+#creating a county FIPS code column in census data
+census <- census %>%
+  mutate(FIPS = paste0(STATE, COUNTY))
+
+#making sure the FIPS code exists in the shapefile and matches format
+mortality_sf <- mortality_sf %>%
+  mutate(FIPS = GEOID) 
+
+#using a join to combine the data 
+mortality_sf2 <- mortality_sf %>%
+  left_join(census, by = "FIPS")
+
 ```
 
 **Note**: If you're unable to do this for any reason, you can pick back up here. You will need to download the data from [Google Drive](https://drive.google.com/file/d/15MT127zoySDS7kOfr9uhLwPSIWBCok1W/view?usp=sharing), as the shapefile is too large for GitHub yet again. I have placed mine on my Desktop, but you can put it anywhere you like and update the directory path. Just make sure not to put it in your GitHub repo!
@@ -854,10 +880,11 @@ ggplot(mortalitySummary) +
 
 For example, for 3 of the 4 years, **Shasta County** (2017-2019) shows the **highest percent mortality** at over 1.39\%.  
 
-#### Question 13 [1 points]:
+#### Question 13 [1 points]:      TT
 What patterns do you observe now, if any? Do you think this is a true pattern? Aren't you being told that deaths are going **up** due to COVID-19??
 
 > Your answer here.
+The main pattern I see is there is a higher mortality as you move to souutherm California, which makes sense given the larger, population dense cities present there (ex. Los Angeles). This could be a true pattern reflecting factors such as higher population density, socioeconomic disparities, or healthcare access, variables whose impacts may have been intensified because of COVID-19.
 
 ## 2.8 The data for 2020 isn't complete... {#linegraph1}
 
@@ -899,6 +926,7 @@ ggplot(aes(x = Month, y = percMortality,
 Why did this happen and how could you fix it? (**There is more than one correct answer possible.**) Could you have made your maps the way you did in Section 2.7 and had them be accurate if we'd had a full 12 months' of data for each year?
 
 > Your answer here.
+
 
 ## 3.1 Fixing the map's accuracy for 2020.
 
