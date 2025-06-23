@@ -190,7 +190,8 @@ __The initial processing steps will include:__
 You will leverage the `read_sf()` function that is part of the `sf` package. As you might have guessed, `sf` refers to __shapefile__. Note that there is an alternative method to read in shapefiles called `st_read`, which is an alias for `read_sf()` with some different default arguments. By default, `read_sf()` is quiet, whereas `read_st()` will print information about the data source by default. Additionally, `read_sf()` returns a tibble rather than a dataframe. So which to choose? It's your preference, in this case. By default, your code below will use `read_sf()` but you could instead use `read_st()` if you wanted.
 
 ```{r}
-cali_sf <- read_sf("~/Desktop/California_County_Boundaries/cnty19_1.shp") 
+#cali_sf <- read_sf("~/Desktop/California_County_Boundaries/cnty19_1.shp") 
+cali_sf <- read_sf("C:/Users/lagonin/Desktop/California_County_Boundaries/cnty19_1.shp") 
 
 ## Alternatively, you can read in the shapefile using the 'st_read()' function
 ## cali_st <- st_read("./California_County_Boundaries/cnty19_1.shp") 
@@ -772,7 +773,8 @@ Now, it's your turn to do some work! Your task is to join the census data to the
 
 ```{r, eval = TRUE}
 ## Comment me out or change EVAL=FALSE to run your own versions!
-load("~/Desktop/mortality_sf2.Rdata")
+#load("~/Desktop/mortality_sf2.Rdata")
+load("C:/Users/lagonin/Desktop/mortality_sf2.Rdata")
 load("census.Rdata")
 ```
 
@@ -1128,14 +1130,14 @@ mortality_nb <- poly2nb(mortality_sf2 %>%
 length(mortality_nb)
 ```
 
-#### Question 17A [0.5 points]
+#### Question 17A [0.5 points] - NL
 Why am I calculating the neighbors on just the **distinct counties** in the mortality shapefile when I just finished saying you don't want to lose any of your spatial data for the model? 
 
 **Hint 1**: What are the dimensions of `mortality_sf2` and is it a multiple of 58?
 
 **Hint 2**: What happens if I calculate spatial weights on redundant data? Does it cost me computationally?
 
-> Your answer here.
+> 'mortality_sf2' is a multiple of 58 (58 x 44 specifically), this, combined with a look at the data frame, shows that there are repeated rows that share a county. Since they share the geometry, reducing the number down to just the distinct counties instead of duplicating each 44 times retains the same level of spatial data. Calculating weights on the redundant duplicates would result in a much slower neighbor calculation, as well as giving the impression that there are more spatial geometries in the neighbor data than there really are (rows do not always equal distinct spatial units).
 
 2. Calculate row-standardized spatial weights matrix based on the neighbors-list.
 *This converts the neighbor information stored in `mortality_nb` into a usable weight list using `nb2listw()`. Neighbors have equal influence (row-standardized: `style = "W"`).*
@@ -1187,19 +1189,18 @@ Run a **spatial lag regression (SAR)** model using the spatial lag you just calc
 **Hint 2**: Make sure to include both time elements as covariates!
 
 ```{r}
-# __ <- lm(__ ~ __ + __ + lagged_monthlyPercMortality, 
-#     data = __)
+sarModel <- lm(monthlyPercMortality ~ COUNTY_NAM + Year + Month + lagged_monthlyPercMortality, data = mortality_sf2)
 ```
 
 Now, let's compare `sarModel` to `olsModel` and see which model better explains monthly percent mortality in California (uncomment to run).
 ```{r}
-# anova(sarModel, olsModel)
+ anova(sarModel, olsModel)
 ```
 
 #### Question 17C [0.25 points]
 Which model, the spatial lag regression (`sarModel`) or the ordinary least squares regression (`olsModel`), is a better fit to the data? Why?
 
-> Your answer here.
+> The sarModel is the better fit for the data, as it reduces the residual sum of squares (RSS) slightly. The p value is well below 0.05, meaning there is statistical significance to the suggestion that the sarModel outperforms the olsModel.
 
 #### Question 17D [0.5 points]
 Using the model you chose as the better model, `sarModel` to `olsModel`, interpret the results of that model. **HINT**: Remember that `summary()` helps you access the results from the model! 
@@ -1207,19 +1208,19 @@ Using the model you chose as the better model, `sarModel` to `olsModel`, interpr
 Make sure to interpret both the coefficients and their significance as well as the $R^2$!
 
 ```{r}
-## Your code here.
+summary(sarModel)
 ```
 
-> Your answer here.
+> The adjusted R-squared value of 0.7271 suggests that there is strong correlation between the monthlyPercMortality and the predictor variables (county, time covariates, and the lag term). The overall p-value is well below 0.05, suggesting that at least some of the predictors statistically significantly predict monthlyPercMortality. The spatial lag term has a very small p-value suggesting that it is a statistically significant predictor of monthlyPercMortality, with a coefficient of 0.38, meaning each unit increase in the lag term is associated with a 0.38 unit increase in the target variable. The temporal covariate Year is not a significant predictor, while Month is (p = 0.0002), with a coefficient of -3.228*10^-4, indicating that there is a very small decrease in monthlyPercMortality with every unit increase in Month. Most of the unique county variables are significant predictors of monthlyPercMortality, with moderate coefficients ranging from a 0.068 unit increase in mortality to a 0.052 unit decrease in mortality.
 
 #### Question 17E [0.25 points]
 Can you trust the results of the model? Why or why not?
 
 ```{r}
-## Your code here.
+plot(sarModel)
 ```
 
-> Your answer here.
+> Diagnostic residuals vs. fitted and q-q plots show that this model is likely violating some assumptions, which suggests that these results may not be trustworthy. The q-q plot shows dramatic tails on either end of the plot, which suggests that the assumptions of the underlying OLS model in the SAR model are not being met. This makes me hesitant to trust the results of the model, as failing to meet those assumptions impacts model quality.
 
 
 # 4 Improve Predictions with Machine Learning
@@ -1252,15 +1253,16 @@ mortalityTest <- mortality_sf2 %>%
 #### Question 18A [0.5 points]
 What percent of the data are in the training set and what percent in the testing set? You should use code to figure this out! How does it compare to the canonical 80-20 split?
 ```{r}
-## Your code here.
+length(mortalityTrain$COUNTY_NAM)/length(mortality_sf2$COUNTY_NAM)*100
+length(mortalityTest$COUNTY_NAM)/length(mortality_sf2$COUNTY_NAM)*100
 ```
 
-> Your answer here.
+> The training set comprises 81.82% of the data, and the test set comprises 18.18%. This is very close to the canonical 80-20 split.
 
 #### Question 18B [0.5 points]
 What caveats or limitations can you think of by using none of the 2020 data in the training set?
 
-> Your answer here.
+> 2020 was a very unique year for mortality rates due to the pandemic. Failing to account for hardly any of the impacts of the pandemic in the training set (a small slice of 2019 will capture a slight effect of it) may cause issues for the model's predictive power. The test set is coming from inherently very different conditions than the testing set, which the model may be unprepared for, having only seen 2017 - 2019.
 
 ## 4.1 Fitting an out-of-bag (OOB) random forest (RF) model
 You decide to use random forest (RF) for this task because it handles non-linearity, which you know you have from your time plots above AND from the summaries of both your OLS and SAR regressions. You also choose to use RF because it can be more robust to outliers and still give some idea of importance for interpretability for your stakeholders. Your basic workflow will be to:
@@ -1281,7 +1283,7 @@ You decide to leverage the `caret` package in R again for much of your model fit
 #### Question 19A [0.5 points]
 What does it mean to "fit a model with out-of-bag (OOB) error"? Why do we do it? What can it tell you here?
 
-> Your answer here.
+> Out-of-bag error is using a model to predict only on the "out-of-bag" samples, or the samples that were not contained in the bootstrapping selection of that model during training. This is essentially a quick way to simulate the effects of cross-validation, without actually running through the process of splitting and cross-validation. It gives an estimate of the prediction error.
 
 
 Even though you have no encoding, you know that you need to center and scale your data before running the random forest! So, you decide to leverage the `preProcess()` function in the `caret` package to help you center and scale the predictors. You perform the preprocessing explicitly here, storing the pre-processed training *instructions* in `preProcInstructions`. Then, you can apply the pre-processing to the training data, `mortalityTrain`, using the `predict()` function. Note that this is a different step than when you are predicting from a model for performance evaluation!
@@ -1329,7 +1331,7 @@ Note that here you coerce it to use an `mtry` hyperparameter grid search of 1 th
 #### Question 19B [0.5 points]
 What is `mtry` and what is it doing in the context of a random forest? What is the default `mtry` for a random forest regression? Why am I choosing to override it here, do you think?
 
-> Your answer here.
+> 'mtry' refers to the number of predictors selected for each branch of the decision tree. The default number for mtry is the number of predictors divded by 3. Overriding it manually lets us search the predictors more thoroughly even though we have a relatively small set of predictors, that would otherwise not search long enough.
 
 *Look at the results ($RMSE$ and $R^2$) of the OOB random forest*
 ```{r}
@@ -1348,8 +1350,7 @@ Recall from the Elastic Net you fitted a couple weeks ago on the hospital readmi
 #### Question 19C [0.5 points]
 Which value of  `mtry` gave the best results? (**Hint**: Can $R^2$ values be negative?!?). Are you able to compare the $RMSE$ of this model to the one you fitted in Question 16C? Why or why not? (**Hint**: Does your pre-processing step apply to the target too? You may have to do a little research!)
 
-> Your answer here.
-
+> The best value of 'mtry' is 1, with the lowest RMSE value of the three, and the highest R^2 value. We cannot compare the RMSE of this model to that of the OLS or SAR models, as we have centered AND scaled the data in the Random Forest model, while we only centered it in the OLS and SAR models (to avoid messing up our spatial covariate). That difference in scale makes it impossible to compare the RMSEs directly.
 
 
 ## 4.2 Fitting a 10-fold cross-validated random forest (RF) model
@@ -1390,7 +1391,7 @@ rfCV$results %>%
 #### Question 19D [0.5 points]
 What do you notice about the effects of cross-validation on your model? (**Hint**: Do you see any negative $R^2$ values this time?) Which value of  `mtry` gave the best results? How does the $RMSE$ of that model compare to the one you chose as the optimal OOB model?
 
-> Your answer here.
+> Cross-validation does not produce any negative R^2 values, which was possible using the OOB model. An 'mtry' of 1 still gives the best R^2 and RMSE values, with an RMSE of 0.9836851 compared to the OOB RMSE of 0.9833759. This represents a marginal improvement over the OOB model with an 'mtry.'
 
 
 ## 4.3  Test the training model with the 2020 data
@@ -1514,7 +1515,9 @@ Since the pandemic is over in reality, you can find the actual number of deaths,
 **Hint**: You can read this file in as a dataframe using `read.csv()` as follows! I also show you the structure (`str()`) of the data so you have an idea what you're getting.
 
 ```{r}
-caliDeaths <- read.csv("https://s3.amazonaws.com/og-production-open-data-chelseama-892364687672/resources/078185a9-e3a7-403f-a546-b8c582f0a9d8/20241220_deaths_final_2019-2023_occurrence_county_month_sup.csv?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAJJIENTAPKHZMIPXQ%2F20250615%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250615T190154Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=61c4009b5979f2d74a95396e2f77ace3d13315fe166588cb1210ef46d292f759")
+caliDeaths <- fromJSON("https://data.chhs.ca.gov/api/3/action/datastore_search?resource_id=078185a9-e3a7-403f-a546-b8c582f0a9d8")
+
+caliDeaths <- caliDeaths$result$records
 
 caliDeaths %>% 
   str()
