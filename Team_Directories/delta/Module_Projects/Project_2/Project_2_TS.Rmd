@@ -477,6 +477,7 @@ mortality_sf <- totalDeaths %>%
 What does `st_join()` do? Could you have executed the join with `st_join()` instead of `full_join()` here? Why or why not? 
 
 > Your answer here.
+We need to use full_join since it is a many-to-many join.
 
 
 #### Question 7B [0.5 points]:
@@ -1007,7 +1008,7 @@ What patterns do you observe now in 2020? (**NOTE**: The maps for 2017-2019 are 
 **Hint**: Take a look at counties in Southern CA, like Los Angeles, Orange, San Diego, Riverside, Imperial...
 
 > Your answer here.
-# it appears as though monthly percent mortality does increas in 2020 for seval counties in southern california, but is unchanged in other couunties for 2020.
+# it appears as though monthly percent mortality does increase in 2020 for seval counties in southern california, but is unchanged in other couunties for 2020.
 
 # 3 Project future mortality
 
@@ -1223,14 +1224,9 @@ Run a **spatial lag regression (SAR)** model using the spatial lag you just calc
 # __ <- lm(__ ~ __ + __ + lagged_monthlyPercMortality, 
 #     data = __)
 
-
-
-
 #olsModel <- lm(monthlyPercMortality ~ COUNTY_NAM + Year + Month, data = mortality_sf2)
 
 sarModel <- lm(monthlyPercMortality ~ COUNTY_NAM + Year + Month + lagged_monthlyPercMortality, data = mortality_sf2)
-
-
 
 ```
 
@@ -1244,6 +1240,8 @@ Now, let's compare `sarModel` to `olsModel` and see which model better explains 
 Which model, the spatial lag regression (`sarModel`) or the ordinary least squares regression (`olsModel`), is a better fit to the data? Why?
 
 > Your answer here.
+# the spatial lag regression is more useful for map data where neighbors may influence the model.
+
 
 #### Question 17D [0.5 points]
 Using the model you chose as the better model, `sarModel` to `olsModel`, interpret the results of that model. **HINT**: Remember that `summary()` helps you access the results from the model! 
@@ -1300,7 +1298,6 @@ mortalityTest <- mortality_sf2 %>%
 #### Question 18A [0.5 points]
 What percent of the data are in the training set and what percent in the testing set? You should use code to figure this out! How does it compare to the canonical 80-20 split?
 ```{r}
-## Your code here.
 
 # percent of data in the training set
 (nrow(mortalityTrain) / nrow(mortality_sf2)) * 100
@@ -1502,6 +1499,9 @@ Can you interpret the $RMSE$ and $MAE$ values? **Remember** all of the data were
 
 > Your answer here.
 
+
+
+
 ### 4.3.4 Plot Actual vs. Predicted Values
 
 Unimpressed with the results so far, you decide to plot the actual vs. predicted values because that can tell you whether your training model is likely leading to an **under prediction** or an **over prediction** relative to the true values of mortality. Using the `ggExtra` package, you add histograms to the margins of the scatterplot as well to help you interpret correctly.
@@ -1528,6 +1528,11 @@ ggMarginal(p, type = "histogram", fill = skittles[2], color = "gray30")
 Interpret the scatterplot of the actual vs. predicted values. What is happening to the predicted values? (Use the histogram on the side to help you, that's why they're there!) Make sure to mention whether the training model is leading to an **under prediction** or an **over prediction** of mortality. What **real information** might that provide your stakeholders, even if the model is underperforming?
 
 > Your answer here.
+
+
+
+
+
 
 ## 4.4 Extract variable importance from the final model
 
@@ -1577,7 +1582,6 @@ Since the pandemic is over in reality, you can find the actual number of deaths,
 
 ```{r}
 
-
 caliDeaths <- fromJSON("https://data.chhs.ca.gov/api/3/action/datastore_search?resource_id=078185a9-e3a7-403f-a546-b8c582f0a9d8")
 
 caliDeaths <- caliDeaths$result$records
@@ -1585,25 +1589,45 @@ caliDeaths <- caliDeaths$result$records
 caliDeaths %>% 
   str()
 
-
 ```
 
 **Remember** to filter for the proper condition, Year, and Months to get the data you need. Take time to explore the data, and make sure that you are matching the data we've been using (total mortality, all causes of death) to your filter. 
 
 ```{r}
 ## Your code here
+
+
+
+
+
+
+
+
+
+
 ```
 
 Now make sure to compute the **monthly percent mortality** as you have done before. Otherwise, you won't be comparing apples-to-apples!
 
 ```{r}
 ## Your code here
+
+
+
+
+
 ```
 
 Lastly, create (1) a scatterplot with trend line and (2) perform a correlation test on your **Sept to December 2020** predictions relative to the true **Sept to December 2020** monthly percent mortality. 
 
 ```{r}
 ## Your code here
+
+
+
+
+
+
 ```
 
 __For full credit__ include a brief interpretation of your findings.
@@ -1619,10 +1643,21 @@ Since you can't go deeply into doing it, instead you will do a little reading/re
 > Your answer here.
 
 
+
+
+
+
+
 #### Question 19I [1 point]
 Now, let's say you add several time-series lagged variables to your random forest; but with 10-fold CV, the testing MAE is 0.129. The scale of the target variable is unchanged - recall that previously, you got a testing MAE of 0.745. Does this suggest that the time series lagged variables are helping or hurting the model? If I tell you that the training MAE is 0.134, do you think the model is **overfitted**, **underfitted**, or doing pretty well?
 
 > Your answer here.
+
+
+
+
+
+
 
 **Would you like to see how I got this?** This source code contains all of the steps of analysis, with comments, and will show you these same results! Make sure to open the source code if you want to see the step-by-step instructions and not just the output! In brief, what I do is engineer temporal lag and rolling means features to inform the model how the target behaved in the past. Lags are explicitly accounting for temporal autocorrelation; rolling averages show recent trends and smooth noise. Then, I do the time-aware split again using the 2020 data as my holdout testing set. I then add the lagged and rolling means features, along with the spatial lag, month, and year variables as predictors to the RF model and assess performance on the testing holdout set. Note that RF is a particularly good choice for temporal models because it is non-linear; further, adding lags makes it partially time-aware. **However, don't forget to ALWAYS  validate with time held out, not random sampling, in temporal models!**
 
@@ -1903,7 +1938,6 @@ ggplot(injuryDeathSummary2) +
     legend.position = "bottom"
   ) +
 
-
   # Add title and caption
   labs(
     title = "California Percent Deaths due to Accident or Injury, by County",
@@ -2028,9 +2062,202 @@ Feel free to get creative! You are not required to continue stratifying by sex, 
 
 ```{r}
 
+## HYPOTHESIS: Cause of death due to heart attack and stroke increased during 2020 in California.
+## this may have been because people were afraid to go to ER with symptoms.
+## and also mandatory stay-at-home order my have made people delay doctor visits.
+## will focus on people over age 65
 
+## Step 1: join the sexdeath data with census data 
+## filter for leading cause of death due for heart attack or stroke.
+
+MICVA_Deaths <- sexDeaths %>% 
+  full_join(census, by = "County") %>% 
+  ## filter for leading cause of death related to heart attack or stroke
+  filter(leadingCauseDeath == "HTD" | leadingCauseDeath == "STK") %>% 
+  ## Now full join with the first 4 columns of the totalDeaths table to get 
+  ## total deaths also
+  full_join(totalDeaths[ , 1:4], by = c("County", "Year", "Month")) %>%
+  ## Rename the sexDeaths column to something more appropriate
+  rename(MICVADeaths = sexDeaths) %>% 
+  ## Calculate the proportion of all deaths that are from injury 
+  ## RELATIVE TO ALL DEATHS (not population!!)
+  mutate(MICVADeathsProportion = MICVADeaths/totalDeaths,
+         ## The ratio of females to males in the population
+         femaleMaleRatio = femalesN/malesN,   
+         ## The ratio of 65+ females to males in the population
+         femaleMaleRatio65 = females65plus/males65plus,  
+         ## Ratio of retirees to non-retirees
+         retireeRatio = over65/totalN,  
+         ## Convert the date to a date format for plotting
+         Date = as.Date(paste(Year, Month, "1", sep = "-"), 
+                        format = "%Y-%m-%d")) %>%    
+         ## Illegal div by 0 turned to NaN; turn back to 0
+  mutate(MICVADeathsProportion = ifelse(MICVADeathsProportion == "NaN", 
+                                           0, MICVADeathsProportion))  
 
 ```
+
+
+```{r, echo = FALSE}
+## Now plot the numbers of deaths per year due to heart attack or stroke by sex
+
+## overall (grouping heart attack and stroke together for boxplots), collapse sex
+
+MICVA_Deaths %>% 
+ggplot(aes(y = MICVADeathsProportion, x= as.factor(Year))) +
+  geom_boxplot(alpha = 0.7) +
+  labs(x = "Year", 
+       y = "Proportion of All Deaths Due to Heart Attack or Stroke", 
+       title = "Proportion of All Deaths Due to Heart Attack or Stroke",
+       subtitle = "California Counties, Jan 2017 - Aug 2020") + 
+  scale_fill_manual(values = skittles[c(5, 9:11)]) + 
+  theme_classic()
+
+## separate out heart attack and stroke, collapse sex
+
+MICVA_Deaths %>% 
+ggplot(aes(y = MICVADeathsProportion, x = leadingCauseDeath, fill = as.factor(Year))) +
+  geom_boxplot(alpha = 0.7) +
+  labs(x = "Heart Attack vs. Stroke", 
+       y = "Proportion of All Deaths Due to Heart Attack or Stroke", 
+       fill = "Year", 
+       title = "Proportion of All Deaths Due to Heart Attack or Stroke",
+       subtitle = "California Counties, Jan 2017 - Aug 2020") + 
+  scale_fill_manual(values = skittles[c(5, 9:11)]) + 
+  theme_classic()
+
+
+MICVA_Deaths %>% 
+ggplot(aes(y = MICVADeathsProportion, x = biologicalSex, fill = as.factor(Year))) +
+  geom_boxplot(alpha = 0.7) +
+  labs(x = "Biological Sex of Decedent", 
+       y = "Proportion of All Deaths Due to Heart Attack or Stroke", 
+       fill = "Year", 
+       title = "Proportion of All Deaths Due to Heart Attack or Stroke",
+       subtitle = "California Counties, Jan 2017 - Aug 2020") + 
+  scale_fill_manual(values = skittles[c(5, 9:11)]) + 
+  theme_classic()
+```
+
+
+
+```{r, echo=FALSE}
+MICVA_Deaths %>% 
+  group_by(Month, biologicalSex, Year) %>% 
+  summarise(MICVADeathsProportion = mean(MICVADeathsProportion, na.rm = TRUE)) %>% 
+ggplot(aes(x = Month, 
+           y = MICVADeathsProportion, 
+           color = as.factor(Year), 
+           linetype = as.factor(biologicalSex))) +
+  geom_line(alpha = 0.7, size = 1.1) +
+  scale_x_continuous(n.breaks = 10) +
+  scale_color_manual(values = skittles[c(5, 9:11)]) +
+  scale_linetype_manual(values=c("dotdash", "solid")) +
+  labs(title = "Proportion all deaths due to heart attack or stroke, by sex",
+       y = "Proportion of All Deaths Due to heart attack or stroke", 
+       subtitle = "Cumulative for all California counties, Jan 2017 - Aug 2020",
+       color = "Year",
+       linetype = "Sex of Decedent") +
+  theme_minimal()
+```
+
+
+```{r, echo=FALSE}
+MICVA_Deaths %>% 
+  group_by(Month, Year) %>% 
+  summarise(MICVADeathsProportion = mean(MICVADeathsProportion, na.rm = TRUE)) %>% 
+ggplot(aes(x = Month, 
+           y = MICVADeathsProportion, 
+           color = as.factor(Year))) +
+  geom_line(alpha = 0.7, size = 1.1) +
+  scale_x_continuous(n.breaks = 10) +
+  scale_color_manual(values = skittles[c(5, 9:11)]) +
+  scale_linetype_manual(values=c("dotdash", "solid")) +
+  labs(title = "Proportion all deaths due to heart attack or stroke",
+       y = "Proportion of All Deaths Due to heart attack or stroke", 
+       subtitle = "Cumulative for all California counties, Jan 2017 - Aug 2020",
+       color = "Year",
+       linetype = "Sex of Decedent") +
+  theme_minimal()
+```
+
+
+
+```{r, echo = TRUE, warning=FALSE, message=FALSE}
+
+## create a mortality shapefile, for MICVADeaths
+
+MICVA_sf <- MICVA_Deaths %>% 
+  ## rename 'County' to COUNTY_NAM' for shapefile compatibility
+  rename(COUNTY_NAM = County) %>%
+  ## group the data by County, year, month
+  group_by(COUNTY_NAM, Year, Month) %>% 
+  ## summarize total deaths by County, year, and month
+  summarise(totalMICVAdeaths = sum(MICVADeaths, na.rm = TRUE)) %>%
+  ## join this data with the california shapefile, a many-to-many relationships (since for each county in the shapefile,
+  ## there are many deaths by year/month, and also the islands duplicate the counties)
+  full_join(cali_sf, by = "COUNTY_NAM", relationship = "many-to-many") %>% 
+  ## below is a function (st_as_sf) from the sf package that makes an object compatible with spatial data
+  st_as_sf() %>% 
+  ## but filter out the islands from the resulting shapefile
+  filter(is.na(ISLAND))
+
+  ## check the counts of county names in the sf (should be 58 unique names)
+  unique(MICVA_sf$COUNTY_NAM)
+  n_distinct(MICVA_sf$COUNTY_NAM)
+
+```
+```{r, echo=FALSE}
+
+## Start from the MICVA spatial tibble
+mortalitySummary <- MICVA_sf %>% 
+  ## Group by and then summarize to total the deaths by County and Year
+  group_by(COUNTY_NAM, Year) %>% 
+  summarise(totalDeaths = sum(totalMICVAdeaths, na.rm = TRUE)) %>% 
+  mutate(deathLabels = cut(totalDeaths, 
+                          breaks = c(0, 50, 500, 5000, 50000, Inf),
+                          labels = c("0-49", "50-499", "500-4,999", 
+                                    "5,000-49,999", "50,000+"),
+                          ordered_result = TRUE, right = F)) 
+## Initialize the plot
+ggplot(mortalitySummary) +
+  ## Chloropeth: draw the polygons of the counties and color by total deaths
+  geom_sf(aes(fill = deathLabels), color = "gray20", size = 0.2) +
+  ## Apply manual fill scale for total deaths
+  scale_fill_manual(
+    name = "Deaths, Heart Attack/Stroke (per 10,000 persons)",
+    values = c4a(palette="BuPu", n=6),
+    drop = FALSE
+  ) +
+  ## Set map projection explicitly
+  coord_sf(expand = FALSE) +   ## <- keeps map tight to its bounding box
+  theme_bw() +
+  ## Make a completely blank map background this time
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    strip.text = element_text(size = 12, face = "bold"),
+    legend.position = "bottom"
+  ) +
+  labs(
+    title = "California Annual Deaths by County (Heart Attack & Stroke)",
+    subtitle = "2017 - 2020",
+    caption = "Source: California DPH Vital Records"
+  ) + 
+  ## Use facet_wrap to make one map per year
+  facet_wrap(~ Year, ncol = 4)
+```
+
+
+
+
+
+
+
 
 
 
