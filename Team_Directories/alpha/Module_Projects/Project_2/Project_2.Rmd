@@ -1676,11 +1676,11 @@ ggplot(aes(y = deathsInjuriesProportion, x = biologicalSex, fill = as.factor(Yea
   theme_classic()
 ```
 
-#### Question 20A [0.5 points]:
+#### Question 20A [0.5 points]: - NL
 
 Would it be fair to model the proportion of deaths due to injury or accident without accounting for an effect of sex? Why or why not?
 
-> Your answer here.
+> It would not. Across the board from 2017 to 2020, decedents with a biological sex of male made up a larger proportion of deaths due to accident or injury, hovering around 0.04 or 0.045, while those with female biological sex were lower.
 
 #### 5.1.1.2 Proportion of Deaths by Sex {#lineGraphInjSex}
 
@@ -1706,11 +1706,11 @@ ggplot(aes(x = Month,
   theme_minimal()
 ```
 
-#### Question 20B [0.5 points]:
+#### Question 20B [0.5 points]: - NL
 
 What do you notice about the trend? Is there anything compelling here? Can you find any possible explanation for what happened in May (month 5) of 2020?
 
-> Your answer here.
+> In 2017 to 2019, there is a dramatic increase in injuries due to accident as the year goes on. This may be explained by the warmer late Spring, Summer, and early Fall months encouraging more outdoor activities, which may result in injury. In 2020, there is a spike in mortality due to accidents in January, with a steep drop afterwards, followed by an uptick as the weather warms in April and May. As May of 2020 hits, both male and female mortality due to accident or injury plummets, likely as a result of increased restrictions (stay at home orders) and hesitancy from the COVID-19 pandemic.
 
 ### 5.1.2 Mapping injury-related deaths by stay-at-home orders & sex {#chloropethInjSex}
 
@@ -1799,27 +1799,85 @@ ggplot(injuryDeathSummary) +
   facet_wrap(~ Year, ncol = 4)
 ```
 
-#### Question 21A [0.5 points]::
+#### Question 21A [0.5 points]: - NL
 
 Do you think there is any evidence that the percent of deaths due to accident & injury changed as a result of the stay-at-home orders? What would provide stronger evidence of a change in percent of deaths due to accident and injury as a result of the shutdown? Do these maps include any evidence of interaction with the sex of the decedent?
 
 **Hint**: Make sure to explain what you would want to do to these maps, either in terms of filtering and/or additional faceting, to better address whether (1) the shutdown has had a likely effect and (2) whether there is an interaction with biological sex on the proportion of deaths due to accident or injury.
 
-> Your answer here.
+> These maps do not include any evidence of interaction with the sex of the decedent. These maps do not clearly show any evidence of a reduction in deaths due to accident & injury as a result of the May 2020 stay-at-home orders. This is because these maps are segmented by year, meaning the first 5 months of normal activity in 2020 are included in that map. Additionally, the quartiles encompass a very large range in the middle bucket, meaning drastically different values will be colored the same. This makes it difficult to discern much at all in terms of differences. The presence of so many light yellow counties in 2020 do suggest a decrease compared to previous years, but the magnitude of that decrease is difficult to tell. A more gradual color scale may help, and splitting the plots into biologically male decedents vs. biologically female decedents would let us explore that relationship as well.
 
-#### Question 21B [0.5 points]::
+#### Question 21B [0.5 points]:: - NL
 
 Why are some counties filled gray? Are the data truly missing or is it a data maturity problem? Or, is there another reason? (**Hint**: What will happen if the number of deaths in a county are very small?)
 
-> Your answer here.
+> When deaths in a county are very small, that data may be subject to suppression. While the data can be anonymized to protect the identity of the decedents, when the number of deaths is small enough, it may be difficult or impossible to truly anonymize them. If friends or family (or anyone else who knew the decedent) know that someone has died, and they can see that only 3 people in their county died, they may be able to reidentify that data rather easily. It's a privacy issue, not a data maturity or availability issue.
 
 
-#### Question 21C [3 points]::
+#### Question 21C [3 points]:: - NL
 
 Answer one of the two situations you answered in Question 21A. Either make more compelling maps before and after the shutdown OR show interactivity with biological sex, your choice. 
 
 ```{r}
-## Your code here.
+injuryDeathSummary <- injDeaths %>%
+  filter(Year==2020)%>%
+  group_by(stayAtHome, Month , County, biologicalSex) %>% 
+  rename(COUNTY_NAM = County) %>% 
+  summarise(deathsInjuriesPercent = mean(deathsInjuriesProportion, na.rm = TRUE)*100) %>% 
+  full_join(cali_sf, by = "COUNTY_NAM", relationship = "many-to-many") %>% 
+  st_as_sf() %>% 
+  filter(is.na(ISLAND)) %>% 
+  ungroup() 
+
+summ <- fivenum(injuryDeathSummary$deathsInjuriesPercent)
+paste0("The five-number summary of % of deaths that are accident/injury-related is: ")
+paste(c("Min", "Lower Quartile", "Median", "Upper Quartile", "Max"), 
+      round(summ, 3))
+
+injuryDeathSummary <- injuryDeathSummary %>% 
+  mutate(deathLabels = cut(deathsInjuriesPercent, 
+                          breaks = c(0, 1.487, 3.32, 9.917, Inf),
+                          labels = c("0-1.487", "1.487-3.32", "3.32-9.917", "9.917+"),
+                          ordered_result = TRUE, right = F))
+
+## Initialize the plot
+ggplot(injuryDeathSummary) +
+  ## Chloropeth: draw the polygons of the counties and color by total deaths
+  geom_sf(aes(fill = deathLabels), color = "gray20", size = 0.2) +
+
+  ## Apply manual fill scale for total deaths
+  scale_fill_manual(
+    name = "% of Deaths Due to Accident or Injury",
+    values = c4a(palette="brewer.or_rd", n=4),
+    na.value = "gray70",
+    drop = FALSE
+  ) +
+  ## Set map projection explicitly
+  coord_sf(expand = FALSE) +   ## <- keeps map tight to its bounding box
+  
+  theme_bw() +
+  ## Make a completely blank map background this time
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    strip.text = element_text(size = 12, face = "bold"),
+    legend.position = "bottom"
+  ) +
+
+
+  # Add title and caption
+  labs(
+    title = "California Monthly Percent Deaths due to Accident or Injury, by County in 2020",
+    subtitle = "Cumulative Monthly Deaths, Jan - Aug 2020",
+    caption = "Source: California DPH Vital Records"
+  ) + 
+  
+  ## Use facet_wrap to make one map per year
+  facet_wrap(~ Month, ncol = 4)
 ```
 
 
@@ -1855,20 +1913,24 @@ ggplot(aes(x = femaleMaleRatio)) +
 
 You can see that you have a very strongly __left-skewed__ distribution, with the mean of the female:male ratio dragged to the left. What does this mean, exactly? **You have more counties with a higher proportion of men than women than otherwise!** And since men seem to have a higher proportion of deaths by accident / injury as opposed to females, you need to decide if you think you need to account for this in your maps. Accounting for it in the model will be easy - you just include the female:male ratio as a predictor variable. However, in the maps it is actually a little trickier and would require a mathematical correction that could be difficult for your stakeholders to understand. Is it even necessary then?
 
-#### Question 22 [1 point]:
+#### Question 22 [1 point]: - NL
 
 Calculate the correlation of `femaleMaleRatio` and the `deathsInjuriesProportion`, making sure to be careful to drop or exclude any NAs before making your calculation. 
 
 ```{r}
-## Your code here.
+correlationValue<-injDeaths%>%
+  filter(!is.na(femaleMaleRatio),!is.na(deathsInjuriesProportion))%>%
+  summarise(cor=cor(femaleMaleRatio, deathsInjuriesProportion))%>%
+  pull(cor)
+correlationValue
 ```
 
 Do you think that this correlation coefficient indicates that you need to make a correction on your maps, or is it likely sufficient just to make the correction in your models? In other words, large correlation coefficients (in the absolute value sense) would indicate a need to correct the maps; smaller coefficients would indicate that it's probably not a big deal for your visualizations provided to stakeholders.
 
-> Your answer here.
+> The correlation between the two of about 0.28 is not very strong, meaning we can probably get away with excluding this correlation from our maps for the sake of easy interpretability. We may as well account for it in the model anyway since that does not hamper interpretability much at all.
 
 
-#### Question 23 [1 point]:
+#### Question 23 [1 point]: - NL
 
 Now, take a look at the scatter plot below with a best-fit line. Does the plot agree with the correlation coefficient (i.e., direction of slope) you obtained? Why or why not?
 
