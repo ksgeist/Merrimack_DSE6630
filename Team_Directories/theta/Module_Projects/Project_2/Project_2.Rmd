@@ -1571,7 +1571,12 @@ Which value of  `mtry` gave the best results? (**Hint**: Can $R^2$ values be neg
 > The other R-squared values were negative, suggesting significantly worse
 > performance. 
 
-> ANSWER HERE
+> We should be able to compare the RMSE of this model to the one fitted in 
+> question 16. 
+> Our preprocessing conducted with preProcess() is applying the preprocessing
+> to the predictors, not the target. 
+> Therefore, it should be reasonable to compare scores, as the targets
+> should be the same. 
 
 
 
@@ -2049,7 +2054,12 @@ ggplot(aes(y = deathsInjuriesProportion, x = biologicalSex, fill = as.factor(Yea
 
 Would it be fair to model the proportion of deaths due to injury or accident without accounting for an effect of sex? Why or why not?
 
-> Your answer here.
+> No, as the plot shows a clear difference between each sex.
+> Across all years (except 2020), the entire IQR for Male is higher than
+> that of Female.
+> In every case, the median proportion of deaths is higher for Male than Female.
+> The plot clearly demonstrates that males have a higher proportion of deaths 
+> due to injury or accident than females. 
 
 #### 5.1.1.2 Proportion of Deaths by Sex {#lineGraphInjSex}
 
@@ -2079,7 +2089,16 @@ ggplot(aes(x = Month,
 
 What do you notice about the trend? Is there anything compelling here? Can you find any possible explanation for what happened in May (month 5) of 2020?
 
-> Your answer here.
+> Once again, we see that the trend in every year is higher for Male than it
+> is for Female.
+> In 2020, we see a sharp decrease in deaths when we hit May.
+> One idea to explain this might be the lockdown due to COVID.
+> If more people were staying home, then there might be less deaths due to
+> accident or injury.
+> However, the lockdown started in March, which we see as an increase in this
+> proportion until we hit May.
+> Another potential reason is that around this point, COVID related deaths
+> began to increase, overtaking accident or injury related deaths. 
 
 ### 5.1.2 Mapping injury-related deaths by stay-at-home orders & sex {#chloropethInjSex}
 
@@ -2174,21 +2193,77 @@ Do you think there is any evidence that the percent of deaths due to accident & 
 
 **Hint**: Make sure to explain what you would want to do to these maps, either in terms of filtering and/or additional faceting, to better address whether (1) the shutdown has had a likely effect and (2) whether there is an interaction with biological sex on the proportion of deaths due to accident or injury.
 
-> Your answer here.
+> We see in southern California a decrease in deaths due to accident and injury
+> in 2020 compared to prior years.
+> However, outside of the south part of the state, it is harder to tell
+> if there is change.
+> Many of the counties report as NA, which hinders our ability to compare
+> across the years. 
+> Furthermore, these maps lack any information about two of the potentially
+> important factors we previously discusssed. 
+
+> One recommendation for change would be to focus in more on 2020 by creating
+> two maps. One which looks at the months before the lockdown and one that
+> looks at the months after.
+> Such a comparison could show us if the lockdown had an affect. 
+
+> Similarly, you could create different maps that showed the death percentages
+> in each county split by sex. 
 
 #### Question 21B [0.5 points]::
 
 Why are some counties filled gray? Are the data truly missing or is it a data maturity problem? Or, is there another reason? (**Hint**: What will happen if the number of deaths in a county are very small?)
 
-> Your answer here.
+> The gray counties could be explained for a couple of reasons.
+> One reason is that those counties are not reporting deaths due to accident
+> or injury.
+> However, a more likely reason is that if the counties have very small
+> numbers of such deaths, then the results are suppressed on our map. 
 
 
 #### Question 21C [3 points]::
 
 Answer one of the two situations you answered in Question 21A. Either make more compelling maps before and after the shutdown OR show interactivity with biological sex, your choice. 
 
+
 ```{r}
 ## Your code here.
+
+ggplot(injuryDeathSummary) +
+  # Draw county polygons colored by percent deaths due to accident/injury
+  geom_sf(aes(fill = deathLabels), color = "gray20", size = 0.2) +
+  
+  # Manual fill scale for percent deaths
+  scale_fill_manual(
+    name = "% of Deaths Due to Accident or Injury",
+    values = c4a(palette = "brewer.or_rd", n = 3),
+    na.value = "gray70",
+    drop = FALSE
+  ) +
+  
+  # Map projection
+  coord_sf(expand = FALSE) +
+  
+  theme_bw() +
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    strip.text = element_text(size = 12, face = "bold"),
+    legend.position = "bottom"
+  ) +
+  
+  labs(
+    title = "California Annual Percent Deaths due to Accident or Injury, by County and Sex",
+    subtitle = "Cumulative Monthly Deaths, Jan 2017 - Aug 2020",
+    caption = "Source: California DPH Vital Records"
+  ) +
+  
+  # Facet by year and biological sex
+  facet_wrap(~ Year + biologicalSex)
 ```
 
 
@@ -2230,11 +2305,23 @@ Calculate the correlation of `femaleMaleRatio` and the `deathsInjuriesProportion
 
 ```{r}
 ## Your code here.
+
+cor.test(
+  injDeaths$femaleMaleRatio,
+  injDeaths$deathsInjuriesProportion,
+  use = "complete.obs"
+)
 ```
 
 Do you think that this correlation coefficient indicates that you need to make a correction on your maps, or is it likely sufficient just to make the correction in your models? In other words, large correlation coefficients (in the absolute value sense) would indicate a need to correct the maps; smaller coefficients would indicate that it's probably not a big deal for your visualizations provided to stakeholders.
 
-> Your answer here.
+> The correlation test produced a coefficient about 0.28.
+> This values is not really high, suggesting a weak positive relationship.
+> The p-value is greatly lower than 0.05, which suggests that the relationship
+> is statistically significant. 
+> However, taking the low coefficient into account, it is questionable if
+> the correlation, while significant, is great enough to warrant adjusting
+> the maps. 
 
 
 #### Question 23 [1 point]:
@@ -2259,14 +2346,37 @@ injDeaths %>%
   theme_minimal()
 ```
 
-> Your answer here.
+> The plot demonstrates a large skew in the data.
+> This would suggest that adjusting the map would be beneficial.
+> The direction of the slope is postivie, which agrees with what was 
+> determined from the correlation coefficient. 
+> Furthermore, the skew of the plot provides extra support for the idea
+> that the maps should be adjusted, which the correlation coefficient did 
+> not fully convey. 
 
 #### Question 24 [3 points]:
 Originally, I was going to walk you through predictive modeling here as well - but given a need to abbreviate this project, instead I am going to ask you to simply construct **data science question** and **hypothesis** given the information you have here so far. Are there any variables you pulled from the Census that would be worth considering here as well?
 
 Choose what kind of model you would do. Would you include spatial lags? Ideally, would you include temporal lags?
 
-> Your answers here.
+> How does the adult female-to-male ratio affect the proportion of deaths due to accident or injury in California counties over time, and how do temporal and spatial dependencies influence these relationships?
+
+> Counties with higher adult female-to-male ratios will have significantly different proportions of deaths due to accident or injury.
+
+> Once again, I would utilize a random forest.
+> Ideally, the model will incorporate spatial and temporal lags.
+> As we have witnessed, there appears to be a spatial component to our target.
+> Southern California demonstrates higher death proportions across all years.
+> In addition, as we have previously discussed, death rates seem to fluxuate 
+> between seasons.
+> While this may be mostly attributed to illness, one might expect working
+> patterns or weather conditions to affect deaths due to accident or injury. 
+
+> Looking at senior population might also be of interest.
+> It may be the case that those in their working years are more prone
+> to death from accident or injury.
+> On the other hand, it may be the case that older individuals
+> struggle to recover from injury more than younger individuals.
 
 ## 5.2 Choose your own cause-of-death to explore.
 
@@ -2293,3 +2403,134 @@ Feel free to get creative! You are not required to continue stratifying by sex, 
 5. **A data science question you would like to test**
 
 6. **A data science hypothesis based on what you found** [Note: if you find nothing compelling, you may defend with evidence why there is no point developing a hypothesis instead.]
+
+```{r}
+clrdDeaths <- sexDeaths %>% 
+  full_join(census, by = "County") %>% 
+  filter(leadingCauseDeath == "CLD") %>% 
+  full_join(totalDeaths[ , 1:4], by = c("County", "Year", "Month")) %>%
+  rename(clrdDeaths = sexDeaths) %>% 
+  mutate(
+    deathsCLRDProportion = clrdDeaths / totalDeaths,
+    femaleMaleRatio = femalesN / malesN,
+    femaleMaleRatio65 = females65plus / males65plus,
+    retireeRatio = over65 / totalN,
+    Date = as.Date(paste(Year, Month, "1", sep = "-"), format = "%Y-%m-%d")
+  ) %>%
+  mutate(deathsCLRDProportion = ifelse(is.nan(deathsCLRDProportion), 0, deathsCLRDProportion))
+```
+
+
+```{r}
+# Annual Choropleth Maps
+
+clrdSummary <- clrdDeaths %>%
+  group_by(Year, County) %>%
+  summarise(deathsCLRDPercent = mean(deathsCLRDProportion, na.rm = TRUE) * 100) %>%
+  rename(COUNTY_NAM = County) %>%
+  full_join(cali_sf, by = "COUNTY_NAM") %>%
+  st_as_sf() %>%
+  filter(is.na(ISLAND)) %>% 
+  ungroup()
+
+
+
+# Plot annual maps
+
+ggplot(clrdSummary) +
+  geom_sf(aes(fill = cut(deathsCLRDPercent, breaks = c(0, 1, 3, Inf), labels = c("<1%", "1-3%", ">3%"))), 
+          color = "gray20", size = 0.2) +
+  scale_fill_manual(
+    name = "% of Deaths Due to CLRD",
+    values = c4a(palette = "brewer.or_rd", n = 3),
+    na.value = "gray70",
+    drop = FALSE
+  ) +
+  coord_sf(expand = FALSE) +
+  theme_bw() +
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    strip.text = element_text(size = 12, face = "bold"),
+    legend.position = "bottom"
+  ) +
+  labs(
+    title = "California Annual Percent Deaths due to CLRD, by County",
+    subtitle = "Cumulative Monthly Deaths, Jan 2017 - Aug 2020",
+    caption = "Source: California DPH Vital Records"
+  ) +
+  facet_wrap(~ Year, ncol = 4)
+```
+
+> We see overall a large amount of NA counties. 
+> Southern California shows a great amount of red counties.
+> In addition, we do see a bit of a drop off in 2020. 
+> This might potentially be due to the rise in COVID cases overtaking CLRD.
+> Overall, it is hard to get a good sense of the differences between counties
+> and years due to the vast number of NA counties. 
+
+
+```{r}
+# Monthly Trend 
+
+clrdDeaths %>% 
+  group_by(Month, biologicalSex, Year) %>% 
+  summarise(deathsCLRDProportion = mean(deathsCLRDProportion, na.rm = TRUE)) %>% 
+  ggplot(aes(x = Month, 
+             y = deathsCLRDProportion, 
+             color = as.factor(Year), 
+             linetype = as.factor(biologicalSex))) +
+    geom_line(alpha = 0.7, size = 1.1) +
+    scale_x_continuous(n.breaks = 10) +
+    scale_color_manual(values = skittles[c(5, 9:11)]) +
+    scale_linetype_manual(values = c("dotdash", "solid")) +
+    labs(
+      title = "Proportion of All Deaths Due to CLRD, by Sex",
+      y = "Proportion of All Deaths Due to CLRD", 
+      subtitle = "Cumulative for all California counties, Jan 2017 - Aug 2020",
+      color = "Year",
+      linetype = "Sex of Decedent"
+    ) +
+    theme_minimal()
+```
+
+> While many of the trends overlap,
+> it does appear that females have a higher proportion of CLRD related deaths
+> than males. 
+> There appears to be a sharp increase between April and May for most years,
+> and a lesser increase between the fall and winter. 
+> The year 2020 shows a great downward trend for males, 
+> and a lower proportion than ususal for females.
+> However, this might be a consequence of our incomplete data for 2020. 
+
+```{r}
+# Correlation Test
+
+cor.test(
+  clrdDeaths$femaleMaleRatio,
+  clrdDeaths$deathsCLRDProportion,
+  use = "complete.obs"
+)
+```
+
+> The correlation coefficient of 0.426 suggests a moderately strong positive
+> linear relationship between femaleMaleRatio and the proportion of CLRD related
+> deaths. 
+
+> The p-value is greatly below 0.05,
+> suggesting that the correlation is statistically significant. 
+
+
+> Data Science Question: How does the adult female-to-male ratio affect the 
+> proportion of deaths due to Chronic Lower Respiratory Disease (CLRD)
+> in California counties over time?
+
+> Hypothesis: Counties with higher adult female-to-male ratios will exhibit higher proportions of deaths due to CLRD than counties with lower adult female-to-male ratios. Furthermore,
+> the proportions of deaths due to CLRD will be lower in 2020 than previously
+> due to the COVID pandemic. 
+
+
