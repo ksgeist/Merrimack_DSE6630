@@ -191,7 +191,7 @@ You will leverage the `read_sf()` function that is part of the `sf` package. As 
 
 ```{r}
 #cali_sf <- read_sf("~/Desktop/California_County_Boundaries/cnty19_1.shp") 
-cali_sf <- read_sf("C:/Users/lagonin/Desktop/California_County_Boundaries/cnty19_1.shp") 
+cali_sf <- read_sf("C:/Users/warfr/Desktop/California_County_Boundaries/cnty19_1.shp") 
 
 ## Alternatively, you can read in the shapefile using the 'st_read()' function
 ## cali_st <- st_read("./California_County_Boundaries/cnty19_1.shp") 
@@ -774,7 +774,7 @@ Now, it's your turn to do some work! Your task is to join the census data to the
 ```{r, eval = TRUE}
 ## Comment me out or change EVAL=FALSE to run your own versions!
 #load("~/Desktop/mortality_sf2.Rdata")
-load("C:/Users/lagonin/Desktop/mortality_sf2.Rdata")
+load("C:/Users/warfr/Desktop/mortality_sf2.Rdata")
 load("census.Rdata")
 ```
 
@@ -1959,7 +1959,7 @@ Choose what kind of model you would do. Would you include spatial lags? Ideally,
 
 > Data science question: Is county gender breakdown a significant predictor of the rate of deaths due to injury or accident?
   Hypothesis: The male to female ratio of a county statistically significantly predicts the percentage of deaths due to to injury or accident.
-  Model: I would include spatial lags definitely, as the counties in question are largely arbitrary boundaries. Allowing for some bleed between them through the spatial lag would be beneficial for capturing the actual spatial trends. I would try multiple models but would start with a SAR model and then explore beyond that with an SEM if indicated. I might also include more socioeconomic variables from the Census data as social predictors of health. Increasing the complexity like that would allow me to try out decision-tree models like Random Forest as well, to see how that compares. Random Forest has the added benefit of showing importance metrics for the different predictor variables, which could shed light on the overall hypothesis.
+  Model: I would include spatial lags definitely, as the counties in question are largely arbitrary boundaries. Allowing for some bleed between them   through the spatial lag would be beneficial for capturing the actual spatial trends. I would try multiple models but would start with a SAR model and then explore beyond that with an SEM if indicated. I might also include more socioeconomic variables from the Census data as social predictors of health. Increasing the complexity like that would allow me to try out decision-tree models like Random Forest as well, to see how that compares. Random Forest has the added benefit of showing importance metrics for the different predictor variables, which could shed light on the overall hypothesis.
 
 ## 5.2 Choose your own cause-of-death to explore.
 
@@ -1971,15 +1971,178 @@ Feel free to get creative! You are not required to continue stratifying by sex, 
 
 ##### For full credit, I will be looking for:
 
+```{r NL}
+## Join the sex deaths table with the census data; then filter for INJ
+pnfDeaths <- sexDeaths %>% 
+  full_join(census, by = "County") %>% 
+  ## Here is where you filter for a specific cause of death relative to sex
+  filter(leadingCauseDeath == "PNF") %>% 
+  ## Now full join with the first 4 columns of the totalDeaths table to get 
+  ## total deaths also
+  full_join(totalDeaths[ , 1:4], by = c("County", "Year", "Month")) %>%
+  ## Rename the sexDeaths column to something more appropriate
+  rename(pneumoniaFluDeaths = sexDeaths) %>% 
+  ## Calculate the proportion of all deaths that are from injury 
+  ## RELATIVE TO ALL DEATHS (not population!!)
+  mutate(deathsPnfProportion = pneumoniaFluDeaths/totalDeaths,
+         ## The ratio of females to males in the population
+         femaleMaleRatio = femalesN/malesN,   
+         ## The ratio of 65+ females to males in the population
+         femaleMaleRatio65 = females65plus/males65plus,  
+         ## Ratio of retirees to non-retirees
+         retireeRatio = over65/totalN,  
+         ## Convert the date to a date format for plotting
+         Date = as.Date(paste(Year, Month, "1", sep = "-"), 
+                        format = "%Y-%m-%d")) %>%    
+         ## Illegal div by 0 turned to NaN; turn back to 0
+  mutate(deathsPnfProportion = ifelse(deathsPnfProportion == "NaN", 
+                                           0, deathsPnfProportion))
+```
+
+
 1. **Annual chloropeth maps showing your cause-of-death**, like this [one](#chloropethInjSex)
 
+```{r}
+## Encode stayAtHome as any date after March 19, 2020
+pnfDeaths <- pnfDeaths %>% 
+  mutate(stayAtHome = ifelse(Date >= "2020-03-19", "Stay-at-Home", "None"))
+```
+
+```{r}
+##### Calculate the proportion of all deaths due to injury
+pnfDeathSummary <- pnfDeaths %>% 
+  filter(Year==2020)%>%
+  group_by(stayAtHome, Month, County, biologicalSex) %>% 
+  rename(COUNTY_NAM = County) %>% 
+  ## Mean proportion of deaths for each month-year-county-sex combo
+  summarise(deathsPnfPercent = mean(deathsPnfProportion, na.rm = TRUE)*100) %>% 
+  ## Join to get the geometries for mapping
+  full_join(cali_sf, by = "COUNTY_NAM", relationship = "many-to-many") %>% 
+  ## Coerce to make sure it is seen as a shapefile
+  st_as_sf() %>% 
+  ## Remove any of the island geometries as you did in the first part
+  filter(is.na(ISLAND)) %>% 
+  ungroup() 
+
+#### Find the five number summary
+summ <- fivenum(pnfDeathSummary$deathsPnfPercent)
+paste0("The five-number summary of % of deaths that are pneumonia/influenza-related is: ")
+paste(c("Min", "Lower Quartile", "Median", "Upper Quartile", "Max"), 
+      round(summ, 3))
+## Notice that, with the minimum, 1st quartile, AND median all equal to 0, we
+## really only have three groups
+
+##### Now add on the cuts injuryDeathSummary labels for mapping:
+pnfDeathSummary <- pnfDeathSummary %>% 
+  mutate(deathLabels = cut(deathsPnfPercent, 
+                          breaks = c(0, 2.612, Inf),
+                          labels = c("0-2.612", "2.612+"),
+                          ordered_result = TRUE, right = F)) 
+```
+```{r}
+ggplot(pnfDeathSummary) +
+  ## Chloropeth: draw the polygons of the counties and color by total deaths
+  geom_sf(aes(fill = deathLabels), color = "gray20", size = 0.2) +
+
+  ## Apply manual fill scale for total deaths
+  scale_fill_manual(
+    name = "% of Deaths Due to Pneumonia or Influenza",
+    values = c4a(palette="brewer.or_rd", n=3),
+    na.value = "gray70",
+    drop = FALSE
+  ) +
+  ## Set map projection explicitly
+  coord_sf(expand = FALSE) +   ## <- keeps map tight to its bounding box
+  
+  theme_bw() +
+  ## Make a completely blank map background this time
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    strip.text = element_text(size = 12, face = "bold"),
+    legend.position = "bottom"
+  ) +
+
+
+  # Add title and caption
+  labs(
+    title = "California Monthly Percent Deaths due to Pneumonia or Influenza, by County in 2020",
+    subtitle = "Cumulative Monthly Deaths, Jan - Aug 2020",
+    caption = "Source: California DPH Vital Records"
+  ) + 
+  
+  ## Use facet_wrap to make one map per month in 2020
+  facet_wrap(~ Month, ncol = 4)
+```
+
+
 2. **A line graph showing changes, by month and year, in your cause-of-death**, somewhat like this [one](#lineGraphInjSex) with stratification _optional_
+
+```{r}
+over65list<-c(sort(unique(pnfDeaths$over65perc)))
+fivenum(over65list)
+pnfDeaths <- pnfDeaths%>%
+  mutate(
+    over65bins=cut(over65perc,breaks=c(10.60,17.05,30.90))
+  )
+```
+
+
+```{r}
+pnfDeaths %>% 
+  group_by(Month, biologicalSex, Year) %>% 
+  summarise(deathsPnfProportion = mean(deathsPnfProportion, na.rm = TRUE)) %>% 
+ggplot(aes(x = Month, 
+           y = deathsPnfProportion, 
+           color = as.factor(Year), 
+           linetype = as.factor(biologicalSex))) +
+  geom_line(alpha = 0.7, size = 1.1) +
+  scale_x_continuous(n.breaks = 10) +
+  scale_color_manual(values = skittles[c(5, 9:11)]) +
+  labs(title = "Proportion all deaths due to Pneumonia or Influenza",
+       y = "Proportion of All Deaths Due to Pneumonia or Influenza", 
+       subtitle = "Cumulative for all California counties, Jan 2017 - Aug 2020",
+       color = "Year",
+       linetype = "Sex of Decedent") +
+  theme_minimal()
+```
+
 
 3. **At least one other form of exploration to form a testable question or hypothesis, including but not limited to:**
   - A correlation test
   - A scatterplot
   - Stratified boxplots
   - Feel free to be creative!
+
+```{r}
+correlationValue<-pnfDeaths%>%
+  filter(!is.na(retireeRatio),!is.na(deathsPnfProportion))%>%
+  summarise(cor=cor(retireeRatio, deathsPnfProportion))%>%
+  pull(cor)
+correlationValue
+```
+
+```{r}
+pnfDeaths %>% 
+  group_by(County) %>%
+  summarise(retireeRatio = mean(retireeRatio),
+            deathsPnfPercent = mean(deathsPnfProportion, 
+                                         na.rm = TRUE)*100) %>% 
+
+  ggplot(aes(x = retireeRatio, y = deathsPnfPercent)) +
+  geom_point(alpha = 0.7, color = skittles[5]) +
+  geom_smooth(color = skittles[8], method = "lm") +
+  labs(title = "Pneumonia or Influenza Related Deaths vs. Over 65yrs:Under 65yrs Adults in California counties",
+       subtitle = "Each point represents a county average",
+       y = "Average % of Total Deaths Due to Pneumonia or Influenza", 
+       x = "Adult Over 65yrs:Under 65yrs (California Decennial Census, 2020)",
+       caption = "Source: California DPH Vital Records") +
+  theme_minimal()
+```
 
 4. **Interpretation** of all graphs or analyses explored.
 
