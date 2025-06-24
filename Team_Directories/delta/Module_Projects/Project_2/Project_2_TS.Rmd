@@ -1,8 +1,8 @@
 ---
 title: "Project 2: Public Health & Epidemiology"
 subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
-author: "Katherine S. Geist, PhD"
-date: "10 June 2025"
+author: "Tim Souza"
+date: "23 June 2025"
 output:
   html_document:
     toc: true
@@ -324,9 +324,9 @@ county_centroids <- st_centroid(cali_sf) %>%
 # ## Filter for just the northern centroids
 filter(COUNTY_NAM == "Del Norte" | COUNTY_NAM == "Siskiyou" | COUNTY_NAM == "Modoc") 
 
-
 # ## Now, add the labels to the map:
- map1 + geom_sf_text(data = county_centroids, 
+ ggplot(data = map1) + 
+   geom_sf_text(data = county_centroids, 
                      aes(label = COUNTY_NAM), 
                      size = 3.5, fontface = "bold") +
 #   ## fix the x and y axis labels to make a beautiful map!
@@ -636,6 +636,9 @@ The custom function, `getPopSizes()`, pulls population data from the U.S. Census
 Using a search engine or the [Census table explorer](https://data.census.gov), whichever you find easier to use, look for the differences between table variables `DP1_0048C` and  `DP1_0048P`. What different information do these two variables hold?
 
 > Your answer here.
+source: https://api.census.gov/data/2020/dec/dp/variables.html
+DP1_0048C is Males 65 years and over (this is a count of population)
+DP1_0048P is Males 65 years and over (this is a percent population)
 
 *Digging into the Function*
 
@@ -764,6 +767,7 @@ Now that you know more generally how this function works and have seen it in act
 
 > Your answer here.
 ## there are several pieces to the api call:
+## the url
 
 
 
@@ -787,7 +791,6 @@ mortality_sf2a <- mortality_sf %>%
   rename(County = COUNTY_NAM) %>%
   st_join(cali_sf, by = "COUNTY_NAM", relationship = "many-to-many") %>%
   st_as_sf()
-
 
 ```
 
@@ -1168,7 +1171,7 @@ Why am I calculating the neighbors on just the **distinct counties** in the mort
 **Hint 2**: What happens if I calculate spatial weights on redundant data? Does it cost me computationally?
 
 > Your answer here.
-#
+# Yes, I would think there would be a computational cost for calculating spatial weights on redundant data.
 
 
 2. Calculate row-standardized spatial weights matrix based on the neighbors-list.
@@ -1221,10 +1224,6 @@ Run a **spatial lag regression (SAR)** model using the spatial lag you just calc
 **Hint 2**: Make sure to include both time elements as covariates!
 
 ```{r}
-# __ <- lm(__ ~ __ + __ + lagged_monthlyPercMortality, 
-#     data = __)
-
-#olsModel <- lm(monthlyPercMortality ~ COUNTY_NAM + Year + Month, data = mortality_sf2)
 
 sarModel <- lm(monthlyPercMortality ~ COUNTY_NAM + Year + Month + lagged_monthlyPercMortality, data = mortality_sf2)
 
@@ -1258,11 +1257,20 @@ summary(sarModel)
 
 > Your answer here.
 
+
+
+
+
+
 #### Question 17E [0.25 points]
 Can you trust the results of the model? Why or why not?
 
 ```{r}
 ## Your code here.
+
+
+
+
 ```
 
 > Your answer here.
@@ -1309,16 +1317,15 @@ What percent of the data are in the training set and what percent in the testing
 ```
 
 > Your answer here.
-# the split is close to a desired 80/20 split
-# there is 81.8 training set, 18.2 testing set.
+# the split is close to a desired 80/20 split - slightly more in the training set
+# (there is 81.8 % training set, 18.2 % testing set).
 
 
 #### Question 18B [0.5 points]
 What caveats or limitations can you think of by using none of the 2020 data in the training set?
 
 > Your answer here.
-# one issue is that 2020 was such a different year, that data trained on other years is very different (and predictions for 2020 may not be accurate)
-
+# one issue is that 2020 was such a different year, that data trained on other years (excluding 2020) is very different (and therefore predictions for 2020 may not be accurate).
 
 ## 4.1 Fitting an out-of-bag (OOB) random forest (RF) model
 You decide to use random forest (RF) for this task because it handles non-linearity, which you know you have from your time plots above AND from the summaries of both your OLS and SAR regressions. You also choose to use RF because it can be more robust to outliers and still give some idea of importance for interpretability for your stakeholders. Your basic workflow will be to:
@@ -1340,7 +1347,7 @@ You decide to leverage the `caret` package in R again for much of your model fit
 What does it mean to "fit a model with out-of-bag (OOB) error"? Why do we do it? What can it tell you here?
 
 > Your answer here.
-# in a random forest OOB error is used to estimate the accuracy of the model, specifically the OOB error is related to the trees not included in the training set
+# in a random forest OOB error is used to estimate the accuracy of the model, specifically the OOB error is related to the trees not included in the training set (it is used to calculate the prediciton error on the 2020 data)
 
 Even though you have no encoding, you know that you need to center and scale your data before running the random forest! So, you decide to leverage the `preProcess()` function in the `caret` package to help you center and scale the predictors. You perform the preprocessing explicitly here, storing the pre-processed training *instructions* in `preProcInstructions`. Then, you can apply the pre-processing to the training data, `mortalityTrain`, using the `predict()` function. Note that this is a different step than when you are predicting from a model for performance evaluation!
 
@@ -1388,7 +1395,7 @@ Note that here you coerce it to use an `mtry` hyperparameter grid search of 1 th
 What is `mtry` and what is it doing in the context of a random forest? What is the default `mtry` for a random forest regression? Why am I choosing to override it here, do you think?
 
 > Your answer here.
-# the default mtry for a random forest, but forcing it 1-3 since there are 3 predictor variables in the model.
+# the default mtry for a random forest regression is p/3, but forcing it 1-3 since there are 3 predictor variables in the model (otherwise it could default to classification and not regression).
 
 *Look at the results ($RMSE$ and $R^2$) of the OOB random forest*
 ```{r}
@@ -1450,7 +1457,7 @@ rfCV$results %>%
 What do you notice about the effects of cross-validation on your model? (**Hint**: Do you see any negative $R^2$ values this time?) Which value of  `mtry` gave the best results? How does the $RMSE$ of that model compare to the one you chose as the optimal OOB model?
 
 > Your answer here.
-
+Mtry=1 has the best results, the highest R2 (0.037) comapared to mtry2,3,  Mtry 1 also has a slighltly lower RMSE and MAE.  R2 is also better than the OOB fit model.
 
 ## 4.3  Test the training model with the 2020 data
 
@@ -1498,9 +1505,9 @@ Can you interpret the $RMSE$ and $MAE$ values? **Remember** all of the data were
 **How did the training model perform?** Does it seem to be overfitting (training error >> testing error), underfitting (training error and testing error both high but roughly equal with a low $R^2$), or doing okay?
 
 > Your answer here.
-
-
-
+The train MAE = 0.7056
+The test MAE = 0.7428
+Seems like both test and training error are roughly equal, so it seems OK.
 
 ### 4.3.4 Plot Actual vs. Predicted Values
 
@@ -1528,9 +1535,7 @@ ggMarginal(p, type = "histogram", fill = skittles[2], color = "gray30")
 Interpret the scatterplot of the actual vs. predicted values. What is happening to the predicted values? (Use the histogram on the side to help you, that's why they're there!) Make sure to mention whether the training model is leading to an **under prediction** or an **over prediction** of mortality. What **real information** might that provide your stakeholders, even if the model is underperforming?
 
 > Your answer here.
-
-
-
+It looks like the model is over-predicting mortality, versus the actual mortality in the data
 
 
 
@@ -1582,7 +1587,13 @@ Since the pandemic is over in reality, you can find the actual number of deaths,
 
 ```{r}
 
-caliDeaths <- fromJSON("https://data.chhs.ca.gov/api/3/action/datastore_search?resource_id=078185a9-e3a7-403f-a546-b8c582f0a9d8")
+## using code provided by classmate June Lemieux in Canvas announcements
+
+filters <- URLencode('{"Year":"2020","Cause":"ALL"}')
+
+url <- paste0('https://data.chhs.ca.gov/api/3/action/datastore_search?resource_id=078185a9-e3a7-403f-a546-b8c582f0a9d8&limit=50000&filters=', filters)
+
+caliDeaths <- fromJSON(url)
 
 caliDeaths <- caliDeaths$result$records
 
@@ -1596,14 +1607,9 @@ caliDeaths %>%
 ```{r}
 ## Your code here
 
+## filtering (2020 and all causes of death) was done in the above api call, however still need to filter total population only
 
-
-
-
-
-
-
-
+caliDeaths_allpop <- caliDeaths %>% filter(Strata == "Total Population")
 
 ```
 
@@ -1611,11 +1617,17 @@ Now make sure to compute the **monthly percent mortality** as you have done befo
 
 ```{r}
 ## Your code here
+## first need to add census data to get total population per county in 2020.
+## prepare for scatterplot (keep county)
 
-
-
-
-
+caliDeaths_2020 <- caliDeaths_allpop %>%
+  full_join(census, by = "County") %>%
+  group_by(Year, Month, County) %>%
+  mutate(NDeaths = as.numeric(Count)) %>%
+  summarize(PctMortality = sum(NDeaths, 
+    na.rm = TRUE)/mean(totalN)*100) %>% 
+  select(Year, Month, County, PctMortality)
+  
 ```
 
 Lastly, create (1) a scatterplot with trend line and (2) perform a correlation test on your **Sept to December 2020** predictions relative to the true **Sept to December 2020** monthly percent mortality. 
@@ -1623,9 +1635,17 @@ Lastly, create (1) a scatterplot with trend line and (2) perform a correlation t
 ```{r}
 ## Your code here
 
+## Make a scatterplot
 
-
-
+  ggplot(caliDeaths_2020, aes(x = Month, y = PctMortality)) +
+  geom_point(alpha = 0.7, color = skittles[4]) +
+  geom_smooth(color = skittles[8], method = "lm") +
+  labs(title = "All-cause Percent Mortality in California during 2020",
+       subtitle = "Each point represents a county average",
+       y = "% Mortality of County Population", 
+       x = "Month, 2020",
+       caption = "Source: California DPH Vital Records") +
+  theme_minimal()
 
 
 ```
@@ -1648,15 +1668,14 @@ Since you can't go deeply into doing it, instead you will do a little reading/re
 
 
 
+
+
+
 #### Question 19I [1 point]
 Now, let's say you add several time-series lagged variables to your random forest; but with 10-fold CV, the testing MAE is 0.129. The scale of the target variable is unchanged - recall that previously, you got a testing MAE of 0.745. Does this suggest that the time series lagged variables are helping or hurting the model? If I tell you that the training MAE is 0.134, do you think the model is **overfitted**, **underfitted**, or doing pretty well?
 
 > Your answer here.
-
-
-
-
-
+If the testing MAE with time-lagged variables = 0.129, and the training MAE = 0.134, I would think the model is doing well, and the MAE is now much lower (so performing better) now that the time-laged variables have been added.
 
 
 **Would you like to see how I got this?** This source code contains all of the steps of analysis, with comments, and will show you these same results! Make sure to open the source code if you want to see the step-by-step instructions and not just the output! In brief, what I do is engineer temporal lag and rolling means features to inform the model how the target behaved in the past. Lags are explicitly accounting for temporal autocorrelation; rolling averages show recent trends and smooth noise. Then, I do the time-aware split again using the 2020 data as my holdout testing set. I then add the lagged and rolling means features, along with the spatial lag, month, and year variables as predictors to the RF model and assess performance on the testing holdout set. Note that RF is a particularly good choice for temporal models because it is non-linear; further, adding lags makes it partially time-aware. **However, don't forget to ALWAYS  validate with time held out, not random sampling, in temporal models!**
@@ -1677,7 +1696,7 @@ What is something **else** you can do to improve your model that you have not di
 Take all of the findings and interpretations from questions 18A-J and write up a short paragraph or two summary for your stakeholders. Your writing should not be overly technical but it should include caveats and limitations. Make sure to include 1-2 sentences of recommendations about what you would do next.
 
 > Your answer here.
-
+Adding time-lagged variables reduces the error of the random forest regression model. 
 
 
 
@@ -2002,6 +2021,16 @@ Do you think that this correlation coefficient indicates that you need to make a
 > Your answer here.
 
 
+
+
+
+
+
+
+
+
+
+
 #### Question 23 [1 point]:
 
 Now, take a look at the scatter plot below with a best-fit line. Does the plot agree with the correlation coefficient (i.e., direction of slope) you obtained? Why or why not?
@@ -2060,12 +2089,13 @@ Feel free to get creative! You are not required to continue stratifying by sex, 
 
 6. **A data science hypothesis based on what you found** [Note: if you find nothing compelling, you may defend with evidence why there is no point developing a hypothesis instead.]
 
-```{r}
-
+>
 ## HYPOTHESIS: Cause of death due to heart attack and stroke increased during 2020 in California.
 ## this may have been because people were afraid to go to ER with symptoms.
 ## and also mandatory stay-at-home order my have made people delay doctor visits.
 ## will focus on people over age 65
+
+```{r}
 
 ## Step 1: join the sexdeath data with census data 
 ## filter for leading cause of death due for heart attack or stroke.
@@ -2140,7 +2170,6 @@ ggplot(aes(y = MICVADeathsProportion, x = biologicalSex, fill = as.factor(Year))
 ```
 
 
-
 ```{r, echo=FALSE}
 MICVA_Deaths %>% 
   group_by(Month, biologicalSex, Year) %>% 
@@ -2207,6 +2236,8 @@ MICVA_sf <- MICVA_Deaths %>%
   n_distinct(MICVA_sf$COUNTY_NAM)
 
 ```
+
+
 ```{r, echo=FALSE}
 
 ## Start from the MICVA spatial tibble
@@ -2252,6 +2283,10 @@ ggplot(mortalitySummary) +
   facet_wrap(~ Year, ncol = 4)
 ```
 
+> Summary:
+It did not appear that the % mortality of heart attack and stroke increased during 2020 in California
+This was easily visible using data visualizations
+Therefore our hypothesis appears not to be true and no further investigation was necessary
 
 
 
