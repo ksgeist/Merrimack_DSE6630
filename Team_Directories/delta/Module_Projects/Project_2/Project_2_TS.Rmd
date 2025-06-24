@@ -1,8 +1,8 @@
 ---
 title: "Project 2: Public Health & Epidemiology"
 subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
-author: "Krisha Bugajski-Sharp, Nicholas Lagoni, Trinity Tobin"
-date: "24 June 2025"
+author: "Katherine S. Geist, PhD"
+date: "10 June 2025"
 output:
   html_document:
     toc: true
@@ -38,7 +38,8 @@ pacman::p_load(here,
                spatialreg,
                caret,
                glmnet, 
-               gbm)
+               gbm,
+               dplyr)
 
 skittles <- c("#6c1c7a", "#fcba03", "#cc4348", "#CC79A7", "#D55E00",  
               "#009E73", "#226b58", "#083d5c", "#56B4E9", "#925ebf", "#86a607")
@@ -151,23 +152,18 @@ Notice that the directory contains six files, three of them with file extensions
 * `cnty19_1.shp.xml`
 * `cnty19_1.shx`
 
-#### Question 1 [1 point]: -KB
+#### Question 1 [1 point]:
 
 What do each of these six files represent? You will not be able to open them directly on your computer, so you may need to refer back to lecture and do a little digging to figure out the type of data you would expect each of these files to contain.
 
-> cnty19_1.cpg is the code page file, which indicates the character encoding used in the .dbf file. It 
-helps to interpret text data correctly, especially the non-ASCII characters.
-cnty19_1.dbf is the attribute table in dBASE format. It contains tabular data about each of the features like county name, FIPS code, area, population, etc.
-cnty19_1.prj is the projection file that describes the coordinate system and map projection used. It contains information that is needed to properly align the spatial data with other spatial datasets.
-cnty19_1.shp is the main file that stores the actual geometry such as points, lines, and polygons, for all the features. In our case, it is the California county boundaries. It contains spatial data such as shapes and coordinates of counties.
-cnty19_1.shp.xml is an XML metadata file describing the dataset. It contains metadata such as dataset descriptions, sources, creation dates, fields info, etc.
-cnty19_1.shx is the index file that stores the positional index of the geometry in the .shp file. It contains a way to quickly look up spatial features in the .shp.
-Source: 
-Esri. (n.d.). Shapefile file extensions. ArcGIS Desktop. https://desktop.arcgis.com/en/arcmap/latest/manage-data/shapefiles/shapefile-file-extensions.htm
-
-
-
-
+> The shapefiles contain the following files (with the following file extensions)
+.cpg - optional file that specifies the codepage fot the character set to be uses (optional)
+.dbf - dBASE file that stores the attribute information of the features (required)
+.prj - Stores the coordinate information used by ArcGIS
+.shp - main file that stores feature geometr (required)
+.shp.xml - metadata for ArcGIS—stores information about the shapefile.
+.shx - stores the index of the feature geometry (required)
+source: https://desktop.arcgis.com/en/arcmap/latest/manage-data/shapefiles/shapefile-file-extensions.htm
 
 ## 2.2 Your objective
 
@@ -190,7 +186,8 @@ __The initial processing steps will include:__
 You will leverage the `read_sf()` function that is part of the `sf` package. As you might have guessed, `sf` refers to __shapefile__. Note that there is an alternative method to read in shapefiles called `st_read`, which is an alias for `read_sf()` with some different default arguments. By default, `read_sf()` is quiet, whereas `read_st()` will print information about the data source by default. Additionally, `read_sf()` returns a tibble rather than a dataframe. So which to choose? It's your preference, in this case. By default, your code below will use `read_sf()` but you could instead use `read_st()` if you wanted.
 
 ```{r}
-cali_sf <- read_sf("~/Desktop/California_County_Boundaries/cnty19_1.shp") 
+# cali_sf <- read_sf("~/Desktop/California_County_Boundaries/cnty19_1.shp") 
+cali_sf <- read_sf("C:/Users/TK/Desktop/California_County_Boundaries/cnty19_1.shp")
 
 ## Alternatively, you can read in the shapefile using the 'st_read()' function
 ## cali_st <- st_read("./California_County_Boundaries/cnty19_1.shp") 
@@ -216,18 +213,17 @@ plot(cali_sf)
 st_is_valid(cali_sf)
 ```
 
-#### Question 2 [1 point]: -KB
+#### Question 2 [1 point]:
 Why did `TRUE` print 69 times? What are the "69 features" in the geometry? 
 
 **Hint 1**: Are all of them counties? If not, what are they? Try running `print(calif_sf$COUNTY_NAME`. What do you see?
 
+print(cali_sf$COUNTY_NAM)
+
+
 **Hint 2**: There are islands in California. What happens to islands in terms of `COUNTY_NAM`?
 
-```{r}
-#print(cali_sf$COUNTY_NAM)
-```
-
-> The reason TRUE printed 69 times was becaue the shapefile has 69 geometries. However, the state of California has only 58 counties, some counties, such as Los Angeles, Santa Barbara, and Ventura, include multiple geographic parts (like islands), and therefore they were represented as a separate feature in the spatial dataset. These island features are still part of their counties but are stored as individual geometries.
+> The islands cause the names of several counties (where the islands are located) to be repeated.
 
 *Next, let's take a look at the geometry of the shapefile that you loaded.*
 ```{r}
@@ -236,15 +232,18 @@ cali_sf$geometry
 
 Notice that, just like Demo 2, you only have the __polygon__ geometry in your shapefile. If you were to investigate further, you would find that currently there are no other geometries (e.g., lines or points) in this shapefile. You could add them and export the shapefile, if you ever needed to do so, like to share with someone else. For example, if you wanted to add points for the county seats of each county, you could add them based on longitude and latitude; similarly, you could add just points for major California cities, which I will demonstrate below.
 
-#### Question 3A [0.5 points]: -KB
+#### Question 3A [0.5 points]:
 What is the bounding box that comes with your shapefile and what does it tell us? **What would you do to the bounding box if you wanted to zoom in or out on a geographic feature?**
 
-> The bounding box that comes with the shapefile is "xmin: -13849230 ymin: 3833650 xmax: -12704980 ymax: 5162403". This tells us what the outer limits of the map area are in the shapefile using the projected coordinates. It also helps us know how much of the map is being shown. In order to zoom in, I would shrink the box around the area I want. To zoom out, I would enlarge the box to have it include more of the surrounding area.
+> The bounding box specifies the bounding rectangle of all shapes contained in the dataset (min_x, max_x, min_y, max_y)
+source: https://en.wikipedia.org/wiki/Shapefile
+If a user wanted to zoom-in or zoom-out, the coordinates of the bounding box would need to be changed.
 
-#### Question 3B [0.5 points]: -KB
+#### Question 3B [0.5 points]:
 What is the projection? What does it tell you and why does projection matter? **What will change if you change the projection?**
 
-> The projection is "WGS 84 / Pseudo-Mercator". This tells us that it is a projected coordinate system based on the WGS 84 datum, specifically, Pseudo-Mercator. It represents the earth as a flat, rectangular map in meters and not degrees. Projection matters because the Earth is 3D and has this curve, but maps are 2D and have no curve. A projection defines how the curved Earth is flattened, which affects distance, area, shape, and direction. Also, different projections preserve different properties. If we change the projection, we can alter the appearance and the accuracy of the spatial data. Therefore, it is important to pick a projection based on the analysis we want such as one that  preserves area or one that preserves the shape. 
+> The projection specifies how a map is overlayed onto a curved surface, like the earth. All overlayed data must use the same projection.
+source: https://support.esri.com/en-us/knowledge-base/how-to-define-the-projection-for-arcgis-data-1462479485-000005932
 
 ### 2.3.2 Create a basic map of California
 
@@ -263,14 +262,14 @@ ggplot(data = cali_sf) +
   coord_sf(expand = FALSE) +   ## <- keeps map tight to its bounding box
   
   ## Uncomment to make a completely blank map background
-   theme(
-     panel.grid = element_blank(),
-     panel.background = element_rect(fill = "white"),
-     plot.background = element_rect(fill = "white"),
-     axis.text = element_blank(),
-     axis.ticks = element_blank(),
-     axis.title = element_blank(),
-   ) +
+  # theme(
+  #   panel.grid = element_blank(),
+  #   panel.background = element_rect(fill = "white"),
+  #   plot.background = element_rect(fill = "white"),
+  #   axis.text = element_blank(),
+  #   axis.ticks = element_blank(),
+  #   axis.title = element_blank(),
+  # ) +
   
   ## Give it a title and footnote/caption 
   labs(title = "California Counties",
@@ -287,43 +286,31 @@ Now, what if you only wanted to visualize a few counties? Let's look at the thre
 
 Notice that the county names are accessible through `cali_sf$COUNTY_NAM`. Thus, you can just use the `filter()` function from `dplyr` to be able to grab the three northernmost counties you want by name, which I have started for you.
 
-#### Question 4 [1 point]: - KB
+#### Question 4 [1 point]:
 Finish the code below to create a map of the northernmost 3 counties in California. You can copy and paste, with minor modifications, the code for the entire state map to do this. **NOTE** that you are storing your map into `map1`. This is because I will show you how to add labels in the next section! Don't forget to update your plot title for full credit!
 
 ```{r}
 # ## Start from the California spatial tibble - Uncomment to run
- map1 <- cali_sf %>% 
-   ## Filter to just the 3 counties that border Oregon - Uncomment to run
-   filter(COUNTY_NAM == "Del Norte" | COUNTY_NAM == "Siskiyou" | COUNTY_NAM == "Modoc") %>% 
+map1 <- cali_sf %>% 
+#   ## Filter to just the 3 counties that border Oregon - Uncomment to run
+   filter(COUNTY_NAM == "Del Norte" | COUNTY_NAM == "Siskiyou" | COUNTY_NAM == "Modoc")
 
-## YOUR CODE HERE.
-  ## Begin ggplot
-  ggplot(data = .) +
-  
+ggplot(data = map1) +
   ## Give it specific fill and border colors
-  geom_sf(fill = skittles[3], 
+  geom_sf(fill = skittles[5], 
           color = "gray20", 
           linewidth = 0.25, 
           alpha = 0.65) +
   
   ## Set map projection explicitly
-  coord_sf(expand = FALSE) +
+  coord_sf(expand = FALSE) +   ## <- keeps map tight to its bounding box
   
-  ## Clean up the map background
-  theme(
-    panel.grid = element_blank(),
-    panel.background = element_rect(fill = "white"),
-    plot.background = element_rect(fill = "white"),
-    axis.text = element_blank(),
-    axis.ticks = element_blank(),
-    axis.title = element_blank()
-  ) +
+  ## Give it a title and footnote/caption 
+  labs(title = "Northernmost California Counties",
+       subtitle = "(Del Norte, Siskiyou, Modoc)",
+       caption = "Source: California State Geoportal")   
   
-  ## Title and caption
-  labs(title = "Northernmost California Counties: Del Norte, Siskiyou, and Modoc",
-       caption = "Source: California State Geoportal")
-
- map1
+  
 ```
 
 *Now let's add labels!* 
@@ -332,16 +319,17 @@ This code will not run unless you have made `map1` correctly!
 ```{r}
 ### UNCOMMENT THIS CODE TO RUN:
 
- ## Calculate the county centers:
- county_centroids <- st_centroid(cali_sf) %>% 
- ## Filter for just the northern centroids
-     filter(COUNTY_NAM == "Del Norte" | COUNTY_NAM == "Siskiyou" | COUNTY_NAM == "Modoc") 
- 
- ## Now, add the labels to the map:
+# ## Calculate the county centers:
+county_centroids <- st_centroid(cali_sf) %>% 
+# ## Filter for just the northern centroids
+filter(COUNTY_NAM == "Del Norte" | COUNTY_NAM == "Siskiyou" | COUNTY_NAM == "Modoc") 
+
+
+# ## Now, add the labels to the map:
  map1 + geom_sf_text(data = county_centroids, 
                      aes(label = COUNTY_NAM), 
                      size = 3.5, fontface = "bold") +
-   ## fix the x and y axis labels to make a beautiful map!
+#   ## fix the x and y axis labels to make a beautiful map!
    theme(axis.title = element_blank())
 ```
 
@@ -400,7 +388,7 @@ ggplot(data = cali_sf) +
        caption = "Source: California State Geoportal") 
 ```
 
-#### Question 5 [1 point]: -KB
+#### Question 5 [1 point]:
 Your stakeholders point out that you have forgotten San Jose, one of the most populated cities in California! They ask you to go back to the map and add it on. 
 
 **Hint 1**: The coordinates of San Jose are 37.3387° N, 121.8853° W
@@ -408,8 +396,7 @@ Your stakeholders point out that you have forgotten San Jose, one of the most po
 **Hint 3**: Don't forget to add a skittles color for San Jose in `scale_color_manual`!
 
 ```{r}
-## YOUR CODE HERE.
-## Create a cities data frame with the newly added coordinates
+## Create a cities data frame with coordinates, adding San Jose
 cities <- data.frame(
   city = c("Sacramento", "San Diego", "Los Angeles", "San Francisco", "San Jose"),
   lon = c(-121.4944, -117.1611, -118.2437, -122.4194, -121.8853),
@@ -419,6 +406,7 @@ cities <- data.frame(
 
 ## Convert to shapefile object with the same projection as what you had
 cities_sf <- st_as_sf(cities, coords = c("lon", "lat"), crs = 4326)
+
 # Plot California counties with city points
 ggplot(data = cali_sf) +
   ## Give it specific fill and border colors
@@ -445,6 +433,7 @@ ggplot(data = cali_sf) +
   ## Give it a title and footnote/caption 
   labs(title = "California Counties with Major Cities Marked",
        caption = "Source: California State Geoportal") 
+
 ```
 
 ## 2.4 Joining shapefiles with a tibble or dataframe
@@ -463,62 +452,60 @@ __Our Process:__
 
 5. You are going to remove the islands, not because you dislike islands but because they get labeled separately and make your map look cluttered. Further, the few people who reside on the islands of California will still be included in their onshore county, so you are not ignoring anyone. *Feel free to experiment removing that filter to see what I mean!*
 
-#### Question 6 [1 point]: -KB
+#### Question 6 [1 point]:
 Annotate the following code chunk with comments to make sure you understand what you are doing here. **HINT**: refer back to the earlier tables with the data descriptions to help you understand the data better!
 
 ```{r, echo = TRUE, warning=FALSE, message=FALSE}
-## YOUR COMMENT HERE - make sure to comment on the choice of data
-## Starting with the `totalDeaths` table, which contains the monthly counts of non-COVID deaths across the California counties. This is important for building a spatiotemporal picture of the baseline mortality trends.
+## create a mortality shapefile, start with the totalDeaths dataframe
 mortality_sf <- totalDeaths %>% 
-  ## YOUR COMMENT HERE
-  ## Renaming 'County' to 'COUNTY_NAM' so it matches the column name in the shapefile 'cali_sf'. This is important so we can join between the mortality data and the spatial data.
+  ## rename 'County' to COUNTY_NAM' for shapefile compatibility
   rename(COUNTY_NAM = County) %>%
-  ## YOUR COMMENT HERE
-  ## Grouping the data by county, year, and month, where 'Year' and 'Month' are the time aspect and 'COUNTY_NAM' is where the death occurred. This is important to summarize monthly deaths at the county level
+  ## group the data by County, year, month
   group_by(COUNTY_NAM, Year, Month) %>% 
-  ## YOUR COMMENT HERE
-  ## This sums the total deaths in each of the groups.`totalDeaths` is defined as the number of deaths per month, year, & county. `na.rm = TRUE` makes sure that missing values do not mess with the totals.
+  ## summarize total deaths by County, year, and month
   summarise(totalDeaths = sum(totalDeaths, na.rm = TRUE)) %>%
-  ## YOUR COMMENT HERE - make sure to comment on the relationship parameter
-  ## This does a full join on the summarized mortality data with the geographic shapefile cali_sf. This allows you to attach each row of mortality data to a county shape. The 'many-to-many' relationship is used to support counties with multiple geometries, such as the islands.
+  ## join this data with the california shapefile, a many-to-many relationships (since for each county in the shapefile,
+  ## there are many deaths by year/month, and also the islands duplicate the counties)
   full_join(cali_sf, by = "COUNTY_NAM", relationship = "many-to-many") %>% 
-  ## YOUR COMMENT HERE
-  ## Converting the rest if the dataframe back into a spatial feature, sf object. This is important for spatial analysis and visualization, so it can be treated as a shapefile.
+  ## below is a function (st_as_sf) from the sf package that makes an object compatible with spatial data
   st_as_sf() %>% 
-  ## YOUR COMMENT HERE
-  ## Filtering out the island geometries to avoid map cluttering while still keeping their data in the parent county's mainland geometry.
+  ## but filter out the islands from the resulting shapefile
   filter(is.na(ISLAND))
 ```
 
-#### Question 7A [0.5 points]: -KB
+#### Question 7A [0.5 points]:
 What does `st_join()` do? Could you have executed the join with `st_join()` instead of `full_join()` here? Why or why not? 
 
-> The st_join() function does spatial join between two spatial (sf) objects. It joins parts from one object to another based on their spatial relationship, for example, whether a point is within a polygon, or whether two geometries intersect. On the other hand, a  full_join() function performs a regular attribute-based join, using matching values in specified columns (like COUNTY_NAM in this case), not spatial relationships. So no, st_join() couldnt not be used in this case, because the totalDeaths data is not a spatial object and is a regular tibble with no geometry. st_join() only works between two sf objects. The join here is just based on matching county names (COUNTY_NAM), not based on any spatial data.
+> Your answer here.
 
 
-
-#### Question 7B [0.5 points]: -KB
+#### Question 7B [0.5 points]:
 This question has three subparts.
 
 1. How many features are there in `mortality_sf`? 
 ```{r}
-# Your code here.
-# Getting the number of features
-nrow(mortality_sf)
+# find the number of features in the shapefile mortality_sf
+
+length(mortality_sf)
+
+# there are 11 features
+
 ```
 
 2. Why is it so many more than in `cali_sf`?
-> The cali_sf dataset just shows the shapes of California counties, where California has 58 counties and a few have islands, making the shapefile 69 in total. But mortality_sf combines both space and time. It tracks the monthly nonCOVID death counts for every county over several years. Therefore, instead of just one entry per county, we now have one entry per county per month per year.
-(counties × years × months = 2552 potential rows) That’s why mortality_sf has 2,552 features, it is not just showing where counties are, but also what happened there over time.
+> we have added more dimensions to (now each county has mortality data for Year and Month) 
 
 3. How many counties are there now in `COUNTY_NAM`? (Hint: Use `unique()` or `n_distinct()` to help you get the true number!) Why is it different from the number you saw in Question 2?  
 ```{r}
 # Your code here.
+
+unique(mortality_sf$COUNTY_NAM)
 n_distinct(mortality_sf$COUNTY_NAM)
+
 ```
 
-> The number of counties is now different and at 58 because we got rid of the islands. After the join with the mortality data and converting it back to a shapefile, we grouped and filtered the data so that each county appears only once, resulting in a count of the 58 counties that California has.
-
+> Your answer here.
+# there are 58 counties in mortality_sf$COUNTY_NAM
 
 ## 2.5 Visualizing annual trends in overall mortality
 
@@ -570,13 +557,15 @@ ggplot(mortalitySummary) +
 
 ### 2.5.1 Uh oh, can you spot the problem?
 
-#### Question 8 [1 point]: -KB
+#### Question 8 [1 point]:
 Is there any pattern that is a cause for concern in your interpretation of **total deaths**? 
 
 **Hint 1**: The county with the highest number of deaths (darkest purple) is **Los Angeles county**. What is special about LA county?
 **Hint 2**: Do you see other similar darker colors in counties around cities?
 
-> Looking at the four plots of the different year, it is concerning to see that the counties that are more populated seem to also have the most amount of deaths. This means that the counties such as Los Angeles county, that has the big city of LA, are showing the most dealths. There also is not much of a change through the years, with the exeption of a few counties that seem to have less deaths in 2020. This means that we need to do some weighing on the data, so that the counties are accounting for the populations and the dealths can be seens more cleary in relation to on another.  
+> Your answer here.
+# Total deaths are always higher in counties that contain cities (Los Angeles County), probably due to high population centers.
+
 
 ## 2.6 Accessing the 2020 US Census API
 
@@ -596,7 +585,7 @@ You will sign up for your API census key [here](https://api.census.gov/data/key_
 Once your have your key, fill it into this code chunk here:
 ```{r}
 ## Set your API key (put it between the quotation marks):
-key <- " "
+key <- "933c56c69edfba0988fb9f997ae40c74d8fe3f40"
 ```
 
 ### 2.6.2 Downloading data tables from the 2020 Census API
@@ -738,7 +727,29 @@ census <- census %>%
 #### Question 10B [0.5 points]:
 Use code or some other method to explore the resulting dataframe, `census`. Explain what this dataframe contains. 
 
+```{r}
+
+## explore the dataframe `census`
+
+summary(census)
+head(census)
+
+```
+
 > Your answer here
+## the census dataframe contains population census information for each of the counties in california.  
+## There are 12 variables.
+## Besides county name there are the following population variables:
+## totalN - total population
+## malesN - total N males
+## femalesN - total N females
+## over65 - total N over 65+ yrs
+## over65perc - pct of population 65+
+## males65plus - total N males 65+
+## males65plusPerc - pct of males 65+
+## females65plus - total N females 65+
+## females65plusPerc - pct of females 65+
+
 
 #### Question 11 [1 point]:
 Now that you know more generally how this function works and have seen it in action, in your own words, explain how you could adapt this approach (or even this function!) to work with a different API (not the Census). I am not asking you to code, but I am asking you to think through:
@@ -751,6 +762,8 @@ Now that you know more generally how this function works and have seen it in act
 - **Hint 3**: For simplicity, assume that the data retrieved are in `JSON` format, since that is the most commonly used format.
 
 > Your answer here.
+## there are several pieces to the api call:
+
 
 
 ### 2.6.3 Joining the census with the spatial data and updating the maps
@@ -766,14 +779,23 @@ Now, it's your turn to do some work! Your task is to join the census data to the
 
 ```{r}
 # Your code here.
+
+## calling the new datafile mortality_sf2a in the event of an error.
+
+mortality_sf2a <- mortality_sf %>% 
+  rename(County = COUNTY_NAM) %>%
+  st_join(cali_sf, by = "COUNTY_NAM", relationship = "many-to-many") %>%
+  st_as_sf()
+
+
 ```
 
 **Note**: If you're unable to do this for any reason, you can pick back up here. You will need to download the data from [Google Drive](https://drive.google.com/file/d/15MT127zoySDS7kOfr9uhLwPSIWBCok1W/view?usp=sharing), as the shapefile is too large for GitHub yet again. I have placed mine on my Desktop, but you can put it anywhere you like and update the directory path. Just make sure not to put it in your GitHub repo!
 
 ```{r, eval = TRUE}
 ## Comment me out or change EVAL=FALSE to run your own versions!
-load("~/Desktop/mortality_sf2.Rdata")
-load("census.Rdata")
+load("C:/Users/TK/Desktop/mortality_sf2.Rdata")
+#load("census.Rdata")
 ```
 
 ## 2.7 Mapping population-adjusted mortality
@@ -858,6 +880,7 @@ For example, for 3 of the 4 years, **Shasta County** (2017-2019) shows the **hig
 What patterns do you observe now, if any? Do you think this is a true pattern? Aren't you being told that deaths are going **up** due to COVID-19??
 
 > Your answer here.
+# it looks like overall the death rate decreased by county during 2020.
 
 ## 2.8 The data for 2020 isn't complete... {#linegraph1}
 
@@ -899,6 +922,8 @@ ggplot(aes(x = Month, y = percMortality,
 Why did this happen and how could you fix it? (**There is more than one correct answer possible.**) Could you have made your maps the way you did in Section 2.7 and had them be accurate if we'd had a full 12 months' of data for each year?
 
 > Your answer here.
+# we could make a prediction using existing data to replace the last 4 months of missing data at the end of 2020.
+# or replace the missing data with a median or mean of previouls data points
 
 ## 3.1 Fixing the map's accuracy for 2020.
 
@@ -982,7 +1007,7 @@ What patterns do you observe now in 2020? (**NOTE**: The maps for 2017-2019 are 
 **Hint**: Take a look at counties in Southern CA, like Los Angeles, Orange, San Diego, Riverside, Imperial...
 
 > Your answer here.
-
+# it appears as though monthly percent mortality does increas in 2020 for seval counties in southern california, but is unchanged in other couunties for 2020.
 
 # 3 Project future mortality
 
@@ -1093,9 +1118,15 @@ Do you think this regression prediction is robust? Why or why not? (**Hint**: Ch
 
 ```{r}
 # Your code here.
+
+plot(olsModel)
+res <- resid(olsModel)
+plot(density(res))
+
 ```
 
 > Your answer here.
+# the density plot of the residuals is not bell shaped (although not skewed), so the residuals are not normally distributed.
 
 ## 3.2 Spatial lag regression
 
@@ -1136,6 +1167,8 @@ Why am I calculating the neighbors on just the **distinct counties** in the mort
 **Hint 2**: What happens if I calculate spatial weights on redundant data? Does it cost me computationally?
 
 > Your answer here.
+#
+
 
 2. Calculate row-standardized spatial weights matrix based on the neighbors-list.
 *This converts the neighbor information stored in `mortality_nb` into a usable weight list using `nb2listw()`. Neighbors have equal influence (row-standardized: `style = "W"`).*
@@ -1189,11 +1222,22 @@ Run a **spatial lag regression (SAR)** model using the spatial lag you just calc
 ```{r}
 # __ <- lm(__ ~ __ + __ + lagged_monthlyPercMortality, 
 #     data = __)
+
+
+
+
+#olsModel <- lm(monthlyPercMortality ~ COUNTY_NAM + Year + Month, data = mortality_sf2)
+
+sarModel <- lm(monthlyPercMortality ~ COUNTY_NAM + Year + Month + lagged_monthlyPercMortality, data = mortality_sf2)
+
+
+
 ```
 
 Now, let's compare `sarModel` to `olsModel` and see which model better explains monthly percent mortality in California (uncomment to run).
 ```{r}
-# anova(sarModel, olsModel)
+ anova(sarModel, olsModel)
+
 ```
 
 #### Question 17C [0.25 points]
@@ -1208,6 +1252,10 @@ Make sure to interpret both the coefficients and their significance as well as t
 
 ```{r}
 ## Your code here.
+
+summary(olsModel)
+
+summary(sarModel)
 ```
 
 > Your answer here.
@@ -1253,14 +1301,27 @@ mortalityTest <- mortality_sf2 %>%
 What percent of the data are in the training set and what percent in the testing set? You should use code to figure this out! How does it compare to the canonical 80-20 split?
 ```{r}
 ## Your code here.
+
+# percent of data in the training set
+(nrow(mortalityTrain) / nrow(mortality_sf2)) * 100
+
+# percent of data in the testing set
+(nrow(mortalityTest) / nrow(mortality_sf2)) * 100
+
+
 ```
 
 > Your answer here.
+# the split is close to a desired 80/20 split
+# there is 81.8 training set, 18.2 testing set.
+
 
 #### Question 18B [0.5 points]
 What caveats or limitations can you think of by using none of the 2020 data in the training set?
 
 > Your answer here.
+# one issue is that 2020 was such a different year, that data trained on other years is very different (and predictions for 2020 may not be accurate)
+
 
 ## 4.1 Fitting an out-of-bag (OOB) random forest (RF) model
 You decide to use random forest (RF) for this task because it handles non-linearity, which you know you have from your time plots above AND from the summaries of both your OLS and SAR regressions. You also choose to use RF because it can be more robust to outliers and still give some idea of importance for interpretability for your stakeholders. Your basic workflow will be to:
@@ -1282,7 +1343,7 @@ You decide to leverage the `caret` package in R again for much of your model fit
 What does it mean to "fit a model with out-of-bag (OOB) error"? Why do we do it? What can it tell you here?
 
 > Your answer here.
-
+# in a random forest OOB error is used to estimate the accuracy of the model, specifically the OOB error is related to the trees not included in the training set
 
 Even though you have no encoding, you know that you need to center and scale your data before running the random forest! So, you decide to leverage the `preProcess()` function in the `caret` package to help you center and scale the predictors. You perform the preprocessing explicitly here, storing the pre-processed training *instructions* in `preProcInstructions`. Then, you can apply the pre-processing to the training data, `mortalityTrain`, using the `predict()` function. Note that this is a different step than when you are predicting from a model for performance evaluation!
 
@@ -1330,6 +1391,7 @@ Note that here you coerce it to use an `mtry` hyperparameter grid search of 1 th
 What is `mtry` and what is it doing in the context of a random forest? What is the default `mtry` for a random forest regression? Why am I choosing to override it here, do you think?
 
 > Your answer here.
+# the default mtry for a random forest, but forcing it 1-3 since there are 3 predictor variables in the model.
 
 *Look at the results ($RMSE$ and $R^2$) of the OOB random forest*
 ```{r}
@@ -1349,8 +1411,8 @@ Recall from the Elastic Net you fitted a couple weeks ago on the hospital readmi
 Which value of  `mtry` gave the best results? (**Hint**: Can $R^2$ values be negative?!?). Are you able to compare the $RMSE$ of this model to the one you fitted in Question 16C? Why or why not? (**Hint**: Does your pre-processing step apply to the target too? You may have to do a little research!)
 
 > Your answer here.
-
-
+According to information found on towardsdatascience: To summarize, we should expect R² to be bounded between zero and one only if a linear regression model is fit, and it is evaluated on the same data it is fitted on. Else, the definition of R² can lead to negative values.
+source: https://towardsdatascience.com/explaining-negative-r-squared-17894ca26321/
 
 ## 4.2 Fitting a 10-fold cross-validated random forest (RF) model
 You now feel decide to move forward with the 10-fold cross-validation. Remember that this is to __help control for overfitting__, which you can identify by looking at the error ($RMSE$) and fit ($R^2$) in each of the folds.
@@ -1514,10 +1576,16 @@ Since the pandemic is over in reality, you can find the actual number of deaths,
 **Hint**: You can read this file in as a dataframe using `read.csv()` as follows! I also show you the structure (`str()`) of the data so you have an idea what you're getting.
 
 ```{r}
-caliDeaths <- read.csv("https://s3.amazonaws.com/og-production-open-data-chelseama-892364687672/resources/078185a9-e3a7-403f-a546-b8c582f0a9d8/20241220_deaths_final_2019-2023_occurrence_county_month_sup.csv?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAJJIENTAPKHZMIPXQ%2F20250615%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250615T190154Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=61c4009b5979f2d74a95396e2f77ace3d13315fe166588cb1210ef46d292f759")
+
+
+caliDeaths <- fromJSON("https://data.chhs.ca.gov/api/3/action/datastore_search?resource_id=078185a9-e3a7-403f-a546-b8c582f0a9d8")
+
+caliDeaths <- caliDeaths$result$records
 
 caliDeaths %>% 
   str()
+
+
 ```
 
 **Remember** to filter for the proper condition, Year, and Months to get the data you need. Take time to explore the data, and make sure that you are matching the data we've been using (total mortality, all causes of death) to your filter. 
@@ -1567,6 +1635,8 @@ source("mortalityTemporalLagRF.R")
 What is something **else** you can do to improve your model that you have not discussed or explored at all here? **Hint**: Random forest models need complexity!
 
 > Your answer here.
+# the random forest model could have used more predictors, which would have resulted in a better relative predictor importance.
+
 
 #### Question 19K [3 points]
 Take all of the findings and interpretations from questions 18A-J and write up a short paragraph or two summary for your stakeholders. Your writing should not be overly technical but it should include caveats and limitations. Make sure to include 1-2 sentences of recommendations about what you would do next.
@@ -1655,6 +1725,9 @@ ggplot(aes(y = deathsInjuriesProportion, x = biologicalSex, fill = as.factor(Yea
 Would it be fair to model the proportion of deaths due to injury or accident without accounting for an effect of sex? Why or why not?
 
 > Your answer here.
+# No, we can clearly see that Biological sex has an affect on the proportion or deaths due to injury or accident.
+# This is clearly higher for Males
+
 
 #### 5.1.1.2 Proportion of Deaths by Sex {#lineGraphInjSex}
 
@@ -1685,6 +1758,8 @@ ggplot(aes(x = Month,
 What do you notice about the trend? Is there anything compelling here? Can you find any possible explanation for what happened in May (month 5) of 2020?
 
 > Your answer here.
+# In 2020, accidental deaths by Males and females decreased dramatically (more so for males). This is likely the result of stay-at-home orders.
+
 
 ### 5.1.2 Mapping injury-related deaths by stay-at-home orders & sex {#chloropethInjSex}
 
@@ -1780,13 +1855,15 @@ Do you think there is any evidence that the percent of deaths due to accident & 
 **Hint**: Make sure to explain what you would want to do to these maps, either in terms of filtering and/or additional faceting, to better address whether (1) the shutdown has had a likely effect and (2) whether there is an interaction with biological sex on the proportion of deaths due to accident or injury.
 
 > Your answer here.
+# I would use additional faceting to make another set of maps of Year x Biosex (8 panels)
+
 
 #### Question 21B [0.5 points]::
 
 Why are some counties filled gray? Are the data truly missing or is it a data maturity problem? Or, is there another reason? (**Hint**: What will happen if the number of deaths in a county are very small?)
 
 > Your answer here.
-
+# It is possible that during 2020, some counties did not report their data
 
 #### Question 21C [3 points]::
 
@@ -1794,6 +1871,51 @@ Answer one of the two situations you answered in Question 21A. Either make more 
 
 ```{r}
 ## Your code here.
+
+# filter for just 2020
+injuryDeathSummary2 <- injuryDeathSummary %>% filter(Year == "2020")
+
+## Initialize the plot
+ggplot(injuryDeathSummary2) +
+  ## Chloropeth: draw the polygons of the counties and color by total deaths
+  geom_sf(aes(fill = deathLabels), color = "gray20", size = 0.2) +
+
+  ## Apply manual fill scale for total deaths
+  scale_fill_manual(
+    name = "% of Deaths Due to Accident or Injury",
+    values = c4a(palette="brewer.or_rd", n=3),
+    na.value = "gray70",
+    drop = FALSE
+  ) +
+  ## Set map projection explicitly
+  coord_sf(expand = FALSE) +   ## <- keeps map tight to its bounding box
+  
+  theme_bw() +
+  ## Make a completely blank map background this time
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    strip.text = element_text(size = 12, face = "bold"),
+    legend.position = "bottom"
+  ) +
+
+
+  # Add title and caption
+  labs(
+    title = "California Percent Deaths due to Accident or Injury, by County",
+    subtitle = "Cumulative Monthly Deaths by Biological Sex, 2020",
+    caption = "Source: California DPH Vital Records"
+  ) + 
+  
+  ## Use facet_wrap to make one map per Bio Sex
+  facet_wrap(~ biologicalSex, ncol = 2)
+
+
+
 ```
 
 
@@ -1835,6 +1957,10 @@ Calculate the correlation of `femaleMaleRatio` and the `deathsInjuriesProportion
 
 ```{r}
 ## Your code here.
+
+test <- cor.test(injDeaths$femaleMaleRatio, injDeaths$deathsInjuriesProportion)
+test
+
 ```
 
 Do you think that this correlation coefficient indicates that you need to make a correction on your maps, or is it likely sufficient just to make the correction in your models? In other words, large correlation coefficients (in the absolute value sense) would indicate a need to correct the maps; smaller coefficients would indicate that it's probably not a big deal for your visualizations provided to stakeholders.
@@ -1872,6 +1998,7 @@ Originally, I was going to walk you through predictive modeling here as well - b
 Choose what kind of model you would do. Would you include spatial lags? Ideally, would you include temporal lags?
 
 > Your answers here.
+# For spatial lags, we should use a Spatial Autoregressive model (SAR)
 
 ## 5.2 Choose your own cause-of-death to explore.
 
@@ -1898,3 +2025,12 @@ Feel free to get creative! You are not required to continue stratifying by sex, 
 5. **A data science question you would like to test**
 
 6. **A data science hypothesis based on what you found** [Note: if you find nothing compelling, you may defend with evidence why there is no point developing a hypothesis instead.]
+
+```{r}
+
+
+
+```
+
+
+
