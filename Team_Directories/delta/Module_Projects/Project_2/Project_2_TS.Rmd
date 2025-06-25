@@ -1,18 +1,21 @@
 ---
-title: "Project 2: Public Health & Epidemiology"
-subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
-author: "Tim Souza"
+title: 'Project 2: Public Health & Epidemiology'
+author: "Tim Souza/Chinonso Chilobe"
 date: "23 June 2025"
 output:
   html_document:
     toc: true
     toc_float: true
     theme: flatly
-    fig_crop: no
+    fig_crop: false
+  pdf_document:
+    toc: true
+subtitle: 'Merrimack College DSE6630: Healthcare & Life Sciences Analytics'
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE,
+                      error=FALSE,
                       message = FALSE,
                       warning = FALSE,
                       cache = FALSE, 
@@ -60,6 +63,10 @@ You were given properly de-identified data from 2017 - 2020, which contain morta
 **NOTE**: If you are interested in these data, the source is the [California Death Profiles dataset](https://data.chhs.ca.gov/dataset/death-profiles-by-county) maintained by California Health and Human Services.
 
 ```{r}
+
+# having issues with knitting so setting wd.
+setwd('C:/Users/TK/Documents/GitHub/Merrimack_DSE6630/Team_Directories/delta/Module_Projects/Project_2')
+
 ## Load the provided data files
 load("california_mortality_tables.RData")
 ```
@@ -565,7 +572,7 @@ Is there any pattern that is a cause for concern in your interpretation of **tot
 **Hint 2**: Do you see other similar darker colors in counties around cities?
 
 > Your answer here.
-# Total deaths are always higher in counties that contain cities (Los Angeles County), probably due to high population centers.
+# Total deaths are always higher in counties that contain cities (Los Angeles County), probably due to high population centers, this needs to be converted to a percentage (based on population).
 
 
 ## 2.6 Accessing the 2020 US Census API
@@ -667,7 +674,7 @@ Then, inside the function, it is doing several key tasks:
 
 **Function call**
 This line runs the function using your API key and saves the result to a variable called `census`:
-`census <- getPopSizes(key, vars, header)`
+#`census <- getPopSizes(key, vars, header)`
 
 
 **NOTE** Make sure to change `include=FALSE` to `TRUE` in the first line (the `{r}` setup line) the chunk or you will get an error upon knitting.
@@ -735,6 +742,10 @@ Use code or some other method to explore the resulting dataframe, `census`. Expl
 
 ## explore the dataframe `census`
 
+# errors when knitting so placing this here.
+load("census.Rdata")
+
+
 summary(census)
 head(census)
 
@@ -767,8 +778,9 @@ Now that you know more generally how this function works and have seen it in act
 
 > Your answer here.
 ## there are several pieces to the api call:
-## the url
-
+## building the url, adding the specific details of the request, and the function call, which returns the data in json format
+## other API calls could be used (in a similar way), and the steps would be similar. The target and the details of 
+the request would change.  Most APIs could download data as JSON.
 
 
 ### 2.6.3 Joining the census with the spatial data and updating the maps
@@ -799,7 +811,7 @@ mortality_sf2a <- mortality_sf %>%
 ```{r, eval = TRUE}
 ## Comment me out or change EVAL=FALSE to run your own versions!
 load("C:/Users/TK/Desktop/mortality_sf2.Rdata")
-#load("census.Rdata")
+load("census.Rdata")
 ```
 
 ## 2.7 Mapping population-adjusted mortality
@@ -899,7 +911,7 @@ totalDeaths %>%
   full_join(census, by = "County") %>%
   ## Group by Year and then Month to aggregate the counties
   group_by(Year, Month) %>% 
-  ## Calculate the percent mortality - it is a percen because multiply by 100
+  ## Calculate the percent mortality - it is a percent because multiply by 100
   summarise(percMortality = sum(totalDeaths, na.rm = TRUE) / 
               sum(totalN, na.rm = TRUE)*100) %>%
 ## Make the plot of % mortality by month and year
@@ -1011,7 +1023,7 @@ What patterns do you observe now in 2020? (**NOTE**: The maps for 2017-2019 are 
 **Hint**: Take a look at counties in Southern CA, like Los Angeles, Orange, San Diego, Riverside, Imperial...
 
 > Your answer here.
-# it appears as though monthly percent mortality does increase in 2020 for seval counties in southern california, but is unchanged in other couunties for 2020.
+# it appears as though monthly percent mortality does increase in 2020 for several counties in southern california, but is unchanged in other couunties for 2020.
 
 # 3 Project future mortality
 
@@ -1130,7 +1142,8 @@ plot(density(res))
 ```
 
 > Your answer here.
-# the density plot of the residuals is not bell shaped (although not skewed), so the residuals are not normally distributed.
+# the density plot of the residuals is bell shaped around 0 (not skewed), so the residuals appear normally distributed.
+The Q-Q plot also shows heavy tails indicating some extreme values.
 
 ## 3.2 Spatial lag regression
 
@@ -1256,11 +1269,10 @@ summary(sarModel)
 ```
 
 > Your answer here.
-
-
-
-
-
+The R2 of both models is very similar.
+olsmodel = Adjusted R-squared:  0.7165 
+sarModel = Adjusted R-squared:  0.7271
+The overall p-value is also similar
 
 #### Question 17E [0.25 points]
 Can you trust the results of the model? Why or why not?
@@ -1268,12 +1280,15 @@ Can you trust the results of the model? Why or why not?
 ```{r}
 ## Your code here.
 
-
+plot(sarModel)
+res <- resid(sarModel)
+plot(density(res))
 
 
 ```
 
 > Your answer here.
+The examiniation of the sarModel is very similar to the olsModel, it is difficult to differentiate between the two models.
 
 
 # 4 Improve Predictions with Machine Learning
@@ -1457,7 +1472,7 @@ rfCV$results %>%
 What do you notice about the effects of cross-validation on your model? (**Hint**: Do you see any negative $R^2$ values this time?) Which value of  `mtry` gave the best results? How does the $RMSE$ of that model compare to the one you chose as the optimal OOB model?
 
 > Your answer here.
-Mtry=1 has the best results, the highest R2 (0.037) comapared to mtry2,3,  Mtry 1 also has a slighltly lower RMSE and MAE.  R2 is also better than the OOB fit model.
+Mtry=1 has the best results, the highest R2 (0.037) compared to mtry2,3,  Mtry 1 also has a slightly lower RMSE and MAE.  R2 is also better than the OOB fit model.
 
 ## 4.3  Test the training model with the 2020 data
 
@@ -1536,8 +1551,6 @@ Interpret the scatterplot of the actual vs. predicted values. What is happening 
 
 > Your answer here.
 It looks like the model is over-predicting mortality, versus the actual mortality in the data
-
-
 
 ## 4.4 Extract variable importance from the final model
 
@@ -1661,15 +1674,11 @@ Since you can't go deeply into doing it, instead you will do a little reading/re
 **Note**: Doing the time-aware data partition into before 2020 and after 2020 IS a form of controlling for temporal patterns/seasonality, albeit not as robust as including temporally lagged variables.
 
 > Your answer here.
-
-
-
-
-
-
-
-
-
+Accourding to source: https://www.geeksforgeeks.org/machine-learning/what-is-lag-in-time-series-forecasting/
+- One important concept within time series analysis is lag, which plays a significant role in understanding and modeling the relationship between past and future values in a time series.
+- Lag enables analysts to understand how current data points are related to previous ones (autocorrelation).
+- Lagged variables are often used as features in models
+- Seasonality can be identified, by examining values across different lags.
 
 #### Question 19I [1 point]
 Now, let's say you add several time-series lagged variables to your random forest; but with 10-fold CV, the testing MAE is 0.129. The scale of the target variable is unchanged - recall that previously, you got a testing MAE of 0.745. Does this suggest that the time series lagged variables are helping or hurting the model? If I tell you that the training MAE is 0.134, do you think the model is **overfitted**, **underfitted**, or doing pretty well?
@@ -1697,7 +1706,6 @@ Take all of the findings and interpretations from questions 18A-J and write up a
 
 > Your answer here.
 Adding time-lagged variables reduces the error of the random forest regression model. 
-
 
 
 # 5 Zooming in on Mortality Causes
@@ -2019,16 +2027,7 @@ test
 Do you think that this correlation coefficient indicates that you need to make a correction on your maps, or is it likely sufficient just to make the correction in your models? In other words, large correlation coefficients (in the absolute value sense) would indicate a need to correct the maps; smaller coefficients would indicate that it's probably not a big deal for your visualizations provided to stakeholders.
 
 > Your answer here.
-
-
-
-
-
-
-
-
-
-
+The correlation coefficient is weakly positive, it may be interesting to produce gender-specific (faceted) maps, just to examine if those would be interpretable by stakeholders.  I would think depending on the bucketing of values on the map colors, it may not be noticeable on the maps.
 
 
 #### Question 23 [1 point]:
@@ -2284,9 +2283,9 @@ ggplot(mortalitySummary) +
 ```
 
 > Summary:
-It did not appear that the % mortality of heart attack and stroke increased during 2020 in California
-This was easily visible using data visualizations
-Therefore our hypothesis appears not to be true and no further investigation was necessary
+It did not appear that the % mortality of heart attack and stroke increased during 2020 in California.
+This was easily visible using data visualizations.
+Therefore our hypothesis appears not to be supported by the data and no further investigation was necessary
 
 
 
