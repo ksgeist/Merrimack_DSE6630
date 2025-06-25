@@ -2080,7 +2080,31 @@ Originally, I was going to walk you through predictive modeling here as well - b
 
 Choose what kind of model you would do. Would you include spatial lags? Ideally, would you include temporal lags?
 
-> Your answers here.
+> Your answers here. By Collins
+
+>Data Science Question: Does age influence the leading cause of death?
+
+>Research Question: Is there a significant relationship between age and the likelihood of death by injury in California from 2017 to 2020 
+
+>Null Hypothesis: There is no significant relationship between age and the likelihood of death by injury in California from 2017 to 2020.
+
+>Prediction: The mechanism of injury varies by age group. Younger individuals are likely to die from motor vehicle accidents and other traumatic injuries, while older individuals (over65) are more likely to die from falls or age-related injuries.
+
+>Model selection
+1. Random Forest: I would deploy random Forest to handle the relationship between Age and death by Injury, while accounting for potential confounding variables.
+2.Spatial Lag: now that i have 58 counties of california, I would want to understand the distribution of deaths among counties. The pattern of deaths in relation to age in different counties.
+3.Temporal Lag: It would be interesting to understand the injury death by age patterns witnessed before covid shutdown were consistent with those after shutdown. It would also be interesting to understand injury death by age patterns during shutdown.
+
+>Are there any variables you pulled from the Census that would be worth considering here as well?
+over65 variable
+household income (not in this census data)
+amenities (hospitals). Am not sure about this one but i think it might be a factor in deciding deaths
+
+
+
+
+
+                           UNCHARTERED WATERS SECTION
 
 ## 5.2 Choose your own cause-of-death to explore.
 
@@ -2107,3 +2131,417 @@ Feel free to get creative! You are not required to continue stratifying by sex, 
 5. **A data science question you would like to test**
 
 6. **A data science hypothesis based on what you found** [Note: if you find nothing compelling, you may defend with evidence why there is no point developing a hypothesis instead.]
+
+
+# 5 Zooming in on Mortality Causes
+
+California was one of the strictest states when it came to shutdown measures during the COVID-19 pandemic, with both statewide enforcement and a duration longer than some other states in the country. California declared a state of emergency on **March 4, 2020** with a a mandatory statewide stay-at-home order issued on **March 19, 2020**. This statewide order didn't end until **January 25, 2021**, but it still wouldn't be until April 6, 2021 when the state announced plans to fully reopen the economy by **June 15, 2021**.
+
+Your stakeholder is actually not as interested in deaths from COVID-19, but actually more interested in how the mandatory stay-at-home order seems to affecting mortality due to certain conditions. __For example, are people less likely to die from accident or injury since they're under stay-at-home orders?__ 
+
+##Causes of death
+
+```{r}
+unique(sexDeaths$leadingCauseDeath)
+```
+ 
+
+```{r}
+sexDeaths%>%
+  count(leadingCauseDeath)
+```
+
+
+## 5.1 Death from Suicide
+
+Because of the mandatory COVID-19 shutdown in California, which has led to generally reduced movement throughout California, your stakeholder would like to know if the number of suicide deaths increase enough **during COVID-19 shutdown** to generate a signal.
+
+**HYPOTHESIS**: You hypothesize that because of intense mandatory stay-at-home measures, increased family disputes, and reduced personal space, the number of deaths attributed to suicide(`SUI`) increased during the COVID-19 shutdown during the months of 2020 in California.
+
+You will start, as with all good analysis plans, with some more __Exploratory Data Analysis__.
+
+### 5.1.1 Sex-specific Effects on `SUI` Mortality
+
+#### 5.1.1.1 Total Deaths by Sex
+
+Your stakeholder asks you to be sure to **stratify by the sex of the decedent**, because they suspect there is a difference in death rates by the decedent's biological sex. 
+
+The leading causes of death are located in the `sexDeaths` table because that was how the data were provided to you. They are separated by sex, thus you can check to see if there are sex differences that could matter for your analysis. You need to join some of your tables and calculate some additional metrics as well, including:
+
+* Proportion of deaths from Suicide out of all deaths (no longer adjusting for population size)
+
+* Ratio of adult females to males in the population
+
+* Ratio of females to males in the population among those over 65 years of age
+
+* Ratio of all adults over the age of 65 (retirement age) to those under retirement age
+
+You have opted to adjust per total deaths, rather than population size, so that you can better examine the fraction of deaths due to particular causes regardless of the underlying size of the population. However, you need to account for the ratio of females to males in the population, as it might be useful now or in future analyses to have access to the ratio of females to males. Similarly, having the ratio of retirees in the population (those over the age of 65 year) relative to non-retirees in the population may also be useful in future analyses. Further, the size of a county may still matter; so you will likely want to retain the total sample size of the county as a control variable as well. Note that, in a more detailed analysis, **population density** would be better than population size, but this is the proxy of county size you currently have to work with!
+
+```{r}
+## Join the sex deaths table with the census data; then filter for INJ
+suicideDeaths <- sexDeaths %>% 
+  full_join(census, by = "County") %>% 
+  ## Here is where you filter for a specific cause of death relative to sex
+  filter(leadingCauseDeath == "SUI") %>% 
+  ## Now full join with the first 4 columns of the totalDeaths table to get 
+  ## total deaths also
+  full_join(totalDeaths[ , 1:4], by = c("County", "Year", "Month")) %>%
+  ## Rename the sexDeaths column to something more appropriate
+  rename(suicideDeaths = sexDeaths) %>% 
+  ## Calculate the proportion of all deaths that are from suicide 
+  ## RELATIVE TO ALL DEATHS (not population!!)
+  mutate(deathssuicideProportion = suicideDeaths/totalDeaths,
+         ## The ratio of females to males in the population
+         femaleMaleRatio = femalesN/malesN,   
+         ## The ratio of 65+ females to males in the population
+         femaleMaleRatio65 = females65plus/males65plus,  
+         ## Ratio of retirees to non-retirees
+         retireeRatio = over65/totalN,  
+         ## Convert the date to a date format for plotting
+         Date = as.Date(paste(Year, Month, "1", sep = "-"), 
+                        format = "%Y-%m-%d")) %>%    
+         ## Illegal div by 0 turned to NaN; turn back to 0
+  mutate(deathssuicideProportion = ifelse(deathssuicideProportion == "NaN", 
+                                           0, deathssuicideProportion))  
+```
+
+
+```{r, echo = FALSE}
+## Now plot the numbers of deaths per year due to suicide by sex
+suicideDeaths %>% 
+ggplot(aes(y = deathssuicideProportion, x = biologicalSex, fill = as.factor(Year))) +
+  geom_boxplot(alpha = 0.7) +
+  labs(x = "Biological Sex of Decedent", 
+       y = "Proportion of All Deaths Due to Suicide", 
+       fill = "Year", 
+       title = "Proportion of All Deaths Due to Suicide",
+       subtitle = "California Counties, Jan 2017 - Aug 2020") + 
+  scale_fill_manual(values = skittles[c(5, 9:11)]) + 
+  theme_classic()
+```
+
+
+#### Question 20A [0.5 points]:
+
+Would it be fair to model the proportion of deaths due to Suicide without accounting for an effect of sex? Why or why not?
+
+> Your answer here. By Collins
+>Analysing the Boxplot
+
+Females
+>Median is at 0.00 indicating that atleast half of the counties have a proportion of deaths by suicide close to zero
+>Box: the interquartile range (IQR) is narrow, suggesting that the middle 50% of the data is concentrated near the median
+>Whiskers: The whiskers are relatively short, indicating that most data points are close to the median
+Outliers: There are several outliers above the upper whiskers, suggesting that some counties have a higher proportion of deaths due to suicide among females.
+
+Males
+>Median is at 0.00 similar to females indicating that atleast half of the counties have a proportion of deaths by suicide close to zero.
+>Box: the interquartile range (IQR) is slightly wider than the females, suggesting a slightly greater spread in the middle 50% of the data.
+>Whiskers: The whiskers are longer than females, indicating a greater range of values.
+Outliers: There are fewe outliers compared to females, suggesting that some counties have a higher proportion of deaths due to suicide among males.
+
+Would it be fair to model the proportion of deaths due to Suicide without accounting for an effect of sex? Why or why not?
+>Based on the analysis, its not fair to model the proportion of deaths due to suicide without accounting for an effect of sex. Although, the median for both sex is at 0.00, the distribution and variability between males and females are significant enough to warrant consideration of sex as a factor in the analysis.
+
+#### 5.1.1.2 Proportion of Deaths by Sex {#lineGraphInjSex}
+
+What if you calculate the proportion of deaths, for each sex, instead? Wouldn't that give you a more accurate portrait of any sex-level differences that might exist?
+
+```{r, echo=FALSE}
+suicideDeaths %>% 
+  group_by(Month, biologicalSex, Year) %>% 
+  summarise(deathssuicideProportion = mean(deathssuicideProportion, na.rm = TRUE)) %>% 
+ggplot(aes(x = Month, 
+           y = deathssuicideProportion, 
+           color = as.factor(Year), 
+           linetype = as.factor(biologicalSex))) +
+  geom_line(alpha = 0.7, size = 1.1) +
+  scale_x_continuous(n.breaks = 10) +
+  scale_color_manual(values = skittles[c(5, 9:11)]) +
+  scale_linetype_manual(values=c("dotdash", "solid")) +
+  labs(title = "Proportion all deaths due to Suicide, by sex",
+       y = "Proportion of All Deaths Due to Suicide", 
+       subtitle = "Cumulative for all California counties, Jan 2017 - Aug 2020",
+       color = "Year",
+       linetype = "Sex of Decedent") +
+  theme_minimal()
+```
+
+#### Question 20B [0.5 points]:
+
+What do you notice about the trend? Is there anything compelling here? Can you find any possible explanation for what happened in May (month 5) of 2020?
+
+> Your answer here. By Collins
+it shows there was higher proportion of males death compared to females. The trend for females was more subtle as compared to males. For males it show huge highs and lows.
+Year 2020 shows a decline trend in suicide deaths among males upto the 5th month of the year. The trend changes trajectory and it plateaus between the 6th month and 7th month. Then begins to drop again.
+
+
+### 5.1.2 Mapping injury-related deaths by stay-at-home orders & sex {#chloropethInjSex}
+
+So, hopefully you've noticed what I've noticed about the relationship between the stay-at-home orders and the proportion of overall deaths due to suicide, as well as the effect of the shutdown in terms of both decedent biological sexes. You know from your earlier graph that females have a lower proportion of overall death due to suicide; next, it would be nice to see what the relationship is spatiotemporally (before and after shutdown) on average suicide mortality overall, as well as for each of the sexes separately. This will allow you to see if there is a geographic pattern, as one might expect in denser areas with more population pressure, congested housing, social disputes with the effect or not.
+
+Let's add a label to the dataset to identify whether a month was under stay-at-home orders or not, and call the new feature `stayAtHome`. Notice that I could have coded it as a dummy variable (0 or 1) where 1 is the stay-at-home order condition, but instead I chose to encode it as a category. I can also change the encoding later, if needed. Note also that although I chose to use `Date` as the condition for my `ifelse()`, you could just as easily have chosen a joint conditional using both`Month` and `Year` columns!
+
+```{r}
+## Encode stayAtHome as any date after March 19, 2020
+suicideDeaths <- suicideDeaths %>% 
+  mutate(stayAtHome = ifelse(Date >= "2020-03-19", "Stay-at-Home", "None"))
+```
+
+Next, let's calculate a summarized dataframe that groups by `stayAtHome`, `Year`, and `County`, then summarizes an average `deathssuicideProportion` for use with the maps. Notice that rather than storing the summarized dataframe, I simply piped it through to join it with the geometry from the shapefile for map-making this time. I was feeling a bit lazy. 
+```{r}
+##### Calculate the proportion of all deaths due to suicide
+suicideDeathSummary <- suicideDeaths %>% 
+  ## Group by stay-at-home order, year, county, AND sex
+  group_by(stayAtHome, Year, County, biologicalSex) %>% 
+  ## Change the name to make the join easier
+  rename(COUNTY_NAM = County) %>% 
+  ## Mean proportion of deaths for each month-year-county-sex combo
+  summarise(deathssuicidePercent = mean(deathssuicideProportion, na.rm = TRUE)*100) %>% 
+  ## Join to get the geometries for mapping
+  full_join(cali_sf, by = "COUNTY_NAM", relationship = "many-to-many") %>% 
+  ## Coerce to make sure it is seen as a shapefile
+  st_as_sf() %>% 
+  ## Remove any of the island geometries as you did in the first part
+  filter(is.na(ISLAND)) %>% 
+  ungroup() 
+
+#### Find the five number summary
+summ <- fivenum(suicideDeathSummary$deathssuicidePercent)
+paste0("The five-number summary of % of deaths that are suicide-related is: ")
+paste(c("Min", "Lower Quartile", "Median", "Upper Quartile", "Max"), 
+      round(summ, 3))
+## Notice that, with the minimum, 1st quartile, AND median all equal to 0, we
+## really only have three groups
+
+##### Now add on the cuts suicideDeathSummary labels for mapping:
+suicideDeathSummary <- suicideDeathSummary %>% 
+  mutate(deathLabels = cut(deathssuicidePercent, 
+                          breaks = c(0, 3.343, 18.489, Inf),
+                          labels = c("0-3.342", "3.343-18.489", "18.489+"),
+                          ordered_result = TRUE, right = F)) 
+```
+
+```{r, echo=FALSE}
+## Initialize the plot
+ggplot(suicideDeathSummary) +
+  ## Chloropeth: draw the polygons of the counties and color by total deaths
+  geom_sf(aes(fill = deathLabels), color = "gray20", size = 0.2) +
+
+  ## Apply manual fill scale for total deaths
+  scale_fill_manual(
+    name = "% of Deaths Due to Suicide",
+    values = c4a(palette="brewer.or_rd", n=3),
+    na.value = "gray70",
+    drop = FALSE
+  ) +
+  ## Set map projection explicitly
+  coord_sf(expand = FALSE) +   ## <- keeps map tight to its bounding box
+  
+  theme_bw() +
+  ## Make a completely blank map background this time
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    strip.text = element_text(size = 12, face = "bold"),
+    legend.position = "bottom"
+  ) +
+
+
+  # Add title and caption
+  labs(
+    title = "California Annual Percent Deaths due to Suicide, by County",
+    subtitle = "Cumulative Monthly Deaths, Jan 2017 - Aug 2020",
+    caption = "Source: California DPH Vital Records"
+  ) + 
+  
+  ## Use facet_wrap to make one map per year
+  facet_wrap(~ Year, ncol = 4)
+```
+
+#### Question 21A [0.5 points]::
+
+Do you think there is any evidence that the percent of deaths due to suicide changed as a result of the stay-at-home orders? What would provide stronger evidence of a change in percent of deaths due to suicide as a result of the shutdown? Do these maps include any evidence of interaction with the sex of the decedent?
+
+**Hint**: Make sure to explain what you would want to do to these maps, either in terms of filtering and/or additional faceting, to better address whether (1) the shutdown has had a likely effect and (2) whether there is an interaction with biological sex on the proportion of deaths due to accident or injury.
+
+> Your answer here. By Collins
+Based on the maps above there is no clear evidence that the percent of deaths due to suicide changed as a result of the stay-at-home orders. However, to provide stronger evidence, we would need to filter the data to only include deaths from April to August 2020 and facet the data by bilogical sex to check for interaction
+
+
+#### Question 21B [0.5 points]::
+
+Why are some counties filled gray? Are the data truly missing or is it a data maturity problem? Or, is there another reason? (**Hint**: What will happen if the number of deaths in a county are very small?)
+
+> Your answer here. By Collins
+one reason could be the data was not submitted by respective counties or another reason which i think is the main reason. Is that the data was intentionally ommitted for data privacy purposes. That is to protect Personal Identifying Information. The data was suppressed because the number of death was too small that it could lead to imdividual identification.
+
+
+#### Question 21C [3 points]::
+
+Answer one of the two situations you answered in Question 21A. Either make more compelling maps before and after the shutdown OR show interactivity with biological sex, your choice. 
+
+```{r}
+## Your code here.
+
+before_shutdown <- suicideDeathSummary %>% filter(Year < 2020) #filtering data for year before the shutdown
+
+After_shutdown <- suicideDeathSummary %>% filter(Year >= 2020) #filtering data for year after the shutdown
+
+
+## creating map for years before shutdown
+ggplot(before_shutdown) +
+  ## Chloropeth: draw the polygons of the counties and color by total deaths
+  geom_sf(aes(fill = deathLabels), color = "gray20", size = 0.2) +
+
+  ## Apply manual fill scale for total deaths
+  scale_fill_manual(
+    name = "% of Deaths Due to Suicide",
+    values = c4a(palette="brewer.or_rd", n=3),
+    na.value = "gray70",
+    drop = FALSE
+  ) +
+  ## Set map projection explicitly
+  coord_sf(expand = FALSE) +   ## <- keeps map tight to its bounding box
+  
+  theme_bw() +
+  ## Make a completely blank map background this time
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    strip.text = element_text(size = 12, face = "bold"),
+    legend.position = "bottom"
+  ) +
+
+
+  # Add title and caption
+  labs(
+    title = "California Annual Percent Deaths due to Suicide, by County",
+    subtitle = "Cumulative Monthly Deaths, Jan 2017 - Aug 2020",
+    caption = "Source: California DPH Vital Records"
+  ) + 
+  
+  ## Use facet_wrap to make one map per year
+  facet_wrap(~ Year)
+
+```
+
+
+```{r}
+## creating map for years before shutdown
+ggplot(After_shutdown) +
+  ## Chloropeth: draw the polygons of the counties and color by total deaths
+  geom_sf(aes(fill = deathLabels), color = "gray20", size = 0.2) +
+
+  ## Apply manual fill scale for total deaths
+  scale_fill_manual(
+    name = "% of Deaths Due to Suicide",
+    values = c4a(palette="brewer.or_rd", n=3),
+    na.value = "gray70",
+    drop = FALSE
+  ) +
+  ## Set map projection explicitly
+  coord_sf(expand = FALSE) +   ## <- keeps map tight to its bounding box
+  
+  theme_bw() +
+  ## Make a completely blank map background this time
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    strip.text = element_text(size = 12, face = "bold"),
+    legend.position = "bottom"
+  ) +
+
+
+  # Add title and caption
+  labs(
+    title = "California Annual Percent Deaths due to Suicide, by County",
+    subtitle = "Cumulative Monthly Deaths, March 2020 - Aug 2020",
+    caption = "Source: California DPH Vital Records"
+  ) + 
+  
+  ## Use facet_wrap to make one map per year
+  facet_wrap(~ Year)
+```
+
+### 5.1.3 Controlling for population-level differences in sex ratio
+
+Even if you didn't explore biological sex on the map, it seems that there are likely some sex-specific effects in percent of deaths due to accident and injury. But what if some counties have a **skewed sex ratio**? You might need to adjust for that! Although you might expect, _a priori_, for all counties to have a female to male ratio of 1:1, in reality that isn't always the case. 
+
+In order to determine if you need to control for any underlying population-level differences in the sex ratio of each county, you make a simple histogram and plot a 1:1 line where the proportion of females in the population will equal males. You do this for each county. You make a **blue, solid line** for the mean sex-ratio, and a **black, dashed line** to show the reference 1:1 line. 
+
+**Note** that this ratio is coming from the Census data that you imported earlier; you calculated this sex ratio in an earlier code chunk from those data. Thus, these data are from 2020.
+
+```{r, echo = FALSE}
+injDeaths %>% 
+ggplot(aes(x = femaleMaleRatio)) +
+  ## Make a histogram showing the female:male sex ratio
+  geom_histogram(alpha = 0.7, fill = skittles[5], color = "white") +
+  ## Add the mean as a solid, dark blue line
+  geom_vline(aes(xintercept = mean(injDeaths$femaleMaleRatio)), 
+             color = skittles[9], 
+             linetype = "solid", 
+             size = 1.25)+
+  ## Add the reference 1:1 line as a black, dashed line
+  geom_vline(aes(xintercept = 1), 
+             color = "black", 
+             linetype = "dashed", size = 1.25)+
+  labs(title = "Female:Male adults in California counties",
+       subtitle = "Solid, blue line is mean ratio; black, dashed line represents 1:1 reference",
+       y = "Frequency", 
+       x = "Adult Female:Male",
+       caption = "Source: California Decennial Census, 2020") +
+  theme_minimal()
+```
+
+
+
+You can see that you have a very strongly __left-skewed__ distribution, with the mean of the female:male ratio dragged to the left. What does this mean, exactly? **You have more counties with a higher proportion of men than women than otherwise!** And since men seem to have a higher proportion of deaths by accident / injury as opposed to females, you need to decide if you think you need to account for this in your maps. Accounting for it in the model will be easy - you just include the female:male ratio as a predictor variable. However, in the maps it is actually a little trickier and would require a mathematical correction that could be difficult for your stakeholders to understand. Is it even necessary then?
+
+#### Question 22 [1 point]:
+
+Calculate the correlation of `femaleMaleRatio` and the `deathsInjuriesProportion`, making sure to be careful to drop or exclude any NAs before making your calculation. 
+
+```{r}
+## Your code here.
+```
+
+Do you think that this correlation coefficient indicates that you need to make a correction on your maps, or is it likely sufficient just to make the correction in your models? In other words, large correlation coefficients (in the absolute value sense) would indicate a need to correct the maps; smaller coefficients would indicate that it's probably not a big deal for your visualizations provided to stakeholders.
+
+> Your answer here.
+
+
+#### Question 23 [1 point]:
+
+Now, take a look at the scatter plot below with a best-fit line. Does the plot agree with the correlation coefficient (i.e., direction of slope) you obtained? Why or why not?
+
+```{r, echo = FALSE}
+injDeaths %>% 
+  group_by(County) %>%
+  summarise(femaleMaleRatio = mean(femaleMaleRatio),
+            deathsInjuriesPercent = mean(deathsInjuriesProportion, 
+                                         na.rm = TRUE)*100) %>% 
+
+  ggplot(aes(x = femaleMaleRatio, y = deathsInjuriesPercent)) +
+  geom_point(alpha = 0.7, color = skittles[5]) +
+  geom_smooth(color = skittles[8], method = "lm") +
+  labs(title = "Accident-related Deaths vs. Female:Male Adults in California counties",
+       subtitle = "Each point represents a county average",
+       y = "Average % of Total Deaths Due to Injury or Accident", 
+       x = "Adult Female:Male (California Decennial Census, 2020)",
+       caption = "Source: California DPH Vital Records") +
+  theme_minimal()
+```
