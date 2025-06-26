@@ -1630,7 +1630,13 @@ Since the pandemic is over in reality, you can find the actual number of deaths,
 **Hint**: You can read this file in as a dataframe using `read.csv()` as follows! I also show you the structure (`str()`) of the data so you have an idea what you're getting.
 
 ```{r}
-caliDeaths <- read.csv("https://s3.amazonaws.com/og-production-open-data-chelseama-892364687672/resources/078185a9-e3a7-403f-a546-b8c582f0a9d8/20241220_deaths_final_2019-2023_occurrence_county_month_sup.csv?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAJJIENTAPKHZMIPXQ%2F20250615%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250615T190154Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=61c4009b5979f2d74a95396e2f77ace3d13315fe166588cb1210ef46d292f759")
+
+filters <- URLencode('{"Year":"2020","Cause":"ALL"}')
+url <- paste0('https://data.chhs.ca.gov/api/3/action/datastore_search?resource_id=078185a9-e3a7-403f-a546-b8c582f0a9d8&limit=50000&filters=', filters)
+
+caliDeaths <- fromJSON(url)
+
+caliDeaths <- caliDeaths$result$records
 
 caliDeaths %>% 
   str()
@@ -1640,21 +1646,55 @@ caliDeaths %>%
 
 ```{r}
 ## Your code here
+caliDeaths_filtered <- caliDeaths%>%
+  filter(Year == "2020", Month %in% c("09", "10", "11", "12"), Cause_Desc == "All causes (total)")
 ```
 
 Now make sure to compute the **monthly percent mortality** as you have done before. Otherwise, you won't be comparing apples-to-apples!
 
 ```{r}
 ## Your code here
+#Group by month (september to dec 2020) and calculate monthly death 
+monthly_deaths_postshutdown <- caliDeaths_filtered %>%
+  group_by(Month) %>%
+  summarise(Total_deaths = sum(as.numeric(Count), na.rm = TRUE))
+
+# add the monthly deaths to form total death for the four months
+total_deaths_postshutdown <- sum(monthly_deaths_postshutdown$Total_deaths, na.rm = TRUE)
+
+#calculate percentage monthly deaths
+
+monthly_deaths_postshutdown$percentage_mortality_post <- 100*(monthly_deaths_postshutdown$Total_deaths / total_deaths_postshutdown)
+
+monthly_deaths_postshutdown$Month <- as.numeric(monthly_deaths_postshutdown$Month)
 ```
 
 Lastly, create (1) a scatterplot with trend line and (2) perform a correlation test on your **Sept to December 2020** predictions relative to the true **Sept to December 2020** monthly percent mortality. 
 
 ```{r}
 ## Your code here
+ggplot(monthly_deaths_postshutdown, aes(x = as.numeric(Month), y = percentage_mortality_post)) +
+  geom_point() +
+  geom_smooth(method = "lm" , se = FALSE) +
+  labs(title = "Monthly Percent Mortality Trend",
+       subtitle = "September to December 2020",
+       x = "Month", 
+       y = "Percent Mortality post shutdown") +
+  theme_classic()
+```
+
+
+
+```{r}
+correlation_test <- cor.test(monthly_deaths_postshutdown$Month, monthly_deaths_postshutdown$percentage_mortality_post)
+print(correlation_test)
+
 ```
 
 __For full credit__ include a brief interpretation of your findings.
+
+> I got a little bit confused with this specific question, am not sure where am supposed to get the predictions. 
+> I Think this was very straight forward that the correlation will be very high since monthly percent mortality was created from monthly mortality. The value 0.833812 confirms the trend that monthly percent mortality increased with increade in months from september to December. The slope is positive slanting upwards which resonates with our strong positive correlation.
 
 #### Question 19H [1 point]
 
@@ -2044,12 +2084,17 @@ Calculate the correlation of `femaleMaleRatio` and the `deathsInjuriesProportion
 
 ```{r}
 ## Your code here.
+
+correlation_inj <- cor(injDeaths$femaleMaleRatio, injDeaths$deathsInjuriesProportion, use = "pairwise.complete.obs")
+
+print(correlation_inj)
+
 ```
 
 Do you think that this correlation coefficient indicates that you need to make a correction on your maps, or is it likely sufficient just to make the correction in your models? In other words, large correlation coefficients (in the absolute value sense) would indicate a need to correct the maps; smaller coefficients would indicate that it's probably not a big deal for your visualizations provided to stakeholders.
 
 > Your answer here.
-
+0.279791 is a weak positive correlation and therefore I don't have to make correction in my maps, correction in my model will be enough.
 
 #### Question 23 [1 point]:
 
@@ -2073,7 +2118,8 @@ injDeaths %>%
   theme_minimal()
 ```
 
-> Your answer here.
+> Your answer here. By Collins
+My scatter plot shows a weak positive correlation between the average percentage of total deaths due to Injury or Accident and the adult female-male ratio in california counties. The best-fit line has a slight upward slope, indicating that as the female-male ratio increases, the average percentage of total deaths due to Injury or Accident also tends to increase. This is consistent with our correlation coefficient value 0.279791
 
 #### Question 24 [3 points]:
 Originally, I was going to walk you through predictive modeling here as well - but given a need to abbreviate this project, instead I am going to ask you to simply construct **data science question** and **hypothesis** given the information you have here so far. Are there any variables you pulled from the Census that would be worth considering here as well?
@@ -2479,19 +2525,24 @@ ggplot(After_shutdown) +
 
 ### 5.1.3 Controlling for population-level differences in sex ratio
 
-Even if you didn't explore biological sex on the map, it seems that there are likely some sex-specific effects in percent of deaths due to accident and injury. But what if some counties have a **skewed sex ratio**? You might need to adjust for that! Although you might expect, _a priori_, for all counties to have a female to male ratio of 1:1, in reality that isn't always the case. 
+Even if you didn't explore biological sex on the map, it seems that there are likely some sex-specific effects in percent of deaths due to suicide. But what if some counties have a **skewed sex ratio**? You might need to adjust for that! Although you might expect, _a priori_, for all counties to have a female to male ratio of 1:1, in reality that isn't always the case. 
 
 In order to determine if you need to control for any underlying population-level differences in the sex ratio of each county, you make a simple histogram and plot a 1:1 line where the proportion of females in the population will equal males. You do this for each county. You make a **blue, solid line** for the mean sex-ratio, and a **black, dashed line** to show the reference 1:1 line. 
 
 **Note** that this ratio is coming from the Census data that you imported earlier; you calculated this sex ratio in an earlier code chunk from those data. Thus, these data are from 2020.
 
 ```{r, echo = FALSE}
-injDeaths %>% 
+
+femaleMaleRatio_vector <- suicideDeaths$femaleMaleRatio
+mean_femaleMaleRatio <- mean(femaleMaleRatio_vector)
+
+
+suicideDeaths %>% 
 ggplot(aes(x = femaleMaleRatio)) +
   ## Make a histogram showing the female:male sex ratio
   geom_histogram(alpha = 0.7, fill = skittles[5], color = "white") +
   ## Add the mean as a solid, dark blue line
-  geom_vline(aes(xintercept = mean(injDeaths$femaleMaleRatio)), 
+  geom_vline(aes(xintercept = mean_femaleMaleRatio), 
              color = skittles[9], 
              linetype = "solid", 
              size = 1.25)+
@@ -2505,43 +2556,49 @@ ggplot(aes(x = femaleMaleRatio)) +
        x = "Adult Female:Male",
        caption = "Source: California Decennial Census, 2020") +
   theme_minimal()
+
 ```
 
 
 
-You can see that you have a very strongly __left-skewed__ distribution, with the mean of the female:male ratio dragged to the left. What does this mean, exactly? **You have more counties with a higher proportion of men than women than otherwise!** And since men seem to have a higher proportion of deaths by accident / injury as opposed to females, you need to decide if you think you need to account for this in your maps. Accounting for it in the model will be easy - you just include the female:male ratio as a predictor variable. However, in the maps it is actually a little trickier and would require a mathematical correction that could be difficult for your stakeholders to understand. Is it even necessary then?
+You can see that you have a very strongly __left-skewed__ distribution, with the mean of the female:male ratio dragged to the left. What does this mean, exactly? **You have more counties with a higher proportion of men than women than otherwise!** And since men seem to have a higher proportion of deaths by suicide  as opposed to females, you need to decide if you think you need to account for this in your maps. Accounting for it in the model will be easy - you just include the female:male ratio as a predictor variable. However, in the maps it is actually a little trickier and would require a mathematical correction that could be difficult for your stakeholders to understand. Is it even necessary then?
 
 #### Question 22 [1 point]:
 
-Calculate the correlation of `femaleMaleRatio` and the `deathsInjuriesProportion`, making sure to be careful to drop or exclude any NAs before making your calculation. 
+Calculate the correlation of `femaleMaleRatio` and the `deathssuicideProportion`, making sure to be careful to drop or exclude any NAs before making your calculation. 
 
 ```{r}
 ## Your code here.
+
+correlation_sui <- cor(suicideDeaths$femaleMaleRatio, suicideDeaths$deathssuicideProportion, use = "pairwise.complete.obs") #use = "pairwise.complete.obs" removes the N/A
+
+print(correlation_sui)
 ```
 
 Do you think that this correlation coefficient indicates that you need to make a correction on your maps, or is it likely sufficient just to make the correction in your models? In other words, large correlation coefficients (in the absolute value sense) would indicate a need to correct the maps; smaller coefficients would indicate that it's probably not a big deal for your visualizations provided to stakeholders.
 
 > Your answer here.
-
+0.2126415 is a positive weak correlation, therefore I do not need to make correction on my maps and a correction in my model will be sufficient
 
 #### Question 23 [1 point]:
 
 Now, take a look at the scatter plot below with a best-fit line. Does the plot agree with the correlation coefficient (i.e., direction of slope) you obtained? Why or why not?
 
 ```{r, echo = FALSE}
-injDeaths %>% 
+suicideDeaths %>% 
   group_by(County) %>%
   summarise(femaleMaleRatio = mean(femaleMaleRatio),
-            deathsInjuriesPercent = mean(deathsInjuriesProportion, 
+            deathssuicidePercent = mean(deathssuicideProportion, 
                                          na.rm = TRUE)*100) %>% 
 
-  ggplot(aes(x = femaleMaleRatio, y = deathsInjuriesPercent)) +
+  ggplot(aes(x = femaleMaleRatio, y = deathssuicidePercent)) +
   geom_point(alpha = 0.7, color = skittles[5]) +
   geom_smooth(color = skittles[8], method = "lm") +
-  labs(title = "Accident-related Deaths vs. Female:Male Adults in California counties",
+  labs(title = "Suicide-related Deaths vs. Female:Male Adults in California counties",
        subtitle = "Each point represents a county average",
-       y = "Average % of Total Deaths Due to Injury or Accident", 
+       y = "Average % of Total Deaths Due to Suicide", 
        x = "Adult Female:Male (California Decennial Census, 2020)",
        caption = "Source: California DPH Vital Records") +
   theme_minimal()
 ```
+>My scatter plot shows a weak positive correlation between the average percentage of total deaths due to suicide and the adult female to male ratio in california counties. The best-fit line has a slight upward slope, indicating that as the female-male ratio increases, the average percentage of total deaths due to suicide also tends to increase. This is consistent with our correlation coefficient value 0.2126415 
