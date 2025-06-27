@@ -1028,17 +1028,21 @@ ggplot(readyTrain, aes(x = PredictedReadmissionRate)) +
 #### **Question 19A**: [1 point]
 Why is a histogram, or even a Q-Q plot, an insufficient way to assess whether a distribution is approximately normal?
 
-> Your answer here.
+> When looking at a histogram there is a chance that it can be misleading and it may look like a normal ditribution but it isnt't really. One of the biggest problem with histogram is that even though the same graph would be showed to multiple people there are some people who would think that the data is skewed while another doesn't think it isn't which now leads to different comclusions. When looking at what a Q Q plot it has similar problems as the historgram meaning that persepctive also plays a role in determining if this shows a normal distribution. There are some other options to be able to test for normality such as the Kolmogorov-Smirnov test which we learned about earlier.  
 
 Now Apply a [Shapiro-Wilk test](https://biostats.w.uib.no/test-for-normality-shapiro-wilks-test/) for normality using the `shapiro.test()` function. What does it indicate about your distribution? (**Note**: Shapiro tests are only reliable for $N < 5000$, but it is fine to perform here.)
 
 ```{r}
-# Your code here.
+
+shapiro.test(imputedTest$PredictedReadmissionRate)
+shapiro.test(imputedTrain$PredictedReadmissionRate)
+shapiro.test(dat2Analyze$PredictedReadmissionRate)
+
 ```
 
-> Your answer here.
+> When looking at both the test and training set we see that both of the test and training sets have a very low p-value. If the p-vlaue is below .05 then we are reject the null meaning that we reject the data being normally distributed. The test data set had a p-value of .0001174 and the training set had a p-value of 1.986e-13, both of these are going to be rejected because of the low p-value. This isn't good since all of these aren't normally distrubted. Since the test and training group both show not normally distributed. I wanted to see if there is any normality distribution with the predicted readmission pneumonia patients. When running the shapiro-wilk test on the predicted readmission for pneumonia patients from the dat2Analyze and this created a 6.067e-15 which means that it is significantly less than than .05 which again means that we are rejecting the null and this again means that the data isn't normal. 
 
-### 3.7.1 Box-Cox Transformation
+###3.7.1 Box-Cox Transformation
 
 The Box-Cox transformation is a _family_ of power transformations used to stabilize variance and make data more normally distributed (Box & Cox, 1964). Recall from our brief discussion in lecture that the Box-Cox transformation involves the parameter $\lambda$, which when applied to $y$ yields the transformation. It is defined as 
 
@@ -1086,12 +1090,34 @@ Can you see what it did to the distribution? __look closely__, if not. It's subt
 #### **Question 19B**: [1.5 points]
 Now repeat all of the steps to perform a Box-Cox transform on your own to the `imputedTest` data. Why must we (1) also transform the test data and (2) __use the same $\lambda$ as the training data__?
 
-> Your answer here.
+> As previously explored we know that we need to do everything to both sets so that it will stay consistent and not skew the model that is going to be created. So even if there is two different lambda for the test and training set we need to stay consitent so that we don't throw off the model when it is trying to predict. Below is us adjusting the predicted pneumonia readmissions rates, it created a lambda -0.3 with this we are calculating lambda which will then be applied to the predicted pneumonia readmission rate. Below is also the creation of Q-Q plot and histogram which both show a normal distribution since that lambda has been applied. 
 
 ```{r}
-# Your code here.
+bc_data2 <- BoxCoxTrans(imputedTrain$PredictedReadmissionRate)
+print(paste0("Box-Cox lambda =  ", bc_data2$lambda)) #this will show which lambda is the best to help to make the training set more normally distributed. 
+
+imputedTrain$bc_PredictedReadmissionRate <- predict(bc_data2, imputedTrain$PredictedReadmissionRate) #this is creating a new column which has the readmission rate adjust with the lambda that was created. 
+
+
+ggplot(imputedTrain, aes(x = bc_PredictedReadmissionRate)) +
+  geom_histogram(alpha = 0.6, 
+                 fill = "hotpink",
+                 color = "hotpink") +
+  theme_minimal() +
+  labs(title = "Box-Cox Transformed Predicted Readmission Ratio, N = 2,726 hospitals",
+       y = "Frequency",
+       x = "Predicted Readmission Ratio") #creation of the histogram to display the data that go changed with the lambda that was calculated
+
+
+qqnorm(imputedTrain$bc_PredictedReadmissionRate)
+qqline(imputedTrain$bc_PredictedReadmissionRate, 
+       col = "hotpink", lty = 2, lwd = 2) #this is the creation of the q-q plot with the data that was changed from the lambda calculated. 
+
 
 # Make sure to check that your transform looks successful!
+#graphs below shows that the transform looks successful and is showing normal distribution
+
+
 ```
 
 **NOTE** At this point, you have both an non-transformed (`PredictedReadmissionRate`) and Box-Cox transformed (`bc_PredictedReadmissionRate`) version of the target in your data.
@@ -1117,7 +1143,16 @@ readyTrain <- readyTrain %>%
 Do the same for your test data. Make sure to use `readyTest` and overwrite it. 
 
 ```{r}
-## Your code here.
+
+readyTest <- readyTest %>% 
+  ## Drop the original target variable
+  select(-PredictedReadmissionRate) %>% 
+  ## Make anything that might still be a factor from encoding is back to number
+  mutate_if(is.factor, as.numeric) %>%
+  ## Center and scale everything!
+  scale(center = TRUE, scale = TRUE) %>% 
+  data.frame()
+
 ```
 
 **Hint**: Make sure to turn your centered, scaled __matrix__ back into a dataframe! By default, it creates a matrix.
@@ -1154,11 +1189,11 @@ heatmap(corrMat,
 #### **Question 20A**: [1 point]
 Where do you see the highest potential for multicollinearity? Why do you say that?
 
-> Your answer here.
+> The highest potential for multicollinearity would be at the places where darker blues where there is a positive correclation between the two variables, there is also a relationship between the dark reds but this just means that there is a negative relationship between the two variables. The thing that we are looking for is darker colors but not ones that shows a 1 relationship which just means that the variable is being compared to itself, this isn't the relationship we are looking for. The thing that we are trying to avoid is the diagonal that is going across the heatmap because this is where the variables are compared to itself. The other color that we are trying to avoid is the yellow because is shows no relationship between the two varaibles. 
 
 Which variable(s) seem to be most correlated with our target, `bc_PredictedReadmissionRate`?
 
-> Your answer here.
+> Some of the relationships that has the best relationship is between the bc_predictedreadmissionrate is with the nationally compared hospital return dates for pneumonia rates. This has a positive relationship which is an expected relationship, since they are pretty closely related. There also seems to be more of a relationship between the predicted pnumonia readmissions rates to the communication and hospital rating overall. 
 
 ## 4.2 Fitting a model to estimate VIF
 
