@@ -655,7 +655,7 @@ Similarly, `miceMatrix$mm[i, j]` gives us the number of cases where both variabl
 #### **Question 11A**: [0.5 points]
 Explain what you think the number in cell $[6,1]$ means. Out of all the observations in the dataset, does this feel like a high degree of co-missingness?
 
-> Your answer here.
+> The number that they are reffering to is the 1788 which in the table tells of the predicted readmission rates of postoperative respiratory failure rates. When looking at the missingness from the previous table, this condition is one of the biggest columns that has the most missingness. This amount of missingness can definetly lead to the high level of predictiveness, since the missingness isn't included in predicting areas. This feels like a combination of high missingness as well as high predicted level. 
 
 Lastly, we can calculate a **proportion of missingness vs. response** between any two variables $i$ and $j$ such that:
 
@@ -716,9 +716,9 @@ p[1, ] %>%
 
 What columns seem to be most correlated in terms of missingness to our target, `PredictedReadmissionRate`? Does this give you any cause for concern? Feel free to speculate as to why you might see this.
 
-> Your answer here.
+> The most correlation between missingness and our target is, MRSA Bacteremia, Postoperative respiratory failure rate and medicare spending per patient. All of these are very high on the realtionship between predictedt readmissions rates and missingness. Even when looking at these these there is even a big jump between the variables. The variable that has the biggest relationship even above the others is MRSA. I think that this has the biggest correlation becauase MRSA is first not very common, there is a very small amount of people that carry MRSA. The first probelem is already that it is very uncommon, the follow up thing is that MRSA is also one of the bacterias that can cause pneumonia. In these situations where when a patient comes in and the yget tested for pneumonia, then most hospitals will start treating the pneumonia rather than continuing testing. Once treatments stop working and the person is still sick then there is a reason to continue testing. 
 
-## 3.3 Drop rows that are missing from the target variable. 
+## 3.3 Drop rows that are missing from the target variable.
 
 We will not be able to use those rows at all moving forward, sadly. That is going to reduce our sample size pretty sizably, from $N = 4,816$ to only $N = 2,726$ (or from $N = 4,775$ to only $N = 2,731$ .
 
@@ -733,16 +733,16 @@ paste0(c("Rows: ", "Columns: "), dim(dat2Analyze))
 #### **Question 12**: [0.5 points]
 Thinking back to your answer to Question 9D, do you feel any differently given these dimensions of the dataset?
 
-> Your answer here.
+> I don't feel any differently about the dimensions than previously in question 9D. Even with us dropping the variables there are still so many observations that even if we dropped these variables it still would cause a concern with big p little N. If we were starring to drop observations because of missingness, this would then cause the problem to maybe come into the situation. If we decided to drop observations becuase of missingness, then this could cause problems. In this situation we are just dropping variables which in the long run we can drop variables and it can actually help to create a more accurate model when predicting. In this case it would be predicting of penumonia readmission. 
 
-## 3.4 Do the splits! 
+## 3.4 Do the splits 
 
 At this stage, we are almost ready to __impute__ - but not until we have done our data partitioning first! In fact, splitting our data into training and testing partitions first is really important to prevent __data leakage__.
 
 #### **Question 13**: [1 point]
 Explain to your stakeholder, in simpler language, (1) why we partition data into testing and training sets and (2) what data leakage is. You do not need to go into great detail, but it should explain enough that they understand the basic ideas.
 
-> Your answer here.
+> When we starting to create a model we need to create a training set and a test set. In these situations we split the data as evenly as possible. We are going to be splitting data for a couple reasons, the first being that we first need to train the model. The analogy that I like to use is to a pet, where you need to teach a pet to follow orders but slowly it starts to do those things without having to say the command out loud. There are some simulatrities between this and training a machine. The data sets that we are going to create are the commands, we are separating it into a test set and triaing set. The training set we create are now going to be given to the machine, where the machine will use this data to create an initial model of the data. The more training sets that you give to the machine the better it will be able to predict the variable better. Back to the analogy the more you train the pet the better they will do at it. We know what we are doing with the training set, and we now have a trained model. Now we have a trained model we are going to use the test set, and we are going to put it into the trained model. After putting them into the model we hope that it will create the most accurate predictions of some of the predicted variable. Back to our analolgy, this is like showing your friends the pet's trick and them following it, and not just suddenly ignorning you. When looking at some problems that could occur is data leakage, this can happen when that machine has access to information that normally wouldn't be with there when the time of predictions. This means that if there are variables that are uncounted for in the training set and then in the test set it could cause problems such as overestimating and unreliable predictions. This is why in the beginning we are going to make sure that the test set and training set are very similar so that when making predictions the model is encountering anything it hasn't seeen already. 
 
 You may recall that I mentioned that the optimal ratio is has been argued to be $\sqrt{p} : 1$, where $p$ is the number of parameters (which may or may not equal your predictors depending on your planned analysis). Note that you do not have to split only a single time; you could make different splits for different analyses, if needed. However, we are going to use a single split here for convenience. 
 
@@ -762,45 +762,44 @@ calcSplitRatio <- function(p = NA, df) {
   ## @p  = the number of parameters. by default, if none are provided, the number of columns (predictors) in the dataset are used
   ## @df = the dataframe that will be used for the analysis
   
-  ## COMMENT HERE
+  ## this is the function that if a parameter is found to be NA then it is going to count the number of columns and subtract by 1 and making the p variable equal to that. 
   if(is.na(p)) {
-    p <- ncol(df) -1   ## COMMENT HERE
+    p <- ncol(df) -1   ## this is where p is being assinged as the number of columns minus 1 from the database 
   }
   
-  ## COMMENT HERE
+  ## This is defining test_N and this is going to be calculated from doing 1 over the square root of the variable p which we defined earlier. It is then multiplied by the number of rows in the array dat2Analyze
   test_N <- (1/sqrt(p))*nrow(dat2Analyze)
-  ## COMMENT HERE
+  ## In this portion of code we are defining test_prop, where we are doing some similar calculations as previous. We are doing 1 over the square root of p multiplied buy the rows of the dataset then divide that but hte number of rows in the dataset. We have an additional function which is the round function and this is going to take the value of the calculations and its going to round it to the nearest 2 digits. 
   test_prop <- round((1/sqrt(p))*nrow(dat2Analyze)/nrow(dat2Analyze), 2)
-  ## COMMENT HERE
+  ## This function below is defining train_prop and we are doing 1 minus the test_prop 
   train_prop <- 1-test_prop
   
-  ## COMMENT HERE
+  ## This is a print function where it is going to paste together the words as well as the train_prop and test_prop 
   print(paste0("The ideal split ratio is ", train_prop, ":", test_prop, " training:testing"))
-  
-  ## COMMENT HERE
+  ## this is going to return the train_prop
   return(train_prop)
 }
 
 ## Fill in the blanks to run:
-# train_prop <- ___(df = ___)
+ train_prop <- calcSplitRatio(df = dat2Analyze)
 ```
 
 **Hint**: One important note here is that if the number of parameters are not provided (which is true for the starter code I gave you to run it - it does NOT pass any parameters to that argument!), then by default our function is designed to take the number of columns of the dataframe and subtract one for the target variable. Neat, huh?
 
 Now, uncomment this code and fill it out to run it. 
 ```{r}
-# ind <- createDataPartition(dat2Analyze$___,   ## Put the target here!
-#                            p = ___,           ## Use the object you just made!
-#                            list = FALSE)
-# 
-# train <- dat2Analyze[___, ]
-# test <- dat2Analyze[-c(ind), ]
+ind <- createDataPartition(dat2Analyze$PredictedReadmissionRate,   ## Put the target here!
+                           p = train_prop,           ## Use the object you just made!
+                            list = FALSE)
+ 
+ train <- dat2Analyze[(ind), ]
+ test <- dat2Analyze[-c(ind), ]
 ```
 
 #### **Question 14B**: [0.5 points]
 What split ratio did you get? Is it close to the canonical 80-20 split? Why do you think that happened?
 
-> Your answer here.
+> We got a split of the training set of 2238 observation and a test set has 488 observations, this is very close to the 80-20 split originally thought. The split shoule be that the training set should be around 80 percent where the test should be 20 percent. In reality the split that we have is an 82-18 split which is as close to the 80-20 split as we can get. This is a great split that we can use for making an accurate model. 
 
 
 __Did you get stuck somewhere?__ If so, load the `test` and `train` data in case you struggled with Question 18 so you can proceed:
@@ -870,7 +869,7 @@ data.frame(imputedTrain$OOBerror, names(temp)) %>%
 #### **Question 15**: [1 point]
 What does `MSE` (Mean Squared Error) and `PCF` (Proportion of Falsely Classified) indicate here? You may find looking at the `missForest` [Vignette](https://stat.ethz.ch/education/semesters/ss2012/ams/paper/missForest_1.2.pdf) helpful. Which variable(s) had the highest OOB error?
 
-> Your answer here.
+> MSE is the mean squared error which means that it is the difference between the predicted variable and the actual variable value. This means that a larger number means that the model isn't close to predicting the true value. As the number gets lower it means that the model is getting closer to the true values that are happening. The variable that has the best MSE is medicare spending per patient. The variable with the highest MSE is the payment for pneumonia patients 952651.45. This shows us that it is a very bad predictor in the model, since the model and actual values are so far apart. The second value is PCF which is proportion of falsely classified this variable is to tell of the accuracy of the predicted values. This means that the lower the number is it means it is more accuarte to the true values. When looking at the values above the one that has the most accurate value is survey response rate. when looking at all of these values though it is shown that all of them are quite low which means that they all show good accuray when guessing the values between the true value and the predicted value. The survey response rate is the best value for PCF but all of them are very low making them good predictors. There isn't a wide variety like seen with hte MSE.    
 
 **NOTE 1**: If the OOB error (either MSE or PCF) from `missForest` is really high, it’s a red flag that the imputation for those variables is untrustworthy. This could be do to too much missingness, weak relationships among the variables making it hard to predict, or low quality data (e.g., noisy, sparse). In such cases, we want to **DROP** any variables with extremely high OOB error because they add noise. A general rule of thumb is that if the PCF > ~0.3 (30% of the imputed values are wrong) or if there is especially high MSE (inflation) relative to the variance of the variable, we should drop it. Let's set those aside so we can drop them from `test` and `train` both downstream! 
 
@@ -888,7 +887,9 @@ cols2drop <- c("Payment for pneumonia patients", "Emergency department volume")
 #### **Question 16**: [1 point]
 Alternatively, we could use MICE (Multivariate Imputation with Chained Equations), which is a method that will model uncertainty along with the variables. Do a little research. How does MICE work? Include a citation to a source.
 
-> Your answer here.
+> MICE is a package that can be used to deal with different missing data. This pckage will take the missing values and instead of putting all of the data into another model rather than all of the data going into one model since missing data can have a big impact on the accuracy of the model that is being created. The great thing about this is that this system is able to uphold both models, in predictions. The other thing that MICE is going to do is add in random values. These random values are then determined to be accurate compared to the linear regression. The advantages of MICE is that it uses other information and variables to predidct missingness. This helps for missingness to be based a number of different things rather than trying to predict based on one thing. 
+van Buuren, Stef. “Multivariate Imputation by Chained Equations.” Multivariate Imputation by Chained Equations •, amices.org/mice/#:~:text=The%20mice%20package%20implements%20a,the%20quality%20of%20the%20imputations. Accessed 20 June 2025. 
+
 
 #### 3.5.4 Putting it alllllll back together...
 
@@ -952,7 +953,7 @@ imputedTest  <- imputedTest[, !(names(imputedTest) %in% cols2drop), drop = FALSE
 Quickly explore how well the imputation did by choosing at least one numeric variable and one of the categorical variables. Did the distributions or frequencies change drastically? You may find the `summary()` and `table()` functions to be fastest here. 
 
 ```{r}
-# Your code here.
+summary(table(imputedTest))
 ```
 
 > Your answer here.
@@ -966,13 +967,13 @@ Ultimately, we need to turn the factor features back into numbers for our next a
 
 ```{r}
 ## Uncomment if this is your choice!
-# readyTrain <- imputedTrain %>%
-#   mutate_if(is.factor, as.character) %>% 
-#   mutate_if(is.character, as.numeric)
-# 
-# readyTest <- imputedTest %>%
-#   mutate_if(is.factor, as.character) %>% 
-#   mutate_if(is.character, as.numeric)
+ readyTrain <- imputedTrain %>%
+   mutate_if(is.factor, as.character) %>% 
+   mutate_if(is.character, as.numeric)
+ 
+ readyTest <- imputedTest %>%
+   mutate_if(is.factor, as.character) %>% 
+   mutate_if(is.character, as.numeric)
 ```
 
 ### 3.6.2 The Right Fork - Frequency Encoding
@@ -1005,7 +1006,7 @@ if(!is.numeric(imputedTrain$State)) {
 #### **Question 18**: [1 point]
 Because we are now frequency encoding AFTER data partitioning (we did ordinal encoding BEFORE the split for convenience), we absolutely __must__ apply the same encoding map to the `test` set that we did to the `train` set. Explain why, and what should we do if some classes of the variable end up in the `train` that is not in the `test` or vice versa? (**HINT**: Look at the source code!)
 
-> Your answer here. 
+> It would be a problem if the test set had different columns than the test set because the modle was trained on a certain set of varibles. If this variable is only in the testing set the model will braeak and it will not complete or it will start to over estimate since this wasn't something it waas taught. To prevent this we need to add it into the training set. This will allow the model to add it into consderation and adjust the model as needed. If there are variables in the training set and not the test set then it would cause mismatch data, and again it would be trying to make predictions on lack of information. Thsi would do that same thing and start to over predict from the informaiton that it already is having.  
 
 ## 3.7  Transformation & Scaling
 
@@ -1027,17 +1028,21 @@ ggplot(readyTrain, aes(x = PredictedReadmissionRate)) +
 #### **Question 19A**: [1 point]
 Why is a histogram, or even a Q-Q plot, an insufficient way to assess whether a distribution is approximately normal?
 
-> Your answer here.
+> When looking at a histogram there is a chance that it can be misleading and it may look like a normal ditribution but it isnt't really. One of the biggest problem with histogram is that even though the same graph would be showed to multiple people there are some people who would think that the data is skewed while another doesn't think it isn't which now leads to different comclusions. When looking at what a Q Q plot it has similar problems as the historgram meaning that persepctive also plays a role in determining if this shows a normal distribution. There are some other options to be able to test for normality such as the Kolmogorov-Smirnov test which we learned about earlier.  
 
 Now Apply a [Shapiro-Wilk test](https://biostats.w.uib.no/test-for-normality-shapiro-wilks-test/) for normality using the `shapiro.test()` function. What does it indicate about your distribution? (**Note**: Shapiro tests are only reliable for $N < 5000$, but it is fine to perform here.)
 
 ```{r}
-# Your code here.
+
+shapiro.test(imputedTest$PredictedReadmissionRate)
+shapiro.test(imputedTrain$PredictedReadmissionRate)
+shapiro.test(dat2Analyze$PredictedReadmissionRate)
+
 ```
 
-> Your answer here.
+> When looking at both the test and training set we see that both of the test and training sets have a very low p-value. If the p-vlaue is below .05 then we are reject the null meaning that we reject the data being normally distributed. The test data set had a p-value of .0001174 and the training set had a p-value of 1.986e-13, both of these are going to be rejected because of the low p-value. This isn't good since all of these aren't normally distrubted. Since the test and training group both show not normally distributed. I wanted to see if there is any normality distribution with the predicted readmission pneumonia patients. When running the shapiro-wilk test on the predicted readmission for pneumonia patients from the dat2Analyze and this created a 6.067e-15 which means that it is significantly less than than .05 which again means that we are rejecting the null and this again means that the data isn't normal. 
 
-### 3.7.1 Box-Cox Transformation
+###3.7.1 Box-Cox Transformation
 
 The Box-Cox transformation is a _family_ of power transformations used to stabilize variance and make data more normally distributed (Box & Cox, 1964). Recall from our brief discussion in lecture that the Box-Cox transformation involves the parameter $\lambda$, which when applied to $y$ yields the transformation. It is defined as 
 
@@ -1085,12 +1090,34 @@ Can you see what it did to the distribution? __look closely__, if not. It's subt
 #### **Question 19B**: [1.5 points]
 Now repeat all of the steps to perform a Box-Cox transform on your own to the `imputedTest` data. Why must we (1) also transform the test data and (2) __use the same $\lambda$ as the training data__?
 
-> Your answer here.
+> As previously explored we know that we need to do everything to both sets so that it will stay consistent and not skew the model that is going to be created. So even if there is two different lambda for the test and training set we need to stay consitent so that we don't throw off the model when it is trying to predict. Below is us adjusting the predicted pneumonia readmissions rates, it created a lambda -0.3 with this we are calculating lambda which will then be applied to the predicted pneumonia readmission rate. Below is also the creation of Q-Q plot and histogram which both show a normal distribution since that lambda has been applied. 
 
 ```{r}
-# Your code here.
+bc_data2 <- BoxCoxTrans(imputedTrain$PredictedReadmissionRate)
+print(paste0("Box-Cox lambda =  ", bc_data2$lambda)) #this will show which lambda is the best to help to make the training set more normally distributed. 
+
+imputedTrain$bc_PredictedReadmissionRate <- predict(bc_data2, imputedTrain$PredictedReadmissionRate) #this is creating a new column which has the readmission rate adjust with the lambda that was created. 
+
+
+ggplot(imputedTrain, aes(x = bc_PredictedReadmissionRate)) +
+  geom_histogram(alpha = 0.6, 
+                 fill = "hotpink",
+                 color = "hotpink") +
+  theme_minimal() +
+  labs(title = "Box-Cox Transformed Predicted Readmission Ratio, N = 2,726 hospitals",
+       y = "Frequency",
+       x = "Predicted Readmission Ratio") #creation of the histogram to display the data that go changed with the lambda that was calculated
+
+
+qqnorm(imputedTrain$bc_PredictedReadmissionRate)
+qqline(imputedTrain$bc_PredictedReadmissionRate, 
+       col = "hotpink", lty = 2, lwd = 2) #this is the creation of the q-q plot with the data that was changed from the lambda calculated. 
+
 
 # Make sure to check that your transform looks successful!
+#graphs below shows that the transform looks successful and is showing normal distribution
+
+
 ```
 
 **NOTE** At this point, you have both an non-transformed (`PredictedReadmissionRate`) and Box-Cox transformed (`bc_PredictedReadmissionRate`) version of the target in your data.
@@ -1116,7 +1143,16 @@ readyTrain <- readyTrain %>%
 Do the same for your test data. Make sure to use `readyTest` and overwrite it. 
 
 ```{r}
-## Your code here.
+
+readyTest <- readyTest %>% 
+  ## Drop the original target variable
+  select(-PredictedReadmissionRate) %>% 
+  ## Make anything that might still be a factor from encoding is back to number
+  mutate_if(is.factor, as.numeric) %>%
+  ## Center and scale everything!
+  scale(center = TRUE, scale = TRUE) %>% 
+  data.frame()
+
 ```
 
 **Hint**: Make sure to turn your centered, scaled __matrix__ back into a dataframe! By default, it creates a matrix.
@@ -1153,11 +1189,11 @@ heatmap(corrMat,
 #### **Question 20A**: [1 point]
 Where do you see the highest potential for multicollinearity? Why do you say that?
 
-> Your answer here.
+> The highest potential for multicollinearity would be at the places where darker blues where there is a positive correclation between the two variables, there is also a relationship between the dark reds but this just means that there is a negative relationship between the two variables. The thing that we are looking for is darker colors but not ones that shows a 1 relationship which just means that the variable is being compared to itself, this isn't the relationship we are looking for. The thing that we are trying to avoid is the diagonal that is going across the heatmap because this is where the variables are compared to itself. The other color that we are trying to avoid is the yellow because is shows no relationship between the two varaibles. 
 
 Which variable(s) seem to be most correlated with our target, `bc_PredictedReadmissionRate`?
 
-> Your answer here.
+> Some of the relationships that has the best relationship is between the bc_predictedreadmissionrate is with the nationally compared hospital return dates for pneumonia rates. This has a positive relationship which is an expected relationship, since they are pretty closely related. There also seems to be more of a relationship between the predicted pnumonia readmissions rates to the communication and hospital rating overall. 
 
 ## 4.2 Fitting a model to estimate VIF
 
