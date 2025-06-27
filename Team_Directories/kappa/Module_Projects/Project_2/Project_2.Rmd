@@ -569,7 +569,7 @@ You will sign up for your API census key [here](https://api.census.gov/data/key_
 Once your have your key, fill it into this code chunk here:
 ```{r}
 ## Set your API key (put it between the quotation marks):
-key <- "43cfaadf0edb401bbb47f8db856ce4813e8c1ea6"
+key <- "f1111fae4aac8c242aa84cf496bb6e57c99fe7dc"
 ```
 
 ### 2.6.2 Downloading data tables from the 2020 Census API
@@ -1192,7 +1192,6 @@ Which model, the spatial lag regression (`sarModel`) or the ordinary least squar
 
 > The ANOVA comparison between the spatial lag model and the original OLS model demonstrates that the spatial lag model provides a significantly better fit. The F-statistic of 113.97 and a p-value less than 2.2e-16 show that the spatially lagged percent mortality explains significantly more variance in the data. The residual sum of squares dropped from 1.86 in the OLS model to 0.52 in the spatial model, which also shows improved model performance. This provides statistical evidence that there is spatial dependence in the data, suggesting that mortality in one county is influenced by mortality rates in its neighboring counties. 
 
-
 #### Question 17D [0.5 points]
 Using the model you chose as the better model, `sarModel` to `olsModel`, interpret the results of that model. **HINT**: Remember that `summary()` helps you access the results from the model! 
 
@@ -1796,6 +1795,7 @@ Next, let's calculate a summarized dataframe that groups by `stayAtHome`, `Year`
 library(sf)
 cali_sf <- st_read("California_County_Boundaries_8408091426384550881/cnty19_1.shp")
 
+
 ##### Calculate the proportion of all deaths due to injury
 injuryDeathSummary <- injDeaths %>% 
   ## Group by stay-at-home order, year, county, AND sex
@@ -2015,7 +2015,109 @@ Feel free to get creative! You are not required to continue stratifying by sex, 
 
 1. **Annual chloropeth maps showing your cause-of-death**, like this [one](#chloropethInjSex)
 
+```{r}
+# Load packages
+library(tidyverse)
+library(sf)
+library(ggplot2)
+
+# caliDeaths$Count <- as.numeric(caliDeaths$Count)
+
+# Re-import if needed and clean
+caliDeaths <- read_csv("/Users/stephgarofalo/Desktop/California_County_Boundaries/caliDeaths.csv", col_types = cols(Count = col_character()))
+
+
+# Filter for Alzheimer's disease
+alz_df <- caliDeaths %>%
+  filter(Cause == "ALZ", Geography_Type == "Occurrence", Strata == "Total Population") %>%
+  mutate(Count = as.numeric(Count)) %>%  # <-- force conversion here
+  group_by(Year, County) %>%
+  summarise(alz_deaths = sum(Count, na.rm = TRUE), .groups = "drop")
+
+# Ensure Count is numeric — force conversion with warning suppression
+caliDeaths$Count <- suppressWarnings(as.numeric(caliDeaths$Count))
+
+
+# Get total deaths for same group to calculate proportions
+total_deaths <- caliDeaths %>%
+  filter(Cause == "ALL", Geography_Type == "Occurrence", Strata == "Total Population") %>%
+  group_by(Year, County) %>%
+  summarise(total_deaths = sum(Count, na.rm = TRUE), .groups = "drop")
+
+# Combine and compute Alzheimer's death % per county-year
+alz_prop <- left_join(alz_df, total_deaths, by = c("Year", "County")) %>%
+  mutate(percent_alz = 100 * alz_deaths / total_deaths,
+         COUNTY_NAM = County)
+
+# Join spatial data
+alz_map_data <- left_join(cali_sf, alz_prop, by = "COUNTY_NAM") %>%
+  st_as_sf()
+
+# Bin proportions into three categories
+alz_map_data <- alz_map_data %>%
+  mutate(death_category = cut(percent_alz,
+                              breaks = c(0, 5, 10, Inf),
+                              labels = c("0–5%", "5–10%", "10%+"),
+                              ordered_result = TRUE,
+                              right = FALSE))
+
+# Plot
+ggplot(alz_map_data) +
+  geom_sf(aes(fill = death_category), color = "gray40", size = 0.2) +
+  scale_fill_brewer(palette = "OrRd", na.value = "gray90", name = "% of Deaths from Alzheimer's") +
+  coord_sf() +
+  facet_wrap(~Year, ncol = 4) +
+  theme_minimal() +
+  theme(
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank()
+  ) +
+  labs(
+    title = "Proportion of Total Deaths Attributed to Alzheimer's Disease in California",
+    subtitle = "By County and Year",
+    caption = "Source: California DPH Mortality Data"
+  )
+
+```
+
+
 2. **A line graph showing changes, by month and year, in your cause-of-death**, somewhat like this [one](#lineGraphInjSex) with stratification _optional_
+
+```{r}
+# Filter and summarize Alzheimer’s and total deaths by year and sex
+alz_yearly <- caliDeaths %>%
+  filter(Geography_Type == "Occurrence", Strata == "Gender", Cause == "ALZ") %>%
+  group_by(Year, biologicalSex = Strata_Name) %>%
+  summarise(alz_deaths = sum(as.numeric(Count), na.rm = TRUE), .groups = "drop")
+
+total_yearly <- caliDeaths %>%
+  filter(Geography_Type == "Occurrence", Strata == "Gender", Cause == "ALL") %>%
+  group_by(Year, biologicalSex = Strata_Name) %>%
+  summarise(total_deaths = sum(as.numeric(Count), na.rm = TRUE), .groups = "drop")
+
+# Join and calculate proportions
+alz_year_prop <- left_join(alz_yearly, total_yearly,
+                           by = c("Year", "biologicalSex")) %>%
+  mutate(alz_death_prop = alz_deaths / total_deaths)
+
+ggplot(alz_year_prop, aes(x = as.numeric(Year),
+                          y = alz_death_prop,
+                          linetype = biologicalSex)) +
+  geom_line(alpha = 0.8, size = 1.2, color = "steelblue") +
+  geom_point(size = 2, color = "steelblue") +
+  scale_x_continuous(breaks = unique(alz_year_prop$Year)) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 0.1)) +
+  labs(
+    title = "Proportion of Total Deaths Attributed to Alzheimer's Disease",
+    subtitle = "Annual trend by biological sex across California counties",
+    x = "Year",
+    y = "% of All Deaths from Alzheimer's",
+    linetype = "Sex of Decedent"
+  ) +
+  theme_minimal()
+
+```
 
 3. **At least one other form of exploration to form a testable question or hypothesis, including but not limited to:**
   - A correlation test
@@ -2023,8 +2125,48 @@ Feel free to get creative! You are not required to continue stratifying by sex, 
   - Stratified boxplots
   - Feel free to be creative!
 
+```{r}
+# Alzheimer’s Death Proportion by Race/Ethnicity
+
+# Alzheimer's deaths by Race-Ethnicity
+alz_race <- caliDeaths %>%
+  filter(Geography_Type == "Occurrence", Strata == "Race-Ethnicity", Cause == "ALZ") %>%
+  group_by(Year, County, RaceEth = Strata_Name) %>%
+  summarise(alz_deaths = sum(as.numeric(Count), na.rm = TRUE), .groups = "drop")
+
+# All deaths by Race-Ethnicity
+total_race <- caliDeaths %>%
+  filter(Geography_Type == "Occurrence", Strata == "Race-Ethnicity", Cause == "ALL") %>%
+  group_by(Year, County, RaceEth = Strata_Name) %>%
+  summarise(total_deaths = sum(as.numeric(Count), na.rm = TRUE), .groups = "drop")
+
+# Join and compute proportion
+race_prop <- left_join(alz_race, total_race, by = c("Year", "County", "RaceEth")) %>%
+  mutate(prop_alz = alz_deaths / total_deaths) %>%
+  filter(!is.na(prop_alz) & prop_alz < 1)  # filter unreasonable values
+
+ggplot(race_prop, aes(x = RaceEth, y = prop_alz)) +
+  geom_boxplot(fill = "mediumpurple", color = "black") +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 0.1)) +
+  labs(
+    title = "Proportion of Alzheimer's Deaths by Race/Ethnicity",
+    subtitle = "California counties across all years",
+    x = "Race/Ethnicity",
+    y = "% of Total Deaths from Alzheimer's"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+
+```
+
 4. **Interpretation** of all graphs or analyses explored.
+
+> The visualizations provide a comprehensive view of Alzheimer’s disease mortality patterns across California. The annual choropleth maps reveal a consistent presence of Alzheimer’s-related deaths across counties, with most counties reporting that 5–10% of total deaths are due to Alzheimer’s. Spatial variation appears modest, suggesting widespread impact rather than strong geographic clustering. The line graph shows that Alzheimer’s accounted for a consistently higher proportion of total deaths among females compared to males from 2014 to 2023. This gender gap has persisted across years, with female percentages hovering around 8% and male percentages around 3–4%, indicating a potential need for gender-specific healthcare resources or further study into underlying biological and social factors. Lastly, the boxplot stratified by race/ethnicity illustrates clear disparities: White individuals experience the highest median percentage of Alzheimer’s-related deaths, while other groups like Black, Hispanic, and Asian populations show lower and more variable rates. These disparities highlight potential inequities in diagnosis, reporting, or access to care, suggesting a need for further investigation into systemic and cultural contributors to Alzheimer’s mortality outcomes.
 
 5. **A data science question you would like to test**
 
+> Has the racial/ethnic disparity in Alzheimer’s-related death proportions increased, decreased, or remained stable over time in California counties?
+
 6. **A data science hypothesis based on what you found** [Note: if you find nothing compelling, you may defend with evidence why there is no point developing a hypothesis instead.]
+
+> Hypothesis: At least one racial/ethnic group has a significantly different annual proportion of Alzheimer’s-related deaths compared to others.
