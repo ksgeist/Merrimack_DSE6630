@@ -171,20 +171,26 @@ What does column `COOECK6` represent?
 
 **Hint**: Take a look at [Table S1](https://drive.google.com/file/d/1X3z251hebpjBVdOXsQtYzDG-SaeCa6M1/view) for more information!
 
-> Your answer here.
+> Column COOECK6 represents a specific sample. 
+> Here, the sample is from the Daisy colony, was used as a control, 
+> was sampled after 0 minutes,
+> and had a read count of 15768802. 
 
 #### **Question 4B**: [0.33 points] 
 Why is the `geneID` something like, 'LOC100740276'? What does that mean? 
 
 **Hint:** 'LOC' is shorthand for 'locus' in a genome! What's a 'locus'?
 
-> Your answer here.
+> A locus is a gene's physical location on a chromosome. 
+> Therefore, the geneID is specifying an identified region on the chromosome
+> where the gene it represents is. 
 
 
 #### **Question 4C**: [0.33 points] 
 For column `COOECK6`, gene 'LOC100740276' has a value of 6. What does that mean?
 
-> Your answer here.
+> A value of 6 means that the gene LOC100740276 was found 6 times in the
+> COOECK6 data.
 
 
 # 2 Conventional Method: Differential Expression (DE) Analysis using `DESeq2`
@@ -258,7 +264,9 @@ Which variable is the 'batch' variable in this analysis and why?
 
 **Hint**: Look at the design formula in the next code chunk!
 
-> Your answer here.
+> The batch variable in this analysis is Colony.
+> The variable is used to track different sample groups, which may have
+> individual differences outside of the time or treatment variability. 
 
 ### 2.2.1 The Design Formula 
 
@@ -296,12 +304,36 @@ str(dsgnObject)
 #### **Question 6**: [1 point] 
 In this course so far, you have been exposed to a number of different non-dataframe structures for data. Here's another one! Explore the `dsgnObject` with `str()` as above or another function of your choice. What differences do you notice about the structure of this object vs. a dataframe?
 
-> Your answer here.
+```{r}
+# Looking at documentation
+?DESeqDataSetFromMatrix
+```
+
+
+
+> This object is a DESeqDataSet object.
+> It is specifically designed for storing data for an analysis of
+> differential expression.
+> Unlike a dataframe, the data does not appear to be stored in a tabular
+> format.
+> Instead, data storage is split into four main groups.
+> These groups are assays, rowData, colData, and metadata. 
+> Assays appear to contain count data.
+> rowData appears to store information on our genes.
+> colData appears to store information on our samples.
+> Metadata is self evident in its nature, although its contents are not
+> easily understood from this output. 
 
 Now write code to extract a dataframe of read counts from the design object `dsgnObject`. You will need to leverage the `assay()` function from `DESeq2` to do this! Show the `head()` of this dataframe only as proof you could extract it.
 
 ```{r}
-## Your code here.
+# Extracting read counts into a dataframe
+
+counts_matrix <- assay(dsgnObject)
+counts_df <- as.data.frame(counts_matrix)
+
+# Verify success 
+head(counts_df)
 ```
 
 
@@ -326,64 +358,65 @@ runVST <- function(dsgnObject,
                    writeTable = FALSE, 
                    writeRData = FALSE) {
   ############################################
-  ## YOUR COMMENT HERE - include a usage statement
-  ## dsgnObject = ...
-  ## blind = ...
-  ## fitType = ...
-  ## makePlot = ...
-  ## writeTable = ...
-  ## writeRData = ...
+  ## This function performs variance stabilizing transformation on raw read counts. 
+  ## dsgnObject = A DESeqDataSet object containing raw read counts. 
+  ## blind = If design is ignored during transformation. 
+  ## fitType = The type of transformation.
+  ## makePlot = If a plot is generated to demonstrate before and after transformation.
+  ## writeTable = If a table is written to file post transformation. 
+  ## writeRData = If the data is written to an RData file post transformation.
   ############################################
   
-  ## YOUR COMMENT HERE
-  ## Make sure to address why we are checking for fitType to equal rlog!
+  ## Define transformation based on fitType
+  ## rlog() is a different function than varianceStabilizingTransformation(),
+  ## so we need to check for it to know which function to use. 
   if(fitType == "rlog") {
-    ## YOUR COMMENT HERE
+    ## Apply rlog transformation to read counts
     vsData <- rlog(dsgnObject, blind = blind)
   }
-  ## YOUR COMMENT HERE
+  ## If fitType does not equal rlog, use varianceStabilizingTransformation()
   else {
-    ## YOUR COMMENT HERE
+    ## Apply VST transformation to read counts
     vsData <- varianceStabilizingTransformation(dsgnObject, 
                                               blind = blind, 
                                               fitType = fitType)
   }
   
-  ## YOUR COMMENT HERE
+  ## If makePlot equals TRUE, generate plots to visualize transformation
   if(makePlot == TRUE) {
-    ## YOUR COMMENT HERE
+    ## Plot mean-SD relationship pre-transformation
     ## Hint: meandSDPlot() helps us see the effect of the VS transform
     p1 <- meanSdPlot(assay(dsgnObject), plot = F)
-    ## YOUR COMMENT HERE
+    ## Customize the plot
     p1 <- p1$gg + ggtitle("Before Variance Stabilization") + 
       scale_fill_gradient(low = skittles[1], high = skittles[2]) + 
       theme_bw() + theme(legend.position = "bottom")
     
-    ## YOUR COMMENT HERE
+    ## Plot mean-SD relationship post-transformation
     p2 <- meanSdPlot(assay(vsData), plot = F)
-    ## YOUR COMMENT HERE
+    ## Customize the plot
     p2 <- p2$gg + ggtitle("After Variance Stabilization") + 
       scale_fill_gradient(low = skittles[1], high = skittles[2]) + 
       theme_bw() + theme(legend.position = "bottom")
-    ## YOUR COMMENT HERE
+    ## Side-by-side plot comparison
     grid.arrange(p1, p2, nrow=1)
   }
   
-  ## YOUR COMMENT HERE
+  ## If writeTable equals TRUE, write transformed data as a text file
   if(writeTable == TRUE) {
     
-    ## YOUR COMMENT HERE - make sure to mention the output format!
+    ## Write assay matrix to "vst.txt" as tab-delimited file with no quotes and row names included
     write.table(assay(vsData),
               file = "vst.txt",
               sep="\t", 
               quote=F, 
               row.names=T)
   }
-  ## YOUR COMMENT HERE
+  ## If writeRData equals TRUE, write transformed data as a RData file
   if(writeRData == TRUE) {
     save(vsData, file="vst_all_timepoints.Rdata")
   }
-  ## YOUR COMMENT HERE - what is being returned?
+  ## Return transformed data object
   return(vsData)
 }
 ```
@@ -391,7 +424,12 @@ runVST <- function(dsgnObject,
 #### **Question 7B**: [1 point] 
 Why do we bother writing wrapper functions? What's the purpose and how can they make our lives easier? 
 
-> Your answer here.
+> Wrapper functions allow us to write code once that can be used again in 
+> similar but different cases.
+> Instead of writing code specific to our dataset, the wrapper function is 
+> capable of taking any DESeqDataSet and applying the specified transformation
+> to the data.
+> Therefore, the wrapper function can be saved and used in future projects. 
 
 
 Now, **run the function**! Note that here you will run a __parametric transformation__ with `blind = FALSE` because you do not want the transformations to be blind to the experimental design (treatment) at this stage; in fact, you expect large differential expression in some genes! Thus, to control for outliers you will want to set `blind = FALSE`.
@@ -410,7 +448,11 @@ runVST(dsgnObject,
 #### **Question 8**: [1 point]
 What do you notice about the plot on the left (the `dsgnObject` without any transformation) vs. the plot on the right after the variance stabilizing transform? Is the VST effective at stabilizing the variance and, if so, how can you tell?
 
-> Your answer here.
+> The plot on the left seems to be rather flat with a flat trend.
+> The plot on the right demonstrates more of a "cloud" of points.
+> The trend line increases in the beginning, then somewhat stabilizes.
+> Such a pattern on the right plot might suggest that the VST did not
+> fully stabilize the variance. 
 
 ### 2.3.1 Digging deeper: Estimating gene-wise dispersion
 
@@ -441,7 +483,10 @@ abline(lm(log(varCounts+0.0001) ~ log((meanCounts+0.0001))),
 #### **Question 10**: [1 point]
 Does this plot support that a VST is (1) needed, (2) not needed, or (3) likely to be ineffective? Please explain.
 
-> Your answer here.
+> The data follows a roughly linear pattern. 
+> While not incredibly apparent, one might argue that it does also demonstrate
+> a more "fanned out" pattern at lower means and a tighter pattern at higher. 
+> Therefore, it is likely that a VST is needed. 
 
 
 ### Other VST Functions 
@@ -458,16 +503,44 @@ Other functions you could try:
 
 Use the custom `runVST()` function, changing out the `fitType` parameter to do some tuning. Heuristically (i.e., assessing just from the visuals you have), which `fitType` seems to be most appropriate here?
 
-> Your answer here.
+> Overall, rlog appears to best transform the data. 
+> local was rather comparable to parametric,
+> and mean created a rather strange trend that did not indicate effectiveness. 
+> The rlog transformation resulted in the most linear trend line. 
 
 ```{r}
-## Your code here.
+## local
+
+runVST(dsgnObject, 
+       blind = FALSE, 
+       fitType = "local", 
+       makePlot = TRUE, 
+       writeTable = FALSE, 
+       writeRData = FALSE)
 ```
 
-**FINALLY**, don't forget to `runVST()` with the `fitType` parameter of your choice! 
+```{r}
+# mean
+
+runVST(dsgnObject, 
+       blind = FALSE, 
+       fitType = "mean", 
+       makePlot = TRUE, 
+       writeTable = FALSE, 
+       writeRData = FALSE)
+```
+
+**FINALLY**, don't forget to `runVST()` with the `fitType` parameter of your choice!
 
 ```{r}
-## Your code here.
+# rlog
+
+runVST(dsgnObject, 
+       blind = FALSE, 
+       fitType = "rlog", 
+       makePlot = TRUE, 
+       writeTable = FALSE, 
+       writeRData = FALSE)
 ```
 
 
@@ -533,11 +606,19 @@ Suppose that Gene A has a $log_2$-fold change of -4 in the chill-coma bumblebees
 
 Use the information in the cheatsheet (or calculate it directly) to find the approximate multiplicate factor in gene expression change in the chill coma bees versus the control bees.
 
-> Your answer here.
+> Since we have a negative log_2-fold change, we are dealing with a down regulation.
+> Therefore, the magnitude on the linear scale would be
+> 2^−4 = 1/16 = 0.0625.
+> In other words, gene expression is reduced by a factor of 16 in the chill
+> coma bees versus the control bees. 
 
 If a second gene, Gene B, shows a $log_2$-fold change of +3, how does the direction and magnitude of Gene B's expression change compared to Gene A in chill coma vs. control bumblebees?
 
-> Your answer here.
+> Gene B has a positive log_2-fold change.
+> This means that unlike Gene A, where the gene expression decreases in
+> chill coma vs control bees, Gene B increases in chill coma vs control bees.
+> Specifically (by looking at the table), we can say that expression of Gene B
+> is increased by a factor of 8 in the chill coma bees versus the control bees. 
 
 
 ### 2.4.2 Wald Tests for significant differential expression between conditions
