@@ -661,15 +661,16 @@ In some biological contexts perhaps, especially those involving rapid or transie
 #### **Question 14**: [1 point]
 Based on your answers to Question 13C-D, how many differentially expressed genes did we find with the __Wald test__?
 
-> Your answer here.
+> The total number of DEGs found using the Wald test was 208 using the most inclusive threshold (LFC = 0) with an FDR-adjusted p-value < 0.05.
 
 #### **Question 15**: [1 point]
-Looking at the Verble et al. (2023) study, how do our results differ from their `DESeq2` results and why do you. think that might be? 
+Looking at the Verble et al. (2023) study, how do our results differ from their `DESeq2` results and why do you think that might be? 
 
 **Hint 1**: What is different about our __design formula__ versus what they describe verbally? 
 **Hint 2**: Look at what we did with `Time`!
 
-> Your answer here.
+> Our results differ from those in the Verble et al. 2023 study because of how the design formula handles the Time variable. In our analysis, we included Time as a covariate across all samples. We essentially tested for an overall difference between treated and control samples, regardless of when the sample was taken. Verble et al. analyzed each time point separately, comparing treatment and control groups within each recovery period. Their approach allowed them to detect genes that were only differentially expressed at specific times, such as right after chill coma. Because we pooled all the time points together, any strong but time-specific signals were diluted and became harder to detect. This explains why we found fewer significantly differentially expressed genes.
+
 
 # 3 Exploratory Data Analysis
 
@@ -770,7 +771,7 @@ kable(
 #### **Question 16**: [1 point] 
 Look at the custom function I've written for generating the summary statistics. How is __low expression__ defined? What proportion of all reads had low expression? Does this seem high? Should we do any filtering to remove low-expression genes, do you think?
 
-> Your answer here.
+> In the custom function, low expression is defined as genes with fewer than 10 reads in 90 percent of the samples. According to the summary statistics, about 39.4 percent of all genes have low expression. This is a relatively high proportion and suggests that many genes are not consistently expressed across the dataset. It might make sense to remove these low-expression genes. It could help to reduce noise in the data. Though we should probably look at the type of treatment for these low-expression genes to determine if that is having an effect.
 
 **Hint**: If it seems high, remember that the bumblebees were put into a __chill coma__ (which means their physiological processes might have shut down). In other words, the low expression might be a byproduct of the type of treatment that was applied and could be really interesting in and of itself. Conventional methods typically __remove lowly expressed genes__, but is that what we want to do here?
 
@@ -797,33 +798,35 @@ pheatmap(pwCorr,
 #### **Question 18**: [1 point] 
 From the heatmap, what do you notice about the arrangement of the treatments and time points (or lack thereof)? Do you see any important patterns that might explain why so few differentially expressed genes have been identified with `DESeq2`?
 
-> Your answer here.
+> From the heatmap, there does not seem to be a  strong or consistent separation between the Cold and Control treatments across time points. Samples from different treatments and time points are intermixed in the clustering, which suggests that the gene expression profiles are very similar between the groups.  This could help explain why the DESeq2 analysis identified so few differentially expressed genes because the overall signal distinguishing the treatments is weak or inconsistent across samples.
+
 
 
 #### **Question 19**: [2 points] 
 Complete this code chunk to calculate the sample distances instead. You will use the `dist()` function, which calculates the Euclidean distance between samples but to do it you must first __transpose__ the matrix with the `t()` function. This is actually somewhat similar to what is happening in a k-means clustering algorithm. Does your assessment about the arrangement of the treatments and time points change any?
 
-> Your answer here.
+> The Euclidean distance heatmap shows that samples are not clustered nicely by treatment group or time point. There is some pattern where samples from the same time point appear closer together, but there is still a significant amount of overlap between cold-exposed and control treatments. This suggests that the variation in gene expression is not dominated by the treatment condition alone. This helps explain why the DESeq2 analysis identified so few differentially expressed genes. it may be that the biological effect of cold exposure is subtle, or only affects a small subset of genes. There seems to be a need for more complex analysis.
+
 
 **Hint**: Make sure to update your figure caption!
 ```{r, fig.width = 6, fig.height = 8.5, echo = TRUE}
 ## Calculate the sample distances; fill in the blank and take off the comment to run
-# sampleDistances <- dist(t(____)))     ## Hint: what did we do to extract a matrix from the VST object earlier?
+sampleDistances <- dist(t(assay(vsData)))     ## Hint: what did we do to extract a matrix from the VST object earlier?
 
 ## Make the heatmap of the sample distances; fill in any blanks and then take the comments off to run!
-# sampleDistMatrix <- as.matrix(sampleDistances)
+sampleDistMatrix <- as.matrix(sampleDistances)
 
 ## Let's label by treatment and time again
-# rownames(sampleDistMatrix) <- paste(vsData$Treatment, vsData$Time, sep="-" )
-# colnames(sampleDistMatrix) <- NULL
+rownames(sampleDistMatrix) <- paste(vsData$Treatment, vsData$Time, sep="-" )
+colnames(sampleDistMatrix) <- NULL
 
 ## Let's set a monochromatic color palette
-# colors <- colorRampPalette(rev(brewer.pal(9, "Purples")))(255)
+colors <- colorRampPalette(rev(brewer.pal(9, "Purples")))(255)
 
-# pheatmap(___,
-         # clustering_distance_rows = sampleDistances,
-         # clustering_distance_cols = sampleDistances,
-         # col = colors)
+pheatmap(sampleDistMatrix,
+         clustering_distance_rows = sampleDistances,
+         clustering_distance_cols = sampleDistances,
+         col = colors)
 ```
 
 
@@ -870,7 +873,8 @@ ggplot(pca, aes(PC1, PC2, color = Treatment, shape = Colony)) +
 #### **Question 20**: [1 point]
 What percent of the variance is attributable to PC1 and PC2? At which time point(s) do you see the most separation between the treatments? Is this consistent with what Verble et al. (2023) found?
 
-> Your answer here.
+> PC1 accounts for 39% of the variance and PC2 accounts for 11% of the variance in the gene expression data. The greatest separation between the cold and control treatments appears to be at the 30m time point, where the two treatments form somewhat distinct clusters. This pattern is partially consistent with Verble et al., who also observed early responses following chill coma exposure. However, the separation is not as strong or consistent across all time points, possibly due to differences in the experimental design.
+
 
 #### **Question 21**: [1 point]
 Think about what we discussed in lecture about Support Vector Machines. Do you see anything in these PCA plots that make you think that SVM might do a much better job of finding the decision boundary between the treatments than the negative binomial generalized linear regression model that `DESeq2` used? (**Hint**: If you can't "see" it, look at the slide from lecture about a non-monotonic decision boundary. Do you think it's possible that there is a non-monotonic boundary between the treatments here because of `Time`?)
