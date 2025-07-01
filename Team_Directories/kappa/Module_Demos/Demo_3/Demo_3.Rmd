@@ -879,7 +879,7 @@ What percent of the variance is attributable to PC1 and PC2? At which time point
 #### **Question 21**: [1 point]
 Think about what we discussed in lecture about Support Vector Machines. Do you see anything in these PCA plots that make you think that SVM might do a much better job of finding the decision boundary between the treatments than the negative binomial generalized linear regression model that `DESeq2` used? (**Hint**: If you can't "see" it, look at the slide from lecture about a non-monotonic decision boundary. Do you think it's possible that there is a non-monotonic boundary between the treatments here because of `Time`?)
 
-> Your answer here.
+> Yes, the PCA plots suggest that a SVM might do a better job than the negative binomial model used in DESeq2. The separation between treatments (Control vs. Cold) is not consistent across all time points. For example, at time points like 30m and 120m, there appears to be more visible separation between treatments, but at 00m or 720m, the groups overlap more. This variation over time suggests that differences between treatments do not follow a uniform pattern across time. An SVM with a non-linear kernel  may be more effective at separating treatments when the variation is more complicated across time.
 
 
 ## 3.4 Volcano Plots
@@ -896,10 +896,10 @@ Thus, volcano plots allow you to quickly visualize the same results you saw from
 Using your answer to [Question 13B](#q13b), set the $log_2$-fold threshold in the code below. To do this, change out the number of the vector that corresponds to your selection in the earlier question. By default, I am choosing a $log_2$-fold threshold of 2. **Remember**: R is a one-referenced language, whereas Python is a zero-referenced language. This means that, in R, the fourth element in a vector will be `myVector[4]` in R!
 
 ```{r}
-## print(lfc_thresholds) ## Uncomment to view
+print(lfc_thresholds) ## Uncomment to view
 
-## Change the number of the vector to update
-lfc <- lfc_thresholds[4]
+## Changed the number of the vector to 1 to represent the best threshold (0)
+lfc <- lfc_thresholds[1]
 ```
 
 _The first step is to take the results and turn it into a dataframe containing the relevant information for plotting. This includes defining when genes will be up-regulated or down-regulated!_ 
@@ -957,11 +957,11 @@ On the above volcano plot, the y-axis is the $-log_{10}$ $p$-value and the x-axi
 #### **Question 23B**: [1.5 points] 
 __Interpret__ your version of the volcano plot using the $log_2$-fold change threshold from Question 23A. Does the same gene `LOC100742138` appear to be significantly differentially expressed (and up-regulated) regardless of which LFC threshold you choose? (If you're not sure, look for it in the `volcano` dataframe!). Why is this?
 
-> Your answer here.
+> In the volcano plot using the log2 fold change threshold from Question 23A (0), the gene LOC100742138 does not appear to be significantly differentially expressed. The volcano dataframe shows that it has a high adjusted p- value of 0.651, which means it does not meet the cutoff for statistical significance. The variability is too high or the effect too small to conclude it is different from random noise.
 
 What happened to the dashed gold line in your plot vs. the one I made? (Refer back to the HTML document if needed). Why did this happen?
 
-> Your answer here.
+> The plot that you made had two dashed gold lines set to the +/- levels of threshold. Since our threshold was set to 0 there is only one dashed line at 0.
 
 
 \newpage
@@ -1089,22 +1089,34 @@ dim(test)
 #### **Question 24A**: [0.5 points] 
 How many samples (observations) are in the training and testing data sets? How many features (genes) are there? What is the ratio of predictors (genes) to samples?
 
-> Your answer here.
+> The training data set contains 60 samples (observations) and the testing data set contains 14 samples. Both sets include 12,927 predictors (genes).
 
-```{r}
-## Your optional code here.
+
+```{r} 
+# Team kappa this was experimenting with splits
+## Make the train and test partitions:
+# ind <- createDataPartition(
+ # y = tVSdata[, c("Treatment")],     ## Treatment is evenly distributed
+ # p = 0.78,                           ## % into training (experimenting)
+#  list = FALSE)                      ## don't return a list
+
+## Make training and testing
+# train <- tVSdata[ind, ]
+# test <- tVSdata[-ind,]
 ```
 
 
 #### **Question 24B**: [0.5 points] 
 Remember, we used `caret`'s `createDataPartition()` Using Figure 9, do you notice anything concerning about the training split? What about the testing split? Does adjusting the split seem to make it better, worse, or stay the same? **Make sure to change it back after you are finished playing with it.**
 
-> Your answer here.
+> Yes, there are some concerns. While the training set is relatively well balanced across treatment, time, and colony, the testing set is not. Several time points are missing full colony representation, and some treatment groups are underrepresented or absent. Adjusting the split (e.g., from 80/20 to 78/22 or 75/25) slightly improves the balance but does not fully resolve the issue. The problem stays mostly the same. This indicates that createDataPartion() does not perfectly stratify across multiple variables.
+
 
 #### **Question 24C**: [1 point] 
 What are the predictors in the training and testing sets? Can you guess what the target will be? (**Hint**: This will be a _classification_ problem!). If you're still not sure, think about what you think the roles of `Treatment`, `Time` and `Colony` will be in the model.
 
-> Your answer here.
+> The predictors in the training and testing sets are the gene expression values from each sample. These values represent the features the model will use to learn patterns. The target variable is likely to be Treatment because this is a classification problem where the goal is to predict whether a sample is from the cold-exposed or control group.
+
 
 ### 4.1.4 Fitting an OOB Random Forest model
 
@@ -1130,7 +1142,7 @@ The confusion matrix gives you the OOB classification error of the cold-exposed 
 #### **Question 24D**: [1 point] 
 How did the model perform? Where is the classification error highest? Does this suggestion a problem with separating the `Cold` class from the `Control` class or not?
 
-> Your answer here.
+> The model performance was ok. The classification error was highest for the Control class, with 50 percent of Control samples misclassified as Cold. The Cold class had a slightly lower error rate at about 40.6 percent. This suggests that the model had difficulty distinguishing between the Cold and Control treatments, particularly in accurately identifying Control samples.&#x20;
 
 You can also plot the results of the OOB RF to assess how well the classes are separated. 
 
@@ -1144,7 +1156,8 @@ plot(rfOOB,
 #### **Question 24E**: [1 point]
 Based on Figure 10, did the OOB RF manage to find complete separation between cold-exposed and control treatments? If yes, approximately how many trees (tree depth) are needed to sufficiently distinguish the `Cold` and `Control` treatment classes? Does this suggest that using 500 trees will significantly improve the model, why or why not?
 
-> Your answer here.
+> Initially, the error rates are high, but they stabilize as more trees are added, settling around 35–40 percent. However, there’s still visible fluctuation, particularly in the red dashed line, indicating that the Control class continues to have more variable and higher misclassification rates than Cold. The model still struggles more with predicting Control samples and that increasing the number of trees alone may not resolve the classification challenges.
+
 
 ### 4.1.5 Assessing training vs. testing accuracy
 
@@ -1167,7 +1180,7 @@ data.frame(overall) %>% kable(
 #### **Question 24F**: [0.5 points]
 Look at the results of the training error. What is the accuracy and is this concerning or a good sign?
 
-> Your answer here.
+> The random forest model performed perfectly on the training data. The confusion matrix shows 100 percent accuracy, with both the Accuracy and Kappa values equal to 1. While this may look ideal, such perfect performance on training data may indicate overfitting. Testing on the test set will help determine if the model truly performs well or has just overfitted the training set.
 
 Now, look at the results of the training set when tested against the test set (a.k.a., __test error__ from which we derive **model accuracy**):
 ```{r}
@@ -1188,7 +1201,7 @@ data.frame(overall) %>% kable(
 #### **Question 24G**: [1.5 points]
 Take a look at the test accuracy. It's only 42.9%! This means it is performing WORSE than random guessing (50%). Take a closer look at **Cohen's Kappa** and the **McNemar's Test**. What do these tests do and what do the results tell you? Do you have any ideas why this may have occurred? (**Hint**: What does the high training accuracy tell us relative to the testing accuracy?)
 
-> Your answer here.
+> Cohen's Kappa and McNemar's Test help assess how well a classification model performs beyond simple accuracy. Cohen's Kappa measures the agreement between predicted and actual classes, adjusting for chance agreement. A low Kappa value, like the one in this model, suggests the predictions are not much better than random guessing. McNemar's Test checks whether the types of classification errors are balanced. A high p-value from McNemar's Test means there is no significant difference in the types of errors made, which implies the model is not learning meaningful patterns. The very high training accuracy and poor test accuracy indicate that the model is overfitting. It has likely memorized the training data but fails to generalize to new data. Overfitting is common when using many features, like thousands of genes, with only a small number of samples. Big P little n!&#x20;
 
 ### 4.1.6 Extracting Important Genes from an OOB Random Forest model
 
@@ -1215,12 +1228,38 @@ Write code that will compare the resulting important genes from the RF (**Hint**
 
 **Hint 4**: You may find it helpful to turn `importantRF` into a dataframe first; note that the genes are in the _rownames_. 
 
-> Your answer here.
+> There were 115 overlapping genes identified by both the Random Forest and DESeq2 analyses. This represents 5.1% of the genes identified as important by Random Forest and 55.3% of those found to be statistically significant by DESeq2.
 
 ```{r}
-## Your code here.
-```
+# Extract RF-important genes with MeanDecreaseGini > 0
+importantRF_df <- as.data.frame(rfOOB$importance) %>%
+  rownames_to_column(var = "gene") %>%
+  filter(MeanDecreaseGini > 0)
 
+# Extract significant DESeq2 genes (padj < 0.05)
+DESeq2_sig <- res %>%
+  as.data.frame() %>%
+  rownames_to_column(var = "gene") %>%
+  filter(padj < 0.05)
+
+# Find overlaps
+overlap_genes <- intersect(importantRF_df$gene, DESeq2_sig$gene)
+
+# Compute counts and percentages
+num_RF        <- nrow(importantRF_df)
+num_DESeq2    <- nrow(DESeq2_sig)
+num_overlap   <- length(overlap_genes)
+
+percent_RF    <- (num_overlap / num_RF) * 100
+percent_DESeq2<- if (num_DESeq2 > 0) (num_overlap / num_DESeq2) * 100 else NA
+
+cat("RF-important genes (Gini > 0):", num_RF, "\n")
+cat("Significant DESeq2 genes:", num_DESeq2, "\n")
+cat("Overlapping genes:", num_overlap, "\n")
+cat(sprintf("Overlap is %.1f%% of RF-important genes", percent_RF), "\n")
+cat(sprintf("Overlap is %.1f%% of DESeq2-significant genes", percent_DESeq2), "\n")
+
+```
 
 #### **Question 26**: [2 points] {#q26}
 Now, modify your code from Question 25 into a function. Your function should take at least two arguments: 
@@ -1237,15 +1276,38 @@ Show that your function works for a LFC cutoff of 1 and the same important genes
 **Hint**: I get 9 total overlapping genes when I do this!
 
 ```{r}
-## Your code here.
+compare_gene_overlap <- function(deseq_results, important_genes, lfc_cutoff = 1, pval_cutoff = 0.05) {
+  # Filter DESeq2 results based on the provided cutoffs
+  degs <- deseq_results %>%
+    as.data.frame() %>%
+    rownames_to_column(var = "gene") %>%
+    filter(abs(log2FoldChange) >= lfc_cutoff, padj < pval_cutoff) %>%
+    pull(gene)
+  
+  # Find overlapping genes
+  overlapping_genes <- intersect(degs, important_genes)
+  
+  # Calculate and return summary
+  overlap_summary <- list(
+    DESeq2_significant = length(degs),
+    RF_important = length(important_genes),
+    Overlap = length(overlapping_genes),
+    Overlap_percent_RF = round(length(overlapping_genes) / length(important_genes) * 100, 1),
+    Overlap_percent_DESeq2 = round(length(overlapping_genes) / length(degs) * 100, 1),
+    Overlapping_genes = overlapping_genes
+  )
+  
+  return(overlap_summary)
+
+}
+
 ```
 
 
 #### **Question 27**: [2 points]
 Overall, how did the OOB RF model perform? Which prediction (training or testing) had the highest accuracy? How many overlapping genes were found with `DESeq2`? Would you recommend this model as-is for benchmarking? Would you still consider this model for **feature selection**, **cross-validation**, and **tuning**?
 
-> Your answer here.
-
+> The OOB Random Forest model performed very well on the training data with perfect accuracy and a Kappa of 1.0. However, its performance on the testing data dropped significantly, with an accuracy of only 64.3% and a much lower Kappa of 0.286. This suggests that the model is likely overfitting the training data and not generalizing well to new, unseen data. When comparing the genes identified by Random Forest and DESeq2, only 115 genes overlapped, which is about 5.1% of the RF-important genes and 55.3% of the DESeq2-significant genes. Given the overfitting and moderate test performance, this model should not be used as-is for final benchmarking. However, it is still useful for feature selection and exploratory analysis. With further cross-validation and tuning, the model's predictive ability may improve.
 
 ## 4.2 Support Vector Machine (SVM)
 
