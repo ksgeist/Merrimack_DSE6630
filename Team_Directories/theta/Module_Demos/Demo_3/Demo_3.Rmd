@@ -681,7 +681,10 @@ ggplot(normalized_counts_long,
 #### **Question 13A**: [0.5 points]
 How well did the scaling do that I chose? Make sure to look at it across not only all samples but also whether those samples are from the Control vs. the cold-exposed Treatment groups. Are you concerned about any of the samples specifically? Why or why not?
 
-> Your answer here.
+> Overall, we see that scaling roughly brought each sample into line.
+> All of the boxes nearly share the same median, with only slight
+> variations. 
+> ADD HERE
 
 #### 2.4.2.3 Let's FINALLY call significantly DE genes!
 We will finally loop through a set of LFC values and perform Wald tests to see which genes are significantly differentially expressed between the treatment groups using tha FDR-adjusted $p$-value of 0.05. **NOTE**: Be patient, this could take up to a minute to run on your machine.
@@ -722,24 +725,58 @@ for (lfc in lfc_thresholds) {
 #### **Question 13B**: [0.5 points] {#q13b}
 You know what a p-value is but you may not be familiar with an __adjusted p-value__. What is it? Specifically, what's a __False Discovery Rate (FDR)__? In general, why would you choose to use an FDR over a p-value? Is this more broadly applicable in data science outside bioinformatics, do you think?
 
-> Your answer here.
+> An adjusted p-value is a statistically modified p-value to account for
+> multiple simultaneous tests.
+
+> A False Discovery Rate (FDR) is a metric that looks at the proportion of
+> discoveries that are false positives.
+
+> We would choose an FDR over a p-value when running multiple tests,
+> as the p-value is only designed to account for false positives in a single
+> test. 
+
+> The application of a FDR would most definately be valid in data science
+> outside of bioinformatics.
+> As previously stated, it would be applicable in the case of running 
+> multiple tests. 
+
+> Source: https://www.publichealth.columbia.edu/research/population-health-methods/false-discovery-rate
 
 #### **Question 13C**: [0.5 points]
 How many total genes were assessed for differential expression? (Use the `summary()` outputs from the loop.)
 
-> Your answer here.
+> The total number of genes assessed is 15,256.
+
+> Total = 12,177 (tested) + 35 (outliers) + 3,044 (low counts)
 
 #### **Question 13D**: [0.5 points]
 Which $log_2$-fold change (LFC) threshold yieled the most differentially expressed genes? The least? Why? Which LFC is the BEST choice to use? (Use the `summary()` outputs from the loop.)
 
 **NOTE**: Not all studies will use a LFC threshold. I have published studies in the past where I focused on only the FDR-adjusted $p$-value but didn't worry as much about magnitude. Can you think of a **biological reason** why we might not worry as much about magnitude as overall effect in a case like this? (**Hint**: If genes are only turned on or off briefly, there may not be enough time for a LOT of mRNA transcripts to be made! We also tend to think, erroneously, that large magnitude == "important", but there are many biological functions that just need a "sufficient" signal, they don't need to be flooded in it! Feel free to reach out if you want me to explain this more deeply.)
 
-> Your answer here.
+> The threshold that yielded the most differentially expressed genes was 0,
+> which yielded 208 total genes.
+
+> The thresholds that yielded the least were 1, 1.5, and 2.
+> All three only yielded a single gene.
+
+> As we raise the threshold, genes which express large changes are retained,
+> while genes that have more minor changes or expressions are not. 
+> This is why we see such a large drop off when we raise the threshold
+> above 0.
+
+> As hinted at, this approach can be misleading, as potentially important genes
+> may only appear briefly or make minor, yet important, changes.
+> Applying a LFC threshold can potentially filter out many of these genes,
+> which is exactly what we are seeing.
+> Therefore, it is likely best to stick with the 0 threshold. 
 
 #### **Question 14**: [1 point]
 Based on your answers to Question 13C-D, how many differentially expressed genes did we find with the __Wald test__?
 
-> Your answer here.
+> We found 208 differentially expressed genes.
+
+> 85 up + 123 down = 208
 
 #### **Question 15**: [1 point]
 Looking at the Verble et al. (2023) study, how do our results differ from their `DESeq2` results and why do you. think that might be? 
@@ -848,7 +885,17 @@ kable(
 #### **Question 16**: [1 point] 
 Look at the custom function I've written for generating the summary statistics. How is __low expression__ defined? What proportion of all reads had low expression? Does this seem high? Should we do any filtering to remove low-expression genes, do you think?
 
-> Your answer here.
+> Low expression is defined as having total read counts across all samples less than what you would expect if it had at least 10 reads in 90% of samples.
+
+> The proportion with low reads is 39.4%. 
+
+> It may be the case that this is somewhat high, as it is nearly 40% of the
+> genes which are considered low reads.
+> However, considering our context of studying genes under a chill coma,
+> this level of low reads could be significant information about how the
+> chill coma affects gene expression.
+> Therefore, we likely do not want to filter low expression genes
+> as they could provide useful information. 
 
 **Hint**: If it seems high, remember that the bumblebees were put into a __chill coma__ (which means their physiological processes might have shut down). In other words, the low expression might be a byproduct of the type of treatment that was applied and could be really interesting in and of itself. Conventional methods typically __remove lowly expressed genes__, but is that what we want to do here?
 
@@ -875,33 +922,46 @@ pheatmap(pwCorr,
 #### **Question 18**: [1 point] 
 From the heatmap, what do you notice about the arrangement of the treatments and time points (or lack thereof)? Do you see any important patterns that might explain why so few differentially expressed genes have been identified with `DESeq2`?
 
-> Your answer here.
+> The clustering appears to be somewhat strange in regards to treatments and time.
+> We frequently see cases where different (or same) treatment types of vastly
+> different time points are clustered together.
+> Then, a level or two up, they are clustered with similar time points of
+> the opposite treatment type. 
+> This odd arrangement could explain why so few differentially expressed genes 
+> have been identified.
+> Since gene expression does not seem to be strongly tied to treatment or time,
+> or are expressed at far apart time intervals, 
+> DESeq2 is finding few genes that are significantly differentially expressed.
 
 
 #### **Question 19**: [2 points] 
 Complete this code chunk to calculate the sample distances instead. You will use the `dist()` function, which calculates the Euclidean distance between samples but to do it you must first __transpose__ the matrix with the `t()` function. This is actually somewhat similar to what is happening in a k-means clustering algorithm. Does your assessment about the arrangement of the treatments and time points change any?
 
-> Your answer here.
+> Most samples appear to be rather far apart from each other. 
+> The clusters, while not exactly the same, still appear to follow
+> a similar pattern as described before. 
+
 
 **Hint**: Make sure to update your figure caption!
 ```{r, fig.width = 6, fig.height = 8.5, echo = TRUE}
 ## Calculate the sample distances; fill in the blank and take off the comment to run
-# sampleDistances <- dist(t(____)))     ## Hint: what did we do to extract a matrix from the VST object earlier?
+sampleDistances <- dist(t(assay(vsData)))    ## Hint: what did we do to extract a matrix from the VST object earlier?
 
 ## Make the heatmap of the sample distances; fill in any blanks and then take the comments off to run!
-# sampleDistMatrix <- as.matrix(sampleDistances)
+sampleDistMatrix <- as.matrix(sampleDistances)
 
 ## Let's label by treatment and time again
-# rownames(sampleDistMatrix) <- paste(vsData$Treatment, vsData$Time, sep="-" )
-# colnames(sampleDistMatrix) <- NULL
+rownames(sampleDistMatrix) <- paste(vsData$Treatment, vsData$Time, sep="-" )
+colnames(sampleDistMatrix) <- NULL
 
 ## Let's set a monochromatic color palette
-# colors <- colorRampPalette(rev(brewer.pal(9, "Purples")))(255)
+colors <- colorRampPalette(rev(brewer.pal(9, "Purples")))(255)
 
-# pheatmap(___,
-         # clustering_distance_rows = sampleDistances,
-         # clustering_distance_cols = sampleDistances,
-         # col = colors)
+pheatmap(sampleDistMatrix,
+         clustering_distance_rows = sampleDistances,
+         clustering_distance_cols = sampleDistances,
+         col = colors,
+         main = "Heatmap of Distances Between Samples")
 ```
 
 
@@ -948,12 +1008,21 @@ ggplot(pca, aes(PC1, PC2, color = Treatment, shape = Colony)) +
 #### **Question 20**: [1 point]
 What percent of the variance is attributable to PC1 and PC2? At which time point(s) do you see the most separation between the treatments? Is this consistent with what Verble et al. (2023) found?
 
-> Your answer here.
+> PC1 is attributed 39% of the variance.
+> PC2 is attributed 11% of the variance.
+
+> The 30m point appears to have the most separation between the treatments. 
+> FINISH HERE
 
 #### **Question 21**: [1 point]
 Think about what we discussed in lecture about Support Vector Machines. Do you see anything in these PCA plots that make you think that SVM might do a much better job of finding the decision boundary between the treatments than the negative binomial generalized linear regression model that `DESeq2` used? (**Hint**: If you can't "see" it, look at the slide from lecture about a non-monotonic decision boundary. Do you think it's possible that there is a non-monotonic boundary between the treatments here because of `Time`?)
 
-> Your answer here.
+> The plots do not demonstrate a clear linear separation between the treatments.
+> However, there is also not a clearly visual non-linear separation either.
+> Now, it may be the case that there is a non-monotonic decision boundary
+> due to the inclusion of time,
+> although it still does not appear overly visible even when looking across
+> the different time points. 
 
 
 ## 3.4 Volcano Plots
@@ -973,7 +1042,7 @@ Using your answer to [Question 13B](#q13b), set the $log_2$-fold threshold in th
 ## print(lfc_thresholds) ## Uncomment to view
 
 ## Change the number of the vector to update
-lfc <- lfc_thresholds[4]
+lfc <- lfc_thresholds[1] # Threshold of 0
 ```
 
 _The first step is to take the results and turn it into a dataframe containing the relevant information for plotting. This includes defining when genes will be up-regulated or down-regulated!_ 
@@ -1035,7 +1104,7 @@ __Interpret__ your version of the volcano plot using the $log_2$-fold change thr
 
 What happened to the dashed gold line in your plot vs. the one I made? (Refer back to the HTML document if needed). Why did this happen?
 
-> Your answer here.
+> Here, the difference is due to using a different threshold value. 
 
 
 \newpage
