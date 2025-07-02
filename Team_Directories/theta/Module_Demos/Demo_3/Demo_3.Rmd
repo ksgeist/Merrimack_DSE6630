@@ -1,8 +1,8 @@
 ---
 title: "Demo 3: Bioinformatics of Gene Expression"
 subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
-author: "Katherine S. Geist, PhD"
-date: "24 June 2025"
+author: "Gregory Andriotakis"
+date: "5 July 2025"
 output:
   html_document:
     toc: true
@@ -106,7 +106,15 @@ head(metadata)
 #### **Question 1**: [1 point] 
 Looking at the [original study]("https://drive.google.com/file/d/1X3z251hebpjBVdOXsQtYzDG-SaeCa6M1/view"), what method of RNA sequencing was performed? This is an unusual method of sequencing, and you will need to look it up. Can you explain, approximately, how it works? (Give your best attempt)
 
-> Your answer here.
+> The study utilized 3’ tag RNA sequencing. 
+> This method of sequencing is low cost and low noise.
+> The method works by only reading the 3' end of the gene, instead of the whole gene.
+> Only one read is produced per gene, giving you an actual count of the gene's
+> appearance in the sample.
+> This limited approach is what saves on cost and noise, as less data
+> is generated compared to other sequencing methods. 
+
+> Source: https://dnatech.ucdavis.edu/faqs/when-do-you-recommend-3-tag-rna-seq
 
 ## 1.3 Sequence Data Pre-processing
 
@@ -122,7 +130,11 @@ This means that what you have in front of you are **raw read counts** that have 
 #### **Question 2**: [1 point] 
 Look at the Methods of the [original study]("https://drive.google.com/file/d/1X3z251hebpjBVdOXsQtYzDG-SaeCa6M1/view"). Can you find what quality threshold was used to filter the reads? Do a quick search; does this appear standard?
 
-> Your answer here.
+> The study uses a Phred threshold of 15. 
+> This does not appear to be standard.
+> My outside research seems to suggest that 30+ is considered standard.
+
+> Source: https://www.zymoresearch.com/blogs/blog/what-are-phred-scores?srsltid=AfmBOopzkfXnN3Buh4Slps19tJUiQh-D4fJc_IAJhUNRsVq0ffnzBwHv
 
 
 ## 1.4 Reading in the Raw Read Counts
@@ -131,7 +143,16 @@ You will be working with the __raw count__ data as __CPM (read counts per millio
 
 #### **Question 3**: Explain CPM for someone who might not know what that means. You may need to do a little extra reading on the subject! Are read counts in CPM _adjusted_ or _unadjusted_?
 
-> Your answer here.
+> CPM is a method of normalizing sequence read counts. 
+> This is an adjusted read count.
+> We adjust the read count so that counts can be compared across samples.
+> It works by taking the raw number of reads for each gene,
+> dividing the number by the total number of reads in the sample,
+> and multiplying that number by a million. 
+> Ultimately, the CPM is interpreted as how many reads would be expected if
+> the sample had a million reads.
+
+> Source: https://bigomics.ch/blog/why-how-normalize-rna-seq-data/
 
 First, you read in the raw counts and get a sense of these data. Notice that, by this stage, the reads are simply stored in a comma-separated (`.csv`) file!
 
@@ -150,20 +171,26 @@ What does column `COOECK6` represent?
 
 **Hint**: Take a look at [Table S1](https://drive.google.com/file/d/1X3z251hebpjBVdOXsQtYzDG-SaeCa6M1/view) for more information!
 
-> Your answer here.
+> Column COOECK6 represents a specific sample. 
+> Here, the sample is from the Daisy colony, was used as a control, 
+> was sampled after 0 minutes,
+> and had a read count of 15768802. 
 
 #### **Question 4B**: [0.33 points] 
 Why is the `geneID` something like, 'LOC100740276'? What does that mean? 
 
 **Hint:** 'LOC' is shorthand for 'locus' in a genome! What's a 'locus'?
 
-> Your answer here.
+> A locus is a gene's physical location on a chromosome. 
+> Therefore, the geneID is specifying an identified region on the chromosome
+> where the gene it represents is. 
 
 
 #### **Question 4C**: [0.33 points] 
 For column `COOECK6`, gene 'LOC100740276' has a value of 6. What does that mean?
 
-> Your answer here.
+> A value of 6 means that the gene LOC100740276 was found 6 times in the
+> COOECK6 data.
 
 
 # 2 Conventional Method: Differential Expression (DE) Analysis using `DESeq2`
@@ -237,7 +264,9 @@ Which variable is the 'batch' variable in this analysis and why?
 
 **Hint**: Look at the design formula in the next code chunk!
 
-> Your answer here.
+> The batch variable in this analysis is Colony.
+> The variable is used to track different sample groups, which may have
+> individual differences outside of the time or treatment variability. 
 
 ### 2.2.1 The Design Formula 
 
@@ -275,12 +304,36 @@ str(dsgnObject)
 #### **Question 6**: [1 point] 
 In this course so far, you have been exposed to a number of different non-dataframe structures for data. Here's another one! Explore the `dsgnObject` with `str()` as above or another function of your choice. What differences do you notice about the structure of this object vs. a dataframe?
 
-> Your answer here.
+```{r}
+# Looking at documentation
+?DESeqDataSetFromMatrix
+```
+
+
+
+> This object is a DESeqDataSet object.
+> It is specifically designed for storing data for an analysis of
+> differential expression.
+> Unlike a dataframe, the data does not appear to be stored in a tabular
+> format.
+> Instead, data storage is split into four main groups.
+> These groups are assays, rowData, colData, and metadata. 
+> Assays appear to contain count data.
+> rowData appears to store information on our genes.
+> colData appears to store information on our samples.
+> Metadata is self evident in its nature, although its contents are not
+> easily understood from this output. 
 
 Now write code to extract a dataframe of read counts from the design object `dsgnObject`. You will need to leverage the `assay()` function from `DESeq2` to do this! Show the `head()` of this dataframe only as proof you could extract it.
 
 ```{r}
-## Your code here.
+# Extracting read counts into a dataframe
+
+counts_matrix <- assay(dsgnObject)
+counts_df <- as.data.frame(counts_matrix)
+
+# Verify success 
+head(counts_df)
 ```
 
 
@@ -305,64 +358,65 @@ runVST <- function(dsgnObject,
                    writeTable = FALSE, 
                    writeRData = FALSE) {
   ############################################
-  ## YOUR COMMENT HERE - include a usage statement
-  ## dsgnObject = ...
-  ## blind = ...
-  ## fitType = ...
-  ## makePlot = ...
-  ## writeTable = ...
-  ## writeRData = ...
+  ## This function performs variance stabilizing transformation on raw read counts. 
+  ## dsgnObject = A DESeqDataSet object containing raw read counts. 
+  ## blind = If design is ignored during transformation. 
+  ## fitType = The type of transformation.
+  ## makePlot = If a plot is generated to demonstrate before and after transformation.
+  ## writeTable = If a table is written to file post transformation. 
+  ## writeRData = If the data is written to an RData file post transformation.
   ############################################
   
-  ## YOUR COMMENT HERE
-  ## Make sure to address why we are checking for fitType to equal rlog!
+  ## Define transformation based on fitType
+  ## rlog() is a different function than varianceStabilizingTransformation(),
+  ## so we need to check for it to know which function to use. 
   if(fitType == "rlog") {
-    ## YOUR COMMENT HERE
+    ## Apply rlog transformation to read counts
     vsData <- rlog(dsgnObject, blind = blind)
   }
-  ## YOUR COMMENT HERE
+  ## If fitType does not equal rlog, use varianceStabilizingTransformation()
   else {
-    ## YOUR COMMENT HERE
+    ## Apply VST transformation to read counts
     vsData <- varianceStabilizingTransformation(dsgnObject, 
                                               blind = blind, 
                                               fitType = fitType)
   }
   
-  ## YOUR COMMENT HERE
+  ## If makePlot equals TRUE, generate plots to visualize transformation
   if(makePlot == TRUE) {
-    ## YOUR COMMENT HERE
+    ## Plot mean-SD relationship pre-transformation
     ## Hint: meandSDPlot() helps us see the effect of the VS transform
     p1 <- meanSdPlot(assay(dsgnObject), plot = F)
-    ## YOUR COMMENT HERE
+    ## Customize the plot
     p1 <- p1$gg + ggtitle("Before Variance Stabilization") + 
       scale_fill_gradient(low = skittles[1], high = skittles[2]) + 
       theme_bw() + theme(legend.position = "bottom")
     
-    ## YOUR COMMENT HERE
+    ## Plot mean-SD relationship post-transformation
     p2 <- meanSdPlot(assay(vsData), plot = F)
-    ## YOUR COMMENT HERE
+    ## Customize the plot
     p2 <- p2$gg + ggtitle("After Variance Stabilization") + 
       scale_fill_gradient(low = skittles[1], high = skittles[2]) + 
       theme_bw() + theme(legend.position = "bottom")
-    ## YOUR COMMENT HERE
+    ## Side-by-side plot comparison
     grid.arrange(p1, p2, nrow=1)
   }
   
-  ## YOUR COMMENT HERE
+  ## If writeTable equals TRUE, write transformed data as a text file
   if(writeTable == TRUE) {
     
-    ## YOUR COMMENT HERE - make sure to mention the output format!
+    ## Write assay matrix to "vst.txt" as tab-delimited file with no quotes and row names included
     write.table(assay(vsData),
               file = "vst.txt",
               sep="\t", 
               quote=F, 
               row.names=T)
   }
-  ## YOUR COMMENT HERE
+  ## If writeRData equals TRUE, write transformed data as a RData file
   if(writeRData == TRUE) {
     save(vsData, file="vst_all_timepoints.Rdata")
   }
-  ## YOUR COMMENT HERE - what is being returned?
+  ## Return transformed data object
   return(vsData)
 }
 ```
@@ -370,7 +424,12 @@ runVST <- function(dsgnObject,
 #### **Question 7B**: [1 point] 
 Why do we bother writing wrapper functions? What's the purpose and how can they make our lives easier? 
 
-> Your answer here.
+> Wrapper functions allow us to write code once that can be used again in 
+> similar but different cases.
+> Instead of writing code specific to our dataset, the wrapper function is 
+> capable of taking any DESeqDataSet and applying the specified transformation
+> to the data.
+> Therefore, the wrapper function can be saved and used in future projects. 
 
 
 Now, **run the function**! Note that here you will run a __parametric transformation__ with `blind = FALSE` because you do not want the transformations to be blind to the experimental design (treatment) at this stage; in fact, you expect large differential expression in some genes! Thus, to control for outliers you will want to set `blind = FALSE`.
@@ -389,7 +448,11 @@ runVST(dsgnObject,
 #### **Question 8**: [1 point]
 What do you notice about the plot on the left (the `dsgnObject` without any transformation) vs. the plot on the right after the variance stabilizing transform? Is the VST effective at stabilizing the variance and, if so, how can you tell?
 
-> Your answer here.
+> The plot on the left seems to be rather flat with a flat trend.
+> The plot on the right demonstrates more of a "cloud" of points.
+> The trend line increases in the beginning, then somewhat stabilizes.
+> Such a pattern on the right plot might suggest that the VST did not
+> fully stabilize the variance. 
 
 ### 2.3.1 Digging deeper: Estimating gene-wise dispersion
 
@@ -420,7 +483,10 @@ abline(lm(log(varCounts+0.0001) ~ log((meanCounts+0.0001))),
 #### **Question 10**: [1 point]
 Does this plot support that a VST is (1) needed, (2) not needed, or (3) likely to be ineffective? Please explain.
 
-> Your answer here.
+> The data follows a roughly linear pattern. 
+> While not incredibly apparent, one might argue that it does also demonstrate
+> a more "fanned out" pattern at lower means and a tighter pattern at higher. 
+> Therefore, it is likely that a VST is needed. 
 
 
 ### Other VST Functions 
@@ -437,16 +503,44 @@ Other functions you could try:
 
 Use the custom `runVST()` function, changing out the `fitType` parameter to do some tuning. Heuristically (i.e., assessing just from the visuals you have), which `fitType` seems to be most appropriate here?
 
-> Your answer here.
+> Overall, rlog appears to best transform the data. 
+> local was rather comparable to parametric,
+> and mean created a rather strange trend that did not indicate effectiveness. 
+> The rlog transformation resulted in the most linear trend line. 
 
 ```{r}
-## Your code here.
+## local
+
+runVST(dsgnObject, 
+       blind = FALSE, 
+       fitType = "local", 
+       makePlot = TRUE, 
+       writeTable = FALSE, 
+       writeRData = FALSE)
 ```
 
-**FINALLY**, don't forget to `runVST()` with the `fitType` parameter of your choice! 
+```{r}
+# mean
+
+runVST(dsgnObject, 
+       blind = FALSE, 
+       fitType = "mean", 
+       makePlot = TRUE, 
+       writeTable = FALSE, 
+       writeRData = FALSE)
+```
+
+**FINALLY**, don't forget to `runVST()` with the `fitType` parameter of your choice!
 
 ```{r}
-## Your code here.
+# rlog
+
+runVST(dsgnObject, 
+       blind = FALSE, 
+       fitType = "rlog", 
+       makePlot = TRUE, 
+       writeTable = FALSE, 
+       writeRData = FALSE)
 ```
 
 
@@ -512,11 +606,19 @@ Suppose that Gene A has a $log_2$-fold change of -4 in the chill-coma bumblebees
 
 Use the information in the cheatsheet (or calculate it directly) to find the approximate multiplicate factor in gene expression change in the chill coma bees versus the control bees.
 
-> Your answer here.
+> Since we have a negative log_2-fold change, we are dealing with a down regulation.
+> Therefore, the magnitude on the linear scale would be
+> 2^−4 = 1/16 = 0.0625.
+> In other words, gene expression is reduced by a factor of 16 in the chill
+> coma bees versus the control bees. 
 
 If a second gene, Gene B, shows a $log_2$-fold change of +3, how does the direction and magnitude of Gene B's expression change compared to Gene A in chill coma vs. control bumblebees?
 
-> Your answer here.
+> Gene B has a positive log_2-fold change.
+> This means that unlike Gene A, where the gene expression decreases in
+> chill coma vs control bees, Gene B increases in chill coma vs control bees.
+> Specifically (by looking at the table), we can say that expression of Gene B
+> is increased by a factor of 8 in the chill coma bees versus the control bees. 
 
 
 ### 2.4.2 Wald Tests for significant differential expression between conditions
@@ -579,7 +681,10 @@ ggplot(normalized_counts_long,
 #### **Question 13A**: [0.5 points]
 How well did the scaling do that I chose? Make sure to look at it across not only all samples but also whether those samples are from the Control vs. the cold-exposed Treatment groups. Are you concerned about any of the samples specifically? Why or why not?
 
-> Your answer here.
+> Overall, we see that scaling roughly brought each sample into line.
+> All of the boxes nearly share the same median, with only slight
+> variations. 
+> ADD HERE
 
 #### 2.4.2.3 Let's FINALLY call significantly DE genes!
 We will finally loop through a set of LFC values and perform Wald tests to see which genes are significantly differentially expressed between the treatment groups using tha FDR-adjusted $p$-value of 0.05. **NOTE**: Be patient, this could take up to a minute to run on your machine.
@@ -620,24 +725,58 @@ for (lfc in lfc_thresholds) {
 #### **Question 13B**: [0.5 points] {#q13b}
 You know what a p-value is but you may not be familiar with an __adjusted p-value__. What is it? Specifically, what's a __False Discovery Rate (FDR)__? In general, why would you choose to use an FDR over a p-value? Is this more broadly applicable in data science outside bioinformatics, do you think?
 
-> Your answer here.
+> An adjusted p-value is a statistically modified p-value to account for
+> multiple simultaneous tests.
+
+> A False Discovery Rate (FDR) is a metric that looks at the proportion of
+> discoveries that are false positives.
+
+> We would choose an FDR over a p-value when running multiple tests,
+> as the p-value is only designed to account for false positives in a single
+> test. 
+
+> The application of a FDR would most definately be valid in data science
+> outside of bioinformatics.
+> As previously stated, it would be applicable in the case of running 
+> multiple tests. 
+
+> Source: https://www.publichealth.columbia.edu/research/population-health-methods/false-discovery-rate
 
 #### **Question 13C**: [0.5 points]
 How many total genes were assessed for differential expression? (Use the `summary()` outputs from the loop.)
 
-> Your answer here.
+> The total number of genes assessed is 15,256.
+
+> Total = 12,177 (tested) + 35 (outliers) + 3,044 (low counts)
 
 #### **Question 13D**: [0.5 points]
 Which $log_2$-fold change (LFC) threshold yieled the most differentially expressed genes? The least? Why? Which LFC is the BEST choice to use? (Use the `summary()` outputs from the loop.)
 
 **NOTE**: Not all studies will use a LFC threshold. I have published studies in the past where I focused on only the FDR-adjusted $p$-value but didn't worry as much about magnitude. Can you think of a **biological reason** why we might not worry as much about magnitude as overall effect in a case like this? (**Hint**: If genes are only turned on or off briefly, there may not be enough time for a LOT of mRNA transcripts to be made! We also tend to think, erroneously, that large magnitude == "important", but there are many biological functions that just need a "sufficient" signal, they don't need to be flooded in it! Feel free to reach out if you want me to explain this more deeply.)
 
-> Your answer here.
+> The threshold that yielded the most differentially expressed genes was 0,
+> which yielded 208 total genes.
+
+> The thresholds that yielded the least were 1, 1.5, and 2.
+> All three only yielded a single gene.
+
+> As we raise the threshold, genes which express large changes are retained,
+> while genes that have more minor changes or expressions are not. 
+> This is why we see such a large drop off when we raise the threshold
+> above 0.
+
+> As hinted at, this approach can be misleading, as potentially important genes
+> may only appear briefly or make minor, yet important, changes.
+> Applying a LFC threshold can potentially filter out many of these genes,
+> which is exactly what we are seeing.
+> Therefore, it is likely best to stick with the 0 threshold. 
 
 #### **Question 14**: [1 point]
 Based on your answers to Question 13C-D, how many differentially expressed genes did we find with the __Wald test__?
 
-> Your answer here.
+> We found 208 differentially expressed genes.
+
+> 85 up + 123 down = 208
 
 #### **Question 15**: [1 point]
 Looking at the Verble et al. (2023) study, how do our results differ from their `DESeq2` results and why do you. think that might be? 
@@ -746,7 +885,17 @@ kable(
 #### **Question 16**: [1 point] 
 Look at the custom function I've written for generating the summary statistics. How is __low expression__ defined? What proportion of all reads had low expression? Does this seem high? Should we do any filtering to remove low-expression genes, do you think?
 
-> Your answer here.
+> Low expression is defined as having total read counts across all samples less than what you would expect if it had at least 10 reads in 90% of samples.
+
+> The proportion with low reads is 39.4%. 
+
+> It may be the case that this is somewhat high, as it is nearly 40% of the
+> genes which are considered low reads.
+> However, considering our context of studying genes under a chill coma,
+> this level of low reads could be significant information about how the
+> chill coma affects gene expression.
+> Therefore, we likely do not want to filter low expression genes
+> as they could provide useful information. 
 
 **Hint**: If it seems high, remember that the bumblebees were put into a __chill coma__ (which means their physiological processes might have shut down). In other words, the low expression might be a byproduct of the type of treatment that was applied and could be really interesting in and of itself. Conventional methods typically __remove lowly expressed genes__, but is that what we want to do here?
 
@@ -773,33 +922,46 @@ pheatmap(pwCorr,
 #### **Question 18**: [1 point] 
 From the heatmap, what do you notice about the arrangement of the treatments and time points (or lack thereof)? Do you see any important patterns that might explain why so few differentially expressed genes have been identified with `DESeq2`?
 
-> Your answer here.
+> The clustering appears to be somewhat strange in regards to treatments and time.
+> We frequently see cases where different (or same) treatment types of vastly
+> different time points are clustered together.
+> Then, a level or two up, they are clustered with similar time points of
+> the opposite treatment type. 
+> This odd arrangement could explain why so few differentially expressed genes 
+> have been identified.
+> Since gene expression does not seem to be strongly tied to treatment or time,
+> or are expressed at far apart time intervals, 
+> DESeq2 is finding few genes that are significantly differentially expressed.
 
 
 #### **Question 19**: [2 points] 
 Complete this code chunk to calculate the sample distances instead. You will use the `dist()` function, which calculates the Euclidean distance between samples but to do it you must first __transpose__ the matrix with the `t()` function. This is actually somewhat similar to what is happening in a k-means clustering algorithm. Does your assessment about the arrangement of the treatments and time points change any?
 
-> Your answer here.
+> Most samples appear to be rather far apart from each other. 
+> The clusters, while not exactly the same, still appear to follow
+> a similar pattern as described before. 
+
 
 **Hint**: Make sure to update your figure caption!
 ```{r, fig.width = 6, fig.height = 8.5, echo = TRUE}
 ## Calculate the sample distances; fill in the blank and take off the comment to run
-# sampleDistances <- dist(t(____)))     ## Hint: what did we do to extract a matrix from the VST object earlier?
+sampleDistances <- dist(t(assay(vsData)))    ## Hint: what did we do to extract a matrix from the VST object earlier?
 
 ## Make the heatmap of the sample distances; fill in any blanks and then take the comments off to run!
-# sampleDistMatrix <- as.matrix(sampleDistances)
+sampleDistMatrix <- as.matrix(sampleDistances)
 
 ## Let's label by treatment and time again
-# rownames(sampleDistMatrix) <- paste(vsData$Treatment, vsData$Time, sep="-" )
-# colnames(sampleDistMatrix) <- NULL
+rownames(sampleDistMatrix) <- paste(vsData$Treatment, vsData$Time, sep="-" )
+colnames(sampleDistMatrix) <- NULL
 
 ## Let's set a monochromatic color palette
-# colors <- colorRampPalette(rev(brewer.pal(9, "Purples")))(255)
+colors <- colorRampPalette(rev(brewer.pal(9, "Purples")))(255)
 
-# pheatmap(___,
-         # clustering_distance_rows = sampleDistances,
-         # clustering_distance_cols = sampleDistances,
-         # col = colors)
+pheatmap(sampleDistMatrix,
+         clustering_distance_rows = sampleDistances,
+         clustering_distance_cols = sampleDistances,
+         col = colors,
+         main = "Heatmap of Distances Between Samples")
 ```
 
 
@@ -846,12 +1008,21 @@ ggplot(pca, aes(PC1, PC2, color = Treatment, shape = Colony)) +
 #### **Question 20**: [1 point]
 What percent of the variance is attributable to PC1 and PC2? At which time point(s) do you see the most separation between the treatments? Is this consistent with what Verble et al. (2023) found?
 
-> Your answer here.
+> PC1 is attributed 39% of the variance.
+> PC2 is attributed 11% of the variance.
+
+> The 30m point appears to have the most separation between the treatments. 
+> FINISH HERE
 
 #### **Question 21**: [1 point]
 Think about what we discussed in lecture about Support Vector Machines. Do you see anything in these PCA plots that make you think that SVM might do a much better job of finding the decision boundary between the treatments than the negative binomial generalized linear regression model that `DESeq2` used? (**Hint**: If you can't "see" it, look at the slide from lecture about a non-monotonic decision boundary. Do you think it's possible that there is a non-monotonic boundary between the treatments here because of `Time`?)
 
-> Your answer here.
+> The plots do not demonstrate a clear linear separation between the treatments.
+> However, there is also not a clearly visual non-linear separation either.
+> Now, it may be the case that there is a non-monotonic decision boundary
+> due to the inclusion of time,
+> although it still does not appear overly visible even when looking across
+> the different time points. 
 
 
 ## 3.4 Volcano Plots
@@ -871,7 +1042,7 @@ Using your answer to [Question 13B](#q13b), set the $log_2$-fold threshold in th
 ## print(lfc_thresholds) ## Uncomment to view
 
 ## Change the number of the vector to update
-lfc <- lfc_thresholds[4]
+lfc <- lfc_thresholds[1] # Threshold of 0
 ```
 
 _The first step is to take the results and turn it into a dataframe containing the relevant information for plotting. This includes defining when genes will be up-regulated or down-regulated!_ 
@@ -933,7 +1104,7 @@ __Interpret__ your version of the volcano plot using the $log_2$-fold change thr
 
 What happened to the dashed gold line in your plot vs. the one I made? (Refer back to the HTML document if needed). Why did this happen?
 
-> Your answer here.
+> Here, the difference is due to using a different threshold value. 
 
 
 \newpage
