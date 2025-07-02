@@ -1,8 +1,8 @@
 ---
 title: "Demo 3: Bioinformatics of Gene Expression"
 subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
-author: "Alourdes Joseph, June Lemieux, Melissa Nooney"
-date: "24 June 2025"
+author: "Team Sigma: Alourdes Joseph, June Lemieux, Melissa Nooney"
+date: "`r Sys.Date()`"
 output:
   html_document:
     toc: true
@@ -473,6 +473,7 @@ runVST(dsgnObject,
        makePlot = TRUE, 
        writeTable = FALSE, 
        writeRData = FALSE)
+
 ```
 
 **FINALLY**, don't forget to `runVST()` with the `fitType` parameter of your choice! 
@@ -684,7 +685,7 @@ Looking at the Verble et al. (2023) study, how do our results differ from their 
 **Hint 1**: What is different about our __design formula__ versus what they describe verbally? 
 **Hint 2**: Look at what we did with `Time`!
 
-> Your answer here.
+> (JML) Our design formula uses Colony + Time + Treatment, but the study identifies their best DESeq2 design formula as Treatment Only (thus dropping Time completely from the analysis)
 
 # 3 Exploratory Data Analysis
 
@@ -785,7 +786,7 @@ kable(
 #### **Question 16**: [1 point] 
 Look at the custom function I've written for generating the summary statistics. How is __low expression__ defined? What proportion of all reads had low expression? Does this seem high? Should we do any filtering to remove low-expression genes, do you think?
 
-> Your answer here.
+> (JML)To me, yes, the 39% of all reads having low expression does seem high. However, the suggestion that low expression might be a byproduct of the treatment seems to be reasonable to me, so I don't think removing them would be a good idea.
 
 **Hint**: If it seems high, remember that the bumblebees were put into a __chill coma__ (which means their physiological processes might have shut down). In other words, the low expression might be a byproduct of the type of treatment that was applied and could be really interesting in and of itself. Conventional methods typically __remove lowly expressed genes__, but is that what we want to do here?
 
@@ -812,33 +813,33 @@ pheatmap(pwCorr,
 #### **Question 18**: [1 point] 
 From the heatmap, what do you notice about the arrangement of the treatments and time points (or lack thereof)? Do you see any important patterns that might explain why so few differentially expressed genes have been identified with `DESeq2`?
 
-> Your answer here.
+> (JML) I believe that the heatmap is showing a great deal of collinearity. I struggle to find patterns that hint at being able to easily separate one feature from another. To me, that is why there are so few differentially expressed genes.
 
 
 #### **Question 19**: [2 points] 
 Complete this code chunk to calculate the sample distances instead. You will use the `dist()` function, which calculates the Euclidean distance between samples but to do it you must first __transpose__ the matrix with the `t()` function. This is actually somewhat similar to what is happening in a k-means clustering algorithm. Does your assessment about the arrangement of the treatments and time points change any?
 
-> Your answer here.
+> (JML) This plot seems to reduce some of the collinearity between variables, and it is a bit easier to see some patterns than in the Q18 plot. 
 
 **Hint**: Make sure to update your figure caption!
 ```{r, fig.width = 6, fig.height = 8.5, echo = TRUE}
 ## Calculate the sample distances; fill in the blank and take off the comment to run
-# sampleDistances <- dist(t(____)))     ## Hint: what did we do to extract a matrix from the VST object earlier?
+sampleDistances <- dist(t(pwCorr))     ## Hint: what did we do to extract a matrix from the VST object earlier?
 
 ## Make the heatmap of the sample distances; fill in any blanks and then take the comments off to run!
-# sampleDistMatrix <- as.matrix(sampleDistances)
+sampleDistMatrix <- as.matrix(sampleDistances)
 
 ## Let's label by treatment and time again
-# rownames(sampleDistMatrix) <- paste(vsData$Treatment, vsData$Time, sep="-" )
-# colnames(sampleDistMatrix) <- NULL
+rownames(sampleDistMatrix) <- paste(vsData$Treatment, vsData$Time, sep="-" )
+colnames(sampleDistMatrix) <- NULL
 
 ## Let's set a monochromatic color palette
-# colors <- colorRampPalette(rev(brewer.pal(9, "Purples")))(255)
+colors <- colorRampPalette(rev(brewer.pal(9, "Purples")))(255)
 
-# pheatmap(___,
-         # clustering_distance_rows = sampleDistances,
-         # clustering_distance_cols = sampleDistances,
-         # col = colors)
+pheatmap(sampleDistMatrix,
+         clustering_distance_rows = sampleDistances,
+         clustering_distance_cols = sampleDistances,
+         col = colors)
 ```
 
 
@@ -885,12 +886,12 @@ ggplot(pca, aes(PC1, PC2, color = Treatment, shape = Colony)) +
 #### **Question 20**: [1 point]
 What percent of the variance is attributable to PC1 and PC2? At which time point(s) do you see the most separation between the treatments? Is this consistent with what Verble et al. (2023) found?
 
-> Your answer here.
+> (JML) The percent variance attributable to PC1 and PC2 is 50%. I see the most separation between treatments at 30 minutes. My understanding of the discussion in the Verble paper indicates that the separation would occur at 10 minutes, but I admit I'm not completely understanding all the terminology in the paper.
 
 #### **Question 21**: [1 point]
 Think about what we discussed in lecture about Support Vector Machines. Do you see anything in these PCA plots that make you think that SVM might do a much better job of finding the decision boundary between the treatments than the negative binomial generalized linear regression model that `DESeq2` used? (**Hint**: If you can't "see" it, look at the slide from lecture about a non-monotonic decision boundary. Do you think it's possible that there is a non-monotonic boundary between the treatments here because of `Time`?)
 
-> Your answer here.
+> (JML) Yes, I think that SVM could provide better information than the PCA and the negative binomial glm because 1) there is a high number of variables in this data, and 2) there doesn't appear to be a clear, linear relationship between time and treatment. 
 
 
 ## 3.4 Volcano Plots
@@ -910,7 +911,7 @@ Using your answer to [Question 13B](#q13b), set the $log_2$-fold threshold in th
 ## print(lfc_thresholds) ## Uncomment to view
 
 ## Change the number of the vector to update
-lfc <- lfc_thresholds[4]
+lfc <- lfc_thresholds[1]
 ```
 
 _The first step is to take the results and turn it into a dataframe containing the relevant information for plotting. This includes defining when genes will be up-regulated or down-regulated!_ 
@@ -968,11 +969,11 @@ On the above volcano plot, the y-axis is the $-log_{10}$ $p$-value and the x-axi
 #### **Question 23B**: [1.5 points] 
 __Interpret__ your version of the volcano plot using the $log_2$-fold change threshold from Question 23A. Does the same gene `LOC100742138` appear to be significantly differentially expressed (and up-regulated) regardless of which LFC threshold you choose? (If you're not sure, look for it in the `volcano` dataframe!). Why is this?
 
-> Your answer here.
+> (JML) In Q13B, I selected LFC threshold of 0.0, so the index used in the volcano plot is 1. The gene `LOC100742138` does not appear to be significantly differentially expressed in LFC threshold of 1.
 
 What happened to the dashed gold line in your plot vs. the one I made? (Refer back to the HTML document if needed). Why did this happen?
 
-> Your answer here.
+> (JML) If I'm understanding this properly, when the log2-fold change is 2, the LFC threshold is also 2, so the gold lines in Figure 8 are drawn at +/-2. For our LFC threshold of 0, there would only be one line at the 0 log2-fold mark.
 
 
 \newpage
@@ -1100,7 +1101,7 @@ dim(test)
 #### **Question 24A**: [0.5 points] 
 How many samples (observations) are in the training and testing data sets? How many features (genes) are there? What is the ratio of predictors (genes) to samples?
 
-> Your answer here.
+> (JML) There are 14 observations in the testing data set and 60 in the training data set. There are 12927 genes. The ratio of predictors to samples is 12927:74 (~175:1)
 
 ```{r}
 ## Your optional code here.
@@ -1110,12 +1111,12 @@ How many samples (observations) are in the training and testing data sets? How m
 #### **Question 24B**: [0.5 points] 
 Remember, we used `caret`'s `createDataPartition()` Using Figure 9, do you notice anything concerning about the training split? What about the testing split? Does adjusting the split seem to make it better, worse, or stay the same? **Make sure to change it back after you are finished playing with it.**
 
-> Your answer here.
+> (JML) I noticed that the assignment of treatments within each time range in the testing data set is not as diverse as the assignment within the training data set. When I changed the ratio to 70:30, I saw a mild improvement. When I changed the ratio to 60:40, the diversity was even better. 
 
 #### **Question 24C**: [1 point] 
 What are the predictors in the training and testing sets? Can you guess what the target will be? (**Hint**: This will be a _classification_ problem!). If you're still not sure, think about what you think the roles of `Treatment`, `Time` and `Colony` will be in the model.
 
-> Your answer here.
+> (JML) The predictors in the training & testing sets are the genes. To me, the target is identifying whether the genes are significantly differentially expressed or not, if the goal is a binary classification. I think that Treatment, Time, and Colony could be used to identify important features.
 
 ### 4.1.4 Fitting an OOB Random Forest model
 
@@ -1141,7 +1142,7 @@ The confusion matrix gives you the OOB classification error of the cold-exposed 
 #### **Question 24D**: [1 point] 
 How did the model perform? Where is the classification error highest? Does this suggestion a problem with separating the `Cold` class from the `Control` class or not?
 
-> Your answer here.
+> (JML) The model accurately predicted the classification approx 62% of the time, being able to predict the Control classification much less frequently than the Cold classification (50% vs ~72%, respectively). However, I'm not sure if this means that there is a problem separating Cold and Control classifications. The model seems to predict the Cold classification pretty well?
 
 You can also plot the results of the OOB RF to assess how well the classes are separated. 
 
@@ -1155,7 +1156,7 @@ plot(rfOOB,
 #### **Question 24E**: [1 point]
 Based on Figure 10, did the OOB RF manage to find complete separation between cold-exposed and control treatments? If yes, approximately how many trees (tree depth) are needed to sufficiently distinguish the `Cold` and `Control` treatment classes? Does this suggest that using 500 trees will significantly improve the model, why or why not?
 
-> Your answer here.
+> (JML) Yes, I think the OOB RF did manage to find the separation, and I think the separation began at approx 75 trees. I do not think that using 500 trees would significantly improve the model because 1) no improved differentiation was visible, 2) overfitting would become an increasing risk, and 3) there would be wasted computation time.
 
 ### 4.1.5 Assessing training vs. testing accuracy
 
@@ -1178,7 +1179,7 @@ data.frame(overall) %>% kable(
 #### **Question 24F**: [0.5 points]
 Look at the results of the training error. What is the accuracy and is this concerning or a good sign?
 
-> Your answer here.
+> (JML) The Accuracy = 100%. I'd be very skeptical of these results because we've achieved perfect predictability against the training data, which makes me wonder if we will see overfitting when we look at the testing data set results.
 
 Now, look at the results of the training set when tested against the test set (a.k.a., __test error__ from which we derive **model accuracy**):
 ```{r}
@@ -1199,7 +1200,7 @@ data.frame(overall) %>% kable(
 #### **Question 24G**: [1.5 points]
 Take a look at the test accuracy. It's only 42.9%! This means it is performing WORSE than random guessing (50%). Take a closer look at **Cohen's Kappa** and the **McNemar's Test**. What do these tests do and what do the results tell you? Do you have any ideas why this may have occurred? (**Hint**: What does the high training accuracy tell us relative to the testing accuracy?)
 
-> Your answer here.
+> (JML) The Kappa value of .571 indicates a moderate agreement between Control and Cold predictions beyond chance. The McNemar test value of .248 suggests that the errors could be significant. The overall accuracy of model against the testing dataset is not very good. This could suggest that the model was overfit.
 
 ### 4.1.6 Extracting Important Genes from an OOB Random Forest model
 
@@ -1226,10 +1227,32 @@ Write code that will compare the resulting important genes from the RF (**Hint**
 
 **Hint 4**: You may find it helpful to turn `importantRF` into a dataframe first; note that the genes are in the _rownames_. 
 
-> Your answer here.
+> (JML) I'm taking a stab at this answer, but I'm not sure I've done this properly. For the RF, I took importantRF with MeanDecreaseGini > 0. For the res, I used similar code to how the volcano dataframe was created. Then, I created vectors of the rownames (gene names) and then identified the intersection of the two. This resulted in 114 common genes - I think this might have an error though. There should only be 9.
 
 ```{r}
-## Your code here.
+#using a test lfc value; this didn't seem to make a difference though :(
+lfcx = 4
+
+# for Gini
+rfOOBdf <- importantRF %>% 
+  as.data.frame() %>% 
+  filter(MeanDecreaseGini > 0) 
+
+rfOOBvector <- rownames(rfOOBdf)
+
+# for DEG
+resdf <- res %>%
+  as.data.frame() %>%
+  mutate(DEG = ifelse(log2FoldChange > lfcx & padj < 0.05, "Up-regulated",
+              ifelse(log2FoldChange < lfcx & padj < 0.05, "Down-regulated", "N.S."))) %>%
+  drop_na %>%
+  filter(DEG != "N.S.")
+
+resdfvector <- rownames(resdf)
+
+# to compare
+same_between_both <- intersect(resdfvector, rfOOBvector)
+print(same_between_both)
 ```
 
 
@@ -1247,8 +1270,37 @@ Show that your function works for a LFC cutoff of 1 and the same important genes
 
 **Hint**: I get 9 total overlapping genes when I do this!
 
+> (JML) I made this function based on my attempt on Q25, which doesn't yield the correct results. If the code on Q25 does get changed, we'll need to update this function code as well.
+
+
 ```{r}
-## Your code here.
+# (JML)
+compare_gene_vectors <- function(lfc_input, pval_input, rf_input) {
+# for Gini
+  rfOOBdf <- rf_input %>% 
+    as.data.frame() %>% 
+    filter(MeanDecreaseGini > 0) 
+
+  rfOOBvector <- rownames(rfOOBdf)
+  
+  # for DEG
+  resdf <- res %>%
+    as.data.frame() %>%
+    mutate(DEG = ifelse(log2FoldChange > lfc_input & padj < pval_input, "Up-regulated",
+                        ifelse(log2FoldChange < lfc_input & padj < pval_input, "Down-regulated", "N.S."))) %>%
+    drop_na %>%
+    filter(DEG != "N.S.")
+  
+  resdfvector <- rownames(resdf)
+  
+  # to compare
+  same_between_both <- intersect(resdfvector, rfOOBvector)
+  print(same_between_both)
+}
+
+# test me
+intersecting_genes <- compare_gene_vectors(1, 0.05, importantRF)
+print(intersecting_genes)
 ```
 
 
