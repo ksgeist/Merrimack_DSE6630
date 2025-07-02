@@ -33,7 +33,9 @@ set.seed(98501)
 pacman::p_unload(pacman::p_loaded(), character.only = TRUE)
 rm(list = ls(all = TRUE))
 
-pacman::p_load(tidyverse, 
+pacman::p_load(tidyverse,
+               readr,
+               dplyr,
                ggplot2, 
                kableExtra,
                pheatmap,
@@ -78,8 +80,6 @@ __Metadata__ refer to information about sequencing files that describe the sampl
 
 ```{r, echo=FALSE}
 # Load the metadata files
-library(dplyr)
-library(readr)
 metadata <- read_csv("./23524047/Complete_sampleinfo.csv",
                      show_col_types = FALSE) %>% 
             as.data.frame() %>% 
@@ -156,7 +156,11 @@ You will be working with the __raw count__ data as __CPM (read counts per millio
 
 #### **Question 3**: Explain CPM for someone who might not know what that means. You may need to do a little extra reading on the subject! Are read counts in CPM _adjusted_ or _unadjusted_?
 
-> Your answer here.
+> Your answer here. By Collins
+Read Counts Per Million (CPM) is a way to normalize the number of RNA sequencing reads that map to a particular gene or feature. It takes into account the total number of reads in a sample, allowing for fair comparisons between samples with different sequencing depths. In layman's language: Imagine you are accounting the number of books sold in two different stores.
+>Store A sells 100 books out of 10,000 total books sold, while store B sells 100 books out of 1,000 total books sold. To compare the popularity of the books, you will need to normalize the numbers maybe by percentage. CPM, does this by scalling the counts to a common unit "Per Million"
+
+>In Bumble Bee project, our CPM was adjusted. DESeq2 was used for differential expression analysis from the transcript counts matrix, and it estimates size factors while accounting for differences in sequencing depth. This implies that the data was normalized to account for variations in sequencing depths across samples, which is equavalent to adjusting CPM.
 
 First, you read in the raw counts and get a sense of these data. Notice that, by this stage, the reads are simply stored in a comma-separated (`.csv`) file!
 
@@ -175,20 +179,27 @@ What does column `COOECK6` represent?
 
 **Hint**: Take a look at [Table S1](https://drive.google.com/file/d/1X3z251hebpjBVdOXsQtYzDG-SaeCa6M1/view) for more information!
 
-> Your answer here.
+> Your answer here. By Collins
+The column `COOECK6` represents a sample ID in the tables S1. Which corresponds to the following information:
+colony ID: Daisy
+Treatment: Control
+Time: 00
+Read Count: 15768802
 
 #### **Question 4B**: [0.33 points] 
 Why is the `geneID` something like, 'LOC100740276'? What does that mean? 
 
 **Hint:** 'LOC' is shorthand for 'locus' in a genome! What's a 'locus'?
 
-> Your answer here.
+> Your answer here. By Collins
+Locus is a specific, fixed position on a chromosome where a particular gene or genetic marker is located. Therefore 'LOC100740276' refers to a specific gene locus identified by the number `100740276`
 
 
 #### **Question 4C**: [0.33 points] 
 For column `COOECK6`, gene 'LOC100740276' has a value of 6. What does that mean?
 
-> Your answer here.
+> Your answer here. By Collins
+Given that `COOECK6` is a sample ID and `LOC100740276` is a gene ID. Then the number `6` being shared in both sample and gene ID represents the expression level or read count of the gene. Am not very sure with this i have to look deeper into it!!!
 
 
 # 2 Conventional Method: Differential Expression (DE) Analysis using `DESeq2`
@@ -207,6 +218,7 @@ In short, what `DESeq2` does is take the raw counts and converts it to a matrix,
 rownames(counts) <- counts$geneID
 ## Drops the geneID column from what will become the counts matrix
 counts <- counts[ ,-1]
+
 ```
 
 ### 2.1.2 Assign the `sampleID` column as the rownames and then remove the `sampleID` column from metadata
@@ -218,6 +230,7 @@ Just as it was picky about the `geneID` being the __row names__ of the counts da
 rownames(metadata) <- metadata$sampleID
 ## Drop the sampleID column from the metadata for the future design matrix
 metadata <- metadata[ ,-1]
+
 ```
 
 ### 2.1.3 Configure the metadata with specific column headings
