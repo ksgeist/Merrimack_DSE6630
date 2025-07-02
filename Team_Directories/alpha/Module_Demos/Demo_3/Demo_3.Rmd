@@ -1,8 +1,8 @@
 ---
 title: "Demo 3: Bioinformatics of Gene Expression"
 subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
-author: "Katherine S. Geist, PhD"
-date: "24 June 2025"
+author: "Krisha Bugajski-Sharp, Nicholas Lagoni, Trinity Tobin"
+date: "5 July 2025"
 output:
   html_document:
     toc: true
@@ -455,20 +455,50 @@ Other functions you could try:
 
 - `fitType = "rlog"`
 
-#### **Question 11**: [3 points]
+#### **Question 11**: [3 points] -KB
 
 Use the custom `runVST()` function, changing out the `fitType` parameter to do some tuning. Heuristically (i.e., assessing just from the visuals you have), which `fitType` seems to be most appropriate here?
 
-> Your answer here.
+> Looking at all the differnet plots, it looks like the original "parametric" seem to be the most appropriate here. This is because the "After Variance Stabilization" plot using parametric shows a mostly flat standard deviation across all ranks of mean expression, it has low variance across the entire gene expression range, and it has a pretty consistent horizontal line, meaning VST did a good job stabilizing the variance.
+
 
 ```{r}
 ## Your code here.
+# Parametric
+runVST(dsgnObject, 
+       blind = FALSE, 
+       fitType = "parametric", 
+       makePlot = TRUE)
+
+# Local
+runVST(dsgnObject,
+       blind = FALSE, 
+       fitType = "local",
+       makePlot = TRUE)
+
+# Mean
+runVST(dsgnObject, 
+       blind = FALSE,
+       fitType = "mean",
+       makePlot = TRUE)
+
+# rlog
+runVST(dsgnObject,
+       blind = FALSE,
+       fitType = "rlog",
+       makePlot = TRUE)
+
 ```
 
 **FINALLY**, don't forget to `runVST()` with the `fitType` parameter of your choice! 
 
 ```{r}
 ## Your code here.
+# Parametric
+runVST(dsgnObject, 
+       blind = FALSE, 
+       fitType = "parametric", 
+       makePlot = TRUE)
 ```
 
 
@@ -529,16 +559,19 @@ Why do we call increased and decreased expression up- and down-regulation, respe
 
 Previously, it was thought that only high magnitude changes in gene expression matter physiologically, but we now know that to be untrue. Even _small_ changes in magnitude can be significant, meaning that even subtle increases or decreases in expression can indicate something biologically meaningful happening in an organism in response to treatment. Still, some biologists will choose to focus over-hard on only the high magnitude changes!
 
-#### **Question 12**: [1 point]
+#### **Question 12**: [1 point] -KB
 Suppose that Gene A has a $log_2$-fold change of -4 in the chill-coma bumblebees versus the control bees. If a _positive_ $log_2$-fold change indicates **up** regulation of a gene (a gene getting turned on) and a _negative_ $log_2$-fold change indicates **down** regulation of a gene (the gene getting turned off) in the chill coma bees versus the control, on average.
 
 Use the information in the cheatsheet (or calculate it directly) to find the approximate multiplicate factor in gene expression change in the chill coma bees versus the control bees.
 
-> Your answer here.
+> 2 ^ −4 = 1/16
+This means that the expression of gene A is 16 times lower in chill coma bees compared to control bees. This suggests that the gene is being turned off under chill coma conditions. 
+
 
 If a second gene, Gene B, shows a $log_2$-fold change of +3, how does the direction and magnitude of Gene B's expression change compared to Gene A in chill coma vs. control bumblebees?
 
-> Your answer here.
+>  2 ^ 3 = 8
+We can see that gene A shows a greater magnitude of change, with 16-fold down, than Gene B, 8-fold up, and they move in opposite directions: Gene A is being turned off, while Gene B is being turned on in chill coma bees compared to controls.
 
 
 ### 2.4.2 Wald Tests for significant differential expression between conditions
@@ -598,10 +631,10 @@ ggplot(normalized_counts_long,
   scale_color_manual(values=c(skittles[1], skittles[3]))
 ```
 
-#### **Question 13A**: [0.5 points]
+#### **Question 13A**: [0.5 points] -KB
 How well did the scaling do that I chose? Make sure to look at it across not only all samples but also whether those samples are from the Control vs. the cold-exposed Treatment groups. Are you concerned about any of the samples specifically? Why or why not?
 
-> Your answer here.
+> The scaling worked good, with size factors generally close to 1 and evenly distributed across both the Control and cold-exposed groups showing good normalization. I dont see any major outliers, so I am not concerned about any specific samples.
 
 #### 2.4.2.3 Let's FINALLY call significantly DE genes!
 We will finally loop through a set of LFC values and perform Wald tests to see which genes are significantly differentially expressed between the treatment groups using tha FDR-adjusted $p$-value of 0.05. **NOTE**: Be patient, this could take up to a minute to run on your machine.
@@ -639,35 +672,41 @@ for (lfc in lfc_thresholds) {
 ## save(myBestResults, file = "DESeqResults.Rdata")  
 ```
 
-#### **Question 13B**: [0.5 points] {#q13b}
+#### **Question 13B**: [0.5 points] {#q13b} -KB
 You know what a p-value is but you may not be familiar with an __adjusted p-value__. What is it? Specifically, what's a __False Discovery Rate (FDR)__? In general, why would you choose to use an FDR over a p-value? Is this more broadly applicable in data science outside bioinformatics, do you think?
 
-> Your answer here.
+> An adjusted p-value is the modified version of the standard p-value that accounts for multiple hypothesis testing. A False Discovery Rate (FDR) is a way to deal with the fact that, when we test lots of things at once (like thousands of genes), some will look significant just by chance. FDR helps us estimate how many of those “significant” results might actually be false alarms, making it more useful than just using the standard p-value (Benjamini & Hochberg, 1995). Yes! I think that it is more applicable in data science outside bioinformatics. It can be used in an feild where there are multiple statistical tests being run at once. 
 
-#### **Question 13C**: [0.5 points]
+#### **Question 13C**: [0.5 points] -KB
 How many total genes were assessed for differential expression? (Use the `summary()` outputs from the loop.)
 
-> Your answer here.
+> There were 12177 total genes assessed for differnetial expression
 
-#### **Question 13D**: [0.5 points]
+
+#### **Question 13D**: [0.5 points] -KB
 Which $log_2$-fold change (LFC) threshold yieled the most differentially expressed genes? The least? Why? Which LFC is the BEST choice to use? (Use the `summary()` outputs from the loop.)
 
 **NOTE**: Not all studies will use a LFC threshold. I have published studies in the past where I focused on only the FDR-adjusted $p$-value but didn't worry as much about magnitude. Can you think of a **biological reason** why we might not worry as much about magnitude as overall effect in a case like this? (**Hint**: If genes are only turned on or off briefly, there may not be enough time for a LOT of mRNA transcripts to be made! We also tend to think, erroneously, that large magnitude == "important", but there are many biological functions that just need a "sufficient" signal, they don't need to be flooded in it! Feel free to reach out if you want me to explain this more deeply.)
 
-> Your answer here.
+> Most DE genes: LFC = 0, with 208 significant genes. 
+Fewest DE genes: LFC = 1, 1.5, and 2, are all equal with only 1 significant gene. 
+This is happening because when the LFC threshold increases, you are asking for a bigger difference in gene expression to consider a gene as significantly changed. But usually, most genes have a small changes, not these huge ones. Therefore, the higher the threshold, the fewer genes meet the stricter cutoff whihc means you will detect fewer differentially expressed genes overall.
+For choosing which LFC is best, it really depends on the outcome and goal you want. If you are interested in finding any statistically significant changes, even small ones such as signaling molecules, LFC = 0 is the most informative.
+A biological reasoning for using LFC = 0 is that some genes only need a small change in expression to have a biological impact. For example, genes that turn on for only a breif second in response to a stimulus might not show a large fold change, but can still be important.
 
-#### **Question 14**: [1 point]
+#### **Question 14**: [1 point] -KB
 Based on your answers to Question 13C-D, how many differentially expressed genes did we find with the __Wald test__?
 
-> Your answer here.
+>  We found 208 differentially expressed genes using the wald test at FDR < 0.05, with 85 upregulated
+and 123 downregulated. 
 
-#### **Question 15**: [1 point]
+#### **Question 15**: [1 point] -KB
 Looking at the Verble et al. (2023) study, how do our results differ from their `DESeq2` results and why do you. think that might be? 
 
 **Hint 1**: What is different about our __design formula__ versus what they describe verbally? 
 **Hint 2**: Look at what we did with `Time`!
 
-> Your answer here.
+> Our results differ from Verble et al. (2023) because of the 'time' aspect. We made time a continuous variable, which causes the model to only pick up genes that changed steadily over time. But really, lots of genes turn on only for a split second and then go back to normal. Because of that, we probaby missed important short-term responses, like the heat shock proteins that Verble et al. saw at the 10 min mark. Also, we used the stricter Wald test method, which helps avoid false positives but it also means we found fewer differentially expressed genes overall. They also used WGCNA, a method which looks at groups of genes that show similar pattern and are able to show important trends when analyzed together. This gave them a bigger picture of how genes respond to the cold, which we missed by only looking at one gene at a time.
 
 # 3 Exploratory Data Analysis
 
@@ -765,10 +804,10 @@ kable(
 )
 ```
 
-#### **Question 16**: [1 point] 
+#### **Question 16**: [1 point] -KB
 Look at the custom function I've written for generating the summary statistics. How is __low expression__ defined? What proportion of all reads had low expression? Does this seem high? Should we do any filtering to remove low-expression genes, do you think?
 
-> Your answer here.
+> looking at the custom function, low expression is defined as fewer than 10 reads in 90% of samples. According to Table 3, about 39.40% of all genes fall into this category. Looking at this at fist it does seem high, but thinking about it biologicaly, the bumble bees are in a chill coma where their metabolic and cell acticity becomes alot slower leading in downregulation of gene expression. So, many of these low expression genes could be biologically relevant meaning we should not just automatically filter these genes.
 
 **Hint**: If it seems high, remember that the bumblebees were put into a __chill coma__ (which means their physiological processes might have shut down). In other words, the low expression might be a byproduct of the type of treatment that was applied and could be really interesting in and of itself. Conventional methods typically __remove lowly expressed genes__, but is that what we want to do here?
 
@@ -792,36 +831,37 @@ pheatmap(pwCorr,
          color = colors)
 ```
 
-#### **Question 18**: [1 point] 
+#### **Question 18**: [1 point] -KB
 From the heatmap, what do you notice about the arrangement of the treatments and time points (or lack thereof)? Do you see any important patterns that might explain why so few differentially expressed genes have been identified with `DESeq2`?
 
-> Your answer here.
+> Looking at the heat map, it looks like there is a high overall correlation among the samples. It seems that ther is no clear distinction among the treatments, with both Control and Cold being intermixed among the branches. This makes sense that so few DE genes have been identified with DESeq2 because it is hard for DESeq2 to identify them, as the statistical signal is most likey pretty weak with all this noise. 
 
 
-#### **Question 19**: [2 points] 
+#### **Question 19**: [2 points] -KB
 Complete this code chunk to calculate the sample distances instead. You will use the `dist()` function, which calculates the Euclidean distance between samples but to do it you must first __transpose__ the matrix with the `t()` function. This is actually somewhat similar to what is happening in a k-means clustering algorithm. Does your assessment about the arrangement of the treatments and time points change any?
 
-> Your answer here.
+> No, my conclusion from question 18 remains the same. Both the correlation and distance heatmaps show that gene expression profiles are really similar over the samples, with no strong separation by treatment or time point. This suggests that the cold exposure may not have triggered any changes. 
 
 **Hint**: Make sure to update your figure caption!
 ```{r, fig.width = 6, fig.height = 8.5, echo = TRUE}
 ## Calculate the sample distances; fill in the blank and take off the comment to run
-# sampleDistances <- dist(t(____)))     ## Hint: what did we do to extract a matrix from the VST object earlier?
+ sampleDistances <- dist(t(assay(vsData)))     ## Hint: what did we do to extract a matrix from the VST object earlier?
 
 ## Make the heatmap of the sample distances; fill in any blanks and then take the comments off to run!
-# sampleDistMatrix <- as.matrix(sampleDistances)
+ sampleDistMatrix <- as.matrix(sampleDistances)
 
 ## Let's label by treatment and time again
-# rownames(sampleDistMatrix) <- paste(vsData$Treatment, vsData$Time, sep="-" )
-# colnames(sampleDistMatrix) <- NULL
+ rownames(sampleDistMatrix) <- paste(vsData$Treatment, vsData$Time, sep="-" )
+ colnames(sampleDistMatrix) <- NULL
 
 ## Let's set a monochromatic color palette
-# colors <- colorRampPalette(rev(brewer.pal(9, "Purples")))(255)
+ colors <- colorRampPalette(rev(brewer.pal(9, "Purples")))(255)
 
-# pheatmap(___,
-         # clustering_distance_rows = sampleDistances,
-         # clustering_distance_cols = sampleDistances,
-         # col = colors)
+ pheatmap(sampleDistMatrix,
+          clustering_distance_rows = sampleDistances,
+          clustering_distance_cols = sampleDistances,
+          col = colors, 
+          main = "Figure: Heatmap of Sample to Sample Distances, VST-transformed counts")
 ```
 
 
@@ -865,10 +905,10 @@ ggplot(pca, aes(PC1, PC2, color = Treatment, shape = Colony)) +
   facet_wrap(~Time, nrow = 1)
 ```
 
-#### **Question 20**: [1 point]
+#### **Question 20**: [1 point] -KB
 What percent of the variance is attributable to PC1 and PC2? At which time point(s) do you see the most separation between the treatments? Is this consistent with what Verble et al. (2023) found?
 
-> Your answer here.
+> From the PCA results, PC1 explains 39% of the variance and PC2 explains 11% of the variance. I see the most separation between the treatments at the 30 min time point, where Cold seems to group together towards the top and the Control seems to group together towards the bottom. Verble et al. (2023) found something similar. They found that most of the transcriptional response to cold exposure occurred within the first 30 minutes after recovery, with 371 differentially expressed genes at 10 minutes and only 51 at 30 minutes. 
 
 #### **Question 21**: [1 point]
 Think about what we discussed in lecture about Support Vector Machines. Do you see anything in these PCA plots that make you think that SVM might do a much better job of finding the decision boundary between the treatments than the negative binomial generalized linear regression model that `DESeq2` used? (**Hint**: If you can't "see" it, look at the slide from lecture about a non-monotonic decision boundary. Do you think it's possible that there is a non-monotonic boundary between the treatments here because of `Time`?)
@@ -1407,4 +1447,6 @@ At this stage, it should feel clear that we need to do SOMETHING else. If not, s
 **N.B.:** Did you find this module fun or interesting? Would you like to work with genes and gene expression data more deeply? Interested in a research opportunity? Talk to Dr. Geist about opportunities to work on and potentially publish benchmarking studies like this!
 
 # References
+
+Benjamini, Y., & Hochberg, Y. (1995). Controlling the false discovery rate: a practical and powerful approach to multiple testing. Journal of the Royal Statistical Society: Series B, 57(1), 289–300.
 
