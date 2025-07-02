@@ -1,7 +1,7 @@
 ---
 title: "Demo 3: Bioinformatics of Gene Expression"
 subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
-author: "Katherine S. Geist, PhD"
+author: "Sharon, Jason, Steph"
 date: "24 June 2025"
 output:
   html_document:
@@ -77,16 +77,16 @@ According to the study, *Bombus impatiens* colonies were reared indoors for 72 h
 __Metadata__ refer to information about sequencing files that describe the samples. This can include information about how the samples were collected, the __phenotypes__ of the samples (the traits, physical or behavioral, that are thought to be at least partially controlled by gene expression diversity), and IDs for individuals or, in this case, colonies from which the data come.
 
 ```{r, echo=FALSE}
-# Load the metadata files
-metadata <- read_csv("./23524047/Complete_sampleinfo.csv",
-                     show_col_types = FALSE) %>% 
-            as.data.frame() %>% 
+# Load the metadata filesmetadata
+metadata <- read_csv("~/GitHub/Merrimack_DSE6630/Team_Directories/kappa/Module_Demos/Demo_3/23524047/Complete_sampleinfo.csv",
+                     show_col_types = FALSE) %>%
+            as.data.frame() %>%
             mutate_if(is.character, as.factor)
 
 dict <- tribble(
   ~ Variable, ~ Description,
   "sampleID", "The original ID of the sequencing sample obtained",
-  "Colony", "The bumblebee colony from which the indiduals sampled came",
+  "Colony", "The bumblebee colony from which the individuals sampled came",
   "Treatment", "Control vs. Chill Exposure",
   "Time", "Duration of the treatment"
 )
@@ -95,8 +95,8 @@ kable(
     dict,
     format = "html",
     caption = "Table 1. Metadata of the gene expression samples.") %>%
-    kable_styling(bootstrap_options = c("hover", full_width = F)
-)
+    kable_styling(bootstrap_options = c("hover", full_width = F))
+
 ```
 
 ```{r, echo =FALSE}
@@ -106,7 +106,7 @@ head(metadata)
 #### **Question 1**: [1 point] 
 Looking at the [original study]("https://drive.google.com/file/d/1X3z251hebpjBVdOXsQtYzDG-SaeCa6M1/view"), what method of RNA sequencing was performed? This is an unusual method of sequencing, and you will need to look it up. Can you explain, approximately, how it works? (Give your best attempt)
 
-> Your answer here.
+> The study performed 3' Tag-based RNA sequencing (TagSeq). This method is a reduced-representation RNA-seq approach that focuses on sequencing the 3' ends of transcripts. It works by isolating mRNA, fragmenting transcripts with heat, and using an oligo-dT primer to target the 3' ends for first-strand cDNA synthesis. The libraries are then PCR-amplified for sequencing. This approach reduces length bias and provides cost-effective quantification of gene expression across samples
 
 ## 1.3 Sequence Data Pre-processing
 
@@ -122,7 +122,7 @@ This means that what you have in front of you are **raw read counts** that have 
 #### **Question 2**: [1 point] 
 Look at the Methods of the [original study]("https://drive.google.com/file/d/1X3z251hebpjBVdOXsQtYzDG-SaeCa6M1/view"). Can you find what quality threshold was used to filter the reads? Do a quick search; does this appear standard?
 
-> Your answer here.
+> In the Methods section of the original study, they used cutadapt with Q15 to filter reads. This means they trimmed bases with a quality score below Q15, which corresponds to an error probability of ~3%.Using a Q15 threshold is somewhat less stringent than the more commonly used Q20–Q30 thresholds in RNA-seq pipelines, but still within acceptable practice, especially for TagSeq protocols which often prioritize read length retention for 3' tag analysis.
 
 
 ## 1.4 Reading in the Raw Read Counts
@@ -131,12 +131,12 @@ You will be working with the __raw count__ data as __CPM (read counts per millio
 
 #### **Question 3**: Explain CPM for someone who might not know what that means. You may need to do a little extra reading on the subject! Are read counts in CPM _adjusted_ or _unadjusted_?
 
-> Your answer here.
+> CPM stands for Counts Per Million, a normalization method used in RNA-seq data analysis. It measures how many reads map to a gene, scaled by the total number of reads in the sample, then multiplied by one million. This accounts for differences in sequencing depth across CPM are considered unadjusted for biological factors. CPM simply normalizes raw counts by sequencing depth, it doesn't correct for other systematic effects that more sophisticated methods might adjust for.
 
 First, you read in the raw counts and get a sense of these data. Notice that, by this stage, the reads are simply stored in a comma-separated (`.csv`) file!
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-counts <- read_csv(file = "./23524047/ECK_CountData_Complete.csv") %>% as.data.frame()
+counts <- read_csv(file = "~/Github/Merrimack_DSE6630/Team_Directories/kappa/Module_Demos/Demo_3/23524047/ECK_CountData_Complete.csv") %>% as.data.frame()
 head(counts[,1:6]) %>% 
     kable(
     format = "html",
@@ -150,20 +150,21 @@ What does column `COOECK6` represent?
 
 **Hint**: Take a look at [Table S1](https://drive.google.com/file/d/1X3z251hebpjBVdOXsQtYzDG-SaeCa6M1/view) for more information!
 
-> Your answer here.
+> Column COOECK6 represents a sequencing sample from the colony Daisy, under control conditions at 0 minutes post-treatment, with about 15,768,802 reads generated
+
 
 #### **Question 4B**: [0.33 points] 
 Why is the `geneID` something like, 'LOC100740276'? What does that mean? 
 
 **Hint:** 'LOC' is shorthand for 'locus' in a genome! What's a 'locus'?
 
-> Your answer here.
+> geneID entries like LOC100740276 refer to loci in the genome—specific locations or positions of genes (or predicted genes) on chromosomes.The LOC prefix is a standard way genomic databases label uncharacterized or computationally predicted genes before they’re given official gene names that we see. A locus simply means a defined spot in the genome where a gene or feature resides.
 
 
 #### **Question 4C**: [0.33 points] 
 For column `COOECK6`, gene 'LOC100740276' has a value of 6. What does that mean?
 
-> Your answer here.
+> For column COOECK6, the value 6 for gene LOC100740276 means 6 sequencing reads mapped to this gene in that particular sample. This raw count reflects how much that gene was expressed in the sample. 
 
 
 # 2 Conventional Method: Differential Expression (DE) Analysis using `DESeq2`
@@ -190,9 +191,9 @@ Just as it was picky about the `geneID` being the __row names__ of the counts da
 
 ```{r}
 ## Similarly, move sampleID to the rownames of the metadata df
-rownames(metadata) <- metadata$sampleID
-## Drop the sampleID column from the metadata for the future design matrix
-metadata <- metadata[ ,-1]
+rownames(metadata) <- metadata[["sampleID"]]
+metadata <- metadata[, !names(metadata) %in% "sampleID"]
+
 ```
 
 ### 2.1.3 Configure the metadata with specific column headings
@@ -204,6 +205,8 @@ Let's check that the column names of the `counts` matrix are (1) the same and (2
 ```{r, results='asis'}
 print(all(colnames(counts) %in% rownames(metadata)))
 print(all(colnames(counts) == rownames(metadata)))
+metadata <- metadata[colnames(counts), ]
+
 ```
 
 ### 2.1.4 Make sure the levels of the factor(s) of interest in the metadata are using the correct reference level
@@ -221,7 +224,7 @@ Uh-oh! By alphanumeric ordering, `Cold` comes before `Control` so we need to fix
 ```{r, results='hide'}
 ## Reorder the factor levels; not the only way to do this in R
 metadata$Treatment <- relevel(metadata$Treatment, ref = "Control")
-# metadata$Treatment <- factor(metadata$Treatment, levels = c("Control", "Cold"))
+metadata$Treatment <- factor(metadata$Treatment, levels = c("Control", "Cold"))
 
 
 ```
@@ -237,7 +240,8 @@ Which variable is the 'batch' variable in this analysis and why?
 
 **Hint**: Look at the design formula in the next code chunk!
 
-> Your answer here.
+> The 'batch' variable in this analysis is Colony. In the design formula, Colony accounts for differences between colonies (genetic background, environmental factors, etc.) that could introduce variability unrelated to the treatment itself. By including Colony in the model, we control for these potential batch effects and focus on the true effect of Treatment on gene expression.
+
 
 ### 2.2.1 The Design Formula 
 
@@ -275,12 +279,19 @@ str(dsgnObject)
 #### **Question 6**: [1 point] 
 In this course so far, you have been exposed to a number of different non-dataframe structures for data. Here's another one! Explore the `dsgnObject` with `str()` as above or another function of your choice. What differences do you notice about the structure of this object vs. a dataframe?
 
-> Your answer here.
+> The DESeqDataSet object created by DESeq2 is different from a regular dataframe in R. A dataframe is a simple table where each row is an observation and each column is a variable. In contrast, the DESeqDataSet is a structured object that contains several parts. These parts include the raw count data, sample information, the design formula, and other details needed for analysis. It is not just a table but a complex object built to support specific tasks like gene expression analysis. You need special functions to work with it, and it organizes everything related to the analysis in one place.
+
 
 Now write code to extract a dataframe of read counts from the design object `dsgnObject`. You will need to leverage the `assay()` function from `DESeq2` to do this! Show the `head()` of this dataframe only as proof you could extract it.
 
 ```{r}
 ## Your code here.
+## Extract the counts matrix from the DESeqDataSet object
+counts_df <- as.data.frame(assay(dsgnObject))
+
+## Show the first few rows
+head(counts_df)
+
 ```
 
 
@@ -305,64 +316,60 @@ runVST <- function(dsgnObject,
                    writeTable = FALSE, 
                    writeRData = FALSE) {
   ############################################
-  ## YOUR COMMENT HERE - include a usage statement
-  ## dsgnObject = ...
-  ## blind = ...
-  ## fitType = ...
-  ## makePlot = ...
-  ## writeTable = ...
-  ## writeRData = ...
+  ## Wrapper function to run VST or rlog transformation on DESeqDataSet object.
+  ## dsgnObject: the DESeqDataSet object containing raw counts and experimental design.
+  ## blind: logical; whether to ignore design formula when estimating dispersion (TRUE recommended for exploratory work).
+  ## fitType: method used to estimate dispersion-mean trend ("parametric", "local", "mean"), or "rlog" to run regularized log transformation instead.
+  ## makePlot: logical; if TRUE, plots mean-SD before and after transformation.
+  ## writeTable: logical; if TRUE, writes transformed counts to a tab-delimited text file.
+  ## writeRData: logical; if TRUE, saves transformed data as an RData object.
   ############################################
   
-  ## YOUR COMMENT HERE
-  ## Make sure to address why we are checking for fitType to equal rlog!
+  ## If user sets fitType to "rlog", run the rlog transformation instead of VST
   if(fitType == "rlog") {
-    ## YOUR COMMENT HERE
+    ## rlog returns stabilized log2 counts, more suitable for small datasets
     vsData <- rlog(dsgnObject, blind = blind)
   }
-  ## YOUR COMMENT HERE
+  ## Otherwise, run variance stabilizing transformation with given fitType
   else {
-    ## YOUR COMMENT HERE
     vsData <- varianceStabilizingTransformation(dsgnObject, 
                                               blind = blind, 
                                               fitType = fitType)
   }
   
-  ## YOUR COMMENT HERE
+  ## If makePlot is TRUE, create plots showing mean-SD relationship before and after transformation
   if(makePlot == TRUE) {
-    ## YOUR COMMENT HERE
-    ## Hint: meandSDPlot() helps us see the effect of the VS transform
+    ## Plot mean-SD relationship before transformation
     p1 <- meanSdPlot(assay(dsgnObject), plot = F)
-    ## YOUR COMMENT HERE
     p1 <- p1$gg + ggtitle("Before Variance Stabilization") + 
       scale_fill_gradient(low = skittles[1], high = skittles[2]) + 
       theme_bw() + theme(legend.position = "bottom")
     
-    ## YOUR COMMENT HERE
+    ## Plot mean-SD relationship after transformation
     p2 <- meanSdPlot(assay(vsData), plot = F)
-    ## YOUR COMMENT HERE
     p2 <- p2$gg + ggtitle("After Variance Stabilization") + 
       scale_fill_gradient(low = skittles[1], high = skittles[2]) + 
       theme_bw() + theme(legend.position = "bottom")
-    ## YOUR COMMENT HERE
+    
+    ## Show plots side-by-side
     grid.arrange(p1, p2, nrow=1)
   }
   
-  ## YOUR COMMENT HERE
+  ## If writeTable is TRUE, export transformed counts matrix as tab-delimited text file
   if(writeTable == TRUE) {
-    
-    ## YOUR COMMENT HERE - make sure to mention the output format!
     write.table(assay(vsData),
               file = "vst.txt",
               sep="\t", 
               quote=F, 
               row.names=T)
   }
-  ## YOUR COMMENT HERE
+  
+  ## If writeRData is TRUE, save transformed data object as .Rdata file
   if(writeRData == TRUE) {
     save(vsData, file="vst_all_timepoints.Rdata")
   }
-  ## YOUR COMMENT HERE - what is being returned?
+  
+  ## Return transformed DESeqDataSet object
   return(vsData)
 }
 ```
@@ -370,7 +377,7 @@ runVST <- function(dsgnObject,
 #### **Question 7B**: [1 point] 
 Why do we bother writing wrapper functions? What's the purpose and how can they make our lives easier? 
 
-> Your answer here.
+> We write wrapper functions to streamline and simplify repetitive or complex tasks. They allow us to bundle multiple steps or function calls into a single, reusable block of code, reducing the chance of mistakes and making our analysis pipeline clearer and easier to maintain. Wrapper functions also make it easier to standardize procedures, share workflows with collaborators, and quickly adjust parameters or options without rewriting code in multiple places.
 
 
 Now, **run the function**! Note that here you will run a __parametric transformation__ with `blind = FALSE` because you do not want the transformations to be blind to the experimental design (treatment) at this stage; in fact, you expect large differential expression in some genes! Thus, to control for outliers you will want to set `blind = FALSE`.
@@ -389,7 +396,7 @@ runVST(dsgnObject,
 #### **Question 8**: [1 point]
 What do you notice about the plot on the left (the `dsgnObject` without any transformation) vs. the plot on the right after the variance stabilizing transform? Is the VST effective at stabilizing the variance and, if so, how can you tell?
 
-> Your answer here.
+> In the left plot (before VST), the standard deviation sharply increases with mean rank, showing strong heteroscedasticity where genes with higher counts have much larger variance. In the right plot (after VST), the variance is more uniform across the range of mean counts, indicating the transformation successfully stabilized the variance. The flatter trend and tighter distribution of points after VST show it's effective at making the data more homoscedastic.
 
 ### 2.3.1 Digging deeper: Estimating gene-wise dispersion
 
@@ -420,7 +427,7 @@ abline(lm(log(varCounts+0.0001) ~ log((meanCounts+0.0001))),
 #### **Question 10**: [1 point]
 Does this plot support that a VST is (1) needed, (2) not needed, or (3) likely to be ineffective? Please explain.
 
-> Your answer here.
+> This plot shows a strong positive relationship between mean and variance (the points lie along a roughly linear trend). This indicates heteroscedasticity in the raw data, meaning variance increases with mean expression. Therefore, (1) a VST is needed — it will help stabilize variance across expression levels, making the data more suitable for downstream analyses assuming constant variance.
 
 
 ### Other VST Functions 
@@ -437,16 +444,28 @@ Other functions you could try:
 
 Use the custom `runVST()` function, changing out the `fitType` parameter to do some tuning. Heuristically (i.e., assessing just from the visuals you have), which `fitType` seems to be most appropriate here?
 
-> Your answer here.
+> Based on the comparison of the diagnostic plots, the local fitType is the best choice. It produces the most stable variance across all levels of gene expression. The standard deviation after transformation is more consistent, with fewer outliers and a smoother trend compared to the parametric and mean options. It seems to be the most appropriate fitType for variance stabilizing transformation in this dataset.
+
 
 ```{r}
-## Your code here.
+# Parametric vs Local
+vst_param <- runVST(dsgnObject, blind = FALSE, fitType = "parametric", makePlot = TRUE)
+vst_local <- runVST(dsgnObject, blind = FALSE, fitType = "local", makePlot = TRUE)
+
+# Parametric vs rlog
+vst_rlog <- runVST(dsgnObject, blind = FALSE, fitType = "rlog", makePlot = TRUE)
+
+# Parametric vs mean
+vst_rlog <- runVST(dsgnObject, blind = FALSE, fitType = "mean", makePlot = TRUE)
+
 ```
 
 **FINALLY**, don't forget to `runVST()` with the `fitType` parameter of your choice! 
 
 ```{r}
-## Your code here.
+# Final transformation using chosen best fitType (e.g., "local")
+vsData <- runVST(dsgnObject, blind = FALSE, fitType = "local")
+
 ```
 
 
@@ -512,11 +531,12 @@ Suppose that Gene A has a $log_2$-fold change of -4 in the chill-coma bumblebees
 
 Use the information in the cheatsheet (or calculate it directly) to find the approximate multiplicate factor in gene expression change in the chill coma bees versus the control bees.
 
-> Your answer here.
+> A log2-fold change of -4 means that the gene expression in chill coma bees is reduced compared to control bees by a factor of 2 to the power of 4, which is 16. Gene A is down-regulated approximately 16-fold in the chill coma bees.
+
 
 If a second gene, Gene B, shows a $log_2$-fold change of +3, how does the direction and magnitude of Gene B's expression change compared to Gene A in chill coma vs. control bumblebees?
 
-> Your answer here.
+> Gene B has a log2-fold change of +3, meaning its expression is up-regulated in chill coma bees compared to control bees by a factor of 2 to the power of 3, which is 8. Gene A, with a log2-fold change of -4, is expressed about 16 times less. This means that while Gene B's expression increases in chill coma bees, Gene A's expression decreases, and the decrease for Gene A is twice as large in magnitude as the increase for Gene B.
 
 
 ### 2.4.2 Wald Tests for significant differential expression between conditions
@@ -534,7 +554,7 @@ Note that this is a more conservative approach than you will see in some papers 
 Although you made your choice in Question 11, so that we are all on the same page I will have you read in the data so as not to give away the correct answer! 
 
 ```{r, include = TRUE}
-load("vst_all_timepoints.Rdata")
+load("~/GitHub/Merrimack_DSE6630/Team_Directories/kappa/Module_Demos/Demo_3/vst_all_timepoints.Rdata")
 ```
 
 #### 2.4.2.2 Estimate the size factors
@@ -579,7 +599,8 @@ ggplot(normalized_counts_long,
 #### **Question 13A**: [0.5 points]
 How well did the scaling do that I chose? Make sure to look at it across not only all samples but also whether those samples are from the Control vs. the cold-exposed Treatment groups. Are you concerned about any of the samples specifically? Why or why not?
 
-> Your answer here.
+> The scaling appears to have worked well overall. Most samples, both in the Control and Cold treatment groups, show a consistent and compact range of variance-stabilized expression values. This suggests that variance has been effectively stabilized across genes regardless of their expression level. A few samples in the Cold group do show slightly wider distributions or more extreme expression values compared to others. These could reflect biological variation due to cold stress, but they may also indicate potential outliers. I don't see any sample that really stands out as a clear outlier that would justify exclusion now.
+
 
 #### 2.4.2.3 Let's FINALLY call significantly DE genes!
 We will finally loop through a set of LFC values and perform Wald tests to see which genes are significantly differentially expressed between the treatment groups using tha FDR-adjusted $p$-value of 0.05. **NOTE**: Be patient, this could take up to a minute to run on your machine.
@@ -620,32 +641,36 @@ for (lfc in lfc_thresholds) {
 #### **Question 13B**: [0.5 points] {#q13b}
 You know what a p-value is but you may not be familiar with an __adjusted p-value__. What is it? Specifically, what's a __False Discovery Rate (FDR)__? In general, why would you choose to use an FDR over a p-value? Is this more broadly applicable in data science outside bioinformatics, do you think?
 
-> Your answer here.
+> An adjusted p-value has been corrected to account for the fact that multiple statistical tests are being performed at once. When testing thousands of hypotheses, such as in RNA sequencing where each gene is tested for differential expression, the chance of getting false positives increases. The false discovery rate (FDR) is one method used to adjust p-values. It controls the expected proportion of false positives among all the results that are considered significant. For example, if the FDR is set to 0.05, then about 5 percent of the genes identified as significantly differentially expressed are expected to be false positives.
+
 
 #### **Question 13C**: [0.5 points]
 How many total genes were assessed for differential expression? (Use the `summary()` outputs from the loop.)
 
-> Your answer here.
+> 12,177 total genes were assessed for differential expression.
 
 #### **Question 13D**: [0.5 points]
 Which $log_2$-fold change (LFC) threshold yieled the most differentially expressed genes? The least? Why? Which LFC is the BEST choice to use? (Use the `summary()` outputs from the loop.)
 
 **NOTE**: Not all studies will use a LFC threshold. I have published studies in the past where I focused on only the FDR-adjusted $p$-value but didn't worry as much about magnitude. Can you think of a **biological reason** why we might not worry as much about magnitude as overall effect in a case like this? (**Hint**: If genes are only turned on or off briefly, there may not be enough time for a LOT of mRNA transcripts to be made! We also tend to think, erroneously, that large magnitude == "important", but there are many biological functions that just need a "sufficient" signal, they don't need to be flooded in it! Feel free to reach out if you want me to explain this more deeply.)
 
-> Your answer here.
+> The log2-fold change threshold of 0 yielded the most differentially expressed genes, with 85 genes up-regulated and 123 down-regulated, totaling 208 significant genes. All higher thresholds (1, 1.5, and 2) resulted in only one significantly up-regulated gene and none down-regulated.
+In some biological contexts perhaps, especially those involving rapid or transient responses like stress reactions or environmental changes, the magnitude of gene expression changes may be small but still biologically significant. This is relevant in situations where timing and sensitivity matter more than volume, such as signaling pathways, immune responses, or short-term stress responses like cold exposure in bumblebees!
+
 
 #### **Question 14**: [1 point]
 Based on your answers to Question 13C-D, how many differentially expressed genes did we find with the __Wald test__?
 
-> Your answer here.
+> The total number of DEGs found using the Wald test was 208 using the most inclusive threshold (LFC = 0) with an FDR-adjusted p-value < 0.05.
 
 #### **Question 15**: [1 point]
-Looking at the Verble et al. (2023) study, how do our results differ from their `DESeq2` results and why do you. think that might be? 
+Looking at the Verble et al. (2023) study, how do our results differ from their `DESeq2` results and why do you think that might be? 
 
 **Hint 1**: What is different about our __design formula__ versus what they describe verbally? 
 **Hint 2**: Look at what we did with `Time`!
 
-> Your answer here.
+> Our results differ from those in the Verble et al. 2023 study because of how the design formula handles the Time variable. In our analysis, we included Time as a covariate across all samples. We essentially tested for an overall difference between treated and control samples, regardless of when the sample was taken. Verble et al. analyzed each time point separately, comparing treatment and control groups within each recovery period. Their approach allowed them to detect genes that were only differentially expressed at specific times, such as right after chill coma. Because we pooled all the time points together, any strong but time-specific signals were diluted and became harder to detect. This explains why we found fewer significantly differentially expressed genes.
+
 
 # 3 Exploratory Data Analysis
 
@@ -746,7 +771,7 @@ kable(
 #### **Question 16**: [1 point] 
 Look at the custom function I've written for generating the summary statistics. How is __low expression__ defined? What proportion of all reads had low expression? Does this seem high? Should we do any filtering to remove low-expression genes, do you think?
 
-> Your answer here.
+> In the custom function, low expression is defined as genes with fewer than 10 reads in 90 percent of the samples. According to the summary statistics, about 39.4 percent of all genes have low expression. This is a relatively high proportion and suggests that many genes are not consistently expressed across the dataset. It might make sense to remove these low-expression genes. It could help to reduce noise in the data. Though we should probably look at the type of treatment for these low-expression genes to determine if that is having an effect.
 
 **Hint**: If it seems high, remember that the bumblebees were put into a __chill coma__ (which means their physiological processes might have shut down). In other words, the low expression might be a byproduct of the type of treatment that was applied and could be really interesting in and of itself. Conventional methods typically __remove lowly expressed genes__, but is that what we want to do here?
 
@@ -773,33 +798,35 @@ pheatmap(pwCorr,
 #### **Question 18**: [1 point] 
 From the heatmap, what do you notice about the arrangement of the treatments and time points (or lack thereof)? Do you see any important patterns that might explain why so few differentially expressed genes have been identified with `DESeq2`?
 
-> Your answer here.
+> From the heatmap, there does not seem to be a  strong or consistent separation between the Cold and Control treatments across time points. Samples from different treatments and time points are intermixed in the clustering, which suggests that the gene expression profiles are very similar between the groups.  This could help explain why the DESeq2 analysis identified so few differentially expressed genes because the overall signal distinguishing the treatments is weak or inconsistent across samples.
+
 
 
 #### **Question 19**: [2 points] 
 Complete this code chunk to calculate the sample distances instead. You will use the `dist()` function, which calculates the Euclidean distance between samples but to do it you must first __transpose__ the matrix with the `t()` function. This is actually somewhat similar to what is happening in a k-means clustering algorithm. Does your assessment about the arrangement of the treatments and time points change any?
 
-> Your answer here.
+> The Euclidean distance heatmap shows that samples are not clustered nicely by treatment group or time point. There is some pattern where samples from the same time point appear closer together, but there is still a significant amount of overlap between cold-exposed and control treatments. This suggests that the variation in gene expression is not dominated by the treatment condition alone. This helps explain why the DESeq2 analysis identified so few differentially expressed genes. it may be that the biological effect of cold exposure is subtle, or only affects a small subset of genes. There seems to be a need for more complex analysis.
+
 
 **Hint**: Make sure to update your figure caption!
 ```{r, fig.width = 6, fig.height = 8.5, echo = TRUE}
 ## Calculate the sample distances; fill in the blank and take off the comment to run
-# sampleDistances <- dist(t(____)))     ## Hint: what did we do to extract a matrix from the VST object earlier?
+sampleDistances <- dist(t(assay(vsData)))     ## Hint: what did we do to extract a matrix from the VST object earlier?
 
 ## Make the heatmap of the sample distances; fill in any blanks and then take the comments off to run!
-# sampleDistMatrix <- as.matrix(sampleDistances)
+sampleDistMatrix <- as.matrix(sampleDistances)
 
 ## Let's label by treatment and time again
-# rownames(sampleDistMatrix) <- paste(vsData$Treatment, vsData$Time, sep="-" )
-# colnames(sampleDistMatrix) <- NULL
+rownames(sampleDistMatrix) <- paste(vsData$Treatment, vsData$Time, sep="-" )
+colnames(sampleDistMatrix) <- NULL
 
 ## Let's set a monochromatic color palette
-# colors <- colorRampPalette(rev(brewer.pal(9, "Purples")))(255)
+colors <- colorRampPalette(rev(brewer.pal(9, "Purples")))(255)
 
-# pheatmap(___,
-         # clustering_distance_rows = sampleDistances,
-         # clustering_distance_cols = sampleDistances,
-         # col = colors)
+pheatmap(sampleDistMatrix,
+         clustering_distance_rows = sampleDistances,
+         clustering_distance_cols = sampleDistances,
+         col = colors)
 ```
 
 
@@ -846,12 +873,13 @@ ggplot(pca, aes(PC1, PC2, color = Treatment, shape = Colony)) +
 #### **Question 20**: [1 point]
 What percent of the variance is attributable to PC1 and PC2? At which time point(s) do you see the most separation between the treatments? Is this consistent with what Verble et al. (2023) found?
 
-> Your answer here.
+> PC1 accounts for 39% of the variance and PC2 accounts for 11% of the variance in the gene expression data. The greatest separation between the cold and control treatments appears to be at the 30m time point, where the two treatments form somewhat distinct clusters. This pattern is partially consistent with Verble et al., who also observed early responses following chill coma exposure. However, the separation is not as strong or consistent across all time points, possibly due to differences in the experimental design.
+
 
 #### **Question 21**: [1 point]
 Think about what we discussed in lecture about Support Vector Machines. Do you see anything in these PCA plots that make you think that SVM might do a much better job of finding the decision boundary between the treatments than the negative binomial generalized linear regression model that `DESeq2` used? (**Hint**: If you can't "see" it, look at the slide from lecture about a non-monotonic decision boundary. Do you think it's possible that there is a non-monotonic boundary between the treatments here because of `Time`?)
 
-> Your answer here.
+> Yes, the PCA plots suggest that a SVM might do a better job than the negative binomial model used in DESeq2. The separation between treatments (Control vs. Cold) is not consistent across all time points. For example, at time points like 30m and 120m, there appears to be more visible separation between treatments, but at 00m or 720m, the groups overlap more. This variation over time suggests that differences between treatments do not follow a uniform pattern across time. An SVM with a non-linear kernel  may be more effective at separating treatments when the variation is more complicated across time.
 
 
 ## 3.4 Volcano Plots
@@ -868,10 +896,10 @@ Thus, volcano plots allow you to quickly visualize the same results you saw from
 Using your answer to [Question 13B](#q13b), set the $log_2$-fold threshold in the code below. To do this, change out the number of the vector that corresponds to your selection in the earlier question. By default, I am choosing a $log_2$-fold threshold of 2. **Remember**: R is a one-referenced language, whereas Python is a zero-referenced language. This means that, in R, the fourth element in a vector will be `myVector[4]` in R!
 
 ```{r}
-## print(lfc_thresholds) ## Uncomment to view
+print(lfc_thresholds) ## Uncomment to view
 
-## Change the number of the vector to update
-lfc <- lfc_thresholds[4]
+## Changed the number of the vector to 1 to represent the best threshold (0)
+lfc <- lfc_thresholds[1]
 ```
 
 _The first step is to take the results and turn it into a dataframe containing the relevant information for plotting. This includes defining when genes will be up-regulated or down-regulated!_ 
@@ -929,11 +957,11 @@ On the above volcano plot, the y-axis is the $-log_{10}$ $p$-value and the x-axi
 #### **Question 23B**: [1.5 points] 
 __Interpret__ your version of the volcano plot using the $log_2$-fold change threshold from Question 23A. Does the same gene `LOC100742138` appear to be significantly differentially expressed (and up-regulated) regardless of which LFC threshold you choose? (If you're not sure, look for it in the `volcano` dataframe!). Why is this?
 
-> Your answer here.
+> In the volcano plot using the log2 fold change threshold from Question 23A (0), the gene LOC100742138 does not appear to be significantly differentially expressed. The volcano dataframe shows that it has a high adjusted p- value of 0.651, which means it does not meet the cutoff for statistical significance. The variability is too high or the effect too small to conclude it is different from random noise.
 
 What happened to the dashed gold line in your plot vs. the one I made? (Refer back to the HTML document if needed). Why did this happen?
 
-> Your answer here.
+> The plot that you made had two dashed gold lines set to the +/- levels of threshold. Since our threshold was set to 0 there is only one dashed line at 0.
 
 
 \newpage
@@ -1061,22 +1089,34 @@ dim(test)
 #### **Question 24A**: [0.5 points] 
 How many samples (observations) are in the training and testing data sets? How many features (genes) are there? What is the ratio of predictors (genes) to samples?
 
-> Your answer here.
+> The training data set contains 60 samples (observations) and the testing data set contains 14 samples. Both sets include 12,927 predictors (genes).
 
-```{r}
-## Your optional code here.
+
+```{r} 
+# Team kappa this was experimenting with splits
+## Make the train and test partitions:
+# ind <- createDataPartition(
+ # y = tVSdata[, c("Treatment")],     ## Treatment is evenly distributed
+ # p = 0.78,                           ## % into training (experimenting)
+#  list = FALSE)                      ## don't return a list
+
+## Make training and testing
+# train <- tVSdata[ind, ]
+# test <- tVSdata[-ind,]
 ```
 
 
 #### **Question 24B**: [0.5 points] 
 Remember, we used `caret`'s `createDataPartition()` Using Figure 9, do you notice anything concerning about the training split? What about the testing split? Does adjusting the split seem to make it better, worse, or stay the same? **Make sure to change it back after you are finished playing with it.**
 
-> Your answer here.
+> Yes, there are some concerns. While the training set is relatively well balanced across treatment, time, and colony, the testing set is not. Several time points are missing full colony representation, and some treatment groups are underrepresented or absent. Adjusting the split (e.g., from 80/20 to 78/22 or 75/25) slightly improves the balance but does not fully resolve the issue. The problem stays mostly the same. This indicates that createDataPartion() does not perfectly stratify across multiple variables.
+
 
 #### **Question 24C**: [1 point] 
 What are the predictors in the training and testing sets? Can you guess what the target will be? (**Hint**: This will be a _classification_ problem!). If you're still not sure, think about what you think the roles of `Treatment`, `Time` and `Colony` will be in the model.
 
-> Your answer here.
+> The predictors in the training and testing sets are the gene expression values from each sample. These values represent the features the model will use to learn patterns. The target variable is likely to be Treatment because this is a classification problem where the goal is to predict whether a sample is from the cold-exposed or control group.
+
 
 ### 4.1.4 Fitting an OOB Random Forest model
 
@@ -1102,7 +1142,7 @@ The confusion matrix gives you the OOB classification error of the cold-exposed 
 #### **Question 24D**: [1 point] 
 How did the model perform? Where is the classification error highest? Does this suggestion a problem with separating the `Cold` class from the `Control` class or not?
 
-> Your answer here.
+> The model performance was ok. The classification error was highest for the Control class, with 50 percent of Control samples misclassified as Cold. The Cold class had a slightly lower error rate at about 40.6 percent. This suggests that the model had difficulty distinguishing between the Cold and Control treatments, particularly in accurately identifying Control samples.&#x20;
 
 You can also plot the results of the OOB RF to assess how well the classes are separated. 
 
@@ -1116,7 +1156,8 @@ plot(rfOOB,
 #### **Question 24E**: [1 point]
 Based on Figure 10, did the OOB RF manage to find complete separation between cold-exposed and control treatments? If yes, approximately how many trees (tree depth) are needed to sufficiently distinguish the `Cold` and `Control` treatment classes? Does this suggest that using 500 trees will significantly improve the model, why or why not?
 
-> Your answer here.
+> Initially, the error rates are high, but they stabilize as more trees are added, settling around 35–40 percent. However, there’s still visible fluctuation, particularly in the red dashed line, indicating that the Control class continues to have more variable and higher misclassification rates than Cold. The model still struggles more with predicting Control samples and that increasing the number of trees alone may not resolve the classification challenges.
+
 
 ### 4.1.5 Assessing training vs. testing accuracy
 
@@ -1139,7 +1180,7 @@ data.frame(overall) %>% kable(
 #### **Question 24F**: [0.5 points]
 Look at the results of the training error. What is the accuracy and is this concerning or a good sign?
 
-> Your answer here.
+> The random forest model performed perfectly on the training data. The confusion matrix shows 100 percent accuracy, with both the Accuracy and Kappa values equal to 1. While this may look ideal, such perfect performance on training data may indicate overfitting. Testing on the test set will help determine if the model truly performs well or has just overfitted the training set.
 
 Now, look at the results of the training set when tested against the test set (a.k.a., __test error__ from which we derive **model accuracy**):
 ```{r}
@@ -1160,7 +1201,7 @@ data.frame(overall) %>% kable(
 #### **Question 24G**: [1.5 points]
 Take a look at the test accuracy. It's only 42.9%! This means it is performing WORSE than random guessing (50%). Take a closer look at **Cohen's Kappa** and the **McNemar's Test**. What do these tests do and what do the results tell you? Do you have any ideas why this may have occurred? (**Hint**: What does the high training accuracy tell us relative to the testing accuracy?)
 
-> Your answer here.
+> Cohen's Kappa and McNemar's Test help assess how well a classification model performs beyond simple accuracy. Cohen's Kappa measures the agreement between predicted and actual classes, adjusting for chance agreement. A low Kappa value, like the one in this model, suggests the predictions are not much better than random guessing. McNemar's Test checks whether the types of classification errors are balanced. A high p-value from McNemar's Test means there is no significant difference in the types of errors made, which implies the model is not learning meaningful patterns. The very high training accuracy and poor test accuracy indicate that the model is overfitting. It has likely memorized the training data but fails to generalize to new data. Overfitting is common when using many features, like thousands of genes, with only a small number of samples. Big P little n!&#x20;
 
 ### 4.1.6 Extracting Important Genes from an OOB Random Forest model
 
@@ -1187,12 +1228,38 @@ Write code that will compare the resulting important genes from the RF (**Hint**
 
 **Hint 4**: You may find it helpful to turn `importantRF` into a dataframe first; note that the genes are in the _rownames_. 
 
-> Your answer here.
+> There were 115 overlapping genes identified by both the Random Forest and DESeq2 analyses. This represents 5.1% of the genes identified as important by Random Forest and 55.3% of those found to be statistically significant by DESeq2.
 
 ```{r}
-## Your code here.
-```
+# Extract RF-important genes with MeanDecreaseGini > 0
+importantRF_df <- as.data.frame(rfOOB$importance) %>%
+  rownames_to_column(var = "gene") %>%
+  filter(MeanDecreaseGini > 0)
 
+# Extract significant DESeq2 genes (padj < 0.05)
+DESeq2_sig <- res %>%
+  as.data.frame() %>%
+  rownames_to_column(var = "gene") %>%
+  filter(padj < 0.05)
+
+# Find overlaps
+overlap_genes <- intersect(importantRF_df$gene, DESeq2_sig$gene)
+
+# Compute counts and percentages
+num_RF        <- nrow(importantRF_df)
+num_DESeq2    <- nrow(DESeq2_sig)
+num_overlap   <- length(overlap_genes)
+
+percent_RF    <- (num_overlap / num_RF) * 100
+percent_DESeq2<- if (num_DESeq2 > 0) (num_overlap / num_DESeq2) * 100 else NA
+
+cat("RF-important genes (Gini > 0):", num_RF, "\n")
+cat("Significant DESeq2 genes:", num_DESeq2, "\n")
+cat("Overlapping genes:", num_overlap, "\n")
+cat(sprintf("Overlap is %.1f%% of RF-important genes", percent_RF), "\n")
+cat(sprintf("Overlap is %.1f%% of DESeq2-significant genes", percent_DESeq2), "\n")
+
+```
 
 #### **Question 26**: [2 points] {#q26}
 Now, modify your code from Question 25 into a function. Your function should take at least two arguments: 
@@ -1209,15 +1276,38 @@ Show that your function works for a LFC cutoff of 1 and the same important genes
 **Hint**: I get 9 total overlapping genes when I do this!
 
 ```{r}
-## Your code here.
+compare_gene_overlap <- function(deseq_results, important_genes, lfc_cutoff = 1, pval_cutoff = 0.05) {
+  # Filter DESeq2 results based on the provided cutoffs
+  degs <- deseq_results %>%
+    as.data.frame() %>%
+    rownames_to_column(var = "gene") %>%
+    filter(abs(log2FoldChange) >= lfc_cutoff, padj < pval_cutoff) %>%
+    pull(gene)
+  
+  # Find overlapping genes
+  overlapping_genes <- intersect(degs, important_genes)
+  
+  # Calculate and return summary
+  overlap_summary <- list(
+    DESeq2_significant = length(degs),
+    RF_important = length(important_genes),
+    Overlap = length(overlapping_genes),
+    Overlap_percent_RF = round(length(overlapping_genes) / length(important_genes) * 100, 1),
+    Overlap_percent_DESeq2 = round(length(overlapping_genes) / length(degs) * 100, 1),
+    Overlapping_genes = overlapping_genes
+  )
+  
+  return(overlap_summary)
+
+}
+
 ```
 
 
 #### **Question 27**: [2 points]
 Overall, how did the OOB RF model perform? Which prediction (training or testing) had the highest accuracy? How many overlapping genes were found with `DESeq2`? Would you recommend this model as-is for benchmarking? Would you still consider this model for **feature selection**, **cross-validation**, and **tuning**?
 
-> Your answer here.
-
+> The OOB Random Forest model performed very well on the training data with perfect accuracy and a Kappa of 1.0. However, its performance on the testing data dropped significantly, with an accuracy of only 64.3% and a much lower Kappa of 0.286. This suggests that the model is likely overfitting the training data and not generalizing well to new, unseen data. When comparing the genes identified by Random Forest and DESeq2, only 115 genes overlapped, which is about 5.1% of the RF-important genes and 55.3% of the DESeq2-significant genes. Given the overfitting and moderate test performance, this model should not be used as-is for final benchmarking. However, it is still useful for feature selection and exploratory analysis. With further cross-validation and tuning, the model's predictive ability may improve.
 
 ## 4.2 Support Vector Machine (SVM)
 
@@ -1262,7 +1352,7 @@ paste0("The total number of support vectors was: ", svm$tot.nSV)
 #### **Question 28A**: [1 point]
 What does the **number of support vectors** tell us in SVM, especially with a __linear kernel__? You may need to do a little research!
 
-> Your answer here.
+> In a Support Vector Machine (SVM) using a linear kernel, the number of support vectors indicates how many training samples lie closest to the decision boundary and are used to define that boundary. These are the most informative points for the classifier because the SVM aims to find the plane that maximizes the margin between the two classes. 52 support vectors in a relatively small training set means that a significant portion of the training data is being used to define the boundary, which suggests the classes (Control vs. Cold) are not well-separated.
 
 ### 4.1.3 Find the __training error__
 Once again, check the training accuracy to get a sense for training error. 
@@ -1304,7 +1394,8 @@ data.frame(overall) %>% kable(
 #### **Question 28A**: [1 point]
 How does the training and testing accuracy compare? What does this seem to imply about the model?
 
-> Your answer here.
+> The training accuracy of the linear SVM model is again perfect at 100 percent, while the testing accuracy drops to 64.3 percent. This gap suggests that the model is overfitting the training data. It has learned the training set extremely well, possibly memorizing noise, but struggles to generalize to new, unseen data.
+
 
 
 ### 4.1.5 Extract the top __important features__
