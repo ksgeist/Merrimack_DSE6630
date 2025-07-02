@@ -239,6 +239,7 @@ Which variable is the 'batch' variable in this analysis and why?
 
 > Your answer here.
 
+
 ### 2.2.1 The Design Formula 
 
 When you're analyzing RNA-seq data using `DESeq2`, one of the first and most important steps is to specify the __design formula__. This formula tells `DESeq2` how to model the experiment, including which variables (like treatment group, time, batch, etc.) to include in the analysis. Notably, design formulas help estimate __dispersion__, which is a measure of variability in gene expression, and is used to estimate gene expression changes (measured in log-fold) per the model. 
@@ -272,15 +273,19 @@ Use the `str()` function to explore the design object for a moment. For example,
 str(dsgnObject)
 ```
 
-#### **Question 6**: [1 point] 
+#### **Question 6**: [1 point]       TT
 In this course so far, you have been exposed to a number of different non-dataframe structures for data. Here's another one! Explore the `dsgnObject` with `str()` as above or another function of your choice. What differences do you notice about the structure of this object vs. a dataframe?
 
 > Your answer here.
+Firstly, this object has a lot more lines associated with it. After doing some research on DESeq, the dsgnObject is an S4 object with multiple components (slots) like count data, metadata, and a design formula. Portions of the object can't be accessed with $ or [] and requires special functions like assay() or colData() to extract its contents.
 
 Now write code to extract a dataframe of read counts from the design object `dsgnObject`. You will need to leverage the `assay()` function from `DESeq2` to do this! Show the `head()` of this dataframe only as proof you could extract it.
 
 ```{r}
 ## Your code here.
+read_counts_df <- as.data.frame(assay(dsgnObject))
+head(read_counts_df)
+
 ```
 
 
@@ -292,7 +297,7 @@ If you haven't figured this out yet, you currently still have __raw counts__ in 
 
 Below is a custom wrapper function that runs a variance stabilizing transform (VST) leveraging the built-in `vst()` function in `DESeq2`. Take a moment to look through the function and try to understand everything it does, including the parameters it takes.
 
-#### **Question 7A**: [2 points] 
+#### **Question 7A**: [2 points]       TT
 Add comments to the function, including doing your best to define the arguments. Remember, this is a **custom** function written as a wrapper function (like you've done before) that uses the `vst()` function to perform the variance stabilizing transformation on the raw read counts. You may find it helpful to consult information on VST and the `vst()` function in the `DESeq2` [vignette](https://bioconductor.org/packages/devel/bioc/vignettes/DESeq2/inst/doc/DESeq2.html).
 
 **Hint**: To learn what each of the arguments do, you may want to play around with them.
@@ -306,49 +311,61 @@ runVST <- function(dsgnObject,
                    writeRData = FALSE) {
   ############################################
   ## YOUR COMMENT HERE - include a usage statement
-  ## dsgnObject = ...
-  ## blind = ...
-  ## fitType = ...
-  ## makePlot = ...
-  ## writeTable = ...
-  ## writeRData = ...
+  ## dsgnObject = the DESeqDataSet object that has the raw read counts 
+  ## blind = this argument chooses when to ignore certain lines in the transformation
+  ## fitType = the fit for the for the dispersion estimate in the function
+  ## makePlot = creates diagnostic plots if the argument is true in the VST
+  ## writeTable = writing the transformed data into a txt file if the argument if true
+  ## writeRData = daving the object as an .Rdata file if true
   ############################################
   
   ## YOUR COMMENT HERE
   ## Make sure to address why we are checking for fitType to equal rlog!
+  #If fitType is "rlog", we use the regularized log transformation instead of VST
+  #rlog is more accurate for small data sets but slower 
   if(fitType == "rlog") {
     ## YOUR COMMENT HERE
+    #applying the rlog transformation
     vsData <- rlog(dsgnObject, blind = blind)
   }
   ## YOUR COMMENT HERE
+  # if fitType if not "rlog", apply this formula/transformation
   else {
     ## YOUR COMMENT HERE
+    #applying the VST code with the fitType and blinding choices
     vsData <- varianceStabilizingTransformation(dsgnObject, 
                                               blind = blind, 
                                               fitType = fitType)
   }
   
   ## YOUR COMMENT HERE
+  # if make Plot is true, generate the diagnostic plots for transformation
   if(makePlot == TRUE) {
     ## YOUR COMMENT HERE
+    #plotting the raw counts of the mean
     ## Hint: meandSDPlot() helps us see the effect of the VS transform
     p1 <- meanSdPlot(assay(dsgnObject), plot = F)
     ## YOUR COMMENT HERE
+    #adding labels to the diagnostic plots 
     p1 <- p1$gg + ggtitle("Before Variance Stabilization") + 
       scale_fill_gradient(low = skittles[1], high = skittles[2]) + 
       theme_bw() + theme(legend.position = "bottom")
     
     ## YOUR COMMENT HERE
+    #plotting the transformed data of the mean
     p2 <- meanSdPlot(assay(vsData), plot = F)
     ## YOUR COMMENT HERE
+    #adding labels to the plots 
     p2 <- p2$gg + ggtitle("After Variance Stabilization") + 
       scale_fill_gradient(low = skittles[1], high = skittles[2]) + 
       theme_bw() + theme(legend.position = "bottom")
     ## YOUR COMMENT HERE
+    #putting the plots side by side 
     grid.arrange(p1, p2, nrow=1)
   }
   
   ## YOUR COMMENT HERE
+  # if writeTable is true, make a txt file tith the transformed data 
   if(writeTable == TRUE) {
     
     ## YOUR COMMENT HERE - make sure to mention the output format!
@@ -359,18 +376,21 @@ runVST <- function(dsgnObject,
               row.names=T)
   }
   ## YOUR COMMENT HERE
+  #if true, save the transformed object to an .Rdata file
   if(writeRData == TRUE) {
     save(vsData, file="vst_all_timepoints.Rdata")
   }
   ## YOUR COMMENT HERE - what is being returned?
+  # the fully transformed data is returned
   return(vsData)
 }
 ```
 
-#### **Question 7B**: [1 point] 
+#### **Question 7B**: [1 point]       TT
 Why do we bother writing wrapper functions? What's the purpose and how can they make our lives easier? 
 
 > Your answer here.
+Wrapper functions break down the individual parts of complex functions into manageable (step-wise) parts. They can make our lives easiers by minimizing errors, creating an easier workflow, and improving code readability and reproducibility.
 
 
 Now, **run the function**! Note that here you will run a __parametric transformation__ with `blind = FALSE` because you do not want the transformations to be blind to the experimental design (treatment) at this stage; in fact, you expect large differential expression in some genes! Thus, to control for outliers you will want to set `blind = FALSE`.
@@ -386,10 +406,11 @@ runVST(dsgnObject,
        writeRData = FALSE)
 ```
 
-#### **Question 8**: [1 point]
+#### **Question 8**: [1 point]        TT
 What do you notice about the plot on the left (the `dsgnObject` without any transformation) vs. the plot on the right after the variance stabilizing transform? Is the VST effective at stabilizing the variance and, if so, how can you tell?
 
 > Your answer here.
+The plot on the left (before stabilization) shows very few genes with a high SD and no apparent curve in the data. The plot on the right (after stabilization) shows a more uniform representation of the data (with a larger range of mean values) and a trend line that is flat but is actually depicting a relstionship, unlike the trend line in the before plot. The VST was effective as it resulted in a flatter trednline and removed the dependence of the data on the mean.
 
 ### 2.3.1 Digging deeper: Estimating gene-wise dispersion
 
@@ -417,10 +438,11 @@ abline(lm(log(varCounts+0.0001) ~ log((meanCounts+0.0001))),
 ```
 
 
-#### **Question 10**: [1 point]
+#### **Question 10**: [1 point]      TT
 Does this plot support that a VST is (1) needed, (2) not needed, or (3) likely to be ineffective? Please explain.
 
 > Your answer here.
+This plot support that a VST is needed. As the mean increases, the variance also increases (the relationship is linear), indicating that the variance is not constant and showing dependence between the mean and the variance. 
 
 
 ### Other VST Functions 
