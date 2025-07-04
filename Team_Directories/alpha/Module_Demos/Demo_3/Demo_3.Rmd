@@ -398,12 +398,12 @@ Now, **run the function**! Note that here you will run a __parametric transforma
 #### Figure 1. Effect of parametric variance-stabilizing transformation on gene expression.
 
 ```{r}
-runVST(dsgnObject, 
-       blind = FALSE, 
-       fitType = "parametric", 
-       makePlot = TRUE, 
-       writeTable = FALSE, 
-       writeRData = FALSE)
+#runVST(dsgnObject, 
+#       blind = FALSE, 
+#       fitType = "parametric", 
+#       makePlot = TRUE, 
+#       writeTable = FALSE, 
+#       writeRData = FALSE)
 ```
 
 #### **Question 8**: [1 point]        TT
@@ -910,10 +910,10 @@ What percent of the variance is attributable to PC1 and PC2? At which time point
 
 > From the PCA results, PC1 explains 39% of the variance and PC2 explains 11% of the variance. I see the most separation between the treatments at the 30 min time point, where Cold seems to group together towards the top and the Control seems to group together towards the bottom. Verble et al. (2023) found something similar. They found that most of the transcriptional response to cold exposure occurred within the first 30 minutes after recovery, with 371 differentially expressed genes at 10 minutes and only 51 at 30 minutes. 
 
-#### **Question 21**: [1 point]
+#### **Question 21**: [1 point] - NL
 Think about what we discussed in lecture about Support Vector Machines. Do you see anything in these PCA plots that make you think that SVM might do a much better job of finding the decision boundary between the treatments than the negative binomial generalized linear regression model that `DESeq2` used? (**Hint**: If you can't "see" it, look at the slide from lecture about a non-monotonic decision boundary. Do you think it's possible that there is a non-monotonic boundary between the treatments here because of `Time`?)
 
-> Your answer here.
+> As time increases (illustrated by the different panels of the PCA plots), the decision clustering and suggested decision boundary shift as well. This suggests that there is a non-monotonic decision boundary as it does not stay consistent over time. Colony does not seem to cluster strongly, but treatment does and the decision-boundary for treatment (control/cold) shifts over time, suggesting that time or an interaction between time and treatment have a more important impact on gene expression than colony type. This interaction seems to change over time in a non-linear way, suggesting non-monotonicity. This causes issues for the GLM used by DESeq2 by default, but SVM does not assume monotonicity, so it may be better suited.
 
 
 ## 3.4 Volcano Plots
@@ -933,7 +933,7 @@ Using your answer to [Question 13B](#q13b), set the $log_2$-fold threshold in th
 ## print(lfc_thresholds) ## Uncomment to view
 
 ## Change the number of the vector to update
-lfc <- lfc_thresholds[4]
+lfc <- lfc_thresholds[1]
 ```
 
 _The first step is to take the results and turn it into a dataframe containing the relevant information for plotting. This includes defining when genes will be up-regulated or down-regulated!_ 
@@ -984,18 +984,19 @@ volcano %>%
         legend.position = "left") +
   ## Mark where the LFC threshold has been set
   geom_vline(xintercept = c(-lfc, lfc), col=skittles[4], linetype = "dashed")
+print(volcano["LOC100742138",])
 ```
 
 On the above volcano plot, the y-axis is the $-log_{10}$ $p$-value and the x-axis is the $log_2$-fold change. The dashed gold lines show where $log_2$-fold change between the chill coma and control conditions is $\geq 2$, which is would mean that expression is $2^2$ times greater in one condition over the other in linear change. Thus, the interpretation of this volcano plot (as printed using `lfc <- lfc_thresholds[4]`, which MAY or MAY NOT be your selection from Question 23A!) is that there is a single gene, `LOC100742138`, significantly up-regulated in the chill coma condition relative to the control condition such that expression was more than 4 times in the chill coma condition as control. **Note** that I have used `ggrepel()` to annotate genes with a $log_2$-fold change of greater than  the threshold.
 
-#### **Question 23B**: [1.5 points] 
+#### **Question 23B**: [1.5 points] - NL
 __Interpret__ your version of the volcano plot using the $log_2$-fold change threshold from Question 23A. Does the same gene `LOC100742138` appear to be significantly differentially expressed (and up-regulated) regardless of which LFC threshold you choose? (If you're not sure, look for it in the `volcano` dataframe!). Why is this?
 
-> Your answer here.
+> LOC100742138 does not appear to be significatly expressed, and is actually shown to be down-regulated with an LFC threshold of 0, with a log2FoldChange value of -0.205 and a p-value of 0.334. This is because the null-hypothesis that we are testing has changed. Instead of testing whether a gene is significantly differentially expressed at a threshold of 2, we are testing it at a threshold of 0. At a threshold of 2 we are testing whether or not LOC100742138 has a significantly large effect (>+/-2), vs. at a threshold of 0 where we are testing whether or not it is significantly different from 0. The confidence interval of LOC100742138 with the threshold of 2 may be tight enough to suggest significance and wide enough with the threshold of 0 to include 0, making it statistically insignificant.
 
 What happened to the dashed gold line in your plot vs. the one I made? (Refer back to the HTML document if needed). Why did this happen?
 
-> Your answer here.
+> The gold dashed line is now a single line, instead of a pair of lines evenly spaced from 0. This is because our LFC threshold is now 0, compared to the earlier threshold of 2. In order to have an LFC of 2, you must account for both strong up-regulation and down-regulation, meaning there will be a threshold at a +/-2 log2FoldChange value. Either positive or negative constitutes a strong change, but with 0, there is no +/- involved.
 
 
 \newpage
