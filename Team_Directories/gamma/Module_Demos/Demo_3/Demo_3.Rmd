@@ -357,64 +357,65 @@ runVST <- function(dsgnObject,
                    writeTable = FALSE, 
                    writeRData = FALSE) {
   ############################################
-  ## YOUR COMMENT HERE - include a usage statement
-  ## dsgnObject = ...
-  ## blind = ...
-  ## fitType = ...
-  ## makePlot = ...
-  ## writeTable = ...
-  ## writeRData = ...
+  ## YOUR COMMENT HERE - include a usage statement. runVST function performs variance stabilization on the input data.
+  ## dsgnObject = is the input data object
+  ## blind = is a logical value indicating whether to perform blind variance stabilization
+  ## fitType = explains the type of fit to use for variance stabilization
+  ## makePlot = a logical value indicating whether to generate plots
+  ## writeTable = a logical value indicating whether to write the variance-stabilized data to a table
+  ## writeRData = a logical value indicating whether to save the variance-stabilized data to an RData file
   ############################################
   
   ## YOUR COMMENT HERE
   ## Make sure to address why we are checking for fitType to equal rlog!
   if(fitType == "rlog") {
-    ## YOUR COMMENT HERE
+    ## YOUR COMMENT HERE: If fitType is "rlog", perform regularized log transformation, here the function calls rlog function with the dsgnObject and blind arguments
     vsData <- rlog(dsgnObject, blind = blind)
   }
-  ## YOUR COMMENT HERE
+  ## YOUR COMMENT HERE:If fitType is not "rlog", perform variance stabilizing transformation
   else {
-    ## YOUR COMMENT HERE
+    ## YOUR COMMENT HERE: the function calls varianceStabilizingTransformation with dsgnObject, blind and fitType arguments
     vsData <- varianceStabilizingTransformation(dsgnObject, 
                                               blind = blind, 
                                               fitType = fitType)
   }
   
-  ## YOUR COMMENT HERE
+  ## YOUR COMMENT HERE: creates plot before and after variance stabilization
   if(makePlot == TRUE) {
-    ## YOUR COMMENT HERE
-    ## Hint: meandSDPlot() helps us see the effect of the VS transform
+    ## YOUR COMMENT HERE: use meanSdplot to create two plot, a plot of dsgnObject before transformation and after
+    ## Hint: meandSDPlot() helps us see the effect of the variance before VS transform
     p1 <- meanSdPlot(assay(dsgnObject), plot = F)
-    ## YOUR COMMENT HERE
+    ## YOUR COMMENT HERE: customize the plot by adding title, colors and theme
     p1 <- p1$gg + ggtitle("Before Variance Stabilization") + 
       scale_fill_gradient(low = skittles[1], high = skittles[2]) + 
       theme_bw() + theme(legend.position = "bottom")
     
-    ## YOUR COMMENT HERE
+    ## YOUR COMMENT HERE: use meanSdplot to create two plot, a plot before transformation and after
     p2 <- meanSdPlot(assay(vsData), plot = F)
-    ## YOUR COMMENT HERE
+    ## YOUR COMMENT HERE: customize the plot and add title
     p2 <- p2$gg + ggtitle("After Variance Stabilization") + 
       scale_fill_gradient(low = skittles[1], high = skittles[2]) + 
       theme_bw() + theme(legend.position = "bottom")
-    ## YOUR COMMENT HERE
+    ## YOUR COMMENT HERE: arrange the plots in a single row
     grid.arrange(p1, p2, nrow=1)
   }
   
-  ## YOUR COMMENT HERE
+  ## YOUR COMMENT HERE: if the writeTable is True, the function writes the assay (vsData) to a text file named "vst.txt"
   if(writeTable == TRUE) {
     
     ## YOUR COMMENT HERE - make sure to mention the output format!
+    # the output format is "vst.txt", sep, quote and row.names explains the features of the output
     write.table(assay(vsData),
               file = "vst.txt",
               sep="\t", 
               quote=F, 
               row.names=T)
   }
-  ## YOUR COMMENT HERE
+  ## YOUR COMMENT HERE: if writRData is true, the function saves the variance stabilized data to an RData file named "vst_all_timepoints.RData"
   if(writeRData == TRUE) {
     save(vsData, file="vst_all_timepoints.Rdata")
   }
-  ## YOUR COMMENT HERE - what is being returned?
+  ## YOUR COMMENT HERE - what is being returned? variance stabilized data
   return(vsData)
 }
 ```
@@ -422,7 +423,8 @@ runVST <- function(dsgnObject,
 #### **Question 7B**: [1 point] 
 Why do we bother writing wrapper functions? What's the purpose and how can they make our lives easier? 
 
-> Your answer here.
+> Your answer here. By Collins
+wrapper functions simplify complex code by providing a new layer of abstraction, promoting readibility flexibility, and reusability. thus making it easier to work with codebases. wrapper functions can be adapted to new requirements, integrate different components, and provide a consistent interface making our lives easier. 
 
 
 Now, **run the function**! Note that here you will run a __parametric transformation__ with `blind = FALSE` because you do not want the transformations to be blind to the experimental design (treatment) at this stage; in fact, you expect large differential expression in some genes! Thus, to control for outliers you will want to set `blind = FALSE`.
@@ -441,7 +443,9 @@ runVST(dsgnObject,
 #### **Question 8**: [1 point]
 What do you notice about the plot on the left (the `dsgnObject` without any transformation) vs. the plot on the right after the variance stabilizing transform? Is the VST effective at stabilizing the variance and, if so, how can you tell?
 
-> Your answer here.
+> Your answer here. By Collins
+The plot on left (before variance stabilization) shows a very wide range of standard deviation approximately from 0 to 60,000 and most of the data points concentrated between rank (mean) 8,000 to 14,000. In contrast,
+the plot on right (after variance stabilization) shows a much small range  of variation from 0 to 3 standard deviations and are well distributed between rank(mean) 0 to 14,000.
 
 ### 2.3.1 Digging deeper: Estimating gene-wise dispersion
 
@@ -472,7 +476,9 @@ abline(lm(log(varCounts+0.0001) ~ log((meanCounts+0.0001))),
 #### **Question 10**: [1 point]
 Does this plot support that a VST is (1) needed, (2) not needed, or (3) likely to be ineffective? Please explain.
 
-> Your answer here.
+> Your answer here. By Collins
+Looking at the plot we can see that the data points are not perfectly linear but show an upward trend. However, there is a noticeable deviation from linearity, especially at higher values of natural-log mean expression. This deviation suggest that the variance is not constant across different mean expression levels, which is a key assumption that at higher mean, linear relationship with variance is tighter.
+Variance stablizing transformation (VST) is used to stabilize the variance across different mean expression levels, making the data more suitable for analysis. Given the non-linear relationship between variance and mean expression in the plot, it indicates that the variance is dependent on the mean expression level. Therefore, applying a VST would heelp to stabilize the variance and make the data more suitable for analysis.
 
 
 ### Other VST Functions 
@@ -491,16 +497,41 @@ Use the custom `runVST()` function, changing out the `fitType` parameter to do s
 
 > Your answer here.
 
+
+
+```{r}
+runVST(dsgnObject, 
+       blind = FALSE, 
+       fitType = "mean", 
+       makePlot = TRUE, 
+       writeTable = FALSE, 
+       writeRData = FALSE)
+```
+
+
+
 ```{r}
 ## Your code here.
+runVST(dsgnObject, 
+       blind = FALSE, 
+       fitType = "rlog", 
+       makePlot = TRUE, 
+       writeTable = FALSE, 
+       writeRData = FALSE)
 ```
 
 **FINALLY**, don't forget to `runVST()` with the `fitType` parameter of your choice! 
 
+
 ```{r}
 ## Your code here.
+runVST(dsgnObject, 
+       blind = FALSE, 
+       fitType = "local", 
+       makePlot = TRUE, 
+       writeTable = FALSE, 
+       writeRData = FALSE)
 ```
-
 
 ## 2.4 Finding differentially-expressed genes (DEGs)
 
