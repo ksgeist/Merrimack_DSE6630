@@ -405,12 +405,12 @@ Now, **run the function**! Note that here you will run a __parametric transforma
 #### Figure 1. Effect of parametric variance-stabilizing transformation on gene expression.
 
 ```{r}
-runVST(dsgnObject, 
-       blind = FALSE, 
-       fitType = "parametric", 
-       makePlot = TRUE, 
-       writeTable = FALSE, 
-       writeRData = FALSE)
+#runVST(dsgnObject, 
+#       blind = FALSE, 
+#       fitType = "parametric", 
+#       makePlot = TRUE, 
+#       writeTable = FALSE, 
+#       writeRData = FALSE)
 ```
 
 #### **Question 8**: [1 point]        TT
@@ -917,10 +917,10 @@ What percent of the variance is attributable to PC1 and PC2? At which time point
 
 > From the PCA results, PC1 explains 39% of the variance and PC2 explains 11% of the variance. I see the most separation between the treatments at the 30 min time point, where Cold seems to group together towards the top and the Control seems to group together towards the bottom. Verble et al. (2023) found something similar. They found that most of the transcriptional response to cold exposure occurred within the first 30 minutes after recovery, with 371 differentially expressed genes at 10 minutes and only 51 at 30 minutes. 
 
-#### **Question 21**: [1 point]
+#### **Question 21**: [1 point] - NL
 Think about what we discussed in lecture about Support Vector Machines. Do you see anything in these PCA plots that make you think that SVM might do a much better job of finding the decision boundary between the treatments than the negative binomial generalized linear regression model that `DESeq2` used? (**Hint**: If you can't "see" it, look at the slide from lecture about a non-monotonic decision boundary. Do you think it's possible that there is a non-monotonic boundary between the treatments here because of `Time`?)
 
-> Your answer here.
+> As time increases (illustrated by the different panels of the PCA plots), the decision clustering and suggested decision boundary shift as well. This suggests that there is a non-monotonic decision boundary as it does not stay consistent over time. Colony does not seem to cluster strongly, but treatment does and the decision-boundary for treatment (control/cold) shifts over time, suggesting that time or an interaction between time and treatment have a more important impact on gene expression than colony type. This interaction seems to change over time in a non-linear way, suggesting non-monotonicity. This causes issues for the GLM used by DESeq2 by default, but SVM does not assume monotonicity, so it may be better suited.
 
 
 ## 3.4 Volcano Plots
@@ -940,7 +940,7 @@ Using your answer to [Question 13B](#q13b), set the $log_2$-fold threshold in th
 ## print(lfc_thresholds) ## Uncomment to view
 
 ## Change the number of the vector to update
-lfc <- lfc_thresholds[4]
+lfc <- lfc_thresholds[1]
 ```
 
 _The first step is to take the results and turn it into a dataframe containing the relevant information for plotting. This includes defining when genes will be up-regulated or down-regulated!_ 
@@ -991,18 +991,19 @@ volcano %>%
         legend.position = "left") +
   ## Mark where the LFC threshold has been set
   geom_vline(xintercept = c(-lfc, lfc), col=skittles[4], linetype = "dashed")
+print(volcano["LOC100742138",])
 ```
 
 On the above volcano plot, the y-axis is the $-log_{10}$ $p$-value and the x-axis is the $log_2$-fold change. The dashed gold lines show where $log_2$-fold change between the chill coma and control conditions is $\geq 2$, which is would mean that expression is $2^2$ times greater in one condition over the other in linear change. Thus, the interpretation of this volcano plot (as printed using `lfc <- lfc_thresholds[4]`, which MAY or MAY NOT be your selection from Question 23A!) is that there is a single gene, `LOC100742138`, significantly up-regulated in the chill coma condition relative to the control condition such that expression was more than 4 times in the chill coma condition as control. **Note** that I have used `ggrepel()` to annotate genes with a $log_2$-fold change of greater than  the threshold.
 
-#### **Question 23B**: [1.5 points] 
+#### **Question 23B**: [1.5 points] - NL
 __Interpret__ your version of the volcano plot using the $log_2$-fold change threshold from Question 23A. Does the same gene `LOC100742138` appear to be significantly differentially expressed (and up-regulated) regardless of which LFC threshold you choose? (If you're not sure, look for it in the `volcano` dataframe!). Why is this?
 
-> Your answer here.
+> LOC100742138 does not appear to be significatly expressed, and is actually shown to be down-regulated with an LFC threshold of 0, with a log2FoldChange value of -0.205 and a p-value of 0.334. This is because the null-hypothesis that we are testing has changed. Instead of testing whether a gene is significantly differentially expressed at a threshold of 2, we are testing it at a threshold of 0. At a threshold of 2 we are testing whether or not LOC100742138 has a significantly large effect (>+/-2), vs. at a threshold of 0 where we are testing whether or not it is significantly different from 0. The confidence interval of LOC100742138 with the threshold of 2 may be tight enough to suggest significance and wide enough with the threshold of 0 to include 0, making it statistically insignificant.
 
 What happened to the dashed gold line in your plot vs. the one I made? (Refer back to the HTML document if needed). Why did this happen?
 
-> Your answer here.
+> The gold dashed line is now a single line, instead of a pair of lines evenly spaced from 0. This is because our LFC threshold is now 0, compared to the earlier threshold of 2. In order to have an LFC of 2, you must account for both strong up-regulation and down-regulation, meaning there will be a threshold at a +/-2 log2FoldChange value. Either positive or negative constitutes a strong change, but with 0, there is no +/- involved.
 
 
 \newpage
@@ -1083,6 +1084,7 @@ tVSdata$Treatment <- relevel(tVSdata$Treatment, ref = "Control")
 This allows you to split with respect to the response variable, Treatment, to ensure that it is even distributed throughout the test-train split. You will see that, with so few samples, I am opting for a 80%-20% split. There is a reason for this; if you calculated this as you've done prior, e.g., using the $\sqrt{p}:1$, you would not have sufficient training data, sadly. This is BECAUSE you have a $P >> n$ problem!!!
 
 ```{r}
+library(caret)
 ## Make the train and test partitions:
 ind <- createDataPartition(
   y = tVSdata[, c("Treatment")],     ## Treatment is evenly distributed
@@ -1127,25 +1129,25 @@ dim(train)
 dim(test)
 ```
 
-#### **Question 24A**: [0.5 points] 
+#### **Question 24A**: [0.5 points] - NL
 How many samples (observations) are in the training and testing data sets? How many features (genes) are there? What is the ratio of predictors (genes) to samples?
 
-> Your answer here.
+> There are 60 observations in the training set and 14 in the test set. There are 12927 genes in each, making the ratio of predictors to samples in the training set 0.004614:1 and in the test set 0.00108:1.
 
 ```{r}
-## Your optional code here.
+print(60/12927)
+print(14/12927)
 ```
 
-
-#### **Question 24B**: [0.5 points] 
+#### **Question 24B**: [0.5 points] - NL
 Remember, we used `caret`'s `createDataPartition()` Using Figure 9, do you notice anything concerning about the training split? What about the testing split? Does adjusting the split seem to make it better, worse, or stay the same? **Make sure to change it back after you are finished playing with it.**
 
-> Your answer here.
+> The split does not do a good job of including the different treatment combinations in both sets. With the 80:20 split, the testing set is missing many of the treatment combinations (excluding some colonies in each time group). Increasing the size of the testing set improves the representation of the different treatment combinations but reduces that representation in the training set, and runs the risk of not providing the model enough samples to train on (n is already concerningly small). Reducing the size of the testing set improves the training set representation but runs the risk of making the testing set non-indicative of reality, as it begins to exclude large numbers of treatment combinations.
 
-#### **Question 24C**: [1 point] 
+#### **Question 24C**: [1 point] - NL
 What are the predictors in the training and testing sets? Can you guess what the target will be? (**Hint**: This will be a _classification_ problem!). If you're still not sure, think about what you think the roles of `Treatment`, `Time` and `Colony` will be in the model.
 
-> Your answer here.
+> I think the gene expression values will be predictors and the target will be the treatment group (cold vs. control). This will let us see if gene expression is a significant predictor of whether or not a bumblebee is experiencing cold coma, which we can then use to explain the role of cold coma on gene expression. I think Time and Colony will also be predictors as we can use them to explore the relationship between cold coma and different colony types as well as over time.
 
 ### 4.1.4 Fitting an OOB Random Forest model
 
@@ -1168,10 +1170,10 @@ rfOOB$confusion %>%
 
 The confusion matrix gives you the OOB classification error of the cold-exposed (chill coma) vs. the reference Control condition. 
 
-#### **Question 24D**: [1 point] 
+#### **Question 24D**: [1 point] - NL
 How did the model perform? Where is the classification error highest? Does this suggestion a problem with separating the `Cold` class from the `Control` class or not?
 
-> Your answer here.
+> The model performed not super well, with the highest classification error when predicting on the true-negative samples (false positive rate of 0.429). the model tends to overpredict Cold more than it underpredicts, though it also had a relatively high rate of false negatives (0.292).
 
 You can also plot the results of the OOB RF to assess how well the classes are separated. 
 
@@ -1179,13 +1181,18 @@ You can also plot the results of the OOB RF to assess how well the classes are s
 ```{r}
 plot(rfOOB, 
      main = "OOB Random Forest", 
-     lwd = 2)
+     lwd = 2,)
+legend("topright", 
+       legend = colnames(rfOOB$err.rate), 
+       col = 1:ncol(rfOOB$err.rate), 
+       lty = 1, 
+       lwd = 2)
 ```
 
-#### **Question 24E**: [1 point]
+#### **Question 24E**: [1 point] - NL
 Based on Figure 10, did the OOB RF manage to find complete separation between cold-exposed and control treatments? If yes, approximately how many trees (tree depth) are needed to sufficiently distinguish the `Cold` and `Control` treatment classes? Does this suggest that using 500 trees will significantly improve the model, why or why not?
 
-> Your answer here.
+> No, the OOB RF model does not find complete separation. Using 500 trees does not improve the model performance significantly as it still struggles to classify both groups, though its performance with classifying the cold-exposed group does improve. The performance on classifying the control group stays mostly consistent over time.
 
 ### 4.1.5 Assessing training vs. testing accuracy
 
@@ -1194,6 +1201,7 @@ Next, look at the results of the training set when tested against the data (the 
 pred.train.rf <- predict(rfOOB, train, type = 'response')
 confMat <- confusionMatrix(train$Treatment,
                 pred.train.rf)
+confMat
 ```
 
 ```{r, echo=FALSE}
@@ -1205,10 +1213,10 @@ data.frame(overall) %>% kable(
 )
 ```
 
-#### **Question 24F**: [0.5 points]
+#### **Question 24F**: [0.5 points] - NL
 Look at the results of the training error. What is the accuracy and is this concerning or a good sign?
 
-> Your answer here.
+> The accuracy is 1.0, or 100%. This is mostly concerning. This suggests that the model is overfit, which is a bad sign as that means it will have diminished functionality when predicting on previously unseen data. The silver lining is that this means that our model is specific enough to capture that data, and we can now try to work backwards, reducing complexity and tuning it to stop memorizing the noise of the training data and start improving performance on the testing data.
 
 Now, look at the results of the training set when tested against the test set (a.k.a., __test error__ from which we derive **model accuracy**):
 ```{r}
@@ -1226,10 +1234,10 @@ data.frame(overall) %>% kable(
 )
 ```
 
-#### **Question 24G**: [1.5 points]
+#### **Question 24G**: [1.5 points] - NL
 Take a look at the test accuracy. It's only 42.9%! This means it is performing WORSE than random guessing (50%). Take a closer look at **Cohen's Kappa** and the **McNemar's Test**. What do these tests do and what do the results tell you? Do you have any ideas why this may have occurred? (**Hint**: What does the high training accuracy tell us relative to the testing accuracy?)
 
-> Your answer here.
+> Cohen's kappa describes the agreement between the true values and the predictions, while accounting for the random chance of them lining up. The value of <0 suggests that the model is worse than random predictions at coming up with predictions that match the true value, which is in line with our accuracy of <50%. McNemar's test examines whether or not the model is incorrectly predicting one group significantly more than the other. The p-value of 0.302 suggests that the model is incorrectly predicting both classes equally. This all provides more evidence of overfitting. This overfitting is likely due to the nearly thirteen thousand predictors on a small dataset (n <100).
 
 ### 4.1.6 Extracting Important Genes from an OOB Random Forest model
 
