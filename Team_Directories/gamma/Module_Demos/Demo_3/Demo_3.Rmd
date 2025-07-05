@@ -1350,6 +1350,18 @@ Write code that will compare the resulting important genes from the RF (**Hint**
 
 ```{r}
 ## Your code here.
+important_RF_genes <- importantRF %>%
+  as.data.frame() %>%
+  filter(MeanDecreaseGini > 0)
+
+significant_DESeq2_genes <- res[res$padj <- 0.05] #padj to filter using adjusted p-value
+
+overlapping_genes <- intersect(row.names(significant_DESeq2_genes), row.names(important_RF_genes))
+
+percentage_overlap <- (length(overlapping_genes) / nrow(significant_DESeq2_genes)) * 100
+
+print(paste("Number of overlapping genes:", length(overlapping_genes)))
+print(paste("Percentage overlap:", round(percentage_overlap, 2), "%"))
 ```
 
 
@@ -1369,20 +1381,42 @@ Show that your function works for a LFC cutoff of 1 and the same important genes
 
 ```{r}
 ## Your code here.
+
+find_overlapping_genes <- function(RF_important_genes, lfc_cutoff, P_value_cutoff = 0.05){
+  significant_DESeq2_genes <- res[res$padj <= P_value_cutoff & abs(res$log2FoldChange) >= lfc_cutoff &
+                                    !is.na(res$padj) &
+                                    !is.na(res$log2FoldChange), ] 
+  
+overlapping_genes <- intersect(row.names(significant_DESeq2_genes), row.names(important_RF_genes))
+
+percentage_overlap <- (length(overlapping_genes) / nrow(significant_DESeq2_genes)) * 100
+
+print(paste("Number of overlapping genes:", length(overlapping_genes)))
+print(paste("Percentage overlap:", round(percentage_overlap, 2), "%"))
+
+return(list(overlapping_genes = overlapping_genes, percentage_overlap = percentage_overlap))
+
+}
+
+result <- find_overlapping_genes(lfc_cutoff = 1, RF_important_genes = importantRF %>% as.data.frame() %>% filter(MeanDecreaseGini > 0))
+  
 ```
 
+# am tempted to change my lfc_cutoff to 1.5 that way I can get some value close to 9 (8)
 
 #### **Question 27**: [2 points]
 Overall, how did the OOB RF model perform? Which prediction (training or testing) had the highest accuracy? How many overlapping genes were found with `DESeq2`? Would you recommend this model as-is for benchmarking? Would you still consider this model for **feature selection**, **cross-validation**, and **tuning**?
 
 > Your answer here.
+OOB RF model was overfitting, it had a training accuracy of 1.000 and a testing accuracy of 0.786
+>`DESeq2` had 26 overlapping genes. I think yes I can recommend this model for feature selection as it has shown its ability to identify relevant features. Cross_validation and tuning maybe helpful in improving the model
 
 
 ## 4.2 Support Vector Machine (SVM)
 
 The other machine learning algorithm we are going to apply to the gene expression data is one that has been used for quite a long time now and is becoming quite conventional in its own right: SVM, or Support Vector Machine. This algorithm is especially handy for gene expression data because it can also perform a regression or classification and it does not require (although it can handle) the boundary between discrete classes to be linear. 
 
-You will do SVM this time as a __classification__, just as you did with Random Forest. You will be trying t tries to find the best boundary that separates the treatment classes based on the 12,000+ gene predictors, `Colony`, and `Time`, so the same model used for RF as well. First, you will use a __linear kernel__, in which the SVM assumes that the data can be separated using a straight line (i.e., in 2-dimensions) or a hyperplane (i.e., in higher dimensions). It will be trying to find the maximum-margin hyperplane which separates the two classes as widely as possible. Then, when the model "sees" new data, it will classify those new points based o n which side of the line (or plane) they fall onto. 
+You will do SVM this time as a __classification__, just as you did with Random Forest. You will be trying to find the best boundary that separates the treatment classes based on the 12,000+ gene predictors, `Colony`, and `Time`, so the same model used for RF as well. First, you will use a __linear kernel__, in which the SVM assumes that the data can be separated using a straight line (i.e., in 2-dimensions) or a hyperplane (i.e., in higher dimensions). It will be trying to find the maximum-margin hyperplane which separates the two classes as widely as possible. Then, when the model "sees" new data, it will classify those new points based on which side of the line (or plane) they fall onto. 
 
 Thinking back to your PCA, you might ask yourself now - do you think your data are linearly separable or close to it? (Monotonic). If not, a linear kernel is **unlikely to perform well**. But, never fear! SVM can utilize non-linear kernels too!
 
@@ -1421,10 +1455,13 @@ paste0("The total number of support vectors was: ", svm$tot.nSV)
 #### **Question 28A**: [1 point]
 What does the **number of support vectors** tell us in SVM, especially with a __linear kernel__? You may need to do a little research!
 
-> Your answer here.
+> Your answer here. By Collins
+Support vectors are the data points that lie closest to the decision boundary in an SVM model. they help define the hyperplane that separates the classes.
+>In an SVM with a linear kernel, the number of support vectors indicates the complexity of the model. Asmaller number os support vectors suggests a simpler model, while a larger number indicates a more complex model. In our case, our suport vectors of 57 indicates a moderately complex model.
 
 ### 4.1.3 Find the __training error__
 Once again, check the training accuracy to get a sense for training error. 
+
 ```{r}
 pred.train.svm <- predict(svm, train, type = 'response')
 confMat <- confusionMatrix(train$Treatment,
@@ -1460,10 +1497,11 @@ data.frame(overall) %>% kable(
 ```
 
 
-#### **Question 28A**: [1 point]
+#### **Question 28B**: [1 point]
 How does the training and testing accuracy compare? What does this seem to imply about the model?
 
-> Your answer here.
+> Your answer here. By Collins
+SVM model shows a higher training accuracy of 100% compared to testing accuracy of 78.6%. This tells us that the model is overfitting to the training data. That is, the model is memorizing the training data rather than learning the underlying patterns thus unable to generalize well to new unseen testing data.
 
 
 ### 4.1.5 Extract the top __important features__
@@ -1501,24 +1539,30 @@ svm2 <- train(Treatment ~ .,
 svmImportance2 <- varImp(svm2)
 ```
 
-#### **Question 28B**: [0.5 points]
-How many important genes were identified using `varImp()`?
+#### **Question 28C**: [0.5 points]
+How many important genes were identified using `varImp()`? 
 
-> Your answer here.
-
+> Your answer here. By Collins
+ 20 genes
+ 
 ```{r}
 ## Your code here.
+svmImportance2
+
 ```
 
 
 
-#### **Question 28C**: [0.5 points]
+#### **Question 28D**: [0.5 points]
 Use your function from [Question 26](#q26) - do you see any overlap between the `DESeq2` genes with significant $log_2$-fold expression using the LFC cutoff you chose back in Question 13B? If so, what percent overlap?
 
 > Your answer here.
 
 ```{r}
 ## Your code here.
+
+
+result1 <- find_overlapping_genes(lfc_cutoff = 1, RF_important_genes = svmImportance2) #am not sure if this is the right way to do this!!
 ```
 
 
@@ -1528,15 +1572,117 @@ Try quickly repeating the SVM analyses with both a __radial__ and a __sigmoid__ 
 
 > Your answer here.
 
+
+
+                  using `kernel = "radial" for package e1071
+                  
 ```{r}
 ## Your code here.
+## Using the e1071 package (but then variable importance is
+## only going to be weights)
+svm <- svm(Treatment ~ ., 
+    data = train,
+    kernel = "radial",
+)
+```
+
+```{r, echo = FALSE}
+paste0("The total number of support vectors was: ", svm$tot.nSV)
+```
+
+
+```{r}
+pred.train.svm <- predict(svm, train, type = 'response')
+confMat <- confusionMatrix(train$Treatment,
+                pred.train.svm)
+print(confMat$table)
+```
+
+```{r, echo=FALSE}
+overall <- round(confMat$overall, 3)
+data.frame(overall) %>% kable(
+    format = "html",
+    caption = "Table 8. Linear SVM Train - Results of Confusion Matrix") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F)
+)
+```
+
+
+```{r}
+pred.test.svm <- predict(svm, test, type = "response")
+confMat <- confusionMatrix(pred.test.svm, test$Treatment)
+print(confMat$table)
+```
+
+```{r, echo = FALSE}
+overall <- round(confMat$overall, 3)
+data.frame(overall) %>% kable(
+    format = "html",
+    caption = "Table 9. Linear SVM Test - Results of Confusion Matrix") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F)
+)
+```
+
+
+  
+  
+                Using `kernel = "sigmoid" for package e1071
+
+```{r}
+## Your code here.
+## Using the e1071 package (but then variable importance is
+## only going to be weights)
+svm2 <- svm(Treatment ~ ., 
+    data = train,
+    kernel = "sigmoid",
+)
+```
+
+```{r, echo = FALSE}
+paste0("The total number of support vectors was: ", svm2$tot.nSV)
+```
+
+
+```{r}
+pred.train.svm <- predict(svm2, train, type = 'response')
+confMat <- confusionMatrix(train$Treatment,
+                pred.train.svm)
+print(confMat$table)
+```
+
+```{r, echo=FALSE}
+overall <- round(confMat$overall, 3)
+data.frame(overall) %>% kable(
+    format = "html",
+    caption = "Table 8. Linear SVM Train - Results of Confusion Matrix") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F)
+)
+```
+
+
+```{r}
+pred.test.svm <- predict(svm2, test, type = "response")
+confMat <- confusionMatrix(pred.test.svm, test$Treatment)
+print(confMat$table)
+```
+
+```{r, echo = FALSE}
+overall <- round(confMat$overall, 3)
+data.frame(overall) %>% kable(
+    format = "html",
+    caption = "Table 9. Linear SVM Test - Results of Confusion Matrix") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F)
+)
 ```
 
 
 #### **Question 30**: [3 points] 
 At this point, which model - OOB RF or SVM (with kernel identified) - performs better on the gene expression data and why? What recommendations would you give for next steps including, but not limited to, feature selection, cross-validation, or hyperparameter tuning?
 
-> Your answer here.
+> Your answer here. By Collins
+The OOB RF and SVM (linear kernel) pulled very similar results. The had the same training and testing accuracy. Even though the models were overfitting, I think further tuning for OOB RF, example the number of trees could help improve the ability of the model to generalize to new unseen data and therefore, increase testing accuracy.
+>For SVM (linear kernel). I think including cross-validation might help the model learn underlying patterns better than just memorizing, thus making the svm model better in generalizing to new unseen data.
+> SVM (Radial and Sigmoid kernels) achieved very low accuracy of 53.3% for training and 50% for testing. This almost the same as by chance.
 
 # 5 Final Comments
 At this stage, it should feel clear that we need to do SOMETHING else. If not, stop and reflect on that statement. We know there is a lot of __noise__ in the data, and we have worked hard to preserve all of the observations and genes thus far. However, in noisy situations, feature selection and tuning can both have DRASTIC effects on the performance of our models. Which model will your team choose to tune for **Project 3**?
