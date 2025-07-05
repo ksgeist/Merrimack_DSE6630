@@ -106,7 +106,7 @@ head(metadata)
 #### **Question 1**: [1 point] 
 Looking at the [original study]("https://drive.google.com/file/d/1X3z251hebpjBVdOXsQtYzDG-SaeCa6M1/view"), what method of RNA sequencing was performed? This is an unusual method of sequencing, and you will need to look it up. Can you explain, approximately, how it works? (Give your best attempt)
 
->MN: From the article in the methods section, the authors chose TagSeq as there RNA sequencing method.The method is rea +lly beyond my scope of understanding, but from what I have gathered, this is a method to read the 4 letters of DNA. The Taq polyamerase copies until the breakpoint(ddNTP) is reached. The Taq method can withstand high temperatures which is needed for DNA denaturation.
+>MN: From the article in the methods section, the authors chose TagSeq as there RNA sequencing method.The method is really beyond my scope of understanding, but from what I have gathered, this is a method to read the 4 letters of DNA. The Taq polyamerase copies until the breakpoint(ddNTP) is reached. The Taq method can withstand high temperatures which is needed for DNA denaturation.
 https://en.wikipedia.org/wiki/Taq_polymerase
 
 
@@ -125,6 +125,7 @@ This means that what you have in front of you are **raw read counts** that have 
 Look at the Methods of the [original study]("https://drive.google.com/file/d/1X3z251hebpjBVdOXsQtYzDG-SaeCa6M1/view"). Can you find what quality threshold was used to filter the reads? Do a quick search; does this appear standard?
 
 > MN: The sequence data threshold was < 8 million reads.
+Reads were filtered at a Phred quality score of Q30 prior to alignment
 
 
 ## 1.4 Reading in the Raw Read Counts
@@ -133,7 +134,7 @@ You will be working with the __raw count__ data as __CPM (read counts per millio
 
 #### **Question 3**: Explain CPM for someone who might not know what that means. You may need to do a little extra reading on the subject! Are read counts in CPM _adjusted_ or _unadjusted_?
 
->MN: CPM is counts per million, and is a way to make raw read countsfrom RNA data comparable across diffrent samples. It is adjusted but only for sequencing depth.
+>MN: CPM is counts per million, and is a way to make raw read counts from RNA data comparable across diffrent samples. It is adjusted but only for sequencing depth.
 https://www.reneshbedre.com/blog/expression_units.html
 
 First, you read in the raw counts and get a sense of these data. Notice that, by this stage, the reads are simply stored in a comma-separated (`.csv`) file!
@@ -314,7 +315,7 @@ runVST <- function(dsgnObject,
                    writeTable = FALSE, 
                    writeRData = FALSE) {
   ############################################
-  ## YOUR COMMENT HERE - include a usage statement
+  ## Usage statement AJ-This function performs variance stabilizing transformation (VST) or regularized-log transformation (rlog)    ## on RNA-seq count data in DESeqDataSet 
   ## dsgnObject = the object we are using containing metadata and raw counts
   ## blind = make a blind transformation
   ## fitType = method to estimate trend
@@ -617,7 +618,7 @@ ggplot(normalized_counts_long,
 #### **Question 13A**: [0.5 points]
 How well did the scaling do that I chose? Make sure to look at it across not only all samples but also whether those samples are from the Control vs. the cold-exposed Treatment groups. Are you concerned about any of the samples specifically? Why or why not?
 
-> MN: From the generated plot, I belive the scaling looks solid. There seems to be uniformity, with any major difference in the overall trends. Between the cold vs control groups, it's very hard to tell, but the control seems to show some slight shifting vs the control.
+> MN: From the generated plot, I believe the scaling looks solid. There seems to be uniformity, without any major difference in the overall trends. Between the cold vs control groups, it's very hard to tell, but the control seems to show some slight shifting vs the control.
 
 #### 2.4.2.3 Let's FINALLY call significantly DE genes!
 We will finally loop through a set of LFC values and perform Wald tests to see which genes are significantly differentially expressed between the treatment groups using tha FDR-adjusted $p$-value of 0.05. **NOTE**: Be patient, this could take up to a minute to run on your machine.
@@ -914,6 +915,11 @@ Using your answer to [Question 13B](#q13b), set the $log_2$-fold threshold in th
 lfc <- lfc_thresholds[1]
 ```
 
+```{r}
+#volcano$log2FoldChange
+
+```
+
 _The first step is to take the results and turn it into a dataframe containing the relevant information for plotting. This includes defining when genes will be up-regulated or down-regulated!_ 
 ```{r}
 ## Re-run the results with the specified LFC:
@@ -962,6 +968,16 @@ volcano %>%
         legend.position = "left") +
   ## Mark where the LFC threshold has been set
   geom_vline(xintercept = c(-lfc, lfc), col=skittles[4], linetype = "dashed")
+```
+```{r}
+#need to remove
+volcano %>% filter(locus == "LOC100742138")
+
+```
+```{r}
+#need to remove
+unique(volcano$locus)
+
 ```
 
 On the above volcano plot, the y-axis is the $-log_{10}$ $p$-value and the x-axis is the $log_2$-fold change. The dashed gold lines show where $log_2$-fold change between the chill coma and control conditions is $\geq 2$, which is would mean that expression is $2^2$ times greater in one condition over the other in linear change. Thus, the interpretation of this volcano plot (as printed using `lfc <- lfc_thresholds[4]`, which MAY or MAY NOT be your selection from Question 23A!) is that there is a single gene, `LOC100742138`, significantly up-regulated in the chill coma condition relative to the control condition such that expression was more than 4 times in the chill coma condition as control. **Note** that I have used `ggrepel()` to annotate genes with a $log_2$-fold change of greater than  the threshold.
@@ -1244,7 +1260,7 @@ rfOOBvector <- rownames(rfOOBdf)
 resdf <- res %>%
   as.data.frame() %>%
   mutate(DEG = ifelse(log2FoldChange > lfcx & padj < 0.05, "Up-regulated",
-              ifelse(log2FoldChange < lfcx & padj < 0.05, "Down-regulated", "N.S."))) %>%
+              ifelse(log2FoldChange < -lfcx & padj < 0.05, "Down-regulated", "N.S."))) %>%
   drop_na %>%
   filter(DEG != "N.S.")
 
@@ -1254,6 +1270,7 @@ resdfvector <- rownames(resdf)
 same_between_both <- intersect(resdfvector, rfOOBvector)
 print(same_between_both)
 ```
+
 
 
 #### **Question 26**: [2 points] {#q26}
@@ -1275,7 +1292,7 @@ Show that your function works for a LFC cutoff of 1 and the same important genes
 
 ```{r}
 # (JML)
-compare_gene_vectors <- function(lfc_input, pval_input, rf_input) {
+compare_gene_vectors <- function(lfc_input, pval_input = 0.05, rf_input) {
 # for Gini
   rfOOBdf <- rf_input %>% 
     as.data.frame() %>% 
@@ -1287,7 +1304,7 @@ compare_gene_vectors <- function(lfc_input, pval_input, rf_input) {
   resdf <- res %>%
     as.data.frame() %>%
     mutate(DEG = ifelse(log2FoldChange > lfc_input & padj < pval_input, "Up-regulated",
-                        ifelse(log2FoldChange < lfc_input & padj < pval_input, "Down-regulated", "N.S."))) %>%
+                        ifelse(log2FoldChange < -lfc_input & padj < pval_input, "Down-regulated", "N.S."))) %>%
     drop_na %>%
     filter(DEG != "N.S.")
   
@@ -1298,16 +1315,28 @@ compare_gene_vectors <- function(lfc_input, pval_input, rf_input) {
   print(same_between_both)
 }
 
+# Print
+  cat("Number of overlapping genes:", length(same_between_both), "\n")
+  pct_overlap <- (length(same_between_both) / length(rfOOBvector)) * 100
+  cat("Overlapping genes:\n")
+  print(same_between_both)
+  
+  # Return results
+  #return(list(overlapping_genes = same_between_both,
+              #percent_overlap = pct_overlap))
+
 # test me
 intersecting_genes <- compare_gene_vectors(1, 0.05, importantRF)
 print(intersecting_genes)
 ```
 
 
+
+
 #### **Question 27**: [2 points]
 Overall, how did the OOB RF model perform? Which prediction (training or testing) had the highest accuracy? How many overlapping genes were found with `DESeq2`? Would you recommend this model as-is for benchmarking? Would you still consider this model for **feature selection**, **cross-validation**, and **tuning**?
 
-> Your answer here.
+> AJ-.Overall, the OOB Random Forest model performed poorly in terms of predictive generalization. The training accuracy was extremely high (100%), indicating a likely case of overfitting. The test accuracy was higher than initially estimated (around 85.7%) but  the small sample size makes this number unstable and unreliable for benchmarking.Using this model as-is for benchmarking or reporting definitive conclusions about predictive performance will not be recommended. However, I would still consider Random Forest for feature selection, cross-validation, and hyperparameter tuning, because ensemble methods can be very effective if tuned properly.
 
 
 ## 4.2 Support Vector Machine (SVM)
@@ -1353,7 +1382,7 @@ paste0("The total number of support vectors was: ", svm$tot.nSV)
 #### **Question 28A**: [1 point]
 What does the **number of support vectors** tell us in SVM, especially with a __linear kernel__? You may need to do a little research!
 
-> Your answer here.
+> AJ-In an SVM, support vectors are the observations closest to the decision boundary (points used by the algorythm).A very high number of support vectors in a linear SVM strongly suggests that the classes are not linearly separable, and that the model is likely to struggle to generalize well to unseen data.56 out of 60 training samples indicates that the classes are not cleanly separable by a linear hyperplane, there is overlapping or complexly structured.
 
 ### 4.1.3 Find the __training error__
 Once again, check the training accuracy to get a sense for training error. 
@@ -1395,7 +1424,7 @@ data.frame(overall) %>% kable(
 #### **Question 28A**: [1 point]
 How does the training and testing accuracy compare? What does this seem to imply about the model?
 
-> Your answer here.
+> AJ-The training accuracy for linear SVM model is 100% and testing accuracy is 78.6%. This discrepancy suggests that the model fits the training data very well but loses some predictive power on new or unseen data, a sign of potential overfitting, though not as extreme as the Random Forest model. Overall, the model generalizes  well but will benefit from further tuning or other methods  to improve test performance.
 
 
 ### 4.1.5 Extract the top __important features__
@@ -1436,10 +1465,38 @@ svmImportance2 <- varImp(svm2)
 #### **Question 28B**: [0.5 points]
 How many important genes were identified using `varImp()`?
 
-> Your answer here.
+> AJ-
 
 ```{r}
-## Your code here.
+svm2 <- train(Treatment ~ ., 
+              data = train, 
+              method = "svmLinear")
+
+```
+
+```{r}
+svmImportance2 <- varImp(svm2)
+
+```
+
+```{r}
+# Convert to a dataframe
+svmImpDF <- svmImportance2$importance
+
+# Count predictors with nonzero importance
+nrow(svmImpDF[svmImpDF$Overall > 0, , drop = FALSE])
+
+```
+
+
+```{r}
+## Extract the importance scores
+importance_df <- svmImportance2$importance
+
+## Count how many genes have importance > 0
+sum(importance_df[,1] > 0)
+
+
 ```
 
 
