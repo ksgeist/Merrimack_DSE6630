@@ -869,7 +869,13 @@ kable(
 #### **Question 16**: [1 point] 
 Look at the custom function I've written for generating the summary statistics. How is __low expression__ defined? What proportion of all reads had low expression? Does this seem high? Should we do any filtering to remove low-expression genes, do you think?
 
-> Your answer here.
+> Your answer here. By Collins
+
+> How many genes where there are fewer than 10 reads in 90% of samples?. That is a gene is considered to have low expression if it has less than 10 reads in at least 90% of the total samples.
+  `lowExpression <- length(totalCounts[totalCounts < 10*ncol(counts)*0.9])` 
+  >Proportion of genes with low expression is 0.3940 (39.40%)
+  propLowExp <- sum(lowExpression) / totalGenes
+>Acoording to summary statistics table above, the proportion of genes with low expression is 39.40% of all genes. This seems relatively high but I think we should not perform filtering to remove what we might refer to as "noise" considering that low expression might be a by product of treatment (chill coma). which could mean that the physiological processes of treatment sample bumble bees might have been shut down resulting to low expression.
 
 **Hint**: If it seems high, remember that the bumblebees were put into a __chill coma__ (which means their physiological processes might have shut down). In other words, the low expression might be a byproduct of the type of treatment that was applied and could be really interesting in and of itself. Conventional methods typically __remove lowly expressed genes__, but is that what we want to do here?
 
@@ -896,7 +902,8 @@ pheatmap(pwCorr,
 #### **Question 18**: [1 point] 
 From the heatmap, what do you notice about the arrangement of the treatments and time points (or lack thereof)? Do you see any important patterns that might explain why so few differentially expressed genes have been identified with `DESeq2`?
 
-> Your answer here.
+> Your answer here. By Collins
+In my opinion, the heatmap suggest that time point has a significant effect on gene expression profiles which might be masking the effects of treatment, and lack of clear separation between control and cold-treatment samples might explain why so few differentially expressed genes have been identified with DESeq2
 
 
 #### **Question 19**: [2 points] 
@@ -907,28 +914,28 @@ Complete this code chunk to calculate the sample distances instead. You will use
 **Hint**: Make sure to update your figure caption!
 ```{r, fig.width = 6, fig.height = 8.5, echo = TRUE}
 ## Calculate the sample distances; fill in the blank and take off the comment to run
-# sampleDistances <- dist(t(____)))     ## Hint: what did we do to extract a matrix from the VST object earlier?
+ sampleDistances <- dist(t(assay(vsData)))     ## Hint: what did we do to extract a matrix from the VST object earlier?
 
 ## Make the heatmap of the sample distances; fill in any blanks and then take the comments off to run!
-# sampleDistMatrix <- as.matrix(sampleDistances)
+ sampleDistMatrix <- as.matrix(sampleDistances)
 
 ## Let's label by treatment and time again
-# rownames(sampleDistMatrix) <- paste(vsData$Treatment, vsData$Time, sep="-" )
-# colnames(sampleDistMatrix) <- NULL
+ rownames(sampleDistMatrix) <- paste(vsData$Treatment, vsData$Time, sep="-" )
+ colnames(sampleDistMatrix) <- NULL
 
 ## Let's set a monochromatic color palette
-# colors <- colorRampPalette(rev(brewer.pal(9, "Purples")))(255)
+ colors <- colorRampPalette(rev(brewer.pal(9, "Purples")))(255)
 
-# pheatmap(___,
-         # clustering_distance_rows = sampleDistances,
-         # clustering_distance_cols = sampleDistances,
-         # col = colors)
+ pheatmap(sampleDistMatrix,
+          clustering_distance_rows = sampleDistances,
+          clustering_distance_cols = sampleDistances,
+          col = colors)
 ```
 
 
 ## 3.3 Principal Component Analysis (PCA)
 
-As you did in Project 1, we will perform a PCA again! PCA is also very commonly performed in gene expression studies because it allows you to visualize how well you different samples and conditions cluster together. You can also use PCA to identify which genes are likely to be more important to explain those differences, although you will not employ that here. Most importantly, given how **noisy the heatmap looks**, it would be nice to see if you can 'cut through the noise' with any other methods!
+As you did in Project 1, we will perform a PCA again! PCA is also very commonly performed in gene expression studies because it allows you to visualize how well your different samples and conditions cluster together. You can also use PCA to identify which genes are likely to be more important to explain those differences, although you will not employ that here. Most importantly, given how **noisy the heatmap looks**, it would be nice to see if you can 'cut through the noise' with any other methods!
 
 Notice that you are using a `plotPCA()` function which has been designed to work with gene expression data rather than `princomp()` or `prcomp()`, as was done in Project 1 or as you may see in other `R` resources on PCA. But could you still use `princomp()` or `prcomp`? Technically, yes, but not without a lot of reformatting and other work. `plotPCA()` is specifically designed for RNA-seq data because it expects an object like your variance-stabilized transformed (VST) count matrix (it will also accept a regularized-log or `rlog` count matrix), so you know that the data have been prepared appropriately for expression analysis. `plotPCA()` is also designed to automatically use the **most variable genes**, which are usually the most informative for separating samples. Recall that `princomp()` assumes continuous, normally distributed variables; since raw counts from RNA-seq are overdispersed and non-normal, this would prove problematic. Yet, traditional normalization techniques would NOT be appropriate for gene expression data, either! [And be wary of anyone you see doing it that way!]
 
@@ -969,12 +976,19 @@ ggplot(pca, aes(PC1, PC2, color = Treatment, shape = Colony)) +
 #### **Question 20**: [1 point]
 What percent of the variance is attributable to PC1 and PC2? At which time point(s) do you see the most separation between the treatments? Is this consistent with what Verble et al. (2023) found?
 
-> Your answer here.
+> Your answer here. By Collins
+PC1 is attributable to 39% variance while PC2 explains 11% variance. Between PC1 and PC2 they account for 50% variance.
+>at 10 minutes point, PC1 creates a separation of points, where red points (cold/ chill comma) occupies the position above zero towards 20 and the blue points (control treatyment) occupies the position below zero, towards -20.
+>at 30 minutes, PC2 separates the red points (cold/ chill coma) allocating them the position above zero to wards 10, while the blue points (control treatment) occupies the location below zero towards -10.
+
+>The results are consistent with those found by Verble et al, (2023) where he found at 10 minutes, 371 genes showed significant changes in expression, with 231 genes being upregulated and 140 genes down regulated. At 30 minutes, 51 genes showed significant changes, with 36 genes being upregulated and 15 genes being down regulated.
 
 #### **Question 21**: [1 point]
 Think about what we discussed in lecture about Support Vector Machines. Do you see anything in these PCA plots that make you think that SVM might do a much better job of finding the decision boundary between the treatments than the negative binomial generalized linear regression model that `DESeq2` used? (**Hint**: If you can't "see" it, look at the slide from lecture about a non-monotonic decision boundary. Do you think it's possible that there is a non-monotonic boundary between the treatments here because of `Time`?)
 
-> Your answer here.
+> Your answer here. By Collins
+A non-monotonic decision boundary would imply that the relationship between the components and the treatment outcome is not straightforwardly linear or monotonic. The changes in separation between treatments across different time points suggest that the effects of treatment on gene expression is not constant over time, which would indicate a non-montonic relationship.
+>Given the observed changes in separation between treatments (chill coma) over time and the potential for a non-monotonic decision boundary, an SVM model could indeed do a better job than a negative binomial generalized linear regression model in finding the decision boundary between treatments. The non-monotonic effects suggested by the varying separation across time points could be better captured by an SVM model.
 
 
 ## 3.4 Volcano Plots
@@ -991,10 +1005,11 @@ Thus, volcano plots allow you to quickly visualize the same results you saw from
 Using your answer to [Question 13B](#q13b), set the $log_2$-fold threshold in the code below. To do this, change out the number of the vector that corresponds to your selection in the earlier question. By default, I am choosing a $log_2$-fold threshold of 2. **Remember**: R is a one-referenced language, whereas Python is a zero-referenced language. This means that, in R, the fourth element in a vector will be `myVector[4]` in R!
 
 ```{r}
-## print(lfc_thresholds) ## Uncomment to view
+ print(lfc_thresholds) ## Uncomment to view
 
 ## Change the number of the vector to update
-lfc <- lfc_thresholds[4]
+lfc <- lfc_thresholds[2.0] # my choice for Q13B LFC threshold was 0.0 it gave the most differentially expressed genes, but when I use the same value here it returns an empty vector. In that regard, am opting for 1 which is  closest to my initial choice.
+#apparently after a little research I found out 1 and 1.5 are showing almost similar volcano plots. I want to believe the plots have a lot of noise, ignoring the atual significant differentially expressed gene. but 2 alters the plot significantly reducing the noise and revealing the significant differentially expressed gene
 ```
 
 _The first step is to take the results and turn it into a dataframe containing the relevant information for plotting. This includes defining when genes will be up-regulated or down-regulated!_ 
@@ -1040,7 +1055,7 @@ volcano %>%
        title = bquote("Volcano plot showing " ~ 
                         log[2] * "-fold change threshold of " ~ .(lfc))) +
   theme_classic() +
-  theme(title = element_text(size = 12),
+  theme(title = element_text(size = 10),
         legend.text = element_text(size = 11),
         legend.position = "left") +
   ## Mark where the LFC threshold has been set
@@ -1052,11 +1067,13 @@ On the above volcano plot, the y-axis is the $-log_{10}$ $p$-value and the x-axi
 #### **Question 23B**: [1.5 points] 
 __Interpret__ your version of the volcano plot using the $log_2$-fold change threshold from Question 23A. Does the same gene `LOC100742138` appear to be significantly differentially expressed (and up-regulated) regardless of which LFC threshold you choose? (If you're not sure, look for it in the `volcano` dataframe!). Why is this?
 
-> Your answer here.
+> Your answer here. By Collins
+The Volcano plot shows there is a single gene, `LOC100742138`, that is significantly up-regulated in the chill coma condition relative to the control condition such that expression is more than 2 times (2^log2-fold change(1)) in the chill coma condition as control. In conclusion, using a log2-fold change threshold of 1, Loc100742138 gene appears to be significantly differentially expressed.
 
 What happened to the dashed gold line in your plot vs. the one I made? (Refer back to the HTML document if needed). Why did this happen?
 
-> Your answer here.
+> Your answer here. By Collins
+my current dashed gold lines are narrow representing log2-fold change threshold of 1 that is 1 to -1. This is means its lenient compared to log2-fold change threshold of 2. If I change to log2-fold change threshold of 2 the dahed gold lines shifts covering a wider area to represent log2-fold change threshold of 2 that is +2 to -2. which will be a more stringent criterion for differential expression compared to my log2-fold change threshold of 1.
 
 
 \newpage
@@ -1087,7 +1104,7 @@ You will likely recall that Random Forest (RF) is a popular supervised learning 
 
 It is based on the binary decision tree, which progressively splits the samples into two child nodes that maximize how much of the variance in the dependent variable is explained by the predictors. However, as briefly discussed in Project 1, single decision trees tend to over fit the data, i.e., **they tend to generate much better predictions on the training set than on the test set**. Thus, RF uses an ensemble of trees (a forest!) to counteract this overfitting (although note that it NO algorithm is robust to overfitting!). Each tree in the forest uses a random sample of the observations, while only a subset of all features (columns) is assessed for each node split. 
 
-Although sometimes called a 'black box' algorithm, RF is more explainable than other deep-learning methods. This tends to make researchers a bit more hesitant to use it. However, recall that RF can give you is a scoring of features according to their influence; this is a measure of how __important__ the feature was in generating the trees in the forest. The result is a ranked list of features that were important for predicting the outcome. 
+Although sometimes called a 'black box' algorithm, RF is more explainable than other deep-learning methods. This tends to make researchers a bit more hesitant to use it. However, recall that RF can give you a scoring of features according to their influence; this is a measure of how __important__ the feature was in generating the trees in the forest. The result is a ranked list of features that were important for predicting the outcome. 
 
 RF is being used increasingly with gene expression studies because, as an ensemble learning algorithm, it is thought to be useful in what is often referred to as the "large $P$ small $n$" paradigm, where $P$ is the number of predictors and $n$ is the number of observations. You may not fully realize it, but we have just such a $P >> n$ problem here: $n$ is actually the number of __samples__ whereas $P$ is the number of genes!  
 
@@ -1132,6 +1149,8 @@ tVSdata <- tVSdata[,-1]
 ## Make sure that Treatment is a factor in the right order:
 tVSdata$Treatment <- relevel(tVSdata$Treatment, ref = "Control")
 ```
+
+
 
 ### 4.1.3 Create the test-train partitions using the `createDataPartition()` function from the `caret` package. 
 This allows you to split with respect to the response variable, Treatment, to ensure that it is even distributed throughout the test-train split. You will see that, with so few samples, I am opting for a 80%-20% split. There is a reason for this; if you calculated this as you've done prior, e.g., using the $\sqrt{p}:1$, you would not have sufficient training data, sadly. This is BECAUSE you have a $P >> n$ problem!!!
@@ -1184,22 +1203,29 @@ dim(test)
 #### **Question 24A**: [0.5 points] 
 How many samples (observations) are in the training and testing data sets? How many features (genes) are there? What is the ratio of predictors (genes) to samples?
 
-> Your answer here.
+> Your answer here. By Collins
+training set: samples (observations) 60, genes (features) 12927
+testing set: samples (observations) 14, genes (features) 12927
 
 ```{r}
 ## Your optional code here.
+ratio <- 12927 / (60 + 14)
+
+print(ratio)
 ```
 
 
 #### **Question 24B**: [0.5 points] 
 Remember, we used `caret`'s `createDataPartition()` Using Figure 9, do you notice anything concerning about the training split? What about the testing split? Does adjusting the split seem to make it better, worse, or stay the same? **Make sure to change it back after you are finished playing with it.**
 
-> Your answer here.
+> Your answer here. By Collins
+In testing set for 00 min we are missing cold treatment and for 170 min we are missing the control treatment. If I change proportion to 0.7 then I end up missing control treatment in the 10 min duration. If I go up a little bit to 0.85, I end up with highly reduced testing set that misses 00 min, control treatment for both 10 min and 720 min.Inconclusion, adjusting the split makes the testing set worse.
 
 #### **Question 24C**: [1 point] 
 What are the predictors in the training and testing sets? Can you guess what the target will be? (**Hint**: This will be a _classification_ problem!). If you're still not sure, think about what you think the roles of `Treatment`, `Time` and `Colony` will be in the model.
 
-> Your answer here.
+> Your answer here. By Collins
+I think treatment will be the target variable while features (genes), time and colony will be predictors
 
 ### 4.1.4 Fitting an OOB Random Forest model
 
@@ -1223,9 +1249,10 @@ rfOOB$confusion %>%
 The confusion matrix gives you the OOB classification error of the cold-exposed (chill coma) vs. the reference Control condition. 
 
 #### **Question 24D**: [1 point] 
-How did the model perform? Where is the classification error highest? Does this suggestion a problem with separating the `Cold` class from the `Control` class or not?
+How did the model perform? Where is the classification error highest? Does this suggest a problem with separating the `Cold` class from the `Control` class or not?
 
-> Your answer here.
+> Your answer here. By Collins
+The classification error is highest for the control class, with an error rate of approximately 53.57%. this suggest that the model struggles to accurately classify instances as control. However, it does not necessarily mean that the model cannot separate the cold classification from the control class. Instead it may indicate that the model is more prone to misclassifying control instances as cold.
 
 You can also plot the results of the OOB RF to assess how well the classes are separated. 
 
