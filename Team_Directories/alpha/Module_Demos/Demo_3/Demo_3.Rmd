@@ -1276,12 +1276,12 @@ resSig<-resPadj%>%
   filter(res$padj<0.05)
 
 overlapping<-as.data.frame(intersect(importantRFonly$gene,resSig$gene))
-length(overlapping)
+nrow(overlapping)
 paste0("Percentage of important genes that are significant DE genes per DESeq2:  ",length(overlapping[,1])/length(resSig[,1])*100,"%")
 ```
 
 
-#### **Question 26**: [2 points] {#q26}
+#### **Question 26**: [2 points] {#q26} - NL
 Now, modify your code from Question 25 into a function. Your function should take at least two arguments: 
 
 1. a log-fold change cutoff for the `DESeq` results 
@@ -1296,7 +1296,21 @@ Show that your function works for a LFC cutoff of 1 and the same important genes
 **Hint**: I get 9 total overlapping genes when I do this!
 
 ```{r}
-## Your code here.
+importantOverlapping<-function(DESeq_results,LFC_threshold,p_value,imp_genes){
+  importantGenes<-as.data.frame(imp_genes)%>%
+  filter(MeanDecreaseGini>0)
+  importantGenes$gene<-row.names(importantGenes)
+  resSig<-as.data.frame(DESeq_results[, c("padj", "log2FoldChange")])
+  resSig<-resSig%>%
+    filter(padj<=p_value,abs(log2FoldChange)>=LFC_threshold)
+  resSig$gene<-row.names(resSig)
+  overlapping<-as.data.frame(intersect(importantGenes$gene,resSig$gene))
+  paste0("Percentage of significant DE genes per DESeq2 that are important:  ",nrow(overlapping)/nrow(resSig)*100,"%  ","(",nrow(overlapping)," genes).")
+}
+```
+
+```{r}
+importantOverlapping(DESeq_results=res,LFC_threshold=1,p_value=0.05,imp_genes=importantRF)
 ```
 
 
