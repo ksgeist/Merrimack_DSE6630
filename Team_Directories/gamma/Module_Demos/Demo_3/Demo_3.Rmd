@@ -115,7 +115,7 @@ Looking at the [original study]("https://drive.google.com/file/d/1X3z251hebpjBVd
 
 > 1. messenger RNA (mRNA) Isolation: The process starts with isolating messenger RNA from the cells
 
-> 2. Heat-Based Fragmentation: The isolated mRNA is the subjected to heat to fragment it, to reduce length bias. This breaks the long mRNA into smaller Fragments.
+> 2. Heat-Based Fragmentation: The isolated mRNA is then subjected to heat to fragment it, to reduce length bias. This breaks the long mRNA into smaller Fragments.
 
 > 3. Comlementary DNA (cDNA) library preparation: 
     > cDNA is a DNA copy of mRNA molecule. In this step, an enzyme called Reverse transcriptase is used to create a complementary DNA (cDNA) copy from mRNA fragments. This process is called first-strand synthesis because its the first step in creating a double-stranded DNA molecule.
@@ -145,16 +145,22 @@ This means that what you have in front of you are **raw read counts** that have 
 Look at the Methods of the [original study]("https://drive.google.com/file/d/1X3z251hebpjBVdOXsQtYzDG-SaeCa6M1/view"). Can you find what quality threshold was used to filter the reads? Do a quick search; does this appear standard?
 
 > Your answer here. By Collins
-The quality threshold used to filter the reads was a minimum quality score of 15 and a minimum read length of 25. A quality score is a measure of how confident the sequencing machine is in the accuracy of each base call. A higher quality score indicates a higher confidence.
+The quality threshold used to filter the reads was a minimum PHred quality score of 15 and a minimum read length of 25 as quoted: (to clean and deduplicate reads with the following command for each sample:
+tagseq_clipper.pl {SAMPLE_ID}.fq | cutadapt - -a AAAAAAAA -a AGATCGG -q 15 -m 25 -o
+{SAMPLE_ID}.trim). 
+
+>A quality score is a measure of how confident the sequencing machine is in the accuracy of each base call. A higher quality score indicates a higher confidence.
 > A quality score of 15 used in this project is considered relatively low as it corresponds to an error rate of about 3.16% (since Phred scores are logarithmic). A more standard quality threshold might be Q30, which corresponds to an error ratye of about 0.1%.
 > The minimum read length of 25 is also relatively short, but it may be sufficient for this type of analysis (tag-based RNA sequencing)
+>
 
 
 ## 1.4 Reading in the Raw Read Counts
 
 You will be working with the __raw count__ data as __CPM (read counts per million)__ from across all 74 samples to perform a __differential gene expression__ analysis, often referred to as a 'DE' analysis in abbreviation. I will call it a 'DE' analysis going forward and I will refer to __'differentially expressed genes'__ as 'DEGs' or just 'DEG'. 
 
-#### **Question 3**: Explain CPM for someone who might not know what that means. You may need to do a little extra reading on the subject! Are read counts in CPM _adjusted_ or _unadjusted_?
+#### **Question 3**:
+Explain CPM for someone who might not know what that means. You may need to do a little extra reading on the subject! Are read counts in CPM _adjusted_ or _unadjusted_?
 
 > Your answer here. By Collins
 Read Counts Per Million (CPM) is a way to normalize the number of RNA sequencing reads that map to a particular gene or feature. It takes into account the total number of reads in a sample, allowing for fair comparisons between samples with different sequencing depths. In layman's language: Imagine you are accounting the number of books sold in two different stores.
@@ -185,6 +191,10 @@ colony ID: Daisy
 Treatment: Control
 Time: 00
 Read Count: 15768802
+c = control
+00 = time
+ECK = Experiment/ lab am not sure
+6 = Sample number
 
 #### **Question 4B**: [0.33 points] 
 Why is the `geneID` something like, 'LOC100740276'? What does that mean? 
@@ -199,8 +209,7 @@ Locus is a specific, fixed position on a chromosome where a particular gene or g
 For column `COOECK6`, gene 'LOC100740276' has a value of 6. What does that mean?
 
 > Your answer here. By Collins
-Given that `COOECK6` is a sample ID and `LOC100740276` is a gene ID. Then the number `6` being shared in both sample and gene ID represents the expression level or read count of the gene. Am not very sure with this i have to look deeper into it!!!
-
+Given that `COOECK6` is a sample ID and `LOC100740276` is a gene ID. Then the number `6` represents the expression level or read count of the gene.
 
 # 2 Conventional Method: Differential Expression (DE) Analysis using `DESeq2`
 
@@ -318,8 +327,8 @@ In this course so far, you have been exposed to a number of different non-datafr
 `dsgnObject` is a DataFrame from S4Vextors package in R which is different from a traditional dataframe. I have found the following major differnces:
 1. class: `dsgnObject` is a DataFrame from S4Vextors package in R while traditional dataframe is from class data.frame
 2. Structure : DataFrame is more complex than dataframe. containing additional slots such as elementMetadata, metadata, and listData, which are not present in dataframe
-3.rownames: in dataframe, rownames are a character vector of row names while DataFrame rownames are NULL by default.
-4.Versioning: the object `dsgnObject` has a version slot which does not exist in traditional dataframe.
+3.rownames: In dataframe, rownames are a character vector of row names while DataFrame rownames are NULL by default.
+4.Versioning: The object `dsgnObject` has a version slot which does not exist in traditional dataframe.
 While both DataFrame and traditional dataframe are used to store tabular data they have different structures and features.
 
 Now write code to extract a dataframe of read counts from the design object `dsgnObject`. You will need to leverage the `assay()` function from `DESeq2` to do this! Show the `head()` of this dataframe only as proof you could extract it.
@@ -424,7 +433,7 @@ runVST <- function(dsgnObject,
 Why do we bother writing wrapper functions? What's the purpose and how can they make our lives easier? 
 
 > Your answer here. By Collins
-wrapper functions simplify complex code by providing a new layer of abstraction, promoting readibility flexibility, and reusability. thus making it easier to work with codebases. wrapper functions can be adapted to new requirements, integrate different components, and provide a consistent interface making our lives easier. 
+wrapper functions simplify complex code by providing a new layer of abstraction, promoting readibility flexibility, and reusability. Thus making it easier to work with codebases. Wrapper functions can be adapted to new requirements, integrate different components, and provide a consistent interface making our lives easier. 
 
 
 Now, **run the function**! Note that here you will run a __parametric transformation__ with `blind = FALSE` because you do not want the transformations to be blind to the experimental design (treatment) at this stage; in fact, you expect large differential expression in some genes! Thus, to control for outliers you will want to set `blind = FALSE`.
@@ -527,7 +536,7 @@ runVST(dsgnObject,
 ## Your code here.
 runVST(dsgnObject, 
        blind = FALSE, 
-       fitType = "local", 
+       fitType = "local", #In my opinion local is very similar to Parametric
        makePlot = TRUE, 
        writeTable = FALSE, 
        writeRData = FALSE)
@@ -596,7 +605,7 @@ Suppose that Gene A has a $log_2$-fold change of -4 in the chill-coma bumblebees
 Use the information in the cheatsheet (or calculate it directly) to find the approximate multiplicate factor in gene expression change in the chill coma bees versus the control bees.
 
 > Your answer here.By Collins
-A negative log2-fold change indicates a down-regulation of a gene, that is the gene is getting turned off during chill coma in comparison to control treatment. Therefore, given that the log2-fold change is `-4` (a negative value). then we can conclude that Gene A is being down-regulated in the chill-coma bumble bees vs control bumble bees.
+A negative log2-fold change indicates a down-regulation of a gene, that is the gene is getting turned off during chill coma in comparison to control treatment. Therefore, given that the log2-fold change is `-4` (a negative value). Then we can conclude that Gene A is being down-regulated in the chill-coma bumble bees vs control bumble bees.
 
 > approximate multiplicate factor in gene expression change in chill coma bumble bees therefore would be calculated as:
 2^log-fold change
@@ -679,12 +688,12 @@ ggplot(normalized_counts_long,
 How well did the scaling do that I chose? Make sure to look at it across not only all samples but also whether those samples are from the Control vs. the cold-exposed Treatment groups. Are you concerned about any of the samples specifically? Why or why not?
 
 > Your answer here. By Collins
-From the plot we can see that the variance-stabilizing expression values are generally consistent across all samples, with most of them having similar ranges. However, there are some samples that appear to have slightly higer or lower expression values than others. For example control sample C10ECK7 and C720ECK16 are lower expression values while C10ECK80 and C720ECK53 are higher expression values.
+From the plot we can see that the variance-stabilizing expression values are generally consistent across all samples, with most of them having similar ranges. However, there are some samples that appear to have slightly higher or lower expression values than others. For example control sample C10ECK7 and C720ECK16 are lower expression values while C10ECK80 and C720ECK53 are higher expression values.
 In cold sample T00ECK94 and  T120ECK104 show lower expression values while T120ECK31 and T10ECK26 show higher expression values. Thes outliers could potentially be a concern, as they may indicate issues with the data or the scalling method.
 
 >focusing on the control (blue) and chill coma/ cold (red), we can see that the cold-exposed samples tend to have slightly higher expression values than the control samples. This is my opinion, not necessarily true!. in that regard, this suggest that the cold exposure may have had an effect in the gene expression levels.
 
->In conclusion, based on the plot, it appears that the scalling method did a reasonable job of stabiling the variance across all the samples, however, am a little bit concerned by the few outliers and the slight expression difference between the control and chill coma samples.
+>In conclusion, based on the plot, it appears that the scalling method did a reasonable job of stabilizing the variance across all the samples, however, am a little bit concerned by the few outliers and the slight expression difference between the control and chill coma samples.
 
 #### 2.4.2.3 Let's FINALLY call significantly DE genes!
 We will finally loop through a set of LFC values and perform Wald tests to see which genes are significantly differentially expressed between the treatment groups using tha FDR-adjusted $p$-value of 0.05. **NOTE**: Be patient, this could take up to a minute to run on your machine.
@@ -750,7 +759,7 @@ Which $log_2$-fold change (LFC) threshold yieled the most differentially express
 > Your answer here. By Collins
 most differentially expressed genes was from LFC OF 0 with (85 + 123 genes) while the least differentially expressed genes was from LFC OF 1, 1.5, and 2 with (1 + 0 genes).
 
->since our interest is to benchmark, I think the LFC of 0 while more lenient would be the best choice as it gives us the most differentially expressed genes. 1, 1.5, and 2 seems to be more stringent and will end up excluding most of the genes that are truly differentially expressed.
+>since our interest is to benchmark, I think the LFC of 0 while more lenient would be the best choice as it gives us the most differentially expressed genes. 1, 1.5, and 2 seems to be more stringent and will end up excluding most of the genes that are truly differentially expressed. Its interesting because down the line I ended up chosing LFC of 2!!
 
 >A bilogical reason: For example, genes involved in signalling pathways may only need to be expressed briefly or at a low level to trigger a response. Therefore in such a case we would rather focus on FDR-adjusted P-value rather than the LFC threshold because these genes may only need to be expressed at low level to have a significant biological effect.
 
@@ -767,7 +776,7 @@ Looking at the Verble et al. (2023) study, how do our results differ from their 
 **Hint 2**: Look at what we did with `Time`!
 
 > Your answer here. By Collins
-Verble et al., used a custom approach to analyze data while DESeq used a well established statistical framework. We add time as an important variable owing to the fact that we expected our experiment to interact with time.
+Verble et al., used a custom approach to analyze data while DESeq2 used a well established statistical framework. We add time as an important variable owing to the fact that we expected our experiment to interact with time.
 <Verble et al., focused on the diffential gene expression and gene ontologies while we focused on the comprehensive analysis of data using DESeq. including the estimation of dispersion and fold change.
 
 # 3 Exploratory Data Analysis
@@ -978,10 +987,10 @@ What percent of the variance is attributable to PC1 and PC2? At which time point
 
 > Your answer here. By Collins
 PC1 is attributable to 39% variance while PC2 explains 11% variance. Between PC1 and PC2 they account for 50% variance.
->at 10 minutes point, PC1 creates a separation of points, where red points (cold/ chill comma) occupies the position above zero towards 20 and the blue points (control treatyment) occupies the position below zero, towards -20.
->at 30 minutes, PC2 separates the red points (cold/ chill coma) allocating them the position above zero to wards 10, while the blue points (control treatment) occupies the location below zero towards -10.
+> At 10 minutes point, PC1 creates a separation of points, where red points (cold/ chill comma) occupies the position above zero towards 20 and the blue points (control treatyment) occupies the position below zero, towards -20.
+> At 30 minutes, PC2 separates the red points (cold/ chill coma) allocating them the position above zero to wards 10, while the blue points (control treatment) occupies the location below zero towards -10.
 
->The results are consistent with those found by Verble et al, (2023) where he found at 10 minutes, 371 genes showed significant changes in expression, with 231 genes being upregulated and 140 genes down regulated. At 30 minutes, 51 genes showed significant changes, with 36 genes being upregulated and 15 genes being down regulated.
+> The results are consistent with those found by Verble et al, (2023) where he found at 10 minutes, 371 genes showed significant changes in expression, with 231 genes being upregulated and 140 genes down regulated. At 30 minutes, 51 genes showed significant changes, with 36 genes being upregulated and 15 genes being down regulated.
 
 #### **Question 21**: [1 point]
 Think about what we discussed in lecture about Support Vector Machines. Do you see anything in these PCA plots that make you think that SVM might do a much better job of finding the decision boundary between the treatments than the negative binomial generalized linear regression model that `DESeq2` used? (**Hint**: If you can't "see" it, look at the slide from lecture about a non-monotonic decision boundary. Do you think it's possible that there is a non-monotonic boundary between the treatments here because of `Time`?)
@@ -1317,7 +1326,7 @@ data.frame(overall) %>% kable(
 Take a look at the test accuracy. It's only 42.9%! This means it is performing WORSE than random guessing (50%). Take a closer look at **Cohen's Kappa** and the **McNemar's Test**. What do these tests do and what do the results tell you? Do you have any ideas why this may have occurred? (**Hint**: What does the high training accuracy tell us relative to the testing accuracy?)
 
 > Your answer here. By Collins
-Kapp (Cohen's Kappa): measures the agreement between the predicted and the actual classifications, corrected for the agreement that would occur by chance. A kappa of 0.571 indicates that, although there is some level of agreement between the predicted and the actual classifications beyond chance, the agreement is not strong.
+Kappa (Cohen's Kappa): measures the agreement between the predicted and the actual classifications, corrected for the agreement that would occur by chance. A kappa of 0.571 indicates that, although there is some level of agreement between the predicted and the actual classifications beyond chance, the agreement is not strong.
 >McNemarPvalue: This is used to compare the performance of two related samples. A P-value of 1.000 suggest no significant difference in the performance of the model compared to another baseline model.
 > the huge differenece between training accuracy (1.000) and testing accuracy (0.786) stronly suggest overfitting. That is the model has learned the training data too well, includingits noise and outlier thus failing to generalize to new unseen testing data
 
@@ -1456,8 +1465,8 @@ paste0("The total number of support vectors was: ", svm$tot.nSV)
 What does the **number of support vectors** tell us in SVM, especially with a __linear kernel__? You may need to do a little research!
 
 > Your answer here. By Collins
-Support vectors are the data points that lie closest to the decision boundary in an SVM model. they help define the hyperplane that separates the classes.
->In an SVM with a linear kernel, the number of support vectors indicates the complexity of the model. Asmaller number os support vectors suggests a simpler model, while a larger number indicates a more complex model. In our case, our suport vectors of 57 indicates a moderately complex model.
+Support vectors are the data points that lie closest to the decision boundary in an SVM model. They help define the hyperplane that separates the classes.
+>In an SVM with a linear kernel, the number of support vectors indicates the complexity of the model. A smaller number os support vectors suggests a simpler model, while a larger number indicates a more complex model. In our case, our suport vectors of 57 indicates a moderately complex model.
 
 ### 4.1.3 Find the __training error__
 Once again, check the training accuracy to get a sense for training error. 
