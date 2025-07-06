@@ -1468,20 +1468,78 @@ importantOverlapping(DESeq_results=res,LFC_threshold=0,p_value=0.05,imp_genes=im
 
 
 
-#### **Question 29**: [5 points]
+#### **Question 29**: [5 points] - NL
 Try quickly repeating the SVM analyses with both a __radial__ and a __sigmoid__ kernel. You may use either the `e1071` or the `caret` methods, but you may find `e1071` easier. **Hint**: For `e1071`, you will change `kernel = "radial"` and `kernel = "sigmoid"`. For `caret`, you will make `method = "svmRadial"` but for the sigmoid it gets complicated. Make sure to do both your training and testing predictions to check accuracy. Which kernel yields the lowest training error and the highest test accuracy? What do you conclude from all of this? (**NOTE**: I am not asking you to extract the important genes at this time.)
 
-> Your answer here.
+> Both radial and sigmoid kernels perform worse than the linear kernel did. The radial kernel has a poor training accuracy of 66.7% and a testing accuracy of 42.9%, which is a bit worse than randomly guessing. Sigmoid performs even worse, with a training accuracy of 53.3% and a testing accuracy of 50%. Sigmoid seems to be basically equivalent to random guessing while radial is slightly better on the training set and slightly worse on the testing set than random guessing. This indicates that neither of these kernels are a good fit for this data. The linear kernel is a better fit, despite the support vectors suggesting that the model will have a hard time using a simple hyperplane to separate classes.
 
-```{r}
-## Your code here.
+```{r, SVM radial kernel}
+svm <- svm(Treatment ~ ., 
+           data = train,
+           kernel = "radial",
+)
+paste0("The total number of support vectors was: ", svm$tot.nSV)
+
+pred.train.svm <- predict(svm, train, type = 'response')
+confMat <- confusionMatrix(train$Treatment,
+                           pred.train.svm)
+print(confMat$table)
+
+overall <- round(confMat$overall, 3)
+data.frame(overall) %>% kable(
+  format = "html",
+  caption = "Table 11. Radial SVM Train - Results of Confusion Matrix") %>%
+  kable_styling(bootstrap_options = c("hover", full_width = F)
+  )
+
+pred.test.svm <- predict(svm, test, type = "response")
+confMat <- confusionMatrix(pred.test.svm, test$Treatment)
+print(confMat$table)
+
+overall <- round(confMat$overall, 3)
+data.frame(overall) %>% kable(
+  format = "html",
+  caption = "Table 12. Radial SVM Test - Results of Confusion Matrix") %>%
+  kable_styling(bootstrap_options = c("hover", full_width = F)
+  )
+```
+
+```{r, SVM sigmoidal kernel}
+svm <- svm(Treatment ~ ., 
+           data = train,
+           kernel = "sigmoid",
+)
+paste0("The total number of support vectors was: ", svm$tot.nSV)
+
+pred.train.svm <- predict(svm, train, type = 'response')
+confMat <- confusionMatrix(train$Treatment,
+                           pred.train.svm)
+print(confMat$table)
+
+overall <- round(confMat$overall, 3)
+data.frame(overall) %>% kable(
+  format = "html",
+  caption = "Table 13. Sigmoid SVM Train - Results of Confusion Matrix") %>%
+  kable_styling(bootstrap_options = c("hover", full_width = F)
+  )
+
+pred.test.svm <- predict(svm, test, type = "response")
+confMat <- confusionMatrix(pred.test.svm, test$Treatment)
+print(confMat$table)
+
+overall <- round(confMat$overall, 3)
+data.frame(overall) %>% kable(
+  format = "html",
+  caption = "Table 14. Sigmoid SVM Test - Results of Confusion Matrix") %>%
+  kable_styling(bootstrap_options = c("hover", full_width = F)
+  )
 ```
 
 
-#### **Question 30**: [3 points] 
+#### **Question 30**: [3 points] - NL
 At this point, which model - OOB RF or SVM (with kernel identified) - performs better on the gene expression data and why? What recommendations would you give for next steps including, but not limited to, feature selection, cross-validation, or hyperparameter tuning?
 
-> Your answer here.
+> The Linear-kernel SVM performs better than the OOB RF, as it shows some predictive power with the test accuracy of 64.3%, compared to Random Forest which showed that, when exposed to previously unseen data, it was worse than randomly guessing. The Linear-kernel SVM did show that it may be limited in its performance when looking at the support vector count (55/60), which implies that the decision boundary is not easily described by a simple hyperplane. The next step that has been basically smacking us in the face this entire time is feature selection--we have nearly 13,000 features for a very small sample size. Paring those down is the most direct route to reducing the pervasive overfitting problem that plagues both the linear-kernel SVM and the Random Forest. Cross-validation would be beneficial for the Random Forest as well, to see if a non-OOB version performs better than the OOB. Hyperparameter tuning I think should be the last step to fine-tune model performance here, after we address the flaws that are inherent to the dataset or the models we are using (though I think SVM shows promise!).
 
 # 5 Final Comments
 At this stage, it should feel clear that we need to do SOMETHING else. If not, stop and reflect on that statement. We know there is a lot of __noise__ in the data, and we have worked hard to preserve all of the observations and genes thus far. However, in noisy situations, feature selection and tuning can both have DRASTIC effects on the performance of our models. Which model will your team choose to tune for **Project 3**?
