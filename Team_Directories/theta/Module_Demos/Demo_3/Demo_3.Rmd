@@ -684,7 +684,10 @@ How well did the scaling do that I chose? Make sure to look at it across not onl
 > Overall, we see that scaling roughly brought each sample into line.
 > All of the boxes nearly share the same median, with only slight
 > variations. 
-> ADD HERE
+> This pattern does seem to hold between both treatment groups.
+> While I do not have great concern for any sample, there are a few which
+> fall slightly outside of the black line.
+> These include T120ECK67, T120ECK31, C30ECK12, and C10ECK80.
 
 #### 2.4.2.3 Let's FINALLY call significantly DE genes!
 We will finally loop through a set of LFC values and perform Wald tests to see which genes are significantly differentially expressed between the treatment groups using tha FDR-adjusted $p$-value of 0.05. **NOTE**: Be patient, this could take up to a minute to run on your machine.
@@ -784,7 +787,10 @@ Looking at the Verble et al. (2023) study, how do our results differ from their 
 **Hint 1**: What is different about our __design formula__ versus what they describe verbally? 
 **Hint 2**: Look at what we did with `Time`!
 
-> Your answer here.
+> It appears as if the article did the analysis on each time segment individually.
+> The results section describes the number of DEG found at each time point, 
+> instead of an overall total like we found.
+> This is because our design formula includes time as a predictor. 
 
 # 3 Exploratory Data Analysis
 
@@ -1011,8 +1017,13 @@ What percent of the variance is attributable to PC1 and PC2? At which time point
 > PC1 is attributed 39% of the variance.
 > PC2 is attributed 11% of the variance.
 
-> The 30m point appears to have the most separation between the treatments. 
-> FINISH HERE
+> The 10m and 30m points appears to have the most separation between the treatments. 
+> The abstract of Verble et al. (2023) states that,
+> "Significant differences from control bees were only detectable
+> within 30 minutes after the treatment, with most occurring at the 
+> 10-minute recovery time point."
+> This suggests that our findings are consistent with what
+> Verble et al. (2023) found. 
 
 #### **Question 21**: [1 point]
 Think about what we discussed in lecture about Support Vector Machines. Do you see anything in these PCA plots that make you think that SVM might do a much better job of finding the decision boundary between the treatments than the negative binomial generalized linear regression model that `DESeq2` used? (**Hint**: If you can't "see" it, look at the slide from lecture about a non-monotonic decision boundary. Do you think it's possible that there is a non-monotonic boundary between the treatments here because of `Time`?)
@@ -1100,11 +1111,30 @@ On the above volcano plot, the y-axis is the $-log_{10}$ $p$-value and the x-axi
 #### **Question 23B**: [1.5 points] 
 __Interpret__ your version of the volcano plot using the $log_2$-fold change threshold from Question 23A. Does the same gene `LOC100742138` appear to be significantly differentially expressed (and up-regulated) regardless of which LFC threshold you choose? (If you're not sure, look for it in the `volcano` dataframe!). Why is this?
 
-> Your answer here.
+```{r}
+volcano["LOC100742138", ] # Look at the desired gene
+```
+
+
+> The volcano plot shows a dashed yellow line at 0 on the X axis.
+> We see several points that are both up and down regulated.
+
+> Since the gene does not appear labeled on the plot, I looked up the entry
+> within the volcano dataframe.
+> The DEG is N.S., not up-regulated. 
+> Furthermore, the log_2-fold change is negative, suggesting that it would not
+> be considered up regulated. 
+
+> In addition, checking the other threshold (of 2) as described does generate
+> a plot consistent with the provided HTML, however still produces
+> a negative log_2-fold change (-0.204742). 
+> I am not quite sure why it is expressed on the plot as up regulated. 
 
 What happened to the dashed gold line in your plot vs. the one I made? (Refer back to the HTML document if needed). Why did this happen?
 
-> Here, the difference is due to using a different threshold value. 
+> Here, the difference is due to using a different threshold value.
+> Since my threshold is 0, there is only a single yellow line at that point
+> on the x-axis.
 
 
 \newpage
@@ -1186,6 +1216,8 @@ This allows you to split with respect to the response variable, Treatment, to en
 
 ```{r}
 ## Make the train and test partitions:
+library(caret)
+
 ind <- createDataPartition(
   y = tVSdata[, c("Treatment")],     ## Treatment is evenly distributed
   p = 0.8,                           ## % into training
@@ -1232,22 +1264,35 @@ dim(test)
 #### **Question 24A**: [0.5 points] 
 How many samples (observations) are in the training and testing data sets? How many features (genes) are there? What is the ratio of predictors (genes) to samples?
 
-> Your answer here.
+> In the train set, there are 60 genes and 12927 observations. 
+> The ratio of genes to samples is 0.004641448.
+> In the test set, there are 14 genes and 12927 observations.
+> The ratio of genes to samples is 0.001083005.
 
 ```{r}
 ## Your optional code here.
+60/12927 # train ratio
+14/12927 # test ratio
 ```
 
 
 #### **Question 24B**: [0.5 points] 
 Remember, we used `caret`'s `createDataPartition()` Using Figure 9, do you notice anything concerning about the training split? What about the testing split? Does adjusting the split seem to make it better, worse, or stay the same? **Make sure to change it back after you are finished playing with it.**
 
-> Your answer here.
+> Looking at the splits, it is clear that not all colonies are present
+> within each time point. 
+> This would negatively impact model performance, as it will not be trained
+> to recognize each colony within each time point. 
+
+> Adjusting the split appears to shuffle around the data, but overall
+> does not seem to correct this imbalance. 
+
 
 #### **Question 24C**: [1 point] 
 What are the predictors in the training and testing sets? Can you guess what the target will be? (**Hint**: This will be a _classification_ problem!). If you're still not sure, think about what you think the roles of `Treatment`, `Time` and `Colony` will be in the model.
 
-> Your answer here.
+> The predictors include the genes, time, and colony.
+> We will be using these predictors to predict the treatment.
 
 ### 4.1.4 Fitting an OOB Random Forest model
 
@@ -1273,7 +1318,10 @@ The confusion matrix gives you the OOB classification error of the cold-exposed 
 #### **Question 24D**: [1 point] 
 How did the model perform? Where is the classification error highest? Does this suggestion a problem with separating the `Cold` class from the `Control` class or not?
 
-> Your answer here.
+> The model obtained an accuracy of 60%.
+> The greatest class error was in control, with a class error of 0.4642857.
+> This tells us that nearly 50% of control cases are misclassified,
+> suggesting a problem in the models ability to separate cold from control. 
 
 You can also plot the results of the OOB RF to assess how well the classes are separated. 
 
@@ -1287,7 +1335,10 @@ plot(rfOOB,
 #### **Question 24E**: [1 point]
 Based on Figure 10, did the OOB RF manage to find complete separation between cold-exposed and control treatments? If yes, approximately how many trees (tree depth) are needed to sufficiently distinguish the `Cold` and `Control` treatment classes? Does this suggest that using 500 trees will significantly improve the model, why or why not?
 
-> Your answer here.
+> The error seems to never reach 0, suggesting that the model does not manage
+> to find complete separation between the two treatments.
+> However, the 500 tree mark does show a bit of plateauing, which
+> might suggest the model becomes more stable with that many trees. 
 
 ### 4.1.5 Assessing training vs. testing accuracy
 
@@ -1310,7 +1361,11 @@ data.frame(overall) %>% kable(
 #### **Question 24F**: [0.5 points]
 Look at the results of the training error. What is the accuracy and is this concerning or a good sign?
 
-> Your answer here.
+> The accuracy of the training error is 100%.
+> This is likely concerning, as it is a sign of overfitting.
+> With such perfect accuracy on the training data,
+> it is likely that the model will not be able to generalize
+> to new observations. 
 
 Now, look at the results of the training set when tested against the test set (a.k.a., __test error__ from which we derive **model accuracy**):
 ```{r}
@@ -1331,7 +1386,13 @@ data.frame(overall) %>% kable(
 #### **Question 24G**: [1.5 points]
 Take a look at the test accuracy. It's only 42.9%! This means it is performing WORSE than random guessing (50%). Take a closer look at **Cohen's Kappa** and the **McNemar's Test**. What do these tests do and what do the results tell you? Do you have any ideas why this may have occurred? (**Hint**: What does the high training accuracy tell us relative to the testing accuracy?)
 
-> Your answer here.
+> My accuracy shows to be higher than what is listed in the question (64.3%).
+> The Kappa is 28.6%, which suggests the model is only doing slightly
+> better than randomly guessing.
+> The McNemar's Test score of 0.371 suggests there is no bias in the way
+> misclassifications occur. 
+> Overall, the lower test accuracy seems to mean that the training model
+> was indeed overfit. 
 
 ### 4.1.6 Extracting Important Genes from an OOB Random Forest model
 
@@ -1358,10 +1419,44 @@ Write code that will compare the resulting important genes from the RF (**Hint**
 
 **Hint 4**: You may find it helpful to turn `importantRF` into a dataframe first; note that the genes are in the _rownames_. 
 
-> Your answer here.
+> There are 108 overlapping genes.
+> The percent of overlap is 51.92%. 
 
 ```{r}
 ## Your code here.
+
+# Convert to dataframe
+
+importantRF_df <- as.data.frame(importantRF)
+importantRF_df$gene <- rownames(importantRF_df)
+
+# Filter Mean Decrease Gini
+
+rf_genes <- importantRF_df %>%
+  filter(MeanDecreaseGini > 0) %>%
+  pull(gene)
+
+# Filter DESeq2 results for significance
+
+de_genes <- res %>%
+  as.data.frame() %>%
+  filter(padj < 0.05) %>%
+  rownames()
+
+# Find overlapping genes
+
+overlap_genes <- intersect(rf_genes, de_genes)
+n_overlap <- length(overlap_genes)
+
+# Calculate overlap percent
+
+percent_overlap <- (n_overlap / length(de_genes)) * 100
+
+# Results
+
+cat("Number of overlapping genes:", n_overlap, "\n")
+cat("Percent overlap (relative to DE genes):", percent_overlap, "%\n")
+
 ```
 
 
@@ -1381,13 +1476,63 @@ Show that your function works for a LFC cutoff of 1 and the same important genes
 
 ```{r}
 ## Your code here.
+
+compareImportantGenes <- function(res, lfc_cutoff, important_genes, pval_cutoff = 0.05) {
+  # Ensure res is dataframe
+  res_df <- as.data.frame(res)
+  
+  # Filter DESeq2 by log2FoldChange and adjusted p-value
+  deg_filtered <- res_df %>%
+    dplyr::filter(abs(log2FoldChange) >= lfc_cutoff, padj < pval_cutoff)
+  
+  deg_genes <- rownames(deg_filtered)
+  
+  # Find overlapping genes
+  overlap_genes <- intersect(important_genes, deg_genes)
+  n_overlap <- length(overlap_genes)
+  
+  # Calculate overlap percentage
+  percent_overlap_deg <- ifelse(length(deg_genes) > 0,
+                                (n_overlap / length(deg_genes)) * 100, NA)
+  
+  # Return results
+  list(
+    n_DE_genes = length(deg_genes),
+    n_important_genes = length(important_genes),
+    n_overlap = n_overlap,
+    percent_overlap_DE = percent_overlap_deg,
+    overlapping_genes = overlap_genes
+  )
+}
+```
+
+```{r}
+results <- compareImportantGenes(res = res, 
+                                lfc_cutoff = 1, 
+                                important_genes = rf_genes, 
+                                pval_cutoff = 0.05)
+
+print(results)
 ```
 
 
 #### **Question 27**: [2 points]
 Overall, how did the OOB RF model perform? Which prediction (training or testing) had the highest accuracy? How many overlapping genes were found with `DESeq2`? Would you recommend this model as-is for benchmarking? Would you still consider this model for **feature selection**, **cross-validation**, and **tuning**?
 
-> Your answer here.
+> Overall, model performance was fair, but not great.
+> The training accuracy was much higher than the testing accuracy.
+> It appears that this is likely due to overfitting. 
+
+> 13 genes were found overlapping with DESeq2. 
+
+> This model (as-is) would not be good for benchmarking.
+> It has poor a predictive ability, with a tendency to misclassify
+> the control treatment. 
+
+> It is possible that this model may improve by applying feature selection,
+> cross-validation and tuning.
+> However, it may also be the case that a different type of model may be
+> more effective than a random forest for this data. 
 
 
 ## 4.2 Support Vector Machine (SVM)
@@ -1433,7 +1578,12 @@ paste0("The total number of support vectors was: ", svm$tot.nSV)
 #### **Question 28A**: [1 point]
 What does the **number of support vectors** tell us in SVM, especially with a __linear kernel__? You may need to do a little research!
 
-> Your answer here.
+> The number of support vectors tell us how many training points 
+> are close to the decision boundary.
+> Our value of 56 suggests that the model struggles to separate
+> the two treatment classes. 
+
+> Source: https://www.geeksforgeeks.org/machine-learning/support-vector-machine-algorithm/
 
 ### 4.1.3 Find the __training error__
 Once again, check the training accuracy to get a sense for training error. 
@@ -1475,7 +1625,10 @@ data.frame(overall) %>% kable(
 #### **Question 28A**: [1 point]
 How does the training and testing accuracy compare? What does this seem to imply about the model?
 
-> Your answer here.
+> Once again, we have a training accuracy of 100%.
+> However, we also have a test accuracy of 92.9%.
+> This might imply that the model have a strong predictive power. 
+> However, this could also be due to the low number of test records. 
 
 
 ### 4.1.5 Extract the top __important features__
@@ -1516,10 +1669,13 @@ svmImportance2 <- varImp(svm2)
 #### **Question 28B**: [0.5 points]
 How many important genes were identified using `varImp()`?
 
-> Your answer here.
+> No important genes were identified
 
 ```{r}
 ## Your code here.
+
+important_genes <- sum(svmImportance2$importance$Overall > 0)
+print(important_genes)
 ```
 
 
@@ -1527,10 +1683,25 @@ How many important genes were identified using `varImp()`?
 #### **Question 28C**: [0.5 points]
 Use your function from [Question 26](#q26) - do you see any overlap between the `DESeq2` genes with significant $log_2$-fold expression using the LFC cutoff you chose back in Question 13B? If so, what percent overlap?
 
-> Your answer here.
+> There is no overlap. 
 
 ```{r}
 ## Your code here.
+
+# Extract Important Genes
+
+svm_imp_df <- svmImportance2$importance
+svm_genes <- rownames(svm_imp_df)[svm_imp_df$Overall > 0]
+
+# Comparison
+
+results <- compareImportantGenes(
+  res = res,           
+  lfc_cutoff = 0,        
+  important_genes = svm_genes,
+  pval_cutoff = 0.05   
+)
+print(results)
 ```
 
 
@@ -1538,17 +1709,108 @@ Use your function from [Question 26](#q26) - do you see any overlap between the 
 #### **Question 29**: [5 points]
 Try quickly repeating the SVM analyses with both a __radial__ and a __sigmoid__ kernel. You may use either the `e1071` or the `caret` methods, but you may find `e1071` easier. **Hint**: For `e1071`, you will change `kernel = "radial"` and `kernel = "sigmoid"`. For `caret`, you will make `method = "svmRadial"` but for the sigmoid it gets complicated. Make sure to do both your training and testing predictions to check accuracy. Which kernel yields the lowest training error and the highest test accuracy? What do you conclude from all of this? (**NOTE**: I am not asking you to extract the important genes at this time.)
 
-> Your answer here.
+> The Radial Kernel resulted in a better train accuracy than the 
+> Sigmoid Kernel. 
+> However, both kernels obtained the same test accuracy of 50%. 
+> This suggests that neither kernel is better than naive guessing. 
 
 ```{r}
-## Your code here.
+# Radial Kernel
+
+# Train (radial kernel)
+svm_radial <- svm(Treatment ~ ., data = train, kernel = "radial")
+
+# Number of support vectors
+cat("The total number of support vectors (radial):", svm_radial$tot.nSV, "\n")
+
+# Train predictions
+pred.train.radial <- predict(svm_radial, train, type = "response")
+confMat.train.radial <- confusionMatrix(train$Treatment, pred.train.radial)
+print(confMat.train.radial$table)
+
+overall.train.radial <- round(confMat.train.radial$overall, 3)
+data.frame(overall.train.radial) %>% kable(
+    format = "html",
+    caption = "Radial SVM Train - Results of Confusion Matrix"
+) %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F))
+
+# Test predictions and confusion matrix
+pred.test.radial <- predict(svm_radial, test, type = "response")
+confMat.test.radial <- confusionMatrix(test$Treatment, pred.test.radial)
+print(confMat.test.radial$table)
+
+overall.test.radial <- round(confMat.test.radial$overall, 3)
+data.frame(overall.test.radial) %>% kable(
+    format = "html",
+    caption = "Radial SVM Test - Results of Confusion Matrix"
+) %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F))
+
+```
+
+```{r}
+# Sigmoid Kernel 
+
+# Train (sigmoid kernel)
+svm_sigmoid <- svm(Treatment ~ ., data = train, kernel = "sigmoid")
+
+# Number of support vectors
+cat("The total number of support vectors (sigmoid):", svm_sigmoid$tot.nSV, "\n")
+
+# Train predictions
+pred.train.sigmoid <- predict(svm_sigmoid, train, type = "response")
+confMat.train.sigmoid <- confusionMatrix(train$Treatment, pred.train.sigmoid)
+print(confMat.train.sigmoid$table)
+
+overall.train.sigmoid <- round(confMat.train.sigmoid$overall, 3)
+data.frame(overall.train.sigmoid) %>% kable(
+    format = "html",
+    caption = "Sigmoid SVM Train - Results of Confusion Matrix"
+) %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F))
+
+# Test predictions and confusion matrix
+pred.test.sigmoid <- predict(svm_sigmoid, test, type = "response")
+confMat.test.sigmoid <- confusionMatrix(test$Treatment, pred.test.sigmoid)
+print(confMat.test.sigmoid$table)
+
+overall.test.sigmoid <- round(confMat.test.sigmoid$overall, 3)
+data.frame(overall.test.sigmoid) %>% kable(
+    format = "html",
+    caption = "Sigmoid SVM Test - Results of Confusion Matrix"
+) %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F))
 ```
 
 
 #### **Question 30**: [3 points] 
 At this point, which model - OOB RF or SVM (with kernel identified) - performs better on the gene expression data and why? What recommendations would you give for next steps including, but not limited to, feature selection, cross-validation, or hyperparameter tuning?
 
-> Your answer here.
+> Overall, the best model obtained was the linear SVM model, which obtained
+> a test accuracy of 92%. 
+> A potential reason as to why the SVM performed better than the RF is due to
+> the "small n, large p" problem. 
+> Our dataset faces this problem, as there are more genes (features) than there
+> are samples.
+> SVM models handle this problem better than RF models, as they work in
+> higher dimensional hyperspaces that can find separating hyperplanes in sparse
+> data. 
+
+> There are several possible next steps to try and improve model accuracy.
+> Feature selection would help reduce dimensionality.
+> As discussed, we face a sparse data problem.
+> By reducing features, such as focusing only on top identified genes,
+> could help decrease the sparsity of the data.
+
+> Cross-validation could also help in ensuring model validity.
+> While the linear SVM model obtained a test accuracy of 92%, I am suspect
+> of the model due to the large difference between the other tested models.
+> Cross-validation would help ensure that this model really is effective.
+
+> Third, while we performed a minor amount of tuning by trying different SVM
+> kernels, more intensive hyperparameter tuning is suggested to try and identify
+> the optimal model. 
 
 # 5 Final Comments
 At this stage, it should feel clear that we need to do SOMETHING else. If not, stop and reflect on that statement. We know there is a lot of __noise__ in the data, and we have worked hard to preserve all of the observations and genes thus far. However, in noisy situations, feature selection and tuning can both have DRASTIC effects on the performance of our models. Which model will your team choose to tune for **Project 3**?
