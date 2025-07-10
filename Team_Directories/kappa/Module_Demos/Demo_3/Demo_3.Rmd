@@ -1436,10 +1436,20 @@ svmImportance2 <- varImp(svm2)
 #### **Question 28B**: [0.5 points]
 How many important genes were identified using `varImp()`?
 
-> Your answer here.
+> We used VarImp() to identify the top 10 most important genes.
 
 ```{r}
-## Your code here.
+# Convert to tibble and show top 10
+library(tibble)
+
+svmImportance2_df <- as_tibble(svmImportance$Weight, rownames = "Gene")
+top10_genes <- svmImportance %>%
+  arrange(desc(Weight)) %>%
+  slice_head(n = 10)
+
+top10_genes
+
+
 ```
 
 
@@ -1447,10 +1457,13 @@ How many important genes were identified using `varImp()`?
 #### **Question 28C**: [0.5 points]
 Use your function from [Question 26](#q26) - do you see any overlap between the `DESeq2` genes with significant $log_2$-fold expression using the LFC cutoff you chose back in Question 13B? If so, what percent overlap?
 
-> Your answer here.
+> Using the compare_gene_overlap function with a log2 fold change cutoff of 0, we found 208 genes that were significantly differentially expressed according to DESeq2. Out of the 12926 genes identified as important by the Random Forest model, 207 overlapped with the DESeq2 significant genes. This is a 99.5 percent overlap with the DESeq2 set and a 1.6 percent overlap with the Random Forest important genes.&#x20;
+
 
 ```{r}
-## Your code here.
+overlap_summary_lfc0 <- compare_gene_overlap(res, rownames(importantRF), lfc_cutoff = 0)
+print(overlap_summary_lfc0)
+
 ```
 
 
@@ -1458,17 +1471,38 @@ Use your function from [Question 26](#q26) - do you see any overlap between the 
 #### **Question 29**: [5 points]
 Try quickly repeating the SVM analyses with both a __radial__ and a __sigmoid__ kernel. You may use either the `e1071` or the `caret` methods, but you may find `e1071` easier. **Hint**: For `e1071`, you will change `kernel = "radial"` and `kernel = "sigmoid"`. For `caret`, you will make `method = "svmRadial"` but for the sigmoid it gets complicated. Make sure to do both your training and testing predictions to check accuracy. Which kernel yields the lowest training error and the highest test accuracy? What do you conclude from all of this? (**NOTE**: I am not asking you to extract the important genes at this time.)
 
-> Your answer here.
+> Based on our results, both the radial and sigmoid SVM kernels performed poorly. The radial kernel had a training accuracy of 61.7 percent and a test accuracy of 50 percent, while the sigmoid kernel had a lower training accuracy of 53.3 percent and the same 50 percent test accuracy. This means neither model learned meaningful patterns from the training data nor generalized well to the test data. Since the test accuracy is equal to random guessing, it suggests that the chosen features don't effectively separate the treatment groups, or that more tuning and validation are needed.
+
 
 ```{r}
-## Your code here.
+# radial kernel
+svm_radial <- e1071::svm(Treatment ~ ., data = train, kernel = "radial")
+pred_train_radial <- predict(svm_radial, train)
+pred_test_radial <- predict(svm_radial, test)
+cm_train_radial <- caret::confusionMatrix(train$Treatment, pred_train_radial)
+cm_test_radial <- caret::confusionMatrix(test$Treatment, pred_test_radial)
+
+# sigmoid kernel
+svm_sigmoid <- e1071::svm(Treatment ~ ., data = train, kernel = "sigmoid")
+pred_train_sigmoid <- predict(svm_sigmoid, train)
+pred_test_sigmoid <- predict(svm_sigmoid, test)
+cm_train_sigmoid <- caret::confusionMatrix(train$Treatment, pred_train_sigmoid)
+cm_test_sigmoid <- caret::confusionMatrix(test$Treatment, pred_test_sigmoid)
+
+# display accuracies
+cat("Radial train accuracy:", round(cm_train_radial$overall["Accuracy"], 3), "\n")
+cat("Radial test accuracy:", round(cm_test_radial$overall["Accuracy"], 3), "\n")
+cat("Sigmoid train accuracy:", round(cm_train_sigmoid$overall["Accuracy"], 3), "\n")
+cat("Sigmoid test accuracy:", round(cm_test_sigmoid$overall["Accuracy"], 3), "\n")
+
 ```
 
 
 #### **Question 30**: [3 points] 
 At this point, which model - OOB RF or SVM (with kernel identified) - performs better on the gene expression data and why? What recommendations would you give for next steps including, but not limited to, feature selection, cross-validation, or hyperparameter tuning?
 
-> Your answer here.
+> At this point, the out-of-bag Random Forest (OOB RF) model performs better than any of the SVM models tested. The RF model had higher test accuracy (64.3%) compared to the SVM with linear kernel (also 64.3%). The SVM models with radial and sigmoid kernels both had lower train and test accuracies (radial: 61.7% train, 50% test; sigmoid: 53.3% train, 50% test), indicating possible underfitting. The Random Forest model also identified a larger number of genes that overlapped with those identified by DESeq2, suggesting that it captured relevant patterns even in noisy data. The next steps should definitely include cross-validation to assess model generalizability, tuning hyperparameters (e.g., number of trees or depth in RF, ), and trying recursive feature elimination or other techniques to refine the gene set and reduce overfitting. It would also be worthwhile to explore dimensionality reduction techniques like PCA prior to classification.
+
 
 # 5 Final Comments
 At this stage, it should feel clear that we need to do SOMETHING else. If not, stop and reflect on that statement. We know there is a lot of __noise__ in the data, and we have worked hard to preserve all of the observations and genes thus far. However, in noisy situations, feature selection and tuning can both have DRASTIC effects on the performance of our models. Which model will your team choose to tune for **Project 3**?
