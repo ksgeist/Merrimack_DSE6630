@@ -127,9 +127,18 @@ Take a look at the chunk below, which performs **dynamic variable assignment** a
 files <- list.files(path = filepath, pattern = "Hospital.csv")
 
 for(f in 1:length(files)) {
-    dat <- clean_names(read_csv(paste0(filepath, files[f]),
-                                show_col_types = FALSE), 
-                       case = "upper_camel")
+    dat <- read_csv(paste0(filepath, files[f]),
+                    show_col_types = FALSE,
+                    ## HOT FIX of the "N/A" characters that were problematic
+                    na = c("", "NA", "N/A", "NULL", ".")
+                    ) %>%
+        clean_names(case = "upper_camel") %>%
+        
+        ## HOT FIX to convert character to numeric
+        type_convert() %>%
+        ## HOT FIX to convert date columns based on month/day/year
+        mutate(across(contains("Date"), ~ mdy(.)))
+
     filename <- gsub(".Hospital\\.csv", "", files[f])
     assign(filename, dat)
 }
@@ -165,7 +174,7 @@ Take a deeper look at `FY_2024_Hospital_Readmissions_Reduction_Program` at some 
 
 **Hint: **Columns 5 & 7:10 have problems with the `NA` class.
 
-##### **Question 4**: [1 point] 
+##### **No Longer Do Question 4**: [1 point] 
 Investigate the `replace_with_na_all()` function that is part of the `naniar` package. Use this function to fix the `NA` class in the aberrant columns in `FY_2024_Hospital_Readmissions_Reduction_Program`.
 
 ```{r}

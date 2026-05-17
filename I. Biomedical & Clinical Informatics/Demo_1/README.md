@@ -4,7 +4,7 @@ output:
 ---
 # README FOR DEMO_1
 
-## R Project File:  `DSE6630_Demo_1.Rproj`
+## R Project File:  `Demo_1.Rproj`
 - Always open this file first; it will make everything sync together nicely if you do!
 
 ## Knitted HTML File:  `Demo_1.html`
