@@ -110,6 +110,7 @@ Our objective for the patient advocacy watchdog is clean, merge, explore, and pr
 
 ```{r}
 ## Make sure to adjust your path!
+
 filepath <- "~/Desktop/hospitals_current_data_FY2024/"
 ```
 
@@ -124,27 +125,27 @@ Take a look at the chunk below, which performs **dynamic variable assignment** a
 > Your answer in the code chunk as comments. Make sure to use the `#` sign!
 
 ```{r}
-files <- list.files(path = filepath, pattern = "Hospital.csv")
+files <- list.files(path = filepath, pattern = "Hospital.csv")  # adds list of files from 'filepath' to object 'files' if file name contains "Hospital.csv"
 
-for(f in 1:length(files)) {
-    dat <- read_csv(paste0(filepath, files[f]),
-                    show_col_types = FALSE,
+for(f in 1:length(files)) { # loop for each file index do the following
+    dat <- read_csv(paste0(filepath, files[f]), # create dataframe called 'dat' of the csv file from 'files'
+                    show_col_types = FALSE, # suppress column type message 
                     ## HOT FIX of the "N/A" characters that were problematic
-                    na = c("", "NA", "N/A", "NULL", ".")
+                    na = c("", "NA", "N/A", "Not Applicable", "Not Available","NULL", ".") #Note: added not applicable and not available
                     ) %>%
-        clean_names(case = "upper_camel") %>%
+        clean_names(case = "upper_camel") %>% #converts column names into UpperCamelCase
         
         ## HOT FIX to convert character to numeric
-        type_convert() %>%
+        type_convert() %>% 
         ## HOT FIX to convert date columns based on month/day/year
         mutate(across(contains("Date"), ~ mdy(.)))
 
-    filename <- gsub(".Hospital\\.csv", "", files[f])
-    assign(filename, dat)
+    filename <- gsub(".Hospital\\.csv", "", files[f]) # creates 'filename' object removing "Hospital.csv" and one prior character (_,-.) from respective indexed 'files'
+    assign(filename, dat) # assign `filename` to `dat` dataframe
 }
 
-files <- gsub(".Hospital\\.csv", "", files) %>% data.frame()
-names(files) <- "File Name"
+files <- gsub(".Hospital\\.csv", "", files) %>% data.frame() # create dataframe "files" from list "files". Remove "Hospital.csv" and one prior character (_,-.) from respective 'files'
+names(files) <- "File Name" # rename column "File Name"
 ```
 
 #### Now, let's look at a list of the files that we've read in:
@@ -161,7 +162,61 @@ files %>%
 Take a look at some of the dataframes, e.g., `HCAHPS` and `FY_2024_Hospital_Readmissions_Reduction_Program`. What do you notice about the format / structure of the data? Does the data have an issue with the dimensionality? 
 **Hint: **Check to see if each row represents a single line of data or not!
 
-> Your answer here.
+```{r}
+#Quick Snapshot 
+str(HCAHPS)
+
+str(FY_2024_Hospital_Readmissions_Reduction_Program)
+```
+```{r}
+#Check for duplicate rows
+sum(duplicated(HCAHPS))
+sum(duplicated(FY_2024_Hospital_Readmissions_Reduction_Program))
+```
+```{r}
+#how many measures per hospital facilityids
+HCAHPS %>%
+    count(FacilityId)
+
+FY_2024_Hospital_Readmissions_Reduction_Program %>%
+    count(FacilityId)
+```
+
+
+```{r}
+#How many Hospitals (FacilityID)?
+cat("Hospital Count by FacilityID (HCAHPS):",
+    n_distinct(HCAHPS$FacilityId), "\n")
+
+cat("Hospital Count by FacilityID (Readmissions Program):",
+    n_distinct(FY_2024_Hospital_Readmissions_Reduction_Program$FacilityId), "\n")
+
+#How many Hospitals (FacilityName)?
+cat("Hospital Count by FacilityName (HCAHPS):",
+    n_distinct(HCAHPS$FacilityName), "\n")
+
+cat("Hospital Count by FacilityName (Readmissions Program):",
+    n_distinct(FY_2024_Hospital_Readmissions_Reduction_Program$FacilityName), "\n")
+```
+
+```{r}
+#How many FacilityIDs per Hospital Name?
+FY_2024_Hospital_Readmissions_Reduction_Program %>%
+    group_by(FacilityName) %>%
+    summarise(
+        n_facility_ids = n_distinct(FacilityId)
+    ) %>%
+    filter(n_facility_ids > 1) %>%
+    arrange(desc(n_facility_ids))
+```
+
+
+
+> Looking at the structure of the two data frames `HCAHPS` and `FY_2024_Hospital_Readmissions_Reduction_Program`, we can see that a few columns that we may excpect to have been converted to numeric are still in character format as a result of character feature "Too Few to Report" or "Not Applicable". At 447,702 x 22 and 18,774 x 12 these datasets are long, and notably each row appears to represent one specific measure per hospital resulting in many lines representing one hospital's survey results. In `HCAHPS` there are 93 measures (rows in this case) per `FacilityID`. In `FY_2024_Hospital_Readmissions_Reduction_Program` there are 6 measures (rows) per `FacilityID`.
+
+> While it does not appear that there are duplicate rows of data, When checking for the number of hospitals represneted in these two datasets it is important to note that there are less facility names than there are IDs, and there are less hospitals represented in the Readmission Reduction Program than in the HCAHPS survey results.
+
+> 4814 Hospitals are represented in `HCAHPS`, 3129 are represented in `FY_2024_Hospital_Readmissions_Reduction_Program` when checking for `FacilityID`, but 4689 and 3058, respectively, are represented when looking into unique `FacilityName`. This could be because one hospital has multiple locations but share a name, or because it is a popular hospital name. For example, within the `FY_2024_Hospital_Readmissions_Reduction_Program` dataset, based on `FacilityId`, there are 6 different Memorial Hospitals represented in the dataset.
 
 
 ### Tidy the data response variables' dataframe: Fiscal Year 2024 Hospital Readmissions Reduction Program.
@@ -170,7 +225,26 @@ We are going to focus on the dataset `FY_2024_Hospital_Readmissions_Reduction_Pr
 ##### **Question 3**: [1 point] 
 Take a deeper look at `FY_2024_Hospital_Readmissions_Reduction_Program` at some of the numeric variables in the dataset, e.g., `NumberOfReadmissions`? 
 
-> Your answer here.
+```{r}
+#Count how many missing data points for Number of Readmissions
+sum(is.na(FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions))
+
+#How many are 'Too Few to Report`?
+cat("The number of rows which `NumberofReadmissions` is labeled `Too Few to Report` is:",
+    length(which(FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions == "Too Few to Report")), "\n")
+```
+
+```{r}
+#When NumberofReadmission is NA, what is NumberofDischarges?
+FY_2024_Hospital_Readmissions_Reduction_Program %>%
+  filter(is.na(NumberOfReadmissions)) %>%
+  distinct(NumberOfDischarges)
+```
+
+
+> The `NumberOfReadmissions` column specifically remained a character column despite the work done to correct the data type when the .csv files were being pulled into the environment. There are 6697 missing datapoints, but additionally there are 4187 rows where the `NumberofReadmissions` are "Too Few to Report". This suggests that there is a reporting threshold, and the number reported is below that threshold for these rows.
+
+> Those where `NumberofReadmissions` are NA, the `NumberofDischarges` is either 0 or NA which seems logical. 
 
 **Hint: **Columns 5 & 7:10 have problems with the `NA` class.
 
@@ -189,7 +263,23 @@ Look more closely at the `NumberOfReadmissions` column in the `FY_2024_Hospital_
 
 **Hint: ** Make sure to use the accompanying data dictionary **HOSPITAL_Data_Dictionary.pdf** to also examine **WHY** this problem exists!
 
-> Your answer here.
+```{r}
+FY_2024_Hospital_Readmissions_Reduction_Program %>%
+  filter(NumberOfReadmissions == "Too Few to Report") %>%
+  distinct(Footnote)
+```
+
+```{r}
+#What is the minimum 
+FY_2024_Hospital_Readmissions_Reduction_Program %>%
+  filter(NumberOfReadmissions != "Too Few to Report") %>%
+  summarise(min_readmissions = min(as.numeric(NumberOfReadmissions), na.rm = TRUE))
+```
+
+
+> The Data Dictionary lists the Number of Readmission column as a character feature that can support up to 17 characters. As mentioned in question 3, the coercion to character type is due to the "Too Few to Report" values. There are not direct footnotes associated when Number of Readmissions are Too Few to Report. The minimum number in the `NumberofReadmissions` column is 11 which could be an indicator that the minimum reporting threshold was >10; however, I was unable to fully coroborate this in the data dictionary. 
+
+
 
 
 ##### **Question 6**: [1 point] 
@@ -197,18 +287,22 @@ Investigate the `gsub()` function that is part of base `R` or any other function
 ```{r}
 # ?gsub
 # Your code here.
+
+#Commenting this out for Question 9
+#FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions <- as.numeric(gsub("Too Few to Report", 5, FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions))
+  
 ```
 
 ##### **Question 7**: [1 point] 
 Speculate as to why I asked you to replace the text with a **5** rather than a **0** or an `NA`. Can you think of any other logical choices for the substitution? Do you agree with my choice? (You're free to disagree, but please defend your decision either way!)
 
-> Your answer here.
+> This is likely due to the "Too Few to Report" readmission minimum cut off being 10 and 5 captures the midpoint of 1 to 10. NA and 0 would both be incorrect or misleading as these suggest no readmissions at all. Given that there are a large number (4187) instances where the number of readmissions were too few to report it's possible that selecting 5 would average out across all the true values; however, midpoint imputation does remove variance, and it does risk underestimating if the trend of these 4000 readmission datapoints is closer to 10.
 
 
 ##### **Question 8**: [1 point] 
 Now, imagine an alternative scenario where instead of replacing it with a **5**, I instead asked you to replace it with a randomly sampled integer from 1 to 10. What would this do? Would `gsub()` work here or would I need to execute it a different way, e.g., with an `lapply()` function or a `for()` loop?
 
-> Your answer here.
+> Randomly assigning an integer from 1 to 10 would reduce potential bias by adding variance to the imputation. gsub() is used for text replacement rather than random number assignment, so would not be appropriate for this execution, whereas lappply() and for() would allow us to loop through and apply a gsub() throughout all of the defined "Too Few to Report".
 
 
 ##### **Question 9**: [3 points] 
@@ -220,6 +314,27 @@ You probably anticipated this! We just decided that, rather than a **5** we want
 
 ```{r}
 # Your code here.
+
+#Source: https://www.rdocumentation.org/packages/micropan/versions/1.0/topics/gregexpr
+#Source: https://www.rdocumentation.org/packages/base/versions/3.6.2/topics/regmatches
+#Source: https://www.rdocumentation.org/packages/base/versions/3.6.2/topics/lapply
+
+#find which rows are "Too Few to Report"
+too_few <- gregexpr("Too Few to Report", FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions)
+
+#Identify which rows contain at least one match
+too_few_rows <- which(lengths(regmatches(FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions, too_few)) > 0)
+
+#Replace each matched row with a random integer 1–10
+FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions[too_few_rows] <- unlist(
+  lapply(too_few_rows, function(x) sample(1:10, 1))
+)
+
+#Additional Method: DS
+#FY_2024_Hospital_Readmissions_Reduction_Program_edited$NumberOfReadmissions = str_replace_all(FY_2024_Hospital_Readmissions_Reduction_Program_edited$NumberOfReadmissions, "5", ~sample(1:10, 1))
+
+#convert to numeric - originally had this here, but realized the next question asks us to to do this, and this is the only aberrant character column remaining
+#FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions <- as.numeric(FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions)
 ```
 
 
@@ -228,6 +343,10 @@ It is finally time to fix those aberrant character columns by making them  numer
 ```{r}
 # ?mutate_at
 # Your code here.
+
+#NOTE the only column that needs to be converted to numeric is NumberOfReadmissions; however, including additional features that were noted prior to the hotfix
+FY_2024_Hospital_Readmissions_Reduction_Program <- FY_2024_Hospital_Readmissions_Reduction_Program %>% 
+  mutate_at(vars("NumberOfDischarges", "ExcessReadmissionRatio", "PredictedReadmissionRate", "ExpectedReadmissionRate", "NumberOfReadmissions"), as.numeric)
 ```
 
 #### Let's look more closely at Measure Names.
@@ -244,14 +363,34 @@ FY_2024_Hospital_Readmissions_Reduction_Program <-  FY_2024_Hospital_Readmission
 load(file = "readmissionsClean.Rdata")
 ```
 
+```{r}
+#Test if dataframes are identical
+#note that readmissionsClean dataset has NumberofDischarges as character feature, and Start and End date are character as well.
+#differences with imputation for number of readmission due to randomness
+
+identical(FY_2024_Hospital_Readmissions_Reduction_Program, readmissionsClean)
+all.equal(FY_2024_Hospital_Readmissions_Reduction_Program, readmissionsClean)
+```
+
+
 ##### **Question 11**: [1 point] 
 Investigate the function `pivot_wider()` or `spread()` from the `tidyr` package, which comes bundled with `tidyverse`. Try pivoting the `FY_2024_Hospital_Readmissions_Reduction_Program` dataset wider. Make sure you correctly identify the `names_from` and `values_from` column(s). **Make sure to save it as a separate dataframe called `wideDF`.** Use the `dim()` function to prove to me that you successfully pivoted wider.
 
 ```{r}
 # Your code here.
+wideDF <- readmissionsClean %>% 
+ select(-c(Footnote)) %>%  #This might be a mistake, but stops duplicate rows forming because of some instances of footnotes and others without
+  pivot_wider(
+    names_from = MeasureName,
+    values_from = c(NumberOfDischarges, ExcessReadmissionRatio, PredictedReadmissionRate, ExpectedReadmissionRate, NumberOfReadmissions)
+  ) 
 
-#wideDF <- FY_2024_Hospital_Readmissions_Reduction_Program %>% pivot_wider(...) or spread(...)
-#dim(wideDF)
+#Checking for duplicate FacilityIDs
+wideDF %>%
+    count(FacilityId) %>%
+    filter(n > 1)
+
+dim(wideDF)
 ```
 
 ### Filtering for specific conditions.
@@ -349,6 +488,16 @@ Write a function that will:
 
 1. Fix any issues identified previously, e.g., issues with the `NA` class or pivoting, if needed
 
+```{r}
+#Added "Not Applicable" to HOTFIX from Question1
+
+#Not Available occurs in HCAHPS, but also occurs in valueOnly and paymentOnly. In character columns such as PaymentCategory and ValueofCareCategory, maybe makes sense to keep?? Or. Remove altogether. Currently removed altogether
+
+#Make payment numeric
+paymentOnly$Payment <- as.numeric(paymentOnly$Payment)
+```
+
+
 2. Join any number of a list of dataframes you give it. For example, it should be able to join these 8 tables:
 
 ```{r}
@@ -431,7 +580,7 @@ Okay, take a stab at it!
 ##### **Question 13**: [1 point] 
 Why do you think I just made you work through this function? (**Hint**: What are you going to be asked to do in Project 1?)
 
-> Your answer here.
+> This functin can be used again for another condition or intervention
 
 ### The full, merged, tidied dataset for pneumonia. 
 
@@ -528,16 +677,24 @@ Although we ideally could just include these steps (and perhaps you did!) in our
 ##### **Question 14**: [1 point] 
 Looking through the feature names, you probably notice names like `LowerEstimate_Death rate for pneumonia patients`. We do not need the higher and lower estimates in this case; just the point estimates. Use the `contains()` function to **drop** any columns that contain `LowerEstimate` or `HigherEstimate`. Let's also go ahead and drop any columns containing `Denominator` and `HcahpsAnswerPercent` as well. How many features did you drop? 
 
-> Your answer here.
+> `pneumoniaFull` contained 100 features before dropping columns containing `LowerEstimate`, `HigherEstimate`, `Denominator` or `HcahpsAnswerPercent`. A total of 25 features were dropped through this process. Further dropping `FacilityName`, `TelephoneNumber`, `Address`, & `CityTown`, leaves our dataset with 71 variables.
 
 ```{r}
 # Your code here.
+
+pneumoniaFull <- pneumoniaFull %>%
+  select(-contains("LowerEstimate"),
+    -contains("HigherEstimate"),
+    -contains("Denominator"),
+    -contains("HcahpsAnswerPercent"))
 ```
 
 **Note:** Please drop `FacilityName`, `TelephoneNumber`, `Address`, & `CityTown` at this stage as well, if they're still in your full dataset.
 
 ```{r}
 # Your code here.
+pneumoniaFull <- pneumoniaFull %>%
+  select(-c("FacilityName", "TelephoneNumber","Address","CityTown"))
 ```
 
 ## Encoding
@@ -547,13 +704,18 @@ Looking through the feature names, you probably notice names like `LowerEstimate
 ##### **Question 15**: [1 point] 
 We need to perform encoding on all of the categorical columns, ultimately. However, we will focus first on the columns that begin with ``ComparedToNational_`, e.g., `ComparedToNational_Death rate for pneumonia patients`. What kind of encoding should we perform on these columns? Why? 
 
-> Your answer here.
+> Columns that are comparing to something, like those listed above, have a specific order. Therefore, the type of encoding that should be performed on these columns is ordinal. This encoding method will ensure that the order of these variables will be preserved so they don't lose meaning.
 
 
 ##### **Question 16**: [1 point] 
 What other column do we also need to perform this kind of encoding on?
 
-> Your answer here.
+> Another column that might need ordinal encoding is `Score_Emergency department volume` which has values beginning from low to medium, high and very high.
+
+```{r}
+unique(pneumoniaFull$`Score_Emergency department volume`)
+```
+
 
 ##### **Question 17**: [3 points] 
 You probably expected this - attempt to encode those columns the method you selected. It's okay if you can only think of a way to brute-force this for now; I will show you code to help you do it faster after the assignment. :)
@@ -568,8 +730,70 @@ You probably expected this - attempt to encode those columns the method you sele
 
 ```{r}
 # Your code here.
+#For features that begin with ``ComparedToNational_`
+TEST_pneumoniaFull <- pneumoniaFull %>%
+  mutate(across(starts_with("ComparedToNational_"), ~ case_when(
+    . == "No Different than National Benchmark" ~ 0,
+    . == "Worse than the National Benchmark" ~ -1,
+    . == "Better than the National Benchmark" ~ 1,
+    . == "No Different Than the National Rate" ~ 0,
+    . == "Worse Than the National Rate" ~ -1,
+    . == "Better Than the National Rate" ~ 1,
+    . == "No Different Than the National Value" ~ 0,
+    . == "Worse Than the National Value" ~ -1,
+    . == "Better Than the National Value" ~ 1,
+    . == "More Days Than Average per 100 Discharges" ~ -1,    
+    . == "Average Days per 100 Discharges" ~ 0,        
+    . == "Fewer Days Than Average per 100 Discharges" ~ 1,      
+    TRUE ~ NA_real_
+  ))) 
+
+
+#For EmergenctDepartmentVolume
+TEST_pneumoniaFull <- TEST_pneumoniaFull %>%
+  mutate(
+    `Score_Emergency department volume` = case_when(
+      `Score_Emergency department volume` == "low" ~ 1,
+      `Score_Emergency department volume` == "medium" ~ 2,
+      `Score_Emergency department volume` == "high" ~ 3,
+      `Score_Emergency department volume` == "very high" ~ 4,
+      TRUE ~ NA_real_))
+
+#unique(TEST_pneumoniaFull$`Score_Emergency department volume`)
+
+
+#pneumoniaFull %>%
+#     select(contains("ComparedToNational")) %>%
+#     names()
+
+#unique(pneumoniaFull$`ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`)
+
 ```
 
+
+
+```{r}
+#Check that data was preserved
+table(TEST_pneumoniaFull$`Score_Emergency department volume`)
+table(pneumoniaFull$`Score_Emergency department volume`)
+
+cols <- pneumoniaFull %>%
+  select(starts_with("ComparedToNational_")) %>%
+  names()
+
+lapply(cols, function(col) {
+  table(pneumoniaFull[[col]], useNA = "ifany")
+})
+
+cols2 <- TEST_pneumoniaFull %>%
+  select(starts_with("ComparedToNational_")) %>%
+  names()
+
+lapply(cols, function(col) {
+  table(TEST_pneumoniaFull[[col]], useNA = "ifany")
+})
+
+```
 
 **Note**: If you struggled with Question 17, load the data below and keep going:
 ```{r}
@@ -590,23 +814,23 @@ Go through the **frequency encoding** code chunk below and comment each line. Wh
 
 ```{r}
 cols2encode <- c("State", 
-               "CountyParish")
+               "CountyParish") #Create list containing State and Countyparish
 
-temp <- pneumoniaFullEncoded[, names(pneumoniaFullEncoded) %in% cols2encode]
+temp <- pneumoniaFullEncoded[, names(pneumoniaFullEncoded) %in% cols2encode] #Create dataframe of state and countyparish
 
 add_freq <- function(data, column_name) {
-  frequency_map <- table(data[[column_name]], useNA = "always")
-  data[[column_name]] <- frequency_map[match(data[[column_name]],
-                                             names(frequency_map))]
+  frequency_map <- table(data[[column_name]], useNA = "always") #count frequency of each feature in column
+  data[[column_name]] <- frequency_map[match(data[[column_name]], 
+                                             names(frequency_map))] #replace original values with frequency value
   return(data)
 }
 
 for (col in names(temp)) {
-  temp <- add_freq(temp, col)
+  temp <- add_freq(temp, col) #Run add_freq function in temp dataframe//replace with encoded values
 }
 
 for (c in 1:length(cols2encode)) {
-  pneumoniaFullEncoded[, cols2encode[c]] <- temp[, cols2encode[c]]
+  pneumoniaFullEncoded[, cols2encode[c]] <- temp[, cols2encode[c]] #Replace State and CountyParish with encoded versions from temp
 }
 ```             
 
@@ -623,6 +847,14 @@ Use your finally & freshly encoded version of `pneumoniaFullEncoded` to answer t
 
 ```{r}
 # Your code here.
+
+#Counts of frequency of each State 
+pneumoniaFull %>%
+    count(State) %>%
+    filter(n > 1)
+
+
+
 ```
 
 > Your answer here.
@@ -667,13 +899,25 @@ Use `pneumoniaAnalyze` to calculate an  `observed_readmission_rate` as the numbe
 
 **Hint: **Think about (or perhaps try to investigate) why the **predicted** rate exists. What would be the (dis)advantage to using the predicted vs. the newly created `observed_readmission_rate`? 
 
-> Your answer here.
+```{r}
+TEST_pneumoniaAnalyze$observed_readmission_rate <- (pneumoniaAnalyze$NumberOfReadmissions/pneumoniaAnalyze$NumberOfDischarges) * 100
+
+#observed_readmission_rate
+
+# Drop NumberOfReadmissions and NumberOfDischarges - automatically dropped in the code above
+#TEST_pneumoniaAnalyze <- TEST_pneumoniaAnalyze %>% select(-NumberOfReadmissions, -NumberOfDischarges)
+
+#head(TEST_pneumoniaAnalyze$observed_readmission_rate)
+```
+
+
+> Your answer here. 
 
 ##### **Question 21**: [1 points] 
 
 Why did I have you drop the two columns used to make `observed_readmission_rate`?
 
-> Your answer here.
+> Since observed_readmission_rate was created from two variables already in the dataset, inclulding them would cause data leakage. This would skew the results and could lead to incorrectly high accuracy metrics.
 
 
 # Exploratory Data Analysis
