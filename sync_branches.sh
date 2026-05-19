@@ -40,7 +40,8 @@
 ###################################
 
 ## Team branches
-teams=("alpha" "delta" "gamma" "lambda" "sigma" "epsilon" "omega" "kappa" "rho" "theta")
+#teams=("alpha" "delta" "gamma" "lambda" "sigma" "epsilon" "omega" "kappa" "rho" "theta")
+teams=("alpha" "delta" "gamma" "epsilon" "beta")
 
 ## Make sure working directory is clean first - will fail if not!
 if ! git diff-index --quiet HEAD --; then
