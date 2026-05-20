@@ -7,6 +7,7 @@
 - Lucia Adeola
 - Alison Hartshorn
 
+
 # Description
 This is the directory for team alpha in the Merrimack College DSE6630 Healthcare Healthcare & Life Sciences Analytics Course during Summer 2025. 
 
