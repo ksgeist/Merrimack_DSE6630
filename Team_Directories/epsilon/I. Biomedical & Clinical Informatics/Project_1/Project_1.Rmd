@@ -792,7 +792,9 @@ paste0(c("Rows: ", "Columns: "), dim(dat2Analyze))
 #### **Question 12**: [0.5 points]
 Thinking back to your answer to Question 9D, do you feel any differently given these dimensions of the dataset?
 
-> Your answer here.
+EG
+
+> No, we do not feel any differently about Question 9D based on the new dimensions. We still have 2,726 rows and 31 columns. The curse of dimensionality would be more likely if our number of rows had been reduced so drastically that it was closer to the number of columns.
 
 ## 3.4 Do the splits! 
 
@@ -801,7 +803,11 @@ At this stage, we are almost ready to __impute__ - but not until we have done ou
 #### **Question 13**: [1 point]
 Explain to your stakeholder, in simpler language, (1) why we partition data into testing and training sets and (2) what data leakage is. You do not need to go into great detail, but it should explain enough that they understand the basic ideas.
 
-> Your answer here.
+EG
+
+> It is essential to partition the data into testing and training sets when running models. This ensures that there is a dataset that can train the model (training set) and an unseen dataset (test set) that the model run on at the end. This ensures that the model is not just memorizing training data and that it can perform on an unseen test set.
+
+> Data leakage is when data from the testing set is used during training. It will also inflate the results creating innacurate model results. An example of data leakage is if you create a new variable from two current variables. The two variables the new one was created from must be removed. If it is not, it will inflate model performance and give innacurately strong results.
 
 You may recall that I mentioned that the optimal ratio is has been argued to be $\sqrt{p} : 1$, where $p$ is the number of parameters (which may or may not equal your predictors depending on your planned analysis). Note that you do not have to split only a single time; you could make different splits for different analyses, if needed. However, we are going to use a single split here for convenience. 
 
@@ -817,49 +823,51 @@ There are three parts to this question to get it to all come together correctly.
 3. Fill in the missing piece in the data partitioning chunk below
 
 ```{r}
+# EG
 calcSplitRatio <- function(p = NA, df) {
   ## @p  = the number of parameters. by default, if none are provided, the number of columns (predictors) in the dataset are used
   ## @df = the dataframe that will be used for the analysis
   
-  ## COMMENT HERE
+  ## If number of parameters (p) aren't given, set it p equal to the number of columns - 1
   if(is.na(p)) {
-    p <- ncol(df) -1   ## COMMENT HERE
+    p <- ncol(df) -1   ## Subtract 1 because we don't want to include target variable in the split
   }
   
-  ## COMMENT HERE
+  ## Calculate the ideal test set
   test_N <- (1/sqrt(p))*nrow(dat2Analyze)
-  ## COMMENT HERE
+  ## Create a test set proportion
   test_prop <- round((1/sqrt(p))*nrow(dat2Analyze)/nrow(dat2Analyze), 2)
-  ## COMMENT HERE
+  ## Create and calculate the training proportion
   train_prop <- 1-test_prop
   
-  ## COMMENT HERE
+  ## Print the results. This will output the ideal testing and training splits
   print(paste0("The ideal split ratio is ", train_prop, ":", test_prop, " training:testing"))
   
-  ## COMMENT HERE
+  ## Return the size of the training set
   return(train_prop)
 }
 
 ## Fill in the blanks to run:
-# train_prop <- ___(df = ___)
+train_prop <- calcSplitRatio(df = dat2Analyze)
 ```
 
 **Hint**: One important note here is that if the number of parameters are not provided (which is true for the starter code I gave you to run it - it does NOT pass any parameters to that argument!), then by default our function is designed to take the number of columns of the dataframe and subtract one for the target variable. Neat, huh?
 
 Now, uncomment this code and fill it out to run it. 
 ```{r}
-# ind <- createDataPartition(dat2Analyze$___,   ## Put the target here!
-#                            p = ___,           ## Use the object you just made!
-#                            list = FALSE)
-# 
-# train <- dat2Analyze[___, ]
-# test <- dat2Analyze[-c(ind), ]
+# EG
+ind <- createDataPartition(dat2Analyze$PredictedReadmissionRate,   ## Put the target here!
+                            p = train_prop,           ## Use the object you just made!
+                            list = FALSE)
+ 
+ train <- dat2Analyze[ind, ]
+ test <- dat2Analyze[-c(ind), ]
 ```
 
 #### **Question 14B**: [0.5 points]
 What split ratio did you get? Is it close to the canonical 80-20 split? Why do you think that happened?
 
-> Your answer here.
+> We got a split ratio of 82% training and 18% testing. This is close to the canonical 80-20 split, with slightly more training and slightly less testing. Based on the code above, finding the ideal split ratio is based on the number of parameters. Therefore, we know the number of parameters in our dataset directly impacted this calculation. If we had a the same dataset with only a different number of parameters, our test/train split would likely be slightly different.
 
 
 __Did you get stuck somewhere?__ If so, load the `test` and `train` data in case you struggled with Question 18 so you can proceed:
@@ -929,7 +937,13 @@ data.frame(imputedTrain$OOBerror, names(temp)) %>%
 #### **Question 15**: [1 point]
 What does `MSE` (Mean Squared Error) and `PCF` (Proportion of Falsely Classified) indicate here? You may find looking at the `missForest` [Vignette](https://stat.ethz.ch/education/semesters/ss2012/ams/paper/missForest_1.2.pdf) helpful. Which variable(s) had the highest OOB error?
 
-> Your answer here.
+EG
+
+Source: https://www.britannica.com/science/mean-squared-error
+
+> The missForest package outputs an out-of-bag (OOB) imputation error estimate. This works on both continuous and categorical variables, but two different errors will be used. For continuous variables, the Mean Squared Error (MSE) will be calculated. According to Britannica, MSE is the average squared difference between the value observed and the values predicted. For categorical variables, the Proportion of Falsely Classified (PCF) is calculated. PCF shows the proportion of categories that were imputed incorrectly.
+> The variable with the highest OOB was Payment for pneumonia patients, which had a MSE of 948,452.73. This was by far the largest MSE, with the second highest being the Healthcare workers given influenza vaccination variable, which had a MSE of 291.21. Notably, only two variables,	Medicare spending per patient and SurveyResponseRate, had a MSE of 0, indicating that there were no imputation errors for these variables.
+> The variable with the highest PCF was Emergency department volume, with a PCF of 0.46. The remaining five variables all had signficantly smaller PCF values, but none were 0.
 
 **NOTE 1**: If the OOB error (either MSE or PCF) from `missForest` is really high, it’s a red flag that the imputation for those variables is untrustworthy. This could be do to too much missingness, weak relationships among the variables making it hard to predict, or low quality data (e.g., noisy, sparse). In such cases, we want to **DROP** any variables with extremely high OOB error because they add noise. A general rule of thumb is that if the PCF > ~0.3 (30% of the imputed values are wrong) or if there is especially high MSE (inflation) relative to the variance of the variable, we should drop it. Let's set those aside so we can drop them from `test` and `train` both downstream! 
 
@@ -938,8 +952,8 @@ What does `MSE` (Mean Squared Error) and `PCF` (Proportion of Falsely Classified
 ```{r}
 ## These look okay, which is why we won't drop them. 
 ## Uncomment to see their variances.
-#var(train$`Venous Thromboembolism Prophylaxis`, na.rm = T)
-#var(train$`Healthcare workers given influenza vaccination`, na.rm = T)
+var(train$`Venous Thromboembolism Prophylaxis`, na.rm = T)
+var(train$`Healthcare workers given influenza vaccination`, na.rm = T)
 
 cols2drop <- c("Payment for pneumonia patients", "Emergency department volume")
 ```
@@ -947,7 +961,11 @@ cols2drop <- c("Payment for pneumonia patients", "Emergency department volume")
 #### **Question 16**: [1 point]
 Alternatively, we could use MICE (Multivariate Imputation with Chained Equations), which is a method that will model uncertainty along with the variables. Do a little research. How does MICE work? Include a citation to a source.
 
-> Your answer here.
+EG
+
+Sources: https://pmc.ncbi.nlm.nih.gov/articles/PMC3074241/ and https://cran.r-project.org/web/packages/miceRanger/vignettes/miceAlgorithm.html
+
+> Multivariate Imputation with Chained Equations (MICE) imputation works by filling in or imputing the missing values in a dataset. This is an iterative process, meaning in each iteration, a predictive model imputes one variable at a time, eventually imputing all variables that have missing data. Therefore, there are multiple datasets created that have no missingness. Additionally, MICE is a flexible imputation method, which works well on datasets with various data types.
 
 #### 3.5.4 Putting it alllllll back together...
 
@@ -1011,10 +1029,32 @@ imputedTest  <- imputedTest[, !(names(imputedTest) %in% cols2drop), drop = FALSE
 Quickly explore how well the imputation did by choosing at least one numeric variable and one of the categorical variables. Did the distributions or frequencies change drastically? You may find the `summary()` and `table()` functions to be fastest here. 
 
 ```{r}
-# Your code here.
+# EG
+# We chose the Doctor communication variable
+
+# Look at the Doctor communication variable in the training set prior to imputation 
+summary(train$`Doctor communication`)
+
+# Look at the Doctor communication variable in the imputed training set
+summary(imputedTrain$`Doctor communication`)
+
 ```
 
-> Your answer here.
+> As seen in the tables, prior to imputation, the Doctor communication variable had 125 NA values. After imputation, there were none, as expected. Additionally, the only metric that changed was the mean, which slightly increased from 89.68 to 89.72.
+
+```{r}
+# Additional code using table()
+
+# Look at the Doctor communication variable in the training set prior to imputation 
+table(train$`Doctor communication`)
+
+# Look at the Doctor communication variable in the imputed training set
+table(imputedTrain$`Doctor communication`)
+
+```
+
+> We also used table() to look at the values prior to imputation and after imputation. An interesting finding is that prior to imputation, all of the values in the Doctor communication field were whole numbers. After imputation, there are now more values, many of which have decimals. 
+
 
 ## 3.6 Another Fork in the Road
 It's time, yet again, to make a choice. If you opted to load the __fully encoded__ dataset and everything has been done on that, you will run the first chunk. But if you decided that you wanted to __wait to encode__ the TIME HAS FINALLY COME!
@@ -1064,7 +1104,11 @@ if(!is.numeric(imputedTrain$State)) {
 #### **Question 18**: [1 point]
 Because we are now frequency encoding AFTER data partitioning (we did ordinal encoding BEFORE the split for convenience), we absolutely __must__ apply the same encoding map to the `test` set that we did to the `train` set. Explain why, and what should we do if some classes of the variable end up in the `train` that is not in the `test` or vice versa? (**HINT**: Look at the source code!)
 
-> Your answer here. 
+EG
+
+> The same encoding map that was applied to the training set must be applied to the test set because both the training and test sets must have the same numerical encoding. If the encoding was not applied to the test set, the models would be inconeistent and impact the model performance.
+
+> The doFrequencyEncoding function shows what to do if some classes of the variable end up in the training set and not the test set (or vice versa). If this is the case, the NA values will be replaced with 0.
 
 ## 3.7  Transformation & Scaling
 
@@ -1086,15 +1130,24 @@ ggplot(readyTrain, aes(x = PredictedReadmissionRate)) +
 #### **Question 19A**: [1 point]
 Why is a histogram, or even a Q-Q plot, an insufficient way to assess whether a distribution is approximately normal?
 
-> Your answer here.
+EG
+
+> A histogram is an insufficient way to assess whether a distribution is approximately normal because although it provides a visual representation of the distribution, it can be subjective. There is no statistical test or value to verify the normality of the distribution.
+
+> A Q-Q plot is an insufficient way to assess whether a distribution is approximately normal for the same reasons above. Additionally, Q-Q plots are generally better for larger datasets (N > 5,000).
+
+> To assess normality, a statistical test such as a Shapiro-Wilk test can be implemented alongside a histogram or Q-Q plot.
 
 Now Apply a [Shapiro-Wilk test](https://biostats.w.uib.no/test-for-normality-shapiro-wilks-test/) for normality using the `shapiro.test()` function. What does it indicate about your distribution? (**Note**: Shapiro tests are only reliable for $N < 5000$, but it is fine to perform here.)
 
 ```{r}
-# Your code here.
+# EG
+# Source: https://biostats.w.uib.no/test-for-normality-shapiro-wilks-test/
+
+shapiro.test(readyTrain$PredictedReadmissionRate)
 ```
 
-> Your answer here.
+> The p-value is incredibly small (3.085e-14). Due to this, the null hypothesis (H0) is rejected. Therefore, the distribution is very likely not normally distributed. W is close to 1 (0.98).
 
 ### 3.7.1 Box-Cox Transformation
 
@@ -1144,15 +1197,42 @@ Can you see what it did to the distribution? __look closely__, if not. It's subt
 #### **Question 19B**: [1.5 points]
 Now repeat all of the steps to perform a Box-Cox transform on your own to the `imputedTest` data. Why must we (1) also transform the test data and (2) __use the same $\lambda$ as the training data__?
 
-> Your answer here.
+> We must also transform the test data because that keeps the training and test data sets consistent, which is essenial for the models. The same lambda must be used in the test data that is used in the training data. If it isn't, the comparison between the training and test datasets will not be comparable.
 
 ```{r}
-# Your code here.
+# EG
+# Source: https://www.rdocumentation.org/packages/car/versions/3.1-5/topics/Predict
+
+# Transform the test data
+imputedTest$bc_PredictedReadmissionRate <- predict(bc_data, imputedTest$PredictedReadmissionRate)
 
 # Make sure to check that your transform looks successful!
+
+# Look at summary statistics prior to Box-Cox
+summary(imputedTest$PredictedReadmissionRate)
+
+# Look at the summary statistics after Box-Cox
+summary(imputedTest$bc_PredictedReadmissionRate)
+
+# Create a histogram to look at the distribution prior to Box-Cox
+hist(imputedTest$PredictedReadmissionRate)
+
+# Create a  histogram to look at the distribution after Box-Cox
+hist(imputedTest$bc_PredictedReadmissionRate)
+
 ```
 
+> Prior to the Box-Cox transofrmation, the summary statistics showed that the data ranged from 11.93 - 22.91. After Box-Cox, the data ranged from 1.749 - 2.031. This shows that the Box-Cox transormation squsihed the data, which impacts the skewness and variance. Since the data was not normally distributed prior to this, this will help it achieve a normal distribution. 
+
 **NOTE** At this point, you have both an non-transformed (`PredictedReadmissionRate`) and Box-Cox transformed (`bc_PredictedReadmissionRate`) version of the target in your data.
+
+```{r}
+# Verify that the imputedTest dataset includes both PredictedReadmissionRate and bc_PredictedReadmissionRate
+"PredictedReadmissionRate" %in% names(imputedTest)
+"bc_PredictedReadmissionRate" %in% names(imputedTest)
+
+```
+
 
 ### 3.7.2 Centering & Scaling
 
@@ -1175,7 +1255,16 @@ readyTrain <- readyTrain %>%
 Do the same for your test data. Make sure to use `readyTest` and overwrite it. 
 
 ```{r}
-## Your code here.
+# EG
+
+readyTest <- readyTest %>% 
+  ## Drop the original target variable
+  select(-PredictedReadmissionRate) %>% 
+  ## Make anything that might still be a factor from encoding is back to number
+  mutate_if(is.factor, as.numeric) %>%
+  ## Center and scale everything!
+  scale(center = TRUE, scale = TRUE) %>% 
+  data.frame()
 ```
 
 **Hint**: Make sure to turn your centered, scaled __matrix__ back into a dataframe! By default, it creates a matrix.
@@ -1212,11 +1301,27 @@ heatmap(corrMat,
 #### **Question 20A**: [1 point]
 Where do you see the highest potential for multicollinearity? Why do you say that?
 
-> Your answer here.
+```{r}
+# Get column names
+names(readyTrain)
+```
+
+
+EG
+
+> Instances where there is dark blue in this heatmap indicate areas where there is the highest potential for multicollinearity. Some of the variable combinations that have the potential for multicollinearity include:
+ComparedToNational_Death.rate.for.pneumonia.patients and Death.rate.for.pneumonia.patients
+
+> ComparedToNational_Composite.patient.safety and Composite.patient.safety
+
+> MRSA.Bacteremia and ComparedToNational_MRSA.Bacteremia
+
+> These make a lot of sense, due to the fact that are very similar variables. The ComparedTo variables are likely created from the highly correlated variable.
+
 
 Which variable(s) seem to be most correlated with our target, `bc_PredictedReadmissionRate`?
 
-> Your answer here.
+> The variable that seems most correlated with our target, bc_PredictedReadmissionRate, is ComparedToNational_Hospital.return.days.for.pneumonia.patients. This variable has the darkest blue square, indicating that it is highly positively correlated with our target variable.
 
 ## 4.2 Fitting a model to estimate VIF
 
@@ -1258,11 +1363,17 @@ Does multicollinearity seem to be an issue in this dataset and, if so, among whi
 
 **HINT 2**: Is, for example,`Payment Category for pneumonia patients` created from `Payment for pneumonia patients`? [These are Medicare payments]? Which one do you think we should keep amd why?
 
-> Your answer here.
+EG
+
+> Between the heatmap and the table of the top 15 Variance Inflation Factors (VIF), there is evidence that multicollinearity is an issue in this dataset. Overall.hospital.rating has the highest VIF of 22.69 and Recommend.hospital has the second highest of 14.77. As mentioned earlier, VIF > 4 (and especially 10) can identify multicollinearity. Following this logic, we have 5 other variables with a VIF > 4: Nurse.communication, Care.transition, Staff.responsiveness, Communication.about.medicines, and Doctor.communication. Many of these variables are surrounding either staff or communication, indicating an overlap in information, which could be contributing to the collinearity. If any of these variables were created from each other, this would also cause collinearity.
+
+> Additionally, Discharge.information has a VIF of 3.48, which is close enough to 4 that it can be noted.
+
+> There can be many variables that are dervied from another. An example of this is Payment Category for pneumonia patients being derived from Payment for pneumonia patients. Keeping both causes high collinearity and doesn't make sense for the model. Generally speaking, the most valuable of the two should be kept, which in some cases can be the original variable, but is ususally the new variable.
 
 Which variable(s) seem to be most highly correlated with our target? Is it a positive or negative correlation? Does it make sense?
 
-> Your answer here.
+> ComparedToNational_Hospital.return.days.for.pneumonia has the highest positive correlation with the target variable (bc_PredictedReadmissionRate). This makes sense because if a hospital has higher than national average return days for pneumonia, then they will have a higher readmission rate. Therefore, an individual will be more likely to be readmitted.
 
 
 ### 4.3 Dropping the most collinear variables
@@ -1313,7 +1424,9 @@ First, we apply a PCA on the data and display the principal components. Note tha
 
 1. At what principal component do we surpass 80% of explained variance? (**HINT**: look at the cumulative variance row rather than tha proportion of variance row).
 
-> Your answer here.
+EG
+
+> We surpass 80% of explained variance at PC11, where the cumulative variance equals 0.83983.
 
 ```{r}
 pca <- prcomp(readyTrain)
@@ -1322,7 +1435,11 @@ summary(pca)
 
 2. You may also notice that this is always ordered from most proportion of variance on the left (thus is PC1 defined) to our final principal component on the right. What percent of variance is explained by just PC1? What percent by the final PC? Is the attributable portion of the variance in PC1 high, medium, or low based on some quick research or prior knowledge?
 
-> Your answer here.
+Source: https://pmc.ncbi.nlm.nih.gov/articles/PMC4792409/
+
+> 22.41% of variance is explained by just PC1.
+> 1.056% of variance is explained by the final PC (PC18).
+> The attribution portion of the variance in PC1 is moderate. Exact thresholds that defined whether a PC1 value is high, medium, or low do not appear to exist based on our research. Generally speaking, 22.41% would seem moderate.
 
 3. We use scree plots to graphically determine how many principal components to retain and how many principal components best explain the variance of the data. The $x$-axis displays the principal components (PC1, PC2, etc.), while the $y$-axis shows the eigenvalues (or proportion of variance explained) for each component. The **elbow method** we discussed in class is the point where the slope starts to flatten or the point at which the percentage of variance explained seems to level off. If we were doing this for feature reduction, we might think of this as approximately how many principal components would be needed to explain the total variation in the training data.  However, it is a **heuristic** method, so it can sometimes be a little uncertain from the plot alone what the optimal number of PCs is. Let's take a look at the top-15 PCs on a scree plot now:
 
@@ -1339,11 +1456,13 @@ fviz_screeplot(pca,
 
 How many PCs appear optimal to you based on the scree plot?
 
-> Your answer here.
+> 5 PCs appear optimal based on the scree plot. Although there is a steep drop at 1, this would not be the optimal choice.
 
 4. People often mis-write scree (I've even accidentally done it) as SCREE, as if it's an acronym like AUROC or ROC or even PCA. But it's not. Why is it called a scree plot? (**Hint**: It may not be what you expect!)
 
-> Your answer here. 
+Source: https://www.graphpad.com/guides/prism/latest/statistics/stat_pca_example_scree_plot.htm
+
+> It is called a scree plot because of its shape. According to GraphPad, loose stones and gravel at the bottom of a cliff are called scree. Therefore, the shape of the plot follows the way rocks would fall down the cliff.
 
 ### 5.1.2 Variable loadings and contributions
 
@@ -1404,7 +1523,32 @@ Each quadrant on a PCA biplot corresponds to a different directional influence o
 
 Play around with the graphical parameters in the biplot, especially those I've marked with comments. Try adding, for example, more variables to display rather than just the top contributor. **NOTE** that if you find variables in the same quadrant together, this means that they are correlated. What variable(s) can you find that **contrast** with `Communication.about.medicines`?
 
-> Your answer here.
+
+```{r}
+# EG
+## Create a factor variable that contains the information about the compared to national average - return to hospital days variable
+returnHospitalComparison <- factor(readyTrain$Hospital.return.days.for.pneumonia.patients,
+                                   labels = c("Worse", "Same", "Better"))
+
+## Now show the biplot
+fviz_pca_biplot(pca, 
+             palette = c("maroon", "cadetblue", "gold"),
+             label = "var",
+             geom = "point",
+             geom.var = "text",
+             addEllipses = TRUE,
+             ellipse.alpha = 0.5,              ## Change alpha 0-1
+             col = "black",
+             col.var = "black",
+             habillage = returnHospitalComparison,
+             select.var = list(contrib = 12),   ## Try changing the number
+             repel = T)                        ## Try switching to FALSE
+```
+
+> By changing the number, it adds labels. When set to 1, there is only one variable showing (Communication.about.medicines). This variable is the top feature that contributes to the variance. When tested with 5, it shows the top 5 features that contribute to the variance. For readability, I ran the final code with 2, which added the second highest feature that contributes to the variance: Doctor.communication. When contrib = 2 and repel = T, both of these variables are in the bottom right quadrant (IV), indicating that PC1 is positive and PC2 is negative.
+> By changing repel = F, the labels now overlap each other and it is difficult to see which variables are in which quadrant. For contrib = 2, we can still see tht they are in Quadrant IV, but with more variables (ex. 10), it is much more difficult. When set to T, they are clearly readble. Although it resudces the readability, to answer this question, I set contrib = 12 and repel = T.
+
+> As mentioned earlier, points in Quadrant IV are associated with variables pointing into this quadrant. Additionally, there may be a contrast with Quadrant II on PC2. Since Communication.about.medicines is in Quadrant IV (clearly seen when contrib = 1), the variables that contrast with Communication.about.medicines are those in Quadrant II. These include State, bc_PredictedReadmissionRate, Hospital.return.days.for.pneumonia.patients. These could be seen with contrib = 12 and repel = T. Showing more variables than this made it difficult to read, but these are likely not the only variables that contrast with Communication.about.medicines. 
 
 Now, look at the contributions to PCs 1 and 2 (Figure Below) from the variables in the training dataset. Anything above the dotted red-line contributes **significantly** to the overall explanation of variance, and anything below the dotted line does not. Does anything about this plot stand out to you?
 
@@ -1412,7 +1556,11 @@ Now, look at the contributions to PCs 1 and 2 (Figure Below) from the variables 
 
 **HINT 2**: Where does the target, `PredictedReasmissionRate`, fall among the significant variables?
 
-> Your answer here.
+EG
+
+> The top contributing variables are Communication.about.medicines, Doctor.communication, Composite.patient.safety, Discharge.information, Quietness, Postoperative.respiratory.failure.rate, and Cleanliness. Based on the Data Dictionary, most of these variables come from the HCAHPS Patient Survey, indicating that they are the result of patient experiences.
+
+> The target, PredictedReadmissionRate, does not show up in this plot, but bc_PredictedReadmissionRate does. It is just at the red line, indicating that it contributes to the overall explanation of variance, but is not one of the storngest contributors.
 
 ```{r, echo=FALSE, fig.width=8, fig.height=8, fig.cap="Figure 12. Variables that Significantly Explain Variance."}
 fviz_contrib(pca, 
