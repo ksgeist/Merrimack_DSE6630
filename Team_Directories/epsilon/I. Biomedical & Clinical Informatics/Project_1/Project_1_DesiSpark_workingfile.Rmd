@@ -1720,27 +1720,28 @@ pcaImportantVars <- factor(c("Communication.about.medicines",
                        "Predicted.Readmission.Rate",
                        "Pneumonia.Hospital.Return.Days"))
 
-## COMMENT HERE
+## Converts the text lower case.
 pcaImportantVars <- tolower(pcaImportantVars)
-## COMMENT HERE
+## Takes the periods to turn them into an underscore, "_"
 pcaImportantVars <- gsub("\\.", "_", pcaImportantVars) %>% 
-## COMMENT HERE
+##Converts the text then to every first letter of every word is capitalized within the pcaImportantVars after gsub is done.
   to_any_case("title")
 
-## COMMENT HERE
+## Looks inside the kmeansTrain's data set.
 kmeansTrain %>% 
-  ## COMMENT HERE
+  ## renames the stated column names below to lowercase with underscores as spaces.
   rename(Predicted.Readmission.Rate = predicted_readmission_rate,
          Periop.Rate.Of.Embolism.Or.Thrombosis = perioperative_pulmonary_embolism_or_deep_vein_thrombosis_rate) %>% 
-  ## COMMENT HERE
+  ## Then after renames turn the text of every first letter of every word to a capitalized letter.
   clean_names(case = "title") %>% 
-  ## COMMENT HERE
+  ## After, it'll take any of the pcaImportantVars dataset that is on the cluster row.
   select(Cluster, any_of(pcaImportantVars)) %>% 
-  ## COMMENT HERE
+  ## Will keep the first column alone, which is most likely Cluster, then makes a new column called "Measure" will have the original names to those columns, and put the Values under a new column called "Values". 
   pivot_longer(-1, names_to = "Measure", values_to = "Value") %>% 
-  ## COMMENT HERE
-  # filter(Measure %in% pcaImportantVars) %>% 
-   mutate(Measure = factor(Measure, levels = to_any_case(c("Communication.about.medicines",
+  ## Will search for any data values within the column "Measure"
+  filter(Measure %in% pcaImportantVars) %>% 
+  ## Within the Measure column with take all of the values and sort them into factors or categories within the column, will switch the wording to every first letter will be capitalized. 
+  mutate(Measure = factor(Measure, levels = to_any_case(c("Communication.about.medicines",
                         "Doctor.communication", 
                         "Composite.patient.safety",
                         "Discharge.information",
@@ -1750,34 +1751,36 @@ kmeansTrain %>%
                         "Periop.Rate.Of.Embolism.Or.Thrombosis",
                         "Predicted.Readmission.Rate",
                         "Pneumonia.Hospital.Return.Days"), case="title"))) %>% 
-  ## COMMENT HERE
+  ## Will plot the every unique cluster a different observations on the x axis, and the values as the response or numerical calculated data to be added into the graph to show results of each observation there is.
     ggplot(aes(x = Cluster, y = Value, fill = as.factor(Cluster))) +
-    geom_boxplot(alpha=0.75) +
-    scale_fill_manual(values = c(skittles[1], skittles[6])) +
-    labs(title = "Cluster Means",
+    geom_boxplot(alpha=0.75) + ## Adds a box-and-whisker plot layer.
+    scale_fill_manual(values = c(skittles[1], skittles[6])) + ##Sets color sets for the clusters manually
+    labs(title = "Cluster Means", ##Title of the plots
          x = "",
-         fill = "Cluster") +
-    theme_classic() +
-    theme(legend.position = "bottom",
+         fill = "Cluster") +  ##Sets the labels for the plots
+    theme_classic() + ## Sets the theme to ggplot2's classic style.
+    theme(legend.position = "bottom", ## Sets the labels and parameters for the legend.
         strip.text = element_text(size=8),
         legend.text = element_text(size = 8),
         legend.title = element_text(size = 10),
         title = element_text(size = 12, color = "maroon")) + 
-    ## COMMENT HERE
+    ## Creates a graph for each level or value for "Measure"
     facet_wrap(~ Measure, 
              scales = "free_y",
              ncol = 2)
 
-## COMMENT HERE
+## Looks at the data after it's been clustered
 kmeansTrain %>% 
-  ## COMMENT HERE
+  ## Renames specific columns down below to be lower cased and instead of periods have underscores. 
   rename(Predicted.Readmission.Rate = predicted_readmission_rate,
          Periop.Rate.Of.Embolism.Or.Thrombosis = perioperative_pulmonary_embolism_or_deep_vein_thrombosis_rate) %>% 
-  ## COMMENT HERE
+  ## Next capitalizes every letter for every word.
   clean_names(case = "title") %>% 
-  ## COMMENT HERE
+  ## After selects any observations within the Cluster row.
   select(Cluster, any_of(pcaImportantVars)) %>% 
-  ## COMMENT HERE
+  ## Step after will take those data values group them by cluster and make a summarized table each cell showing averages and medians of each cluster type
+  ##Will name the table headers to Variable and the other various levels or factors of for every unique cluster type.
+  ## The table will have a caption to it saying the table is "Table 8. Summary Statistics of Important Cluster Variables"
   tbl_summary(by = "Cluster",
               statistic = list(all_continuous() ~ c("{mean} ({median})"))) %>% 
   modify_header(label ~ "Variable",
@@ -1786,7 +1789,7 @@ kmeansTrain %>%
 
 ```
 
-**HINT**: If these are back to the _original_ values, this is more interpretable for our stakeholder. We will now read this just like a typical boxplot; for example, median (the middle line) `Doctor Communication` seems higher in **Cluster 1** than it does in **Cluster 2** with only some overlap in the distributions (the boxes and whiskers don't really overlap each other). The table confirms this; the median `Doctor Communication` score is 91% in Cluster 1 but only 88% in Cluster 2.   
+**HINT**: If these are back to the _original_ values, this is more interpretable for our stakeholder. We will now read this just like a typical boxplot; for example, median (the middle line) `Doctor Communication` seems higher in **Cluster 1** than it does in **Cluster 2** with only some overlap in the distributions (the boxes and whiskers don't really overlap each other). The table confirms this; the median `Doctor Communication` score is 88% in Cluster 1 but only 91% in Cluster 2.   
 
 #### **Question 25**: [2 points]
 Notice, for example, that Cluster 1 hospitals seem to include the hospitals that had the __lowest__ pneumonia-related readmission rates, with the average rate ~2% higher in Cluster 2 hospitals. Thus, for our stakeholder, we might decide to rename Cluster 1 as "Highest Performing Hospitals" or something along those lines. Notice also that this cluster had more __below__ national average return hospital days (a "1"). This means that they had more readmitted pneumonia patients who spent less time in the hospital upon readmission than the national average. 
@@ -1800,10 +1803,10 @@ dict <- tribble(
 ~`Top Defining Attributes`, ~`Description`,
 "Predicted Pneumonia-related hospital readmissions", "These hospitals have a lower readmission rate, suggesting that hospitals in this cluster may be better at diagnosing and treating pneumonia",
 "Return hospital days due to pneumonia", "Readmitted patients spend below the national average number of days in hospital, suggesting these hospitals are able to more quickly treat and stabilize pnuemonia patients", 
-"FILL ME IN", "FILL ME IN",
-"FILL ME IN", "FILL ME IN",
-"FILL ME IN", "FILL ME IN",
-"FILL ME IN", "FILL ME IN",
+"Cleanliness in Hospitals", "These hospitals had a lower rating on their cleanliness, being that the hospitals may not be the cleanest it still got the attention for the patients to get better.",
+"Average Discharge Information rate", "The amount of information for Cluster 2 hospitals have higher discharge information than Cluster 1 hospitals.",
+"Postoperative Respiratory Failure due to pneumonia", "Even though there is a lower amount of readmission rate for hospitals in Cluster 1, there are slightly higher Postoperative Respetory Failure.",
+"The Rate of Patient Safety", "FILL ME IN",
 "FILL ME IN", "FILL ME IN",
 "FILL ME IN", "FILL ME IN"
 )
