@@ -1615,7 +1615,7 @@ grid.arrange(p6, p7, p8, p9, nrow = 2)
 #### **Question 23A**: [0.5 points]
 Which number of clusters, $k$, do you think has the best explanatory power? Why? Is it is hard to tell?
 
-> Your answer here
+> From a previous question up above with the Scree Plot 5 looked to be the best K variable to use. But there is still much overlap which means the clusterings groups aren't strong but really weak correlations at this time.
 
 ### 5.2.3 Within-sum-of-squares (WSS) elbow method
 
@@ -1634,7 +1634,8 @@ fviz_nbclust(readyTrain,
 
 What is the __within sum of squares__ and what exactly is it measuring here? By the elbow method, which $k$ is the optimal number of clusters? Did it agree with your choice from the other heuristic method?
 
-> Your answer here
+>WSS is a metric of how compact the clusters are. It's based on the total square distance between the data point and the centroid cluster it belongs to. Based on this method it looks to be 2 or 6. It didn't since earlier answer was 5.
+Source <https://aiml.com/what-is-the-within-cluster-sum-of-squares-score/>
 
 ### 5.2.3 Silhouette method
 
@@ -1655,7 +1656,7 @@ fviz_nbclust(readyTrain, kmeans, method = "silhouette",
 
 Are you surprised at the optimal $k$ from the silhouette method? Does it seem to agree with what you've seen with the WSS elbow method? (**Hint**: agreement generally suggests evidence that you have found the optimal $k$).
 
-> Your answer here
+> It isn't surprising since one of my original thoughts on which k cluster numeric was the best shows the result here. It agrees with the elbow method since to find the best "k" numeric is where on the plot the pattern of change is at it's greatest or changes direction compared to the other k numerics.
 
 Lastly, let's extract the optimal $k$ from the silhouette method.
 
@@ -1675,23 +1676,35 @@ As we said before, the goal of segmentation analysis is to broadly cluster our h
 Let's explore the clusters - segments - of the hospitals based on their average values from the __original__ dataset (we start from `imputedTrain`, which hadn't yet been transformed, centered, or scaled, BUT the multicollinear variables also haven't been dropped either). Your task is to add comments to this code chunk. 
 
 ```{r, echo = TRUE, fig.height = 8, fig.width=6, fig.cap="Figure 16. Boxplot Comparisons of Important Variables by Cluster"}
-## COMMENT HERE
+## Gain the results of the clusters through multiple k values from the variable of "k".
 kmeansResult <- kmeans(readyTrain, 	
-                         centers = k,      ## COMMENT HERE
-                         nstart = 50,      
-                         iter.max = 1000,  
-                         algorithm = "MacQueen")
-## COMMENT HERE
+                         centers = k, #Tells how many clusters to make for the plot. Then the algorithm will see which is the most optimal placement of the cluster of centroids within cluster variances.
+                         nstart = 50, #This tells how many times you want to run the process / algorithm for each center is being chosen.
+                         iter.max = 1000, #Max number of updates the algorithm can do.
+                         algorithm = "MacQueen") # when the algorithm is running, it'll gradually do updates on the centroids, and not all centroids at once.  
+
+##Sources <https://github.com/valentinasilva8/KMeans-Clustering-Analysis-in-R>
+##<https://search.r-project.org/CRAN/refmans/factoextra/html/eigenvalue.html>
+
+## Within the dataset of kmeansTrain, rename columns, select specific columns to not be in the next variables, and combine specific columns.
 kmeansTrain <- imputedTrain %>% 
+  
   ## Rename the column we want to keep
   rename(Pneumonia.Hospital.Return.Days = `ComparedToNational_Hospital return days for pneumonia patients`) %>% 
-  ## COMMENT HERE
+  
+  ## select(-any_of(vifOver5); Remove columns that have names within vectors of vifOver5, and doesn't error out if there are some that don't exist
+  ##-contains("Compared"); Remove any columns that have "Compared" within the columns names.
+  ## -contains("PaymentCategory"); Remove any columns that have "PaymentCategory" within the columns names.
+  ## Removes the column named exactly SurveyResponseRate
   select(-any_of(vifOver5), -contains("Compared"), -contains("PaymentCategory"), -SurveyResponseRate) %>% 
-  ## COMMENT HERE 
+  
+  ## This will combine and modify columns and results if Pneumonia.Hospital.Return.Days meets a certain threshold.
+    ## Cluster is added to the dataset as a column which takes vectors from kmeansResult$cluster observation.
+    ## Pneumonia.Hospital.Return.Days is recoded to the observation / cell value equals 1 return "1" or if it equals 0 or -1 input "0".
   mutate(Cluster = kmeansResult$cluster,
          Pneumonia.Hospital.Return.Days = as.numeric(if_else(Pneumonia.Hospital.Return.Days == "1", 1,
                                                      if_else(Pneumonia.Hospital.Return.Days == "0", 0, -1)))) %>% 
-  ## COMMENT HERE
+  ## This is from the "janitor" package which  will clean up the names of the columns that were selected to keep. Will replace spaces with underscores, make all colnames() lower-cased, remove any special characters, which all of these methods are familiarly like snake_case().
   clean_names()
 
 ## Using % contribution graph, the order of the top 10:
@@ -1706,27 +1719,28 @@ pcaImportantVars <- factor(c("Communication.about.medicines",
                        "Predicted.Readmission.Rate",
                        "Pneumonia.Hospital.Return.Days"))
 
-## COMMENT HERE
+## Converts the text lower case.
 pcaImportantVars <- tolower(pcaImportantVars)
-## COMMENT HERE
+## Takes the periods to turn them into an underscore, "_"
 pcaImportantVars <- gsub("\\.", "_", pcaImportantVars) %>% 
-## COMMENT HERE
+##Converts the text then to every first letter of every word is capitalized within the pcaImportantVars after gsub is done.
   to_any_case("title")
 
-## COMMENT HERE
+## Looks inside the kmeansTrain's data set.
 kmeansTrain %>% 
-  ## COMMENT HERE
+  ## renames the stated column names below to lowercase with underscores as spaces.
   rename(Predicted.Readmission.Rate = predicted_readmission_rate,
          Periop.Rate.Of.Embolism.Or.Thrombosis = perioperative_pulmonary_embolism_or_deep_vein_thrombosis_rate) %>% 
-  ## COMMENT HERE
+  ## Then after renames turn the text of every first letter of every word to a capitalized letter.
   clean_names(case = "title") %>% 
-  ## COMMENT HERE
+  ## After, it'll take any of the pcaImportantVars dataset that is on the cluster row.
   select(Cluster, any_of(pcaImportantVars)) %>% 
-  ## COMMENT HERE
+  ## Will keep the first column alone, which is most likely Cluster, then makes a new column called "Measure" will have the original names to those columns, and put the Values under a new column called "Values". 
   pivot_longer(-1, names_to = "Measure", values_to = "Value") %>% 
-  ## COMMENT HERE
-  # filter(Measure %in% pcaImportantVars) %>% 
-   mutate(Measure = factor(Measure, levels = to_any_case(c("Communication.about.medicines",
+  ## Will search for any data values within the column "Measure"
+  filter(Measure %in% pcaImportantVars) %>% 
+  ## Within the Measure column with take all of the values and sort them into factors or categories within the column, will switch the wording to every first letter will be capitalized. 
+  mutate(Measure = factor(Measure, levels = to_any_case(c("Communication.about.medicines",
                         "Doctor.communication", 
                         "Composite.patient.safety",
                         "Discharge.information",
@@ -1736,34 +1750,36 @@ kmeansTrain %>%
                         "Periop.Rate.Of.Embolism.Or.Thrombosis",
                         "Predicted.Readmission.Rate",
                         "Pneumonia.Hospital.Return.Days"), case="title"))) %>% 
-  ## COMMENT HERE
+  ## Will plot the every unique cluster a different observations on the x axis, and the values as the response or numerical calculated data to be added into the graph to show results of each observation there is.
     ggplot(aes(x = Cluster, y = Value, fill = as.factor(Cluster))) +
-    geom_boxplot(alpha=0.75) +
-    scale_fill_manual(values = c(skittles[1], skittles[6])) +
-    labs(title = "Cluster Means",
+    geom_boxplot(alpha=0.75) + ## Adds a box-and-whisker plot layer.
+    scale_fill_manual(values = c(skittles[1], skittles[6])) + ##Sets color sets for the clusters manually
+    labs(title = "Cluster Means", ##Title of the plots
          x = "",
-         fill = "Cluster") +
-    theme_classic() +
-    theme(legend.position = "bottom",
+         fill = "Cluster") +  ##Sets the labels for the plots
+    theme_classic() + ## Sets the theme to ggplot2's classic style.
+    theme(legend.position = "bottom", ## Sets the labels and parameters for the legend.
         strip.text = element_text(size=8),
         legend.text = element_text(size = 8),
         legend.title = element_text(size = 10),
         title = element_text(size = 12, color = "maroon")) + 
-    ## COMMENT HERE
+    ## Creates a graph for each level or value for "Measure"
     facet_wrap(~ Measure, 
              scales = "free_y",
              ncol = 2)
 
-## COMMENT HERE
+## Looks at the data after it's been clustered
 kmeansTrain %>% 
-  ## COMMENT HERE
+  ## Renames specific columns down below to be lower cased and instead of periods have underscores. 
   rename(Predicted.Readmission.Rate = predicted_readmission_rate,
          Periop.Rate.Of.Embolism.Or.Thrombosis = perioperative_pulmonary_embolism_or_deep_vein_thrombosis_rate) %>% 
-  ## COMMENT HERE
+  ## Next capitalizes every letter for every word.
   clean_names(case = "title") %>% 
-  ## COMMENT HERE
+  ## After selects any observations within the Cluster row.
   select(Cluster, any_of(pcaImportantVars)) %>% 
-  ## COMMENT HERE
+  ## Step after will take those data values group them by cluster and make a summarized table each cell showing averages and medians of each cluster type
+  ##Will name the table headers to Variable and the other various levels or factors of for every unique cluster type.
+  ## The table will have a caption to it saying the table is "Table 8. Summary Statistics of Important Cluster Variables"
   tbl_summary(by = "Cluster",
               statistic = list(all_continuous() ~ c("{mean} ({median})"))) %>% 
   modify_header(label ~ "Variable",
@@ -1772,7 +1788,7 @@ kmeansTrain %>%
 
 ```
 
-**HINT**: If these are back to the _original_ values, this is more interpretable for our stakeholder. We will now read this just like a typical boxplot; for example, median (the middle line) `Doctor Communication` seems higher in **Cluster 1** than it does in **Cluster 2** with only some overlap in the distributions (the boxes and whiskers don't really overlap each other). The table confirms this; the median `Doctor Communication` score is 91% in Cluster 1 but only 88% in Cluster 2.   
+**HINT**: If these are back to the _original_ values, this is more interpretable for our stakeholder. We will now read this just like a typical boxplot; for example, median (the middle line) `Doctor Communication` seems higher in **Cluster 1** than it does in **Cluster 2** with only some overlap in the distributions (the boxes and whiskers don't really overlap each other). The table confirms this; the median `Doctor Communication` score is 88% in Cluster 1 but only 91% in Cluster 2.   
 
 #### **Question 25**: [2 points]
 Notice, for example, that Cluster 1 hospitals seem to include the hospitals that had the __lowest__ pneumonia-related readmission rates, with the average rate ~2% higher in Cluster 2 hospitals. Thus, for our stakeholder, we might decide to rename Cluster 1 as "Highest Performing Hospitals" or something along those lines. Notice also that this cluster had more __below__ national average return hospital days (a "1"). This means that they had more readmitted pneumonia patients who spent less time in the hospital upon readmission than the national average. 
@@ -1786,12 +1802,12 @@ dict <- tribble(
 ~`Top Defining Attributes`, ~`Description`,
 "Predicted Pneumonia-related hospital readmissions", "These hospitals have a lower readmission rate, suggesting that hospitals in this cluster may be better at diagnosing and treating pneumonia",
 "Return hospital days due to pneumonia", "Readmitted patients spend below the national average number of days in hospital, suggesting these hospitals are able to more quickly treat and stabilize pnuemonia patients", 
-"FILL ME IN", "FILL ME IN",
-"FILL ME IN", "FILL ME IN",
-"FILL ME IN", "FILL ME IN",
-"FILL ME IN", "FILL ME IN",
-"FILL ME IN", "FILL ME IN",
-"FILL ME IN", "FILL ME IN"
+"Cleanliness in Hospitals", "These hospitals had a lower rating on their cleanliness, being that the hospitals may not be the cleanest patients still got better care to get better sooner.",
+"Postoperative Respiratory Failure due to pneumonia", "Even though there is a lower amount of readmission rate for hospitals in Cluster 1, there are slightly higher Postoperative Respetory Failure.",
+"Average Discharge Information rate", "The amount of information for Cluster 2 hospitals have higher discharge information than Cluster 1 hospitals.",
+"The Rate of Patient Safety", "The second cluster of hospitals had a lower rate of Patient safety protocols which could lead to staying in the hospital longer than those going cluster 1 hospitals ",
+"Communication about Medicine", "This was more superior in cluster 2 of hopsitals which can help us see why there is a higher average for being on pair with the national average then the other clustered hospitals.",
+"Periop Rate of Embolism or Thrombosis", "This stat is lower on the cluster 2 of hospitals potentially due to the lower rate of Postoperative Respitory Failure Rate from blood clots after surgical procedures."
 )
 
 dict %>% 
@@ -1799,7 +1815,7 @@ dict %>%
     format = "html",
     caption = "Table 9. Hospital segmentation analysis: three types of broad groupings identified.") %>%
     pack_rows("1: Highest Performing Hospitals", 1, 4) %>%
-    pack_rows("2: NAME ME!", 5, 8) %>%
+    pack_rows("2: Average to Lower Performing Hostials!", 5, 8) %>%
     kable_styling(bootstrap_options = c("striped", full_width = F)
   )
 ```
@@ -1811,7 +1827,7 @@ We don't technically have to stop our segmentation analysis here, but we will so
 #### **Question 26**: [1 point]
 Make a recommendation for our client for 1-2 machine learning analyses __your team__ would choose to use to test whether these clusters can be used for robust predictions of hospital performance for pneumonia patients. How would you know whether or not your predictions were robust? What would you look for or compare?
 
-> Your answer here.
+> We can use Ordinary Least Squares and afterwards using a process of Elastic Netting. These processes not only have better interpretability of this type of data, but can see relationships between predictors more precisely. For using Elastic Net it helps lower the chance of seeing overfitted model outcomes than other models. 
 
 # 6 Supervised Learning Methods
 
@@ -1850,7 +1866,7 @@ plot(mod, 4)
 
 What is your general assessment of our OLS assumptions? Met or unmet? Why? 
 
-> Your answer here.
+> The results of the OLS indicate with a shapiro-Wilk test, we can see that p > 0.05 which rejects normality which is a good thing in this case. This indicated the residuals are consistant with a normal distrobution. With the Wilk result of 0.99862 this is really close 1, expressing to be strongly supporting normality. These outcomes met our assumptions.
 
 **Note:** If you are not entirely sure about the Q-Q plot, you can run a Shapiro-Wilk test on the residuals using the following code:
 
@@ -1862,7 +1878,7 @@ The **most important** OLS assumption for Elastic Net is __linearity of the rela
 
 **Do you find support for linearity here**? Why or why not?
 
-> Your answer here.
+>There seems to be a slight result of non-linearity due to some slight curvature in the resulting graphs.
 
 2. Let's now assess how well our model fits with the adjusted $R^2$.
 
@@ -1874,7 +1890,7 @@ summary(mod)$adj.r.squared
 #### **Question 27B**: [1 point] {#rmse}
 It is a surprisingly high (although it isn't stellar). You may need to do some outside research, but explain in a sentence or two why, generally speaking, we use **adjusted** $R^2$ and not the unadjusted one (confusingly labeled as `multiple r-squared` in the `summary()` output below). 
 
-> Your answer here.
+> The sum of the Adjusted R^2 outcome is at an alright rate. It isn't perfect but it only represents about a 39% of the variance with the data by the predictors in the models above. The model couldn't capture all of the variations with the other hospitals that weren't accounted for. It is still a meaningful model that isn't over or underfitted. This suggests a moderate level of explanatory power, which is acceptable given the inherent variability and complexity of healthcare data.
 
 3. Find the best model. 
 
@@ -1889,7 +1905,7 @@ bestMod <- step(mod,
 
 Lastly, let's take a peek at the results. We will use a package called `stargazer` to help us visualize the results in a nicely organized way.
 
-```{r, results='asis'}
+```{r paged.print=TRUE, results='asis'}
 ## Print a table using stargazer
 stargazer(bestMod, 
           type = "html",
@@ -1912,7 +1928,7 @@ Can you interpret what the RMSE tells your client here? Why or why not? What abo
 
 **Hint 2**: Is it practical to undo both transformations? How does that hinder our ability to make an interpretation for our client?
 
-> Your answer here.
+> The residual standard error (RMSE) of approximately 0.78 indicates that the model’s predicted values deviate from observed values by about 0.78 units on average. This suggests moderate prediction accuracy, although interpretation is limited by the transformation applied to the dependent variable. Together with the adjusted R² of 0.395, the model demonstrates reasonable explanatory and predictive capability for complex healthcare data.
 
 Lastly, let's graph the effect predictive ability of our OLS model by comparing the relationship between the **true** values of `bc_PredictedReadmissionRate` from the `readyTest` dataset to the predictions we made using the model on the testing data.
 
@@ -1997,7 +2013,13 @@ Explain what we are doing here. You may want to look up the parameters of the `t
 
 **Hint 2**: What does $\lambda = 0$ mean? How about $\alpha = 0$? 
 
-> Your answer here.
+> For the lambda value = 0 means that for with ever models it's currently evaluating there won't be anything penalized. Which means the optimal model was essentially the unregularized linear regression model. For alpha = 0 means it is currently using a Ridge model that does help with shrinking coefficience towards zero so we can see which predictors are better used to keep w/o removing any of the variables to keep all of the information we still need for this data set. The chosen cross-validation method was "Repeated 5-fold CV with 5 repeats: 
+
+>"trainControl(method = "repeatedcv",  ## Do repeated CV
+                     number = 5,      ## Number of k-folds
+                     repeats = 5,     ## Number of times to repeat....."
+
+> It was used for the approach of randomly partitioning the dataset into five subsets, using four subsets for training and one for validation, and repeats the process five times with different random splits. Performance metrics were averaged across all repetitions to obtain stable estimates of model accuracy. A grid search was used to systematically evaluate combinations of alpha and lambda parameters, allowing for the identification of the optimal model while minimizing the influence of random variation in the data.
 
 
 ### 6.2.3 Elastic Net Results
@@ -2033,7 +2055,7 @@ elasticMod$bestTune$lambda
 #### **Question 29**: [1 point]
 Check the values of $\alpha$ and $\lambda$ here. What do they suggest about the optimal regularization that is being fit here? (Recall that when both $\alpha$ and $\lambda$ are zero, it's an OLS regression!)
 
-> Your answer here.
+> The take away ofr the alpha and lambda = 0, the OLS was still the best optimized model to use and not to shrink your model since it is already at it's optimal process.
 
 Let's also plot the results of the tuning search. Can you figure out the type of tuning search you did? (**Hint**: the visual pattern should confirm your answer from earlier!) The diamond denotes the best combination of hyperparameters!
 
@@ -2090,7 +2112,21 @@ important %>%
 
 Which of the features were most important? How does this compare to the most important features out of OLS regression? Make sure you're looking at the __absolute value of the beta coefficients to assess importance in OLS regression__. 
 
-> Your answer here.
+>Top five from Ordinary Linear Spuares (OLS) Results were:
+Hospital.return.days.for.pneumonia.patients
+Medicare.spending.per.patient
+Death.rate.for.pneumonia.patients
+State
+,and Venous.Thromboembolism.Prophylaxis
+
+>Top five from Elastic Net Results were:
+Hospital return Days for pneumonia patients
+Medicare spending per patient
+Death Rate for Pneumonia Patients.
+State
+,and Venous Thromboembolism Prophylaxis.
+
+>Both of the models had the same most important features in the same order. Thus we can use either or for modeling since they do produce the same importance of feautres.
 
 How about about of PCA? You may have already noticed that importance almost seems inverted! Why?!
 
@@ -2100,7 +2136,7 @@ How about about of PCA? You may have already noticed that importance almost seem
 
 **Hint 3**: What does the sign of the loadings mean in a PCA? Are they actual or arbitrary?
 
-> Your answer here.
+> The apparent inversion between PCA loadings and regression coefficients arises because the two methods capture different aspects of the data. PCA is an unsupervised technique that identifies directions of greatest variance among predictors, while regression is a supervised method that identifies variables associated with the dependent outcome. Additionally, the sign of PCA loadings is arbitrary and can be reversed without affecting the underlying component structure, whereas regression coefficients have a meaningful direction. As a result, variables that appear important in PCA do not necessarily correspond to those that influence the outcome in regression, and apparent sign differences should not be interpreted as true contradictions.
 
 #### 6.2.3.2 Check model performance
 
