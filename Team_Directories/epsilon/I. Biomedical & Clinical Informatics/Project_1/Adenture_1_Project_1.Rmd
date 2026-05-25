@@ -139,7 +139,7 @@ Load my version of the fully cleaned, encoded, & ready-to-proceed dataset from t
 
 ```{r}
 # ## Comment out if this is NOT your choice:
-load("FY2024_data_files/dataAnalyzeNoEncoding2024.Rdata")
+#load("FY2024_data_files/dataAnalyzeNoEncoding2024.Rdata")
 # EG: Don't need to update the line below because the reRunDemoData.R file sets the condition to AMI 
 # dataAnalyzeNoEncoding <- pneumoniaAnalyzeNoEncoding
 ```
@@ -668,6 +668,12 @@ dataAnalyzeNoEncoding <- dataAnalyzeNoEncoding[, -nearZeroVar(dataAnalyzeNoEncod
 #### **Question 9C**: [0.5 points]
 You may or may not have noticed that I moved `FacilityID` to our rownames in the datasets you loaded today. Why did I choose to do that? Why do I want to make sure unique identifiers, like `FacilityID`, are out of the dataframe before I either (a) run `nearZeroVar()` or (b) proceed with the rest of the analysis?
 
+```{r}
+#MH removing facilityID
+
+dataAnalyzeNoEncoding <- dataAnalyzeNoEncoding %>% select(-c(facilityId))
+```
+
 > `FacilityID` is a unique identifier that does not provide any information on factors that differentiate one hospital from another. In `nearZeroVar()`, every row would have it's own specific ID so it wouldn't be removed. `FacilityID` should not be used for analysis as it does not provide any relevant analytical information, and may add noise or confuse the model leading it to miss real patterns in the data.
 
 #### **Question 9D**: [1 point]
@@ -969,14 +975,13 @@ We are going to take advantage of the `missForest()` function from the `missFore
 The way I have chosen to do this is to separate the data so that I can turn the encoded categories back into categories temporarily, then stitch them back together into a temporary dataframe so that I can run `missForest`. Notice that I temporarily drop the `State` and target features; I drop `State` to spare ourselves a little computational time and I drop `PredictedReadmissionRate` to prevent __data leakage__. **Be patient!!**. Since this is randomForest, it could take a minute or two to run. **NOTE:** _If your machine fails to run this, there are data you can load. Some computers may struggle to run this._
 
 ```{r, include = TRUE}
-# EG: I had an error because facilityId was still in the data, so I removed it
+# EG
 
 # Remove encoded categorical variables for imputation, plus the target and state (which have no missing)
 data_sans_encoded = train %>% 
   select(-PredictedReadmissionRate,
          -State,
          -`Emergency department volume`, 
-         -facilityId, # Added this to the list of fields to remove
          -contains("ComparedToNational"))
 
 data_cat = train %>% 
@@ -1074,13 +1079,12 @@ imputedTrain <- imputedTrain$ximp %>%
 ##### 3.5.4.2 Now do the imputation for `test`
 
 ```{r}
-# EG: remove facilityId as it was giving an error
+# EG
 
 # Remove encoded categorical variables for imputation, plus the target and state (which have no missing)
 data_sans_encoded = test %>% 
   select(-PredictedReadmissionRate,
          -State,
-         -facilityId, # EG removed this
          -contains("ComparedToNational"))
 
 data_cat = test %>% 
