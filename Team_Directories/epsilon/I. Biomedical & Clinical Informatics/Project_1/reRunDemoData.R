@@ -15,7 +15,7 @@ pacman::p_load(tidyverse,
 )
 
 #### CHANGE IF NEEDED #################
-filepath <- "~/Desktop/hospitals_current_data_FY2024/"
+filepath <- "C:/GitHub/Merrimack_DSE6630/I. Biomedical & Clinical Informatics/Project_1/FY2024_data_files/"
 ########################################
 
 
@@ -79,7 +79,7 @@ load(file = "FY2024_data_files/readmissionsClean2024.Rdata")
 
 #### CHANGE IF NEEDED #################
 ## Set a list of conditions:
-conditionList <- c("HF", "CABG", "AMI")
+conditionList <- c("HF")
 
 
 ########################################
