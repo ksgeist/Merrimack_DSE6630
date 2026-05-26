@@ -1,0 +1,1460 @@
+---
+title: "Project 1: Biomedical & Clinical Informatics"
+subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
+author: "Katherine S. Geist, PhD"
+date: "20 May 2025"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: flatly
+    fig_crop: no
+bibliography: references.bib
+nocite: '@*'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      error = FALSE,
+                      cache = TRUE,
+                      cache.comments = TRUE,
+                      size = 13)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
+# Turn off scientific notation
+options(scipen=999)
+
+# Set seed
+set.seed(98501)
+
+# Clean, set up, and load
+pacman::p_unload(pacman::p_loaded(), character.only = TRUE)
+rm(list = ls(all = TRUE))
+
+pacman::p_load(tidyverse,
+               janitor,
+               naniar,
+               stringr,
+               ggplot2, 
+               kableExtra,
+               RColorBrewer,
+               gridExtra,
+               gtsummary,
+               prcomp,
+               factoextra,
+               ggrepel,
+               caret,
+               missForest,
+               mice,
+               car,
+               stargazer,
+               glmnet,
+               forcats,
+               snakecase
+)
+```
+
+# Introduction
+
+We are performing Adventure 1 by choosing **COPD (Chronic Obstructive Pulmonary Disease)** as our second condition to analyze, following the same pipeline used for pneumonia in the completed demo. Our goal is to see this analysis through from cleaned data to prediction and interpretation, and to compare our COPD findings directly against the pneumonia results to give the patient advocacy watchdog the most complete picture possible.
+
+## Why COPD?
+
+COPD was selected for the following reasons:
+
+1. **It is one of the six CMS-tracked readmission conditions.** The `FY_2024_Hospital_Readmissions_Reduction_Program` dataset explicitly tracks COPD readmissions under the acronym `"COPD"`, meaning our dataset has robust, parallel target variables (Predicted, Observed, Expected, Excess) that mirror the pneumonia analysis exactly.
+2. **High readmission burden.** Our data confirms COPD has a mean predicted readmission rate of ~19.0% and a mean observed rate of ~20.5%, notably higher than pneumonia (~16.5% and ~17.1% respectively). This makes it a clinically significant and practically visible target for our watchdog client.
+3. **Respiratory parallel to pneumonia.** Both conditions affect overlapping elderly, Medicare-enrolled populations and involve respiratory pathophysiology. This makes comparisons between the two conditions scientifically meaningful.
+4. **Chronic vs. acute distinction.** Unlike pneumonia (primarily acute and communicable), COPD is a chronic, non-communicable condition. Its readmissions are driven more by chronic disease management and discharge preparation quality than by hospital infection control. This lets us test whether hospital-level CMS predictors generalize across different respiratory disease mechanisms.
+5. **Policy relevance.** COPD is targeted by CMS's Hospital Readmissions Reduction Program (HRRP), giving us extensive real-world context for interpretation.
+
+**Important data note:** CMS does not publish a `"Payment for COPD patients"` measure in the Payment_and_Value_of_Care dataset (that table covers only HF, AMI, and PN). This column is therefore absent from our merged COPD dataset. This is an expected data limitation, not an error.
+
+## Research Question
+
+Can we predict COPD-related hospital readmissions based on hospital-level characteristics,including patient satisfaction ratings, Medicare spending, respiratory care quality, and general performance indicators, and how does the predictive power of this model compare to the pneumonia readmission model?
+
+## Hypothesis & Prediction
+
+Hospitals with lower indicators of patient care quality, particularly those related to respiratory management, discharge preparation, and care transitions, will exhibit higher-than-average COPD-related readmission rates. Because COPD exacerbations are often preventable with adequate outpatient follow-up and discharge instruction, we expect hospital-level communication and care transition quality metrics to be especially predictive. We specifically predict that factors indicating lower quality-of-care will predict higher than average rates of COPD-related hospital readmissions which will mirror the pneumonia hypothesis but with a greater emphasis on chronic disease management variables over infection-control proxies.
+
+## Objective
+
+Our objective for the patient advocacy watchdog is to clean, merge, explore, and predict which hospitals tend to have higher-than-average rates of COPD-related readmissions, and to compare this model directly to the pneumonia analysis. This will enable the watchdog to share information with patients so they know how their local hospitals are performing across respiratory conditions, allowing them to make healthier, more informed choices.
+
+## Our Analysis Plan
+
+Our plan follows the same structure as the pneumonia analysis:
+
+1. Load the fully encoded COPD dataset produced in the Demo 1 COPD pipeline
+2. Perform exploratory data analysis and select a target variable
+3. Pre-process: feature selection, train/test split, imputation, encoding, transformation, and scaling
+4. Assess multicollinearity and drop redundant features
+5. Perform unsupervised learning: PCA + k-means segmentation
+6. Perform supervised learning: OLS regression + Elastic Net
+7. Compare results to the pneumonia analysis and make recommendations
+
+---
+
+# Source Code & Data Loading
+
+```{r libraries}
+library(tidyverse)
+library(caret)
+library(glmnet)
+library(missForest)
+library(factoextra)
+library(corrplot)
+library(car)
+library(stargazer)
+library(kableExtra)
+library(naniar)
+library(janitor)
+library(mice)
+library(gtsummary)
+library(viridis)
+library(patchwork)
+library(snakecase)
+
+set.seed(42)
+
+## Color palette used throughout (matching demo)
+skittles <- c("#FF69B4","#FF8C00","#9400D3","#008000","#FF0000",
+              "#00BFFF","#FFD700","#FF6347","#ADFF2F","#DA70D6")
+```
+
+```{r load-copd-data}
+## Load the fully encoded COPD dataset produced by Demo1_COPD_WithEncoding.Rmd
+## This is the COPD equivalent of pneumoniaAnalyzeFullyEncoded2024.Rdata
+load("C:\\Users\\alica\\OneDrive\\Documents\\Merrimack_DSE6630\\Team_Directories\\alpha\\Module_Projects\\Project_1\\copdAnalyzeFullyEncoded2024.Rdata")
+dat2Analyze <- copdAnalyzeFullyEncoded
+```
+
+**Question 1**: Which dataset do you choose and why?
+
+> ##We chose the fully encoded COPD dataset produced by running the complete Demo 1 pipeline updated for COPD. This dataset has already had ordinal encoding applied to all `ComparedToNational_` columns (Worse = 0, No Different = 1, Better = 2) and `Score_Emergency department volume` (low = 1, medium = 2, high = 3, very high = 4), frequency encoding applied to `State`, `CountyParish` dropped due to excessive duplication after encoding, and all remaining character columns converted to numeric. This mirrors the `pneumoniaAnalyzeFullyEncoded` option from the main project and gives us a consistent, reproducible starting point for the modeling pipeline.
+
+
+---
+
+# 2. Exploratory Data Analysis: Which target variable to use?
+
+## 2.1 Overview of our options
+
+**Table 1. List of possible target variables from the COPD-related hospital readmission data.**
+
+| Possible Target | Description |
+|---|---|
+| `ComparedToNational_Hospital return days for COPD patients` | Days patients spent back in hospital within 30 days after COPD treatment, reported relative to the national average. Note: this variable was absent from our merged COPD dataset — CMS does not appear to publish it for COPD in the FY2024 data. |
+| `ExpectedReadmissionRate` | Expected readmissions estimated using the hospital's patient mix and average hospital-specific intercept. Indirectly standardized to similar hospitals. |
+| `PredictedReadmissionRate` | Predicted 30-day readmissions based on hospital performance with its observed case mix, using a hospital-specific intercept reflecting historical performance. |
+| `ExcessReadmissionRatio` | Ratio of predicted to expected readmission rate for an average hospital with similar patients. Below 1 is better. |
+| `observed_readmission_rate` | Our crude calculation: COPD readmissions / discharges × 100. Unadjusted. |
+
+## 2.2 Summary statistics of the possible targets
+
+```{r target-summary}
+copdAnalyze <- dat2Analyze %>%
+  mutate(
+    observed_readmission_rate =
+      (NumberOfReadmissions / NumberOfDischarges) * 100
+  ) %>%
+  select(-NumberOfReadmissions, -NumberOfDischarges)
+
+summary(
+  copdAnalyze[, c(
+    "observed_readmission_rate",
+    "PredictedReadmissionRate",
+    "ExpectedReadmissionRate",
+    "ExcessReadmissionRatio"
+  )]
+)
+```
+
+```{r target-correlations}
+cor(
+  copdAnalyze[, c(
+    "observed_readmission_rate",
+    "PredictedReadmissionRate",
+    "ExpectedReadmissionRate",
+    "ExcessReadmissionRatio"
+  )],
+  use = "complete.obs"
+)
+```
+
+## 2.3 Comparing the four possible metrics
+
+```{r violin-reshape}
+## Note: ComparedToNational_Hospital return days for COPD patients was absent
+## from our merged dataset, so we use State (already frequency encoded) as our
+## faceting variable for the violin plots, or simply examine the distributions
+## without faceting.
+
+longTargets <- copdAnalyze %>%
+  select(
+    observed_readmission_rate,
+    PredictedReadmissionRate,
+    ExpectedReadmissionRate,
+    ExcessReadmissionRatio
+  ) %>%
+  pivot_longer(
+    cols     = everything(),
+    names_to  = "Target",
+    values_to = "Rate"
+  )
+```
+
+### 2.3.1 Violin plots
+
+```{r violin-plots, fig.width=10, fig.height=5, include=TRUE}
+longTargets %>%
+  filter(!is.na(Rate)) %>%
+  ggplot(aes(x = Target, y = Rate, fill = Target)) +
+  geom_violin(alpha = 0.7, trim = FALSE) +
+  ## Add boxplot quartiles
+  geom_boxplot(width = 0.1, fill = "white", alpha = 0.6) +
+  scale_fill_manual(values = skittles[c(1, 2, 3, 4)]) +
+  labs(
+    title    = "Which target to use? Distribution of COPD readmission targets",
+    x        = "Target Variable",
+    y        = "Rate or Score"
+  ) +
+  theme_classic() +
+  theme(
+    legend.position = "none",
+    axis.text.x     = element_text(angle = 20, hjust = 1),
+    title           = element_text(color = "maroon")
+  )
+```
+
+**Figure 1. COPD Readmission Target Distributions**
+
+**Question 2A**: Add `geom_boxplot(width = 0.1)` to the violin plot (done above). Change `include = FALSE` to `include = TRUE`.
+
+**Question 2B**: Which target(s) appear the most distinct?
+
+> ##After adding the boxplots, Predicted Readmission Rate appears to be the most distinct and appropriate target variable for COPD. Comparing across the four panels, PredictedReadmissionRate and ExpectedReadmissionRate show the most similar, well-contained distributions, both centered around 18–20% with a compact interquartile range and modest whisker spread. Between these two, we prefer PredictedReadmissionRate because it uses a hospital-specific intercept reflecting each hospital's own historical performance, rather than just standardizing by patient mix. ExcessReadmissionRatio is immediately disqualified as a target, its entire distribution is compressed between approximately 0.8 and 1.2, sitting flat near zero on the y-axis compared to the other three. While technically clean, it has so little variance across hospitals that a model would struggle to learn anything meaningful from it. observed_readmission_rate shows the widest spread of any target, with a much larger interquartile range, very long upper whiskers, and numerous extreme outliers extending past 40%. This confirms that the crude unadjusted rate is heavily influenced by hospitals with small COPD patient volumes, producing unreliable extreme values. It is not a fair basis for cross-hospital comparison.
+PredictedReadmissionRate offers the best combination: sufficient spread to distinguish hospital performance, a compact and well-centered distribution, no extreme outliers, and meaningful case-mix adjustment. This confirms our selection.
+
+### 2.3.2 Density plots
+
+```{r density-plots, fig.width=10, fig.height=5}
+longTargets %>%
+  filter(!is.na(Rate)) %>%
+  ggplot(aes(x = Rate, fill = Target, color = Target)) +
+  geom_density(alpha = 0.4) +
+  facet_wrap(~ Target, scales = "free", ncol = 2) +
+  scale_fill_manual(values  = skittles[c(1, 2, 3, 4)]) +
+  scale_color_manual(values = skittles[c(1, 2, 3, 4)]) +
+  labs(
+    title    = "Which target to use? (Density plots — COPD)",
+    x        = "Rate or Score",
+    y        = "Density"
+  ) +
+  theme_classic() +
+  theme(legend.position = "none",
+        title           = element_text(color = "maroon"))
+```
+
+**Question 3**: Does the density plot confirm or change your decision?
+
+> ##The density plots confirm our choice of Predicted Readmission Rate. Looking across all four panels, PredictedReadmissionRate (bottom right, green) and ExpectedReadmissionRate (top right, orange) both show the most approximately normal, bell-shaped distributions, centered around 18–20%. Between the two, we prefer PredictedReadmissionRate because it uses a hospital-specific intercept that better reflects each hospital's actual performance rather than just its patient mix. ExcessReadmissionRatio (top left, pink) is extremely tightly compressed around 1.0 with almost no spread while it is technically the cleanest distribution, it has so little variance between hospitals that it would be nearly useless as a modeling target for distinguishing hospital performance. observed_readmission_rate (bottom left, purple) is visibly right-skewed with a long upper tail extending past 40%, reflecting crude unadjusted counts from hospitals with small COPD volumes producing artificially extreme rates. The much wider range (roughly 10–44%) compared to Predicted (roughly 12–28%) confirms that the observed rate is noisier and less suitable as a fair cross-hospital comparison target.
+Overall, PredictedReadmissionRate provides the best balance: approximately normal, well-centered, sufficient spread to distinguish hospitals, and adjusted for hospital-specific case mix.
+
+
+## 2.4 What is the relationship of COPD readmissions to hospital performance metrics?
+
+```{r}
+## Check all column names in copdAnalyze that match the ones used in the scatter plot
+names(copdAnalyze)[grep("before being seen|CT Use|MRSA|Death rate|Emergency|influenza|median time|Venous|Perioperative|Postoperative|patient safety", 
+                         names(copdAnalyze), ignore.case = TRUE)]
+```
+
+```{r performance-scatter, fig.width=12, fig.height=14}
+## Build long-format data for faceted scatterplots
+## Note: Hospital return days for COPD patients is absent from our dataset,
+## so we use ComparedToNational_Death rate for COPD patients as the color grouping
+performanceLong <- copdAnalyze %>%
+  select(
+    PredictedReadmissionRate,
+    `ComparedToNational_Death rate for COPD patients`,
+    `Score_Left before being seen`,
+    `Abdomen CT Use of Contrast Material`,
+    `ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`,
+    `Score_Death rate for COPD patients`,
+    `Score_Emergency department volume`,
+    `Score_Healthcare workers given influenza vaccination`,
+    `Score_Average (median) time patients spent in the emergency department before leaving from the visit A lower number of minutes is better`,
+    `Score_Venous Thromboembolism Prophylaxis`,
+    `Score_Intensive Care Unit Venous Thromboembolism Prophylaxis`,
+    `Score_MRSA Bacteremia`,
+    `Score_Perioperative pulmonary embolism or deep vein thrombosis rate`,
+    `Score_Postoperative respiratory failure rate`
+  ) %>%
+  rename(
+    DeathRateGroup      = `ComparedToNational_Death rate for COPD patients`,
+    `% left ED`         = `Score_Left before being seen`,
+    `Abdomen CT`        = `Abdomen CT Use of Contrast Material`,
+    `Composite safety`  = `ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`,
+    `Death rate (COPD)` = `Score_Death rate for COPD patients`,
+    `ED volume`         = `Score_Emergency department volume`,
+    `Flu vaccination`   = `Score_Healthcare workers given influenza vaccination`,
+    `Median ED time`    = `Score_Average (median) time patients spent in the emergency department before leaving from the visit A lower number of minutes is better`,
+    `VTE Prophylaxis`   = `Score_Venous Thromboembolism Prophylaxis`,
+    `ICU VTE Prophylaxis` = `Score_Intensive Care Unit Venous Thromboembolism Prophylaxis`,
+    `MRSA Bacteremia`   = `Score_MRSA Bacteremia`,
+    `Periop embolism`   = `Score_Perioperative pulmonary embolism or deep vein thrombosis rate`,
+    `Post-op resp fail` = `Score_Postoperative respiratory failure rate`
+  ) %>%
+  mutate(DeathRateGroup = factor(DeathRateGroup,
+                                  levels = c(0, 1, 2),
+                                  labels = c("Worse", "Same", "Better"))) %>%
+  pivot_longer(
+    cols      = -c(PredictedReadmissionRate, DeathRateGroup),
+    names_to  = "Measure",
+    values_to = "Value"
+  ) %>%
+  filter(!is.na(DeathRateGroup))
+
+ggplot(performanceLong,
+       aes(x = Value, y = PredictedReadmissionRate, color = DeathRateGroup)) +
+  geom_point(alpha = 0.2, size = 0.8) +
+  geom_smooth(method = "lm", se = FALSE, linewidth = 0.8) +
+  facet_wrap(~ Measure, scales = "free_x", ncol = 2) +
+  scale_color_manual(values = skittles[c(2, 3, 4)]) +
+  labs(
+    title  = "Relationship of Predicted Readmission Rate for COPD-related hospital\nreadmissions to each performance metric",
+    x      = "Rate or Score",
+    y      = "Predicted COPD-related Readmissions",
+    color  = "COPD death rate\n(vs. national rate)"
+  ) +
+  theme_classic() +
+  theme(
+    legend.position = "bottom",
+    strip.text      = element_text(size = 8),
+    title           = element_text(size = 10, color = "maroon")
+  )
+```
+
+**Figure 4. Readmission rate by hospital performance (COPD)**
+
+**Question 4**: Which readmission rate did you choose and why?
+
+> ##After comparing all four readmission targets, we chose Predicted Readmission Rate because it showed the clearest and most interpretable relationships across performance metrics.
+Looking at the scatterplots, several relationships stand out for COPD:
+Median ED time (bottom middle row) shows the strongest and most consistent positive slope across all three hospital groups — as time spent in the ED increases, predicted COPD readmissions increase. This is compelling because longer ED wait times likely reflect hospitals under greater strain, which may also struggle with chronic disease management and discharge quality.
+Periop embolism shows a notable negative slope for the "Better" group (green line) meaning hospitals with higher perioperative embolism rates actually show lower COPD readmissions among better-performing hospitals. This is counterintuitive and warrants further investigation.
+Post-op respiratory failure rate shows a modest positive slope for the "Better" group, suggesting that hospitals treating more complex respiratory patients (reflected in higher post-op failure rates) also tend to have slightly higher COPD readmissions which is consistent with case-mix complexity.
+Death rate (COPD) shows very flat, nearly horizontal slopes across all three groups. Unlike the pneumonia analysis where higher death rates were negatively associated with readmissions (interpreted as premature discharge). For COPD, deaths and readmissions do not clearly trade off, consistent with both being driven by underlying chronic disease severity rather than hospital discharge timing.
+ICU VTE Prophylaxis, Flu vaccination, VTE Prophylaxis, and Abdomen CT all show very flat relationships, suggesting these infection-control and procedural quality measures have little predictive value for COPD readmissions. This is a meaningful contrast from the pneumonia analysis where vaccination and infection-related measures were more important.
+
+## 2.5 What is the relationship of COPD readmissions to patient satisfaction metrics?
+
+```{r satisfaction-scatter, fig.width=12, fig.height=12}
+satisfactionLong <- copdAnalyze %>%
+  select(
+    PredictedReadmissionRate,
+    `ComparedToNational_Death rate for COPD patients`,
+    `HcahpsLinearMeanValue_Care transition`,
+    `HcahpsLinearMeanValue_Cleanliness`,
+    `HcahpsLinearMeanValue_Communication about medicines`,
+    `HcahpsLinearMeanValue_Discharge information`,
+    `HcahpsLinearMeanValue_Doctor communication`,
+    `HcahpsLinearMeanValue_Nurse communication`,
+    `HcahpsLinearMeanValue_Overall hospital rating`,
+    `HcahpsLinearMeanValue_Quietness`,
+    `HcahpsLinearMeanValue_Recommend hospital`,
+    `HcahpsLinearMeanValue_Staff responsiveness`
+  ) %>%
+  rename(
+    DeathRateGroup         = `ComparedToNational_Death rate for COPD patients`,
+    `Care transition`      = `HcahpsLinearMeanValue_Care transition`,
+    `Cleanliness`          = `HcahpsLinearMeanValue_Cleanliness`,
+    `Comm. about meds`     = `HcahpsLinearMeanValue_Communication about medicines`,
+    `Discharge info`       = `HcahpsLinearMeanValue_Discharge information`,
+    `Doctor comm.`         = `HcahpsLinearMeanValue_Doctor communication`,
+    `Nurse comm.`          = `HcahpsLinearMeanValue_Nurse communication`,
+    `Overall rating`       = `HcahpsLinearMeanValue_Overall hospital rating`,
+    `Quietness`            = `HcahpsLinearMeanValue_Quietness`,
+    `Recommend hospital`   = `HcahpsLinearMeanValue_Recommend hospital`,
+    `Staff responsiveness` = `HcahpsLinearMeanValue_Staff responsiveness`
+  ) %>%
+  mutate(DeathRateGroup = factor(DeathRateGroup,
+                                  levels = c(0, 1, 2),
+                                  labels = c("Worse", "Same", "Better"))) %>%
+  pivot_longer(
+    cols      = -c(PredictedReadmissionRate, DeathRateGroup),
+    names_to  = "Measure",
+    values_to = "Value"
+  ) %>%
+  filter(!is.na(DeathRateGroup))
+
+ggplot(satisfactionLong,
+       aes(x = Value, y = PredictedReadmissionRate, color = DeathRateGroup)) +
+  geom_point(alpha = 0.2, size = 0.8) +
+  geom_smooth(method = "lm", se = FALSE, linewidth = 0.8) +
+  facet_wrap(~ Measure, scales = "free_x", ncol = 2) +
+  scale_color_manual(values = skittles[c(2, 3, 4)]) +
+  labs(
+    title  = "Relationship of Predicted Readmission Rate for COPD-related hospital\nreadmissions to each patient satisfaction metric",
+    x      = "Rate or Score",
+    y      = "Predicted COPD-related Readmissions",
+    color  = "COPD death rate\n(vs. national rate)"
+  ) +
+  theme_classic() +
+  theme(
+    legend.position = "bottom",
+    strip.text      = element_text(size = 9),
+    title           = element_text(size = 10, color = "maroon")
+  )
+```
+
+**Figure 5. Readmission rate by patient satisfaction (COPD)**
+
+**Question 5**: Which readmission rate did you choose and why?
+
+> ##We again selected PredictedReadmissionRate. The satisfaction scatterplots show remarkably consistent negative slopes across nearly every HCAHPS measure. As patient satisfaction scores increase, predicted COPD readmissions decrease. This pattern is strong and consistent across all three hospital performance groups (Worse/Same/Better), which makes these relationships clinically meaningful rather than artifacts of one subgroup.
+Discharge information stands out as one of the most compelling panels. It shows a clear, steep negative slope especially for the "Better" group (green), meaning hospitals where patients report receiving good discharge information have meaningfully lower predicted COPD readmissions. This is the strongest clinical signal in the plot and directly supports our hypothesis that discharge quality is a primary lever for preventing COPD re-exacerbations.
+Nurse communication also shows a notably steep negative slope for the "Better" group, steeper than most other measures, suggesting that effective nursing communication about COPD self-management is particularly important for this patient population.
+Communication about medicines and Care transition both show strong, consistent negative slopes across all groups, again clinically logical for COPD, where patients need clear understanding of inhaler regimens and follow-up plans.
+Cleanliness and Quietness show the flattest slopes, consistent with COPD not being a communicable disease where environmental hygiene would directly affect readmission risk.
+
+**Question 6**: What relationships do you find most compelling? Name one outstanding question.
+
+> ##The most compelling relationships are Discharge information, Nurse communication, and Communication about medicines. They all show the steepest negative slopes and most consistent patterns across hospital groups. One outstanding question: the "Better" group (green) consistently shows steeper negative slopes than the "Same" (red) or "Worse" (orange) groups across nearly every satisfaction measure. This suggests hospitals already performing better on COPD death rates get more return on investment from improvements in communication quality than lower-performing hospitals. Why might communication improvements have differential effects depending on baseline hospital quality? Understanding this interaction could help the watchdog target recommendations more precisely.
+
+## 2.6 Final remarks on target selection
+
+Going forward, we have selected `PredictedReadmissionRate` as our target for the same three reasons as the pneumonia analysis: (1) it is adjusted for hospital-specific case mix using a hospital-specific intercept and historical performance data; (2) we lose fewer rows to missingness (2,347 NAs) compared to the crude observed rate (3,134 NAs); and (3) it best answers our stakeholder's question about hospital readmission performance. For COPD, patient-mix adjustment is even more critical than for pneumonia — COPD severity varies enormously across hospital populations.
+
+**Question 7**: Do you agree with this choice of target for COPD?
+
+> ##Yes, we agree that PredictedReadmissionRate is the correct target for COPD. Our plots confirm this choice from multiple angles. The density plot showed it has the most approximately normal distribution of the four options, better than the right-skewed observed_readmission_rate and far more spread out than the compressed ExcessReadmissionRatio. The violin/boxplot confirmed it has a compact, well-centered interquartile range without the extreme outliers that make the observed rate unreliable for cross-hospital comparison.
+The correlation matrix further validates the choice: PredictedReadmissionRate correlates strongly with ExpectedReadmissionRate (r = 0.83), confirming it is well-standardized by patient mix, and moderately with observed_readmission_rate (r = 0.76), confirming it still captures genuine readmission signal. The scatterplots with performance and satisfaction metrics showed meaningful, interpretable relationships with PredictedReadmissionRate as the y-axis — particularly the strong negative slopes with discharge information and nurse communication — which would not have been as visible using ExcessReadmissionRatio given its near-zero variance.
+One consideration specific to COPD that reinforces this choice over the observed rate: COPD patient populations vary enormously in disease severity across hospitals. A hospital treating predominantly GOLD Stage III–IV patients will have higher crude readmission rates simply due to patient complexity, not poor care. The hospital-specific case-mix adjustment built into PredictedReadmissionRate partially addresses this, making it a fairer basis for comparison than the unadjusted observed rate. This adjustment is arguably more important for COPD than for pneumonia, given the greater heterogeneity in chronic disease severity across hospital populations.
+
+**Question 8**: What are the biases or limitations of using this target for COPD?
+
+> ## There are several important biases and limitations of using PredictedReadmissionRate as our COPD target.
+Patient-level severity is not captured. The single most important limitation is that COPD severity, measured clinically by GOLD staging, FEV₁ percentage, exacerbation frequency, and smoking history, is entirely absent from the CMS hospital-level dataset. While PredictedReadmissionRate adjusts for broad patient mix using a hospital-specific intercept, it cannot fully account for hospitals that disproportionately serve the most severely ill COPD patients. These hospitals will appear to have higher predicted readmission rates even when providing excellent care, creating a systematic bias against safety-net and academic medical centers.
+Seasonality. COPD exacerbations are strongly seasona. Winter respiratory virus seasons (influenza, RSV, COVID-19) trigger acute exacerbations that drive readmissions regardless of hospital quality. The CMS data covers a multi-year period (July 2019 – June 2022 in our dataset), which partially averages this out, but hospitals in regions with more severe winters or higher viral burden may still appear to perform worse than comparable hospitals in milder climates.
+Missing COPD-specific contextual variables. Unlike the pneumonia analysis, our merged COPD dataset is missing the payment measure and hospital return days variable that CMS does not publish for COPD. These variables provided useful context in the pneumonia model. Their absence means our COPD predictors are less COPD-specific and rely more heavily on general hospital quality measures that may be less directly relevant to respiratory chronic disease management.
+The target reflects prediction, not observation. Because PredictedReadmissionRate is itself a model output from CMS's methodology, we are essentially building a model to predict another model's predictions. Any systematic biases in CMS's own prediction methodology will be inherited by our analysis. If CMS's model underestimates expected readmissions for certain hospital types, our model will learn that pattern as if it were ground truth.
+Survivorship and reporting bias. Hospitals with fewer than the minimum threshold of COPD cases are excluded from CMS reporting entirely — these are typically small rural hospitals. The 2,347 missing values for PredictedReadmissionRate are not random; they skew toward smaller, lower-volume, often rural hospitals. Our model therefore learns primarily from larger, higher-volume, often urban hospitals and may not generalize well to the full population of US hospitals.
+Sonnet 4.6
+
+---
+
+# 3. Pre-processing and Feature Selection
+
+## 3.1 Further feature selection and refinement
+
+```{r feature-selection}
+dat2Analyze <- copdAnalyze %>%
+  ## Drop unused target variables and count columns
+  select(-ExpectedReadmissionRate,
+         -ExcessReadmissionRatio,
+         -observed_readmission_rate,
+         -contains(c("Sample_", "NumberOfPatients")),
+         -any_of("NumberSurveysCompleted")) %>%
+  ## Rename long variable names for readability
+  rename(
+    `Median time (minutes) patients spent in ED` =
+      `Score_Average (median) time patients spent in the emergency department before leaving from the visit A lower number of minutes is better`,
+    `Composite patient safety` =
+      `ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`
+  ) %>%
+  ## Move target to first column
+  select(PredictedReadmissionRate, everything())
+
+## Clean up column name prefixes
+colnames(dat2Analyze) <- gsub('Score_|HcahpsLinearMeanValue_|_Payment',
+                               '', colnames(dat2Analyze))
+
+## Also drop Condition_ columns (text category labels, not needed)
+dat2Analyze <- dat2Analyze %>%
+  select(-contains("Condition_"))
+
+dim(dat2Analyze)
+```
+
+### Drop near-zero variance features
+
+```{r near-zero-var}
+nzv <- nearZeroVar(dat2Analyze, saveMetrics = TRUE)
+
+nzv %>%
+  filter(nzv == TRUE) %>%
+  rownames_to_column("Variable") %>%
+  select(Variable) %>%
+  kable(caption = "Table 3. Columns dropped due to near-zero variance (COPD).") %>%
+  kable_styling(bootstrap_options = "striped", full_width = FALSE)
+
+dat2Analyze <- dat2Analyze[, !nzv$nzv]
+dim(dat2Analyze)
+```
+
+**Question 9A**: Comments are embedded in the code above.
+
+**Question 9B**: Why remove near-zero variance features?
+
+> ##Features with near-zero variance do not help distinguish one hospital from another. If almost every hospital has the same value for a variable, that variable adds no predictive signal and only introduces noise. In our COPD dataset, three ComparedToNational_ columns were dropped: Death rate for COPD patients, Postoperative respiratory failure rate, and Perioperative pulmonary embolism or deep vein thrombosis rate. This makes clinical sense. For these relatively rare or consistently-reported measures, the vast majority of hospitals fall into the "No Different than National Rate" category (encoded as 1), leaving almost no variance across the dataset. The ordinal encoding collapsed the meaningful distinctions that existed in the raw text categories, and what remained was a column where nearly every hospital had the same value. Dropping these three columns is correct — retaining them would add computational cost without adding predictive value, and in some model types could introduce numerical instability.
+
+**Question 9C**: Why move FacilityId to rownames before running `nearZeroVar()`?
+
+> ## FacilityId is a unique hospital identifier. Every single row has a different value, meaning it has maximum variance but zero predictive meaning. If we left it in the dataframe as a regular column when running nearZeroVar(), it would pass the variance check and survive into the model as a predictor. The model would then attempt to learn from hospital ID numbers, which have no relationship to readmission rates. It would simply memorize which specific hospitals had high or low readmissions in the training set, producing perfect training fit but complete failure on any new hospital. More subtly, even if nearZeroVar() flagged it correctly as a problem column, it would be for the wrong reason. Unique identifiers have very high variance, the opposite of near-zero variance, so nearZeroVar() would actually keep it. Moving FacilityId to rownames removes it from the column space entirely before any feature selection or modeling occurs, ensuring it can never accidentally enter the model while still being retained as a human-readable label for identifying hospitals in outputs, predictions, and diagnostics.
+
+**Question 9D**: Do we have a big-P, little-N problem?
+
+> ##At this stage we do not have a big-P, little-N problem. We have 4,647 rows and a relatively small number of predictor columns after near-zero variance removal. The number of observations far exceeds the number of predictors, which is the requirement for OLS regression to be well-defined and for our train/test split to be meaningful.
+The more important concern is not the P vs N ratio but the quality of our N. The hospitals missing PredictedReadmissionRate are not missing at random. They tend to be smaller, lower-volume hospitals that did not meet CMS's minimum reporting threshold for COPD. Our model therefore learns from a systematically non-representative sample skewed toward larger, higher-volume hospitals. This is a more meaningful limitation than a big-P, little-N problem and is worth flagging to the watchdog client. Our model's predictions may be less reliable when applied to small rural hospitals that were not well-represented in the data.
+
+## 3.2 Assess missingness
+
+```{r missingness-count}
+missing_cols    <- sum(colSums(is.na(dat2Analyze)) > 0)
+total_cols      <- ncol(dat2Analyze)
+percent_missing <- (missing_cols / total_cols) * 100
+
+cat("Columns with missingness:", missing_cols,
+    "\nTotal columns:", total_cols,
+    "\nPercent missing:", round(percent_missing, 1), "%")
+
+colSums(is.na(dat2Analyze))
+sum(complete.cases(dat2Analyze))
+```
+
+```{r missingness-mice}
+miceMatrix <- dat2Analyze %>% select(-State) %>% md.pairs()
+
+propMatrix <- miceMatrix$mr / (miceMatrix$mr + miceMatrix$mm)
+
+pheatmap::pheatmap(
+  propMatrix,
+  color        = colorRampPalette(c("white", "hotpink", "maroon"))(100),
+  main         = "Figure 5. Correlation between Missing and Response (COPD)",
+  fontsize_row = 7,
+  fontsize_col = 7,
+  angle_col    = 315
+)
+```
+
+```{r missingness-target-bar, fig.width=9, fig.height=6}
+targetMissRow <- propMatrix["PredictedReadmissionRate", ]
+
+targetMissRow %>%
+  abs() %>%
+  sort(decreasing = TRUE) %>%
+  .[-1] %>%
+  head(20) %>%
+  as.data.frame() %>%
+  rownames_to_column("Variable") %>%
+  rename(Correlation = ".") %>%
+  ggplot(aes(x = reorder(Variable, Correlation), y = Correlation)) +
+  geom_bar(stat = "identity", fill = skittles[4]) +
+  coord_flip() +
+  labs(
+    title = "Figure 6. Highest Correlations of Missingness\nwith Predicted Readmissions (COPD)",
+    x     = "Variables",
+    y     = "Proportion of Co-missingness"
+  ) +
+  theme_classic()
+```
+
+**Question 10**: What percent of features have missingness? Which have none? How many complete observations?
+
+> ##27 out of 28 columns have missingness which is 96.4% of features. The only column with zero missing values is State, which makes sense since it is frequency encoded from a complete geographic identifier. There are 521 complete observations (rows with no missing values in any column) out of 4,647 total rows. This extremely low number of complete cases confirms that listwise deletion would be catastrophic, we would lose over 88% of our data,  making imputation essential.
+The variables with the most missingness are Intensive Care Unit Venous Thromboembolism Prophylaxis (3,234 NAs), ComparedToNational_MRSA Bacteremia and MRSA Bacteremia (both 2,914 NAs), and PredictedReadmissionRate itself (2,347 NAs). The HCAHPS satisfaction variables (nurse communication, doctor communication, etc.) all share exactly 1,530 NAs, reflecting that they come from the same survey and hospitals either report all of them or none of them.
+
+**Question 11A**: What does the co-missingness number mean?
+
+> ##The co-missingness value represents the proportion of times two variables are missing together in the same row. A high co-missingness between a predictor and PredictedReadmissionRate means that when the target is missing, that predictor tends to also be missing — suggesting they are absent for the same hospitals, typically small low-volume facilities that fall below CMS reporting thresholds for multiple measures simultaneously.
+
+**Question 11B**: What columns are most correlated with missingness in `PredictedReadmissionRate`?
+
+> ##The bar chart shows that the variables most correlated with missingness in PredictedReadmissionRate are Median time (minutes) patients spent in ED (~0.70), SurveyResponseRate (~0.68), Abdomen CT Use of Contrast Material (~0.67), Emergency department volume (~0.65), and Left before being seen (~0.65). These all have co-missingness proportions above 0.60, meaning when a hospital is missing its COPD predicted readmission rate, it is also very likely to be missing these measures simultaneously.
+This pattern is clinically interpretable. These are all measures that require a minimum volume of patients or encounters to be reported. Small, low-volume hospitals fall below CMS reporting thresholds for multiple measures at the same time, causing clusters of missingness across these variables together. The HCAHPS satisfaction variables (staff responsiveness, recommend hospital, quietness, overall rating, nurse communication, doctor communication, discharge information, communication about medicines, cleanliness, care transition) all show similar co-missingness around 0.40, again reflecting that survey reporting requires a minimum number of completed surveys and hospitals either report all HCAHPS measures or none.
+Notably, Perioperative pulmonary embolism or deep vein thrombosis rate, CMS Medicare PSI 90, and Composite patient safety show the lowest co-missingness (~0.25), suggesting these measures are available for a somewhat broader set of hospitals than the target variable itself.
+Sonnet 4.6
+
+## 3.3 Drop rows missing the target variable
+
+```{r drop-missing-target}
+dat2Analyze <- dat2Analyze %>%
+  filter(!is.na(PredictedReadmissionRate))
+
+cat(paste0("Rows: ", nrow(dat2Analyze)),
+    paste0("Columns: ", ncol(dat2Analyze)),
+    sep = "\n")
+```
+
+**Question 12**: Do you feel differently about big-P, little-N after dropping rows?
+
+> ##After dropping rows missing PredictedReadmissionRate, we go from 4,647 rows down to 2,300 rows (a loss of 2,347 hospitals). We still do not have a big-P, little-N problem: 2,300 observations with 28 columns (27 predictors plus the target) gives us a comfortable ratio of roughly 82 observations per predictor, well above the rule-of-thumb minimum of 10–20 per predictor for OLS regression to be reliable.
+However, the drop from 4,647 to 2,300 is worth reflecting on. We lost exactly half our dataset, and as noted earlier these missing hospitals are not random. They are systematically the smaller, lower-volume facilities that fall below CMS reporting thresholds for COPD. Our model now trains and tests on a dataset that skews toward larger, higher-volume, often urban hospitals. This means our split ratio calculation in the next step is working with a smaller and potentially less representative sample than the pneumonia analysis, which retained 2,726 hospitals after the equivalent drop. The slightly smaller COPD sample may contribute to lower model R² compared to pneumonia, independent of any genuine difference in predictability between the two conditions.
+
+## 3.4 Do the splits!
+
+**Question 13**: Why do we partition data and what is data leakage?
+
+> ##We split into training and testing sets so the model learns from one portion and is evaluated on data it has never seen. This verifies whether the model is learning genuine patterns rather than memorizing training data. Data leakage happens when test-set information accidentally influences training. For example, imputing or scaling using statistics from the full dataset before splitting therefore making the model appear more accurate than it truly is on unseen data.
+
+```{r split-function}
+calcSplitRatio <- function(p = NA, df) {
+  ## @p = number of parameters; defaults to ncol(df) - 1
+  ## @df = the dataframe to be split
+  if(is.na(p)) {
+    p <- ncol(df) - 1
+  }
+  test_N     <- (1 / sqrt(p)) * nrow(dat2Analyze)
+  test_prop  <- round((1 / sqrt(p)) * nrow(dat2Analyze) / nrow(dat2Analyze), 2)
+  train_prop <- 1 - test_prop
+  print(paste0("The ideal split ratio is ", train_prop, ":", test_prop,
+               " training:testing"))
+  return(train_prop)
+}
+
+train_prop <- calcSplitRatio(df = dat2Analyze)
+```
+```{r}
+## Force State back to a plain numeric vector the table[1d] class
+## from frequency encoding causes matrix subscript errors
+dat2Analyze$State <- as.numeric(dat2Analyze$State)
+
+## Confirm it is now plain numeric
+class(dat2Analyze$State)
+
+```
+
+```{r do-split}
+ind <- createDataPartition(dat2Analyze$PredictedReadmissionRate,
+                           p    = train_prop,
+                           list = FALSE)
+
+train <- dat2Analyze[ ind, ]
+test  <- dat2Analyze[-ind, ]
+
+cat("Training rows:", nrow(train), "\nTest rows:", nrow(test))
+```
+
+**Question 14B**: What split ratio did you get? Is it close to 80-20?
+
+> ##The ideal split ratio for our COPD dataset is 81:19 training to testing, meaning approximately 81% of the 2,300 rows go to training (~1,863 hospitals) and 19% go to testing (~437 hospitals). This is very close to the conventional 80:20 split, which is reassuring. Our sample size is large enough that the formula-derived optimal split lands right at the standard rule of thumb. This is essentially identical to the pneumonia split ratio, which also came out near 80:20, reflecting the similar sample sizes after dropping missing target rows. The slight lean toward more training data (81% vs 80%) is appropriate given that we want to give the model as much data as possible to learn from, while still retaining a meaningful holdout set to evaluate generalization performance.
+
+## 3.5 Impute missing variables using missForest
+
+```{r impute-train}
+data_sans_encoded <- train %>%
+  select(
+    -PredictedReadmissionRate,
+    -State,
+    -`Emergency department volume`,
+    -contains("ComparedToNational")
+  )
+
+data_cat <- train %>%
+  select(`Emergency department volume`,
+         contains("ComparedToNational")) %>%
+  mutate_all(as.factor)
+
+## Check what the column names actually are in data_sans_encoded
+names(data_sans_encoded)
+
+
+```
+
+```{r}
+temp         <- cbind(data_sans_encoded, data_cat)
+imputedTrain <- missForest(temp, variablewise = TRUE, verbose = FALSE)
+```
+
+
+```{r oob-table}
+imputedTrain$OOBerror %>%
+  as.data.frame() %>%
+  rownames_to_column("Variable") %>%
+  rename(OOB_Error = ".") %>%
+  arrange(desc(OOB_Error)) %>%
+  kable(caption = "Table 6. missForest OOB Error Rates (COPD training dataset)") %>%
+  kable_styling(bootstrap_options = "striped", full_width = FALSE)
+```
+
+**Question 15**: What do MSE and PCF indicate? Which variables had highest OOB error?
+
+> ##MSE (Mean Squared Error) is the OOB error metric for continuous/numeric variables. It measures the average squared difference between the true observed values and the values that missForest imputed during its out-of-bag validation. A lower MSE means the random forest was able to impute that variable accurately using the other variables in the dataset. A very high MSE means the variable was hard to impute. Typically because it has too much missingness, weak relationships with other predictors, or both.
+PCF (Proportion of Falsely Classified) is the OOB error metric for categorical/factor variables. It measures the proportion of categorical values that were incorrectly classified during imputation. A PCF of 0 means perfect imputation; a PCF of 1 means every imputed value was wrong. For our COPD dataset, the categorical variables going into missForest were Emergency department volume and ComparedToNational_MRSA Bacteremia, encoded as factors.
+The variables with the highest OOB error in our COPD training dataset were Intensive Care Unit Venous Thromboembolism Prophylaxis (MSE ~1,447) and Venous Thromboembolism Prophylaxis (MSE ~247), both dramatically higher than any other variable. This is consistent with their extreme missingness, 3,234 and 2,431 NAs respectively out of 1,864 training rows, meaning missForest had very little observed data to learn from when imputing these variables. Both should be dropped. Everything from Perioperative pulmonary embolism or deep vein thrombosis rate (MSE ~78) downward is reasonable to retain, as the errors are small enough that imputation was meaningful.
+
+
+```{r imputation-drop-vars}
+cols2drop <- c(
+  "Intensive Care Unit Venous Thromboembolism Prophylaxis",
+  "Venous Thromboembolism Prophylaxis"
+)
+```
+
+**Question 16**: How does MICE work?
+
+> ##MICE stands for Multivariate Imputation by Chained Equations. It fills in missing values by building a series of models where each variable with missing data is predicted using the other variables in the dataset. Unlike single imputation, MICE creates multiple imputed datasets, reflecting the uncertainty caused by missing data. Wilson, S. (2021). The mice algorithm. https://cran.r-project.org/web/packages/miceRanger/vignettes/miceAlgorithm.html
+
+```{r reassemble-train}
+imputedTrain <- imputedTrain$ximp %>%
+  mutate(State                    = train$State,
+         PredictedReadmissionRate = train$PredictedReadmissionRate)
+```
+
+```{r impute-test}
+data_sans_encoded_test <- test %>%
+  select(-PredictedReadmissionRate, -State, -contains("ComparedToNational"))
+
+data_cat_test <- test %>%
+  select(contains("ComparedToNational")) %>%
+  mutate_all(as.factor)
+
+temp_test   <- cbind(data_sans_encoded_test, data_cat_test)
+imputedTest <- missForest(temp_test, variablewise = TRUE, verbose = FALSE)
+```
+
+
+```{r reassemble-test}
+imputedTest <- imputedTest$ximp %>%
+  mutate(State                    = test$State,
+         PredictedReadmissionRate = test$PredictedReadmissionRate)
+```
+
+```{r drop-high-oob}
+imputedTrain <- imputedTrain[, !(names(imputedTrain) %in% cols2drop), drop = FALSE]
+imputedTest  <- imputedTest[,  !(names(imputedTest)  %in% cols2drop), drop = FALSE]
+```
+
+```{r}
+## Numeric variables — compare summary before and after
+summary(train[, c("Median time (minutes) patients spent in ED",
+                  "Abdomen CT Use of Contrast Material",
+                  "Healthcare workers given influenza vaccination",
+                  "Discharge information",
+                  "Care transition")])
+
+summary(imputedTrain[, c("Median time (minutes) patients spent in ED",
+                          "Abdomen CT Use of Contrast Material",
+                          "Healthcare workers given influenza vaccination",
+                          "Discharge information",
+                          "Care transition")])
+
+## Categorical variables — compare tables before and after
+table(train$`Emergency department volume`, useNA = "always")
+table(imputedTrain$`Emergency department volume`, useNA = "always")
+
+table(train$`ComparedToNational_MRSA Bacteremia`, useNA = "always")
+table(imputedTrain$`ComparedToNational_MRSA Bacteremia`, useNA = "always")
+```
+**Question 17**: Did imputation preserve the distributions?
+
+> ## Yes, imputation preserved the distributions well across both numeric and categorical variables.
+For the numeric variables, the before and after summaries are nearly identical. Median ED time had a mean of 188.8 before and 188.6 after. Abdomen CT mean went from 5.756 to 5.763. Healthcare workers influenza vaccination mean went from 78.72 to 78.70. Discharge information mean stayed at 85.00–85.02. Care transition mean went from 79.56 to 79.57. In every case the means, medians, and quartiles are essentially unchanged, and the NAs dropped to zero, confirming missForest filled in the missing values without distorting the underlying distributions.
+For the categorical variables, the proportions were also well preserved. Emergency department volume had 27 NAs before imputation and 0 after, with the category counts increasing proportionally. The relative distribution across levels 1–4 was maintained. ComparedToNational_MRSA Bacteremia had 559 NAs before imputation and 0 after. The counts for categories 0 and 2 stayed exactly the same (40 and 130 respectively), while category 1 increased from 1,135 to 1,694 to absorb all the imputed values. This is consistent with "No Different than National Rate" (encoded as 1) being by far the most common category for MRSA Bacteremia, so missForest correctly imputed most missing values as 1.
+Overall, imputation was successful. Distributions were preserved, no values were driven to implausible extremes, and all missing values were filled in.
+
+## 3.6 Frequency Encoding
+
+```{r freq-encoding}
+freq_map <- table(imputedTrain$State)
+
+readyTrain <- imputedTrain %>%
+  mutate(State = as.numeric(freq_map[match(State, names(freq_map))]))
+
+readyTest <- imputedTest %>%
+  mutate(State = as.numeric(freq_map[match(State, names(freq_map))]))
+
+## Add back the target
+readyTrain$bc_PredictedReadmissionRate <- imputedTrain$PredictedReadmissionRate
+readyTest$bc_PredictedReadmissionRate  <- imputedTest$PredictedReadmissionRate
+
+```
+
+**Question 18**: Why must the same frequency encoding map from training be applied to test?
+
+> ##We must apply the same frequency encoding map from the training set to the test set because the encoding must be consistent between the two datasets. Frequency encoding replaces each category with the count of how many times it appears in the data. If we encoded the test set separately using its own frequencies, the same state could receive a different numeric value. For example, California might get a frequency of 150 in the training set but only 30 in the test set, because the test set is smaller. The model was trained expecting California to be represented as 150, so receiving 30 at prediction time would look like a completely different input, producing unreliable predictions.
+More fundamentally, applying separate encoding to the test set would constitute data leakage. We would be using information from the test set (its own frequency counts) to transform the test set, meaning the test set is no longer truly unseen data. The entire purpose of the test set is to simulate how the model performs on new, future hospitals it has never encountered. Future hospitals must be encoded using the same map the model was trained on.
+For states present in the training set but absent from the test set, or vice versa, the doFrequencyEncoding source code handles this gracefully by assigning a default value to unseen categories rather than throwing an error or introducing a new frequency that the model has never seen. This ensures robustness when the model is eventually deployed on new hospital data that may include states not well-represented in the original training sample
+
+## 3.7 Transformation & Scaling
+
+**Question 19A**: Why is a histogram or Q-Q plot insufficient to assess normality?
+
+> ##A histogram is insufficient to assess normality because its appearance depends heavily on the choice of bin width. The same data can look approximately normal with one bin width and clearly skewed or multimodal with another. It is a subjective visual assessment with no objective threshold for deciding whether a distribution is "normal enough." Similarly, a Q-Q plot requires visual interpretation of how closely points follow the diagonal reference line, and reasonable people can disagree about whether minor deviations from the line are meaningful or not.
+More importantly, with a sample size like ours (~1,864 training hospitals), both plots can be visually misleading in opposite directions. A histogram may look approximately bell-shaped even when the distribution has statistically significant departures from normality that would violate OLS assumptions. Conversely, a Q-Q plot at large sample sizes will often show points deviating from the line in the tails even for distributions that are normal enough for practical purposes, because large samples detect tiny deviations that are statistically significant but practically irrelevant.
+A formal statistical test like the Shapiro-Wilk test gives an objective p-value that does not depend on visual judgment or bin width choices. If the p-value is below 0.05, we have statistical evidence that the distribution departs from normality and should consider a transformation like Box-Cox. This is a more principled and reproducible basis for deciding whether to transform the target variable than looking at a plot and making a subjective call.
+
+```{r shapiro-raw}
+shapiro.test(readyTrain$PredictedReadmissionRate)
+```
+
+### 3.7.1 Box-Cox Transformation
+
+```{r boxcox-train}
+bc_data <- BoxCoxTrans(readyTrain$PredictedReadmissionRate)
+print(paste0("Box-Cox lambda = ", bc_data$lambda))
+
+readyTrain$bc_PredictedReadmissionRate <-
+  predict(bc_data, readyTrain$PredictedReadmissionRate)
+```
+
+```{r boxcox-plots, fig.width=10, fig.height=4}
+p1 <- ggplot(readyTrain, aes(x = PredictedReadmissionRate)) +
+  geom_histogram(fill = "hotpink", color = "hotpink", alpha = 0.7, bins = 30) +
+  labs(title = "Original: Predicted COPD Readmission Rate",
+       x = "Rate", y = "Frequency") +
+  theme_minimal()
+
+p2 <- ggplot(readyTrain, aes(x = bc_PredictedReadmissionRate)) +
+  geom_histogram(fill = "hotpink", color = "hotpink", alpha = 0.7, bins = 30) +
+  labs(title = "Box-Cox Transformed: Predicted COPD Readmission Rate",
+       x = "Transformed Rate", y = "Frequency") +
+  theme_minimal()
+
+p1 + p2
+```
+
+**Figures 8a-b. Predicted COPD Readmission Rate After Box-Cox Transformation**
+
+**Question 19B**: Apply Box-Cox to test data. Why must we use the same lambda?
+
+```{r boxcox-test}
+readyTest$bc_PredictedReadmissionRate <-
+  predict(bc_data, readyTest$PredictedReadmissionRate)
+
+summary(readyTest$bc_PredictedReadmissionRate)
+
+ggplot(readyTest, aes(x = bc_PredictedReadmissionRate)) +
+  geom_histogram(alpha = 0.6, fill = "hotpink", color = "hotpink", bins = 30) +
+  theme_minimal() +
+  labs(title = "Box-Cox Transformed Predicted COPD Readmission Rate, Test Set",
+       y = "Frequency", x = "Predicted Readmission Rate")
+
+qqnorm(readyTest$bc_PredictedReadmissionRate)
+qqline(readyTest$bc_PredictedReadmissionRate, col = "hotpink", lty = 2, lwd = 2)
+```
+
+> ##We must use the same lambda because the model learns coefficients in the transformed space defined by the training set's lambda. If we recalculated lambda on the test set, the test values would be on a different scale than what the model was trained on, making predictions and actual values incomparable and RMSE and R² meaningless. Using the training lambda treats the test set as truly unseen data — which is the entire point of having a test set.
+
+### 3.7.2 Centering & Scaling
+
+```{r center-scale}
+readyTrain <- readyTrain %>%
+  select(-PredictedReadmissionRate) %>%
+  mutate_if(is.factor, as.numeric) %>%
+  scale(center = TRUE, scale = TRUE) %>%
+  data.frame()
+
+## Question 19C: Do the same for test data
+readyTest <- readyTest %>%
+  select(-PredictedReadmissionRate) %>%
+  mutate_if(is.factor, as.numeric) %>%
+  scale(center = TRUE, scale = TRUE) %>%
+  data.frame()
+```
+
+---
+
+# 4. Assessing Multicollinearity & Feature Redundancy
+
+## 4.1 Pairwise Correlation Heatmap
+
+```{r corr-heatmap, fig.width=12, fig.height=12}
+corrMatrix <- cor(readyTrain, use = "pairwise.complete.obs")
+
+corrplot(
+  corrMatrix,
+  method   = "color",
+  order    = "hclust",
+  tl.cex   = 0.6,
+  tl.col   = "black",
+  col      = colorRampPalette(c("red", "yellow", "blue"))(200),
+  title    = "Figure 9. Correlation Heatmap of All Variables (COPD)",
+  mar      = c(0, 0, 2, 0)
+)
+```
+
+**Question 20A**: Where is the highest potential for multicollinearity?
+
+> ##The heatmap shows a large dark blue cluster in the top-left corner encompassing all the HCAHPS patient satisfaction variables: SurveyResponseRate, Doctor.communication, Care.transition, Overall.hospital.rating, Recommend.hospital, Discharge.information, Communication.about.medicines, Nurse.communication, Staff.responsiveness, Cleanliness, and Quietness. These variables are all highly positively correlated with each other, which makes clinical sense — hospitals that score well on one aspect of patient experience tend to score well across all of them. This cluster represents the highest multicollinearity risk in the dataset and is where VIF will flag the most problematic variables.
+A second notable feature is the red cell between Composite.patient.safety and CMS.Medicare.PSI.90.Patient.safety.and.adverse.events.composite. These two are strongly negatively correlated, which also indicates redundancy and potential multicollinearity
+
+**Question 20A (target)**: Which variables are most correlated with `bc_PredictedReadmissionRate`?
+
+> ## Looking at the bc_PredictedReadmissionRate row/column, the variables showing the strongest correlations (darkest blue, moving away from yellow) are Median.time..minutes..patients.spent.in.ED, Emergency.department.volume, State, and Death.rate.for.COPD.patients. The satisfaction variables show weak to moderate positive correlations with the target. This is consistent with what we saw in the scatterplots — median ED time had the strongest linear relationship with predicted COPD readmissions, and the satisfaction measures showed modest but consistent negative slopes.
+
+## 4.2 VIF
+
+```{r vif}
+mod <- lm(bc_PredictedReadmissionRate ~ ., data = readyTrain)
+
+vifResults <- vif(mod) %>% data.frame()
+colnames(vifResults) <- c("VIF")
+
+vifResults %>%
+  arrange(desc(VIF)) %>%
+  head(15) %>%
+  round(2) %>%
+  kable(caption = "Table 7. Top 15 Variance Inflation Factors (COPD)") %>%
+  kable_styling(bootstrap_options = "striped", full_width = FALSE)
+```
+
+**Question 20B**: Does multicollinearity seem to be an issue?
+
+> ##Multicollinearity is a moderate issue in our COPD dataset, concentrated in the HCAHPS satisfaction variables exactly as the heatmap suggested. Overall.hospital.rating has the highest VIF at 25.34, well above the standard threshold of 5, and Recommend.hospital follows at 16.79 — both will be dropped. Nurse.communication (8.24) and Care.transition (7.97) also exceed 5 and will be dropped. Everything from Staff.responsiveness (4.99) downward is below or right at the threshold and can be retained.
+This pattern is identical in structure to the pneumonia analysis. The same HCAHPS satisfaction variables cause multicollinearity in both conditions because they are derived from the same survey and measure highly correlated aspects of patient experience. Hospitals that patients rate highly on overall rating also tend to be rated highly on nurse communication, care transition, and recommend hospital. They are all capturing the same underlying construct of general patient experience quality.
+Notably, the COPD-specific clinical variables, Death.rate.for.COPD.patients, Postoperative.respiratory.failure.rate, Perioperative.pulmonary.embolism, and Composite.patient.safety, all have VIFs well below 5, meaning they contribute independent predictive information and are not redundant with each other or with the satisfaction measures. This is reassuring for our model's ability to distinguish the clinical predictors of COPD readmissions.
+
+## 4.3 Drop highly collinear variables
+
+```{r drop-vif}
+vifOver5 <- vifResults %>% filter(VIF >= 5) %>% rownames()
+print(vifOver5)
+
+readyTrain <- readyTrain %>% select(-any_of(vifOver5))
+readyTest  <- readyTest  %>% select(-any_of(vifOver5))
+```
+
+```{r drop-compared}
+## Rename COPD return days to keep it if present; drop all other ComparedToNational
+## Note: Hospital return days for COPD patients was absent from our merged dataset
+## so we simply drop all ComparedToNational and PaymentCategory columns
+readyTrain <- readyTrain %>%
+  select(-contains("Compared"), -contains("PaymentCategory"), -SurveyResponseRate)
+
+readyTest <- readyTest %>%
+  select(-contains("Compared"), -contains("PaymentCategory"),
+         -any_of("SurveyResponseRate"))
+```
+
+---
+
+# 5. Unsupervised Learning Methods: Segmentation Analysis
+
+## 5.1 Principal Component Analysis
+
+```{r pca}
+pca <- prcomp(readyTrain)
+summary(pca)
+```
+
+**Question 21**:
+
+> ##1.How many PCs are needed to explain 80% of variance? Looking at the cumulative proportion row, PC10 reaches 78.9% and PC11 reaches 82.4%. So 11 principal components are needed to explain at least 80% of the variance in the COPD dataset. This is identical to the pneumonia analysis, suggesting the overall dimensionality structure of the hospital-level CMS data is consistent across conditions.
+> ##2. How much variance does PC1 explain? PC1 explains 22.7% of the total variance. This is very close to the pneumonia result (~22.4%), again suggesting that the dominant source of variation across hospitals, likely the general patient experience/satisfaction dimension captured by the HCAHPS cluster, is consistent whether we are looking at pneumonia or COPD hospitals.
+> ##3. How many PCs appear optimal from the scree plot? Based on the eigenvalues, PCs 1 through approximately 6–7 have standard deviations above 1.0 (the Kaiser criterion), suggesting 6–7 PCs capture the most meaningful structure before hitting noise. The scree plot elbow will confirm the exact cutoff visually.
+> ##4.Why is it called a "scree" plot? The name comes from geology. "Scree" refers to the loose rubble that accumulates at the base of a cliff or steep slope. The plot mimics this shape: a steep initial drop in explained variance (the cliff face) followed by a gradual flattening (the scree pile at the bottom). We look for the elbow where the steep drop transitions to the flat tail, and choose the number of components just before the scree begins.
+
+```{r scree-plot, fig.width=7, fig.height=5}
+fviz_eig(pca,
+         addlabels = TRUE,
+         ylim      = c(0, 40),
+         barfill   = skittles[1],
+         barcolor  = skittles[1]) +
+  labs(title = "Figure 10. Scree Plot of First 15 Principal Components (COPD)") +
+  theme_classic()
+```
+
+```{r pca-biplot, fig.width=10, fig.height=8}
+fviz_pca_biplot(
+  pca,
+  geom.ind     = "point",
+  col.ind      = "gray70",
+  addEllipses  = FALSE,
+  select.var   = list(contrib = 1),
+  col.var      = skittles[1],
+  label        = "var"
+) +
+  labs(title = "Figure 11. PCA Biplot (COPD) — Top Contributing Variable") +
+  theme_classic()
+```
+
+```{r pca-contributions, fig.width=8, fig.height=6}
+fviz_contrib(pca,
+             choice = "var",
+             axes   = 1:2,
+             top    = 18,
+             fill   = skittles[1],
+             color  = skittles[1]) +
+  labs(title = "Figure 12. Variables that Significantly Explain Variance (COPD)") +
+  theme_classic()
+```
+
+**Question 22**: What variable(s) contrast with the top contributor in the biplot?
+
+> ##The variables that contrast most with Communication.about.medicines in the biplot are those pointing in the opposite direction along PC1 into the negative/left side. Based on the contributions plot and heatmap, these are the clinical performance and complexity variables: Median.time..minutes..patients.spent.in.ED, Death.rate.for.COPD.patients, Postoperative.respiratory.failure.rate, and Perioperative.pulmonary.embolism.or.deep.vein.thrombosis.rate. These variables are associated with hospitals that score low on patient satisfaction. Higher-acuity, higher-burden facilities where operational strain and patient complexity dominate over communication quality.
+This contrast defines the primary axis of variation (PC1, 22.7%) across COPD hospitals: on one end, hospitals where patients report excellent communication and care coordination; on the other, hospitals characterized by high clinical complexity, longer ED wait times, and higher COPD mortality. Notably this is the same contrast seen in the pneumonia biplot, confirming that Communication.about.medicines is the dominant dimension of hospital-level variation in CMS data regardless of respiratory condition suggesting it reflects a general hospital quality signal rather than anything COPD-specific.
+
+## 5.2 k-means Clustering
+
+```{r kmeans-biplots, fig.width=14, fig.height=18}
+plots <- lapply(2:9, function(k) {
+  km <- kmeans(readyTrain, centers = k, nstart = 50,
+               iter.max = 1000, algorithm = "MacQueen")
+  fviz_cluster(km, data = readyTrain,
+               geom         = "point",
+               ellipse.type = "convex",
+               palette      = skittles[1:k],
+               ggtheme      = theme_classic(),
+               main         = paste0("k = ", k))
+})
+
+do.call(gridExtra::grid.arrange, c(plots, ncol = 2))
+```
+
+**Figure 13. Biplots showing possible k clusters (COPD)**
+
+**Question 23A**: Which k has the best explanatory power?
+
+> ##Looking across all eight biplots, k = 2 provides the clearest and most distinct separation. Two well-defined, non-overlapping convex hulls that cleanly divide hospitals along the PC1 axis (the communication quality vs. clinical complexity dimension). At k = 3, the third cluster begins to carve out the upper-left region (high PC2, negative PC1) with reasonable separation. By k = 4, the clusters start to show meaningful overlap in the center of the plot, and from k = 5 onward the clusters become increasingly fragmented and overlapping, suggesting we are over-partitioning the data into groups that don't represent genuinely distinct hospital types.
+Visually, k = 2 or k = 3 appear to have the best explanatory power for COPD. The primary split at k = 2 along PC1 is clean and interpretabl. One cluster of hospitals with strong patient communication and satisfaction (right side) and one cluster of hospitals with higher clinical complexity and longer wait times (left side). This is a simpler and more actionable segmentation for our watchdog client than the more fragmented higher-k solutions. We will use the WSS elbow and silhouette plots to confirm the optimal k objectively.
+
+```{r wss-elbow, fig.width=7, fig.height=5}
+wss <- sapply(1:10, function(k) {
+  kmeans(readyTrain, centers = k, nstart = 50,
+         iter.max = 1000, algorithm = "MacQueen")$tot.withinss
+})
+
+data.frame(k = 1:10, WSS = wss) %>%
+  ggplot(aes(x = k, y = WSS)) +
+  geom_line(color = skittles[1], linewidth = 1.2) +
+  geom_point(color = skittles[1], size = 3) +
+  scale_x_continuous(breaks = 1:10) +
+  labs(title = "Figure 14. WSS Scree Plot for k-means (COPD)",
+       x = "Number of clusters k",
+       y = "Total Within Sum of Squares") +
+  theme_classic()
+```
+
+**Question 23B**: What is WSS and what is the optimal k by the elbow method?
+
+> ##WSS (Total Within Sum of Squares) measures the total squared distance between each data point and its assigned cluster centroid, summed across all clusters. A lower WSS means points are closer to their cluster centers (i.e. the clusters are tighter and more cohesive). As k increases, WSS always decreases because adding more clusters gives each point a closer centroid to belong to. The optimal k by the elbow method is the point where the rate of decrease sharply slows which adds another cluster beyond this point gives diminishing returns in compactness.
+Looking at the WSS scree plot, the steepest drop occurs from k = 1 to k = 2, with a continued meaningful drop to k = 3. After k = 3, the curve begins to flatten noticeably. The drops from k = 4 to k = 5 and beyond are progressively smaller and more gradual. The elbow is at k = 3, consistent with the visual inspection of the biplots. Beyond k = 3 the gains in within-cluster compactness do not justify the added complexity of more clusters. This is a somewhat less sharp elbow than ideal, the curve is fairly smooth, which is consistent with the COPD hospital data not having extremely distinct natural groupings, reflecting the continuous nature of hospital quality variation rather than discrete hospital types.
+
+```{r silhouette, fig.width=7, fig.height=5}
+fviz_nbclust(readyTrain, kmeans, method = "silhouette") +
+  labs(title = "Figure 14. Silhouette Plot for k-means (COPD)") +
+  theme_classic()
+```
+
+**Question 23C**: Are you surprised at the silhouette result?
+
+> ##The silhouette plot suggests k = 2 as the optimal number of clusters, with the highest average silhouette width of ~0.15. This is consistent with the visual biplot inspection where k = 2 showed the cleanest separation, but conflicts with the WSS elbow which suggested k = 3.
+We are not particularly surprised by this result. The same disagreement between silhouette (k = 2) and WSS/visual (k = 3) occurred in the pneumonia analysis. This is a well-known pattern: silhouette tends to favor fewer, larger clusters because it rewards clean separation between clusters, while WSS rewards compactness within clusters, which improves with more clusters. When the data has a dominant splitting axis (here, PC1 — the communication quality vs. clinical complexity dimension) but also meaningful secondary structure (PC2), silhouette picks up the dominant split while WSS suggests capturing the secondary structure too.
+Notably, all silhouette values are very low (maximum ~0.15, with most below 0.10), which confirms what the biplots suggested COPD hospitals do not form sharply distinct natural clusters. Hospital quality varies continuously rather than falling into discrete groups. This means our clustering is useful for descriptive segmentation and communication to the watchdog client, but should not be interpreted as evidence of truly distinct hospital types with sharp boundaries.
+
+```{r extract-optimal-k}
+clusterData <- fviz_nbclust(readyTrain, kmeans, method = "silhouette")$data
+k <- as.numeric(clusterData$clusters[which.max(clusterData$y)])
+cat("Optimal k from silhouette:", k)
+```
+
+## 5.3 Segmentation Analysis
+
+**Question 24**: Comments are embedded in the code.
+
+```{r kmeans-final}
+## Run k-means with silhouette-optimal k
+kmeansResult <- kmeans(readyTrain,
+                       centers   = k,
+                       nstart    = 50,
+                       iter.max  = 1000,
+                       algorithm = "MacQueen")
+
+## Return to original imputed training data for interpretable cluster descriptions
+kmeansTrain <- imputedTrain %>%
+  ## Remove VIF-dropped and redundant columns
+  select(-any_of(vifOver5),
+         -contains("Compared"),
+         -contains("PaymentCategory"),
+         -any_of("SurveyResponseRate"),
+         -any_of(cols2drop)) %>%
+  ## Add cluster labels
+  mutate(Cluster = kmeansResult$cluster) %>%
+  clean_names()
+```
+
+```{r cluster-boxplots, fig.width=12, fig.height=12}
+## Key variables for cluster comparison (COPD equivalents)
+## Note: COPD return days absent, so we use Death rate for COPD as context variable
+pcaImportantVars <- c(
+  "communication_about_medicines",
+  "doctor_communication",
+  "composite_patient_safety",
+  "discharge_information",
+  "quietness",
+  "postoperative_respiratory_failure_rate",
+  "cleanliness",
+  "perioperative_pulmonary_embolism_or_deep_vein_thrombosis_rate",
+  "predicted_readmission_rate",
+  "death_rate_for_copd_patients"
+)
+
+kmeansTrain %>%
+  select(cluster, any_of(pcaImportantVars)) %>%
+  pivot_longer(-1, names_to = "Measure", values_to = "Value") %>%
+  mutate(Measure = to_any_case(Measure, case = "title")) %>%
+  ggplot(aes(x = cluster, y = Value, fill = as.factor(cluster))) +
+  geom_boxplot(alpha = 0.75) +
+  scale_fill_manual(values = c(skittles[1], skittles[6])) +
+  labs(title = "Cluster Means (COPD)", x = "", fill = "Cluster") +
+  theme_classic() +
+  theme(
+    legend.position = "bottom",
+    strip.text      = element_text(size = 8),
+    title           = element_text(size = 12, color = "maroon")
+  ) +
+  facet_wrap(~ Measure, scales = "free_y", ncol = 2)
+```
+
+**Figure 16. Boxplot Comparisons of Important Variables by Cluster (COPD)**
+
+```{r cluster-summary-table}
+kmeansTrain %>%
+  select(cluster, any_of(pcaImportantVars)) %>%
+  mutate(cluster = as.factor(cluster)) %>%
+  tbl_summary(
+    by        = "cluster",
+    statistic = list(all_continuous() ~ c("{mean} ({median})"))
+  ) %>%
+  modify_header(
+    label           ~ "Variable",
+    all_stat_cols() ~ "**Cluster {level}**"
+  ) %>%
+  modify_caption("Table 8. Summary Statistics of Important Cluster Variables (COPD)")
+```
+
+**Question 25**: > ##**Question 25**: The two clusters represent meaningfully distinct hospital groups for COPD management, separated primarily along the patient communication and satisfaction dimension rather than clinical severity.
+>
+> **Cluster 2 — Higher Performing Hospitals (blue):**
+> - **Predicted readmission rate**: lower median (~18%) with a tighter distribution, confirming better COPD readmission outcomes
+> - **Communication about medicines**: substantially higher scores (~75 median vs ~71), reflecting better medication communication — critical for COPD patients who need clear inhaler and rescue medication instructions
+> - **Discharge information**: higher scores (~87 median vs ~82), reflecting stronger discharge preparation. the most actionable lever for preventing COPD re-exacerbations
+> - **Doctor and nurse communication**: consistently higher across all communication measures, suggesting a culture of stronger provider-patient interaction
+>
+> **Cluster 1 — Lower Performing Hospitals (pink):**
+> - **Predicted readmission rate**: higher median (~20%) with a wider spread and more extreme outliers past 25%
+> - **Communication about medicines**: lower scores, suggesting COPD patients leave less informed about their medication regimens
+> - **Discharge information**: lower scores (~82 median), suggesting weaker preparation for chronic disease self-management at home
+> - **Quietness and cleanliness**: lower scores, suggesting a broader pattern of lower patient experience quality
+>
+> Notably, **Death rate for COPD patients** and **Perioperative pulmonary embolism rate** show nearly identical distributions across both clusters which confirms that clinical severity and complexity are not what separates these two groups. It is communication and discharge quality that drives the difference, which is both clinically meaningful and directly actionable for our watchdog client.
+
+**Table 9. Hospital segmentation analysis: COPD**
+
+| Top Defining Attributes | Description |
+|---|---|
+| **1: Highest Performing Hospitals — COPD** | |
+| Predicted COPD readmissions | Lower readmission rates, suggesting stronger chronic respiratory disease management outcomes. |
+| COPD death rate | Lower COPD mortality, reflecting better overall disease management and care quality. |
+| Discharge information | Higher patient scores on discharge guidance — critical for COPD patients who need specific post-discharge self-management instructions. |
+| Doctor communication | Stronger physician communication scores, suggesting clearer provider-patient interactions. |
+| **2: Lower Performing Hospitals — COPD** | |
+| Predicted COPD readmissions | Higher readmission rates, suggesting weaker COPD outcomes or greater risk of return visits. |
+| COPD death rate | Higher COPD mortality, suggesting systemic challenges with chronic respiratory disease management. |
+| Discharge information | Weaker discharge preparation scores, suggesting missed opportunities to equip COPD patients for self-management at home. |
+| Doctor communication | Weaker physician communication, suggesting less effective provider-patient interactions. |
+
+**Question 26**: Recommend 1–2 ML analyses to test whether clusters predict COPD hospital performance.
+
+> ##We recommend two ML analyses to test whether the clusters predict COPD hospital performance.
+First, OLS regression followed by Elastic Net, exactly as in the pneumonia analysis. Adding cluster membership as a binary predictor (Cluster 1 vs Cluster 2) to both models would directly test whether the segmentation captures variance in predicted COPD readmissions beyond what the individual predictors already explain. If cluster membership is a significant predictor in the OLS model and retains a non-zero coefficient in the Elastic Net, it confirms the clusters represent genuine, independent hospital quality signal rather than just a repackaging of the predictors already in the model.
+Second, a classification model such as logistic regression or random forest using the predictor variables to predict cluster membership. If we can accurately classify hospitals into Cluster 1 or Cluster 2 using the available CMS features, it validates that the clusters are learnable and replicable on new hospitals. Meaning the watchdog could use the model to classify any new hospital into a performance tier without needing to rerun clustering. High classification accuracy would also confirm that the two clusters represent stable, reproducible hospital types rather than arbitrary partitions of a continuous distribution. Robustness across both analyses would give the watchdog confidence in communicating the cluster findings to patients as meaningful hospital quality groupings.
+
+
+---
+
+# 6. Supervised Learning Methods
+
+## 6.1 Ordinary Least Squares (OLS) Regression
+
+```{r ols-fit}
+mod <- lm(bc_PredictedReadmissionRate ~ ., data = readyTrain)
+```
+
+```{r ols-diagnostics, fig.width=10, fig.height=8}
+par(mfrow = c(2, 2))
+plot(mod)
+par(mfrow = c(1, 1))
+```
+
+**Figure 17. OLS Regression Assumption Diagnostic Plots (COPD)**
+
+**Question 27A**: Are the OLS assumptions met?
+
+> ##> The four diagnostic plots show that the OLS assumptions are reasonably but not perfectly met for the COPD model.
+>
+> **Linearity (Residuals vs Fitted)**: The red line is approximately flat and close to zero across the range of fitted values, suggesting the linearity assumption is reasonably satisfied. There is a slight pattern with more spread at the extremes, but no strong systematic curve that would indicate a major linearity violation.
+>
+> **Normality of residuals (Q-Q plot)**: The points follow the diagonal reference line very closely through the middle of the distribution, with slight deviation in the lower tail where three hospitals (190099, 50407, 30062) pull away from the line. These are outliers with unusually high observed COPD readmission rates relative to their predicted values. The normality assumption is reasonably met for the bulk of the data.
+>
+> **Homoscedasticity (Scale-Location)**: The red line has a slight negative slope, with slightly more spread at lower fitted values than higher ones. The same three outliers (190099, 50407, 30062) appear prominently at the top. There is mild heteroscedasticity but not severe enough to fundamentally undermine the model.
+>
+> **Influential points (Residuals vs Leverage)**: No points fall outside the Cook's distance dashed boundary, meaning there are no severely influential observations that are distorting the regression coefficients. Hospitals 90003, 80007, and 50663 have relatively higher leverage but their residuals are not extreme enough to be Cook's distance violations. Overall the OLS assumptions are reasonably met, consistent with the pneumonia analysis, and the model is valid for inference.
+
+```{r shapiro-residuals}
+shapiro.test(residuals(mod))
+```
+
+```{r adj-r2}
+summary(mod)$adj.r.squared
+```
+
+**Question 27B**: Why do we use adjusted R² instead of multiple R²?
+
+> ##The adjusted R² for the COPD OLS model is 0.143, meaning our hospital-level predictors explain approximately 14.3% of the variation in predicted COPD readmission rates across hospitals. We use adjusted R² instead of multiple R² because adjusted R² penalizes for the number of predictors in the model. Multiple R² always increases when predictors are added regardless of whether they genuinely improve prediction, while adjusted R² only increases if a new predictor adds more explanatory power than would be expected by chance.
+This is the most important finding of the entire COPD analysis. An adjusted R² of 0.143 is substantially lower than the pneumonia model's adjusted R² of ~0.39 (less than half the explanatory power). This is not a modeling failure. It confirms our central clinical hypothesis: hospital-level CMS data has far less leverage over COPD readmissions than over pneumonia readmissions. COPD is a chronic condition where patient-level disease severity,  FEV₁, GOLD staging, exacerbation history, smoking status, comorbidity burden, drives the majority of readmission risk, and none of this is captured in any hospital-level dataset. The hospital-level features we have access to explain only about 14% of why some hospitals have higher COPD readmission rates than others. The remaining 86% is driven by factors outside our data, primarily patient-level chronic disease characteristics. This finding has direct implications for CMS policy for penalizing hospitals for high COPD readmission rates based primarily on hospital-level factors is difficult to justify when those factors explain so little of the variation.
+
+```{r backward-selection}
+bestMod <- step(mod, direction = "backward", trace = FALSE)
+stargazer(bestMod, type = "text",
+          title = "Table 10. Parsimonious OLS Regression Results (COPD).")
+```
+
+```{r ols-rmse}
+predictions <- predict(bestMod, newdata = readyTest)
+RMSE <- sqrt(mean((readyTest$bc_PredictedReadmissionRate - predictions)^2))
+RMSE
+```
+
+**Question 27C**: Can you interpret RMSE for your client?
+
+> ##The RMSE of 0.905 is in log-transformed, centered, and scaled units. It is not directly interpretable in original readmission rate percentage points. For the client, the adjusted R² of 14.3% is the more meaningful metric: our best hospital-level model explains only about 1 in 7 percentage points of variation in COPD readmission rates across hospitals. The other 86% is driven by factors outside our dataset. Primarily patient-level COPD severity that CMS hospital-level data cannot capture. This is a critical finding for the watchdog: hospital choice based on CMS COPD readmission metrics alone gives patients limited information, and advocating for richer patient-level data integration with CMS reporting should be a priority recommendation.
+
+```{r ols-prediction-plot, fig.width=6, fig.height=5}
+data.frame(
+  Actual    = readyTest$bc_PredictedReadmissionRate,
+  Predicted = predictions
+) %>%
+  ggplot(aes(x = Predicted, y = Actual)) +
+  geom_point(alpha = 0.4, color = skittles[1]) +
+  geom_smooth(method = "lm", color = "maroon") +
+  labs(
+    title = "Figure 18. OLS Regression Predictive Power (COPD)",
+    x     = "Predicted Readmission Rate from Model",
+    y     = "Actual Readmission Rate"
+  ) +
+  theme_minimal()
+```
+
+## 6.2 The Elastic Net
+
+### 6.2.1 Set CV parameters
+
+```{r cv-control}
+ctrl <- trainControl(
+  method      = "repeatedcv",
+  number      = 5,
+  repeats     = 5,
+  search      = "grid",
+  verboseIter = FALSE
+)
+```
+
+### 6.2.2 Tune and fit
+
+```{r elastic-net}
+searchGrid <- expand.grid(
+  .alpha  = seq(0, 1, length.out = 10),
+  .lambda = seq(0, 5, length.out = 15)
+)
+
+elasticMod <- train(
+  bc_PredictedReadmissionRate ~ .,
+  data      = readyTrain,
+  method    = "glmnet",
+  tuneGrid  = searchGrid,
+  trControl = ctrl
+)
+```
+
+
+**Question 28**: What are we doing here?
+
+> ## We are fitting a regularized regression model using repeated 5-fold cross-validation to tune two hyperparameters simultaneously via a grid search. 
+>
+> **Alpha** (ranging 0–1) controls the balance between two types of regularization. At alpha = 0 the model applies Ridge regression, which shrinks all coefficients toward zero but keeps all predictors in the model. At alpha = 1 the model applies LASSO regression, which drives some coefficients to exactly zero, performing automatic feature selection. Values between 0 and 1 blend both penalties — this is the Elastic Net.
+>
+> **Lambda** (ranging 0–5) controls the overall strength of the regularization penalty. At lambda = 0 there is no penalty and the model is equivalent to OLS. As lambda increases, coefficients are shrunk more aggressively toward zero.
+>
+> **Repeated 5-fold cross-validation** means the training data is split into 5 folds, the model is trained on 4 and validated on 1, rotated 5 times, and this entire process is repeated 5 times with different random splits giving 25 total model fits per hyperparameter combination. The combination of alpha and lambda that produces the best average cross-validated R² across all 25 fits is selected as optimal.
+>
+> We search across all combinations in the grid rather than testing alpha and lambda separately because they interact.The optimal lambda depends on the value of alpha. A grid search tests every combination jointly, ensuring we find the true optimum rather than a locally good but globally suboptimal solution.
+
+### 6.2.3 Results
+
+```{r elastic-net-top-results}
+elasticMod$results %>%
+  data.frame() %>%
+  arrange(RMSE) %>%
+  head(15) %>%
+  round(2) %>%
+  kable(caption = "Table 11. Top Elastic Net Tuning Results (COPD)") %>%
+  kable_styling(bootstrap_options = "striped", full_width = FALSE)
+```
+
+```{r elastic-net-params}
+cat("Best alpha: ",  elasticMod$bestTune$alpha)
+cat("Best lambda:", elasticMod$bestTune$lambda)
+```
+
+**Question 29**: What do the optimal alpha and lambda suggest?
+
+> ##> ## The optimal alpha is **0** and the optimal lambda is **0.357**. An alpha of 0 means the Elastic Net selected pure **Ridge regression**. No LASSO penalty, no coefficients are driven to exactly zero, and all predictors are retained but shrunk toward zero proportionally. This differs from the pneumonia analysis where both alpha and lambda converged to 0 (pure OLS). For COPD, the model benefits from a small amount of Ridge shrinkage (lambda = 0.357) but not from variable selection via LASSO.
+>
+> This result suggests the COPD predictor set has some multicollinearity that Ridge regularization helps manage shrinking correlated coefficients together rather than arbitrarily zeroing one out as LASSO would. However the relatively small lambda (0.357 on a scale of 0–5) indicates only mild regularization is beneficial, consistent with a dataset that does not have severe overfitting problems.
+>
+> The fact that alpha = 0 rather than a positive LASSO component means the Elastic Net does not believe any predictors should be completely removed beyond what backward selection already accomplished in the OLS step. Combined with the low R² of ~0.143, this reinforces our conclusion that the COPD hospital-level feature set has genuine but limited predictive signal. The model benefits slightly from shrinkage but not from aggressive feature elimination, because no single predictor dominates and the signal is spread thinly across many moderate predictors.
+
+```{r elastic-net-tuning-plot, fig.width=8, fig.height=5}
+results <- elasticMod$results %>% data.frame()
+best    <- results[as.numeric(rownames(elasticMod$bestTune)), ]
+
+ggplot(results, aes(x = lambda, y = Rsquared, color = as.factor(alpha))) +
+  geom_line() +
+  geom_point(data = best, aes(x = lambda, y = Rsquared),
+             shape = 18, size = 5, color = "black") +
+  labs(
+    title  = "Figure 19. Hyperparameter Grid Search for Elastic Net (COPD)",
+    x      = "Lambda (shrinkage)",
+    y      = "R² (cross-validated)",
+    color  = "Alpha"
+  ) +
+  theme_classic()
+```
+
+### Variable Importance
+
+```{r importance-plot, fig.width=9, fig.height=7}
+important <- varImp(elasticMod)$importance
+
+important %>%
+  rownames_to_column("Variable") %>%
+  arrange(desc(Overall)) %>%
+  head(15) %>%
+  ggplot(aes(x = reorder(Variable, Overall), y = Overall)) +
+  geom_bar(stat = "identity", fill = skittles[1]) +
+  coord_flip() +
+  labs(
+    title = "Figure 20. Variable Importance from Best Elastic Net Model (COPD)",
+    x     = "Variable",
+    y     = "Importance"
+  ) +
+  theme_classic()
+```
+
+**Question 30**: Which features were most important? Compare to pneumonia and PCA.
+
+> ##> The most important features for predicting COPD readmissions from the Elastic Net model are **Emergency department volume** (importance = 100, by far the most dominant predictor), followed by **State** (~65), **Median time spent in ED** (~52), **Staff responsiveness** (~51), and **Death rate for COPD patients** (~48). The bottom of the ranking includes **Communication about medicines**, **COVID-19 vaccination series**, and **Doctor communication** with relatively low importance scores below 15.
+>
+> **Comparison to pneumonia**: This is a meaningful departure from the pneumonia importance ranking. For pneumonia, hospital return days, infection-control proxies (MRSA, vaccination), and Medicare spending were among the top predictors. For COPD, ED-related variables dominate — both ED volume and median ED time rank in the top three suggesting that hospitals under greater operational strain (busier EDs, longer wait times) tend to have higher COPD readmissions. State remains highly important in both conditions, reflecting persistent geographic variation in hospital quality and COPD disease burden across the US.
+>
+> **Comparison to PCA**: PCA identified `Communication.about.medicines` as the top contributor to PC1, the dominant axis of variance across hospitals. Yet in the Elastic Net importance plot, `Communication.about.medicines` ranks last. This is the fundamental difference between PCA and supervised modeling: PCA finds variables that explain the most overall variance across all hospitals regardless of the target, while the Elastic Net identifies variables that best predict the specific target. Communication quality varies a lot across hospitals (high PCA contribution) but that variation does not strongly predict COPD readmission rates after accounting for ED volume, state, and operational factors.
+>
+> **Clinical interpretation**: The dominance of ED volume and median ED time for COPD, but not pneumonia, is clinically meaningful. COPD exacerbations often present to the ED, and hospitals with overwhelmed EDs may be less able to provide the careful discharge planning and follow-up coordination that prevents COPD re-exacerbations. This is a system-level operational finding rather than a care quality finding, and has important implications for the watchdog: patients with COPD may benefit from choosing hospitals with lower ED volume and shorter wait times, not just higher satisfaction scores.
+
+### Model Performance
+
+```{r model-performance}
+prOLS <- postResample(
+  pred = predict(bestMod,    newdata = readyTest),
+  obs  = readyTest$bc_PredictedReadmissionRate
+)
+
+prElastic <- postResample(
+  pred = predict(elasticMod, newdata = readyTest),
+  obs  = readyTest$bc_PredictedReadmissionRate
+)
+
+rbind(OLS = prOLS, Elastic_Net = prElastic) %>%
+  round(3) %>%
+  kable(caption = "Table 12. Test Performance — OLS vs. Elastic Net (COPD)") %>%
+  kable_styling(bootstrap_options = "striped", full_width = FALSE)
+```
+
+### Check for overfitting
+
+```{r overfit-check}
+prOLS_train <- postResample(
+  pred = predict(bestMod,    newdata = readyTrain),
+  obs  = readyTrain$bc_PredictedReadmissionRate
+)
+
+prElastic_train <- postResample(
+  pred = predict(elasticMod, newdata = readyTrain),
+  obs  = readyTrain$bc_PredictedReadmissionRate
+)
+
+rbind(OLS_train         = prOLS_train,
+      Elastic_Net_train = prElastic_train) %>%
+  round(3) %>%
+  kable(caption = "Table 13. Training Performance — OLS vs. Elastic Net (COPD)") %>%
+  kable_styling(bootstrap_options = "striped", full_width = FALSE)
+```
+
+```{r prediction-comparison-plot, fig.width=10, fig.height=5}
+preds_df <- data.frame(
+  Actual      = readyTest$bc_PredictedReadmissionRate,
+  OLS         = predict(bestMod,    newdata = readyTest),
+  Elastic_Net = predict(elasticMod, newdata = readyTest)
+)
+
+p_ols <- ggplot(preds_df, aes(x = OLS, y = Actual)) +
+  geom_point(alpha = 0.4, color = skittles[1]) +
+  geom_smooth(method = "lm", color = "maroon") +
+  labs(title = "OLS (COPD)", x = "Predicted", y = "Actual") +
+  theme_minimal()
+
+p_en <- ggplot(preds_df, aes(x = Elastic_Net, y = Actual)) +
+  geom_point(alpha = 0.4, color = skittles[3]) +
+  geom_smooth(method = "lm", color = "maroon") +
+  labs(title = "Elastic Net (COPD)", x = "Predicted", y = "Actual") +
+  theme_minimal()
+
+p_ols + p_en
+```
+
+**Figure 19. Predictions Plot for Elastic Net vs. OLS Regression (COPD)**
+
+---
+
+# 7. Conclusions & Comparison to Pneumonia
+
+**Question 32** [4 points]: What conclusions do you make? Compare COPD vs. pneumonia. What recommendations for the client?
+> ##
+ **Data and pipeline differences from pneumonia**: The COPD merged dataset contained 71 columns after feature selection compared to 81 for pneumonia, reflecting the absence of the COPD specific payment measure and hospital return days variable that CMS does not publish for COPD in the FY2024 data. Three ComparedToNational columns were dropped due to near zero variance, a larger number than pneumonia, indicating that for COPD specific outcome measures, almost all hospitals fall into the same national comparison category, leaving little discriminating information. Two variables were dropped after missForest imputation due to extremely high OOB error (Intensive Care Unit Venous Thromboembolism Prophylaxis and Venous Thromboembolism Prophylaxis), consistent with their extreme missingness of 3,234 and 2,431 NAs respectively.
+>
+> **Target variable**: Our COPD predicted readmission rate (mean ~19.0%, range ~11.7–28.2%) is notably higher than pneumonia (~16.5%, range ~10.9–25.3%), confirming the clinical literature that COPD carries one of the highest 30 day readmission burdens of any CMS tracked condition. The correlation matrix showed PredictedReadmissionRate correlates strongly with ExpectedReadmissionRate (r = 0.83) and moderately with observed rate (r = 0.76), validating our target choice.
+>
+> **Model performance — the central finding**: The COPD OLS and Elastic Net models both achieved a test R² of approximately 0.18 and adjusted R² of 0.143. This is less than half the explanatory power of the pneumonia model (~0.39). This is not a modeling failure. It is the most important substantive finding of this analysis. COPD is a chronic condition where patient level disease severity (FEV₁, GOLD staging, exacerbation history, smoking status, comorbidity burden) drives the majority of readmission risk, and none of this is captured in any hospital level CMS dataset. The hospital level features we have access to explain only about 14 to 18% of why some hospitals have higher COPD readmission rates than others. The remaining 82 to 86% is driven by factors outside our data.
+>
+> **Key predictor differences from pneumonia**: The Elastic Net importance plot revealed that Emergency department volume was by far the dominant predictor for COPD (importance = 100), followed by State (~65), Median ED time (~52), and Staff responsiveness (~51). This contrasts sharply with pneumonia where hospital return days, infection control proxies (MRSA, vaccination), and Medicare spending ranked highest. For COPD, infection control variables (MRSA Bacteremia, influenza vaccination) ranked near the bottom of the importance list. This shift from infection control dominance in pneumonia to operational and geographic dominance in COPD is clinically coherent: pneumonia is an acute communicable disease where hospital infection control directly affects outcomes, while COPD is a chronic non communicable condition where operational factors like ED strain and geographic disease burden matter more.
+>
+> **Clustering**: The k means analysis identified 2 clusters of hospitals, separated primarily along the patient communication and satisfaction dimension rather than clinical severity. Cluster 2 (higher performing) showed notably better discharge information scores (~87 vs ~82), communication about medicines (~75 vs ~71), and lower predicted readmission rates (~18% vs ~20%). Death rate for COPD patients and perioperative embolism rate were nearly identical across clusters, confirming that clinical complexity does not drive the segmentation. Communication and discharge quality does. This is directly actionable for the watchdog.
+>
+> **Recommendations to the client**: 
+>1. First, for patients choosing a hospital for COPD related care, the watchdog should highlight Emergency department volume and median ED wait time as the most predictive publicly available hospital level metrics more so than the satisfaction measures that dominate the pneumonia recommendation. Hospitals with lower ED volume and shorter wait times showed consistently lower predicted COPD readmissions in our model. 
+>2. Second, discharge information and communication about medicines scores remain important secondary metrics. Hospitals in Cluster 2 with higher scores on these measures achieved meaningfully lower readmission rates, and these are metrics patients can look up before choosing a hospital. 
+>3. Third, and most importantly, we recommend the watchdog advocate for CMS to integrate patient level COPD severity data (GOLD staging, FEV₁, prior exacerbation history) with hospital level reporting before using COPD readmission rates as standalone public quality metrics. An adjusted R² of only 0.143 means these hospital level rates are dominated by patient mix factors that CMS has not fully controlled for, and penalizing hospitals under the HRRP based on metrics with this little hospital attributable variance risks unfairly punishing hospitals that serve the most severely ill COPD patients. 
+>4. Fourth, a composite respiratory readmission indicator combining COPD and pneumonia should be explored. Hospitals performing poorly on both conditions likely have systemic respiratory care deficiencies that are more reliably attributable to hospital quality than either condition alone. Finally, non linear models such as random forest should be explored in follow up analyses to determine whether any non linear relationships between these predictors and COPD readmissions could improve model fit beyond the ceiling imposed by our current linear approach.
+
+---
+
+# References
+
+Box, G. E. P., and D. R. Cox. 2018. "An Analysis of Transformations." *Journal of the Royal Statistical Society: Series B (Methodological)* 26 (2): 211–43. https://doi.org/10.1111/j.2517-6161.1964.tb00553.x.
+
+De Alba, Israel, and Alpesh Amin. 2014. "Pneumonia Readmissions: Risk Factors and Implications." *Ochsner Journal* 14 (4): 649–54.
+
+R Core Team. 2019. *R: A Language and Environment for Statistical Computing*. Vienna, Austria: R Foundation for Statistical Computing. https://www.R-project.org.
+
+Wilson, S. 2021. "The mice algorithm." https://cran.r-project.org/web/packages/miceRanger/vignettes/miceAlgorithm.html.
+
+Yeo, In-Kwon, and Richard A. Johnson. 2000. "A New Family of Power Transformations to Improve Normality or Symmetry." *Biometrika* 87 (4): 954–59. https://doi.org/10.1093/biomet/87.4.954.
+
+Zou, Hui, and Trevor Hastie. 2005. "Regularization and Variable Selection via the Elastic Net." *Journal of the Royal Statistical Society Series B: Statistical Methodology* 67 (2): 301–20. https://doi.org/10.1111/j.1467-9868.2005.00503.x.
