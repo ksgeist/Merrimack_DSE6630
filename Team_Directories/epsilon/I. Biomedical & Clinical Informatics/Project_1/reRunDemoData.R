@@ -79,8 +79,9 @@ load(file = "FY2024_data_files/readmissionsClean2024.Rdata")
 
 #### CHANGE IF NEEDED #################
 ## Set a list of conditions:
-conditionList <- c("HF")
-
+#Update Condition List so it's just AMI
+#conditionList <- c("HF", "CABG", "AMI")
+conditionList <- c("AMI")
 
 ########################################
 ## Separate the Payment and Values tables, giving each facility IDs:
@@ -129,10 +130,10 @@ datList <- list(Healthcare_Associated_Infections,
 
 ## The criteria I will use to filter each table, if applicable
 filterList <- list("MRSA Bacteremia", 
-                   "Payment for pneumonia patients", 
+                   "Payment for heart attack patients",  ##note MH updated this from pneumonia to heart attack patients
                    "Abdomen CT Use of Contrast Material", 
                    
-                   c("Death rate for pneumonia patients", 
+                   c("Death rate for heart attack patients",  #note MH updated this from pneumonia to heart attack patients
                      "Perioperative pulmonary embolism or deep vein thrombosis rate",
                      "CMS Medicare PSI 90: Patient safety and adverse events composite", 
                      "Postoperative respiratory failure rate"),
@@ -147,7 +148,7 @@ filterList <- list("MRSA Bacteremia",
                      "Intensive Care Unit Venous Thromboembolism Prophylaxis", 
                      "Emergency department volume"),
                    
-                   "Hospital return days for pneumonia patients",
+                   "Hospital return days for heart attack patients", #note MH updated this from pneumonia to heart attack 
                    
                    c("Nurse communication",
                      "Doctor communication",
@@ -311,16 +312,16 @@ dataAnalyzeNoEncoding <- cbind(dataAnalyzeNoEncoding, columns2encode, facilityId
 ###############################################################
 ######## I didn't ask you to do this in the Demo. #############
 ###############################################################
-## Also pre-drop `Score_Hospital return days for pneumonia patients` for collinearity purposes
+## Also pre-drop `Score_Hospital return days for pneumonia patients` for collinearity purposes :: NOTE MH updating below for heart attack
 ## Have to use an if/else switch because of variable differences between 2024 and 2024
 if ("Score_Percentage of healthcare personnel who completed COVID-19 primary vaccination series" %in% names(dataAnalyzeNoEncoding)) {
   dataAnalyzeNoEncoding <- dataAnalyzeNoEncoding %>% 
-    select(-`Score_Hospital return days for pneumonia patients`, 
+    select(-`Score_Hospital return days for heart attack patients`,  #Note: MH updated for heart attack patients
            -`Score_Intensive Care Unit Venous Thromboembolism Prophylaxis`, 
            -`Score_Percentage of healthcare personnel who completed COVID-19 primary vaccination series`)
 } else {
   dataAnalyzeNoEncoding <- dataAnalyzeNoEncoding %>% 
-    select(-`Score_Hospital return days for pneumonia patients`, 
+    select(-`Score_Hospital return days for heart attack patients`,  #Note: MH updated for heart attack patients
            -`Score_Intensive Care Unit Venous Thromboembolism Prophylaxis`)
 }
 
@@ -329,25 +330,27 @@ if ("Score_Percentage of healthcare personnel who completed COVID-19 primary vac
 ###############################################################
 ## Now, if planning to assess multiple conditions simultaneously,
 ## we need to aggregate across all fields:
-dataAnalyzeNoEncoding <- dataAnalyzeNoEncoding %>%
-    group_by(facilityId) %>%
-    summarize(across(
-        ## Summarize across all the columns
-        .cols = everything(),
-        ## If it's a numeric column, take the mean; otherwise, take the first()
-        ## on the categorical columns; but retains the REAL NAs (vs conversion)
-        ## to NaN
-        .fns = ~ { if (is.numeric(.)) {
-          if (all(is.na(.))) NA_real_ else mean(., na.rm = TRUE)
-          } else {
-            first(.)
-          }},
-        ## Retain column names
-        .names = "{.col}"), 
-        ## Ungroup
-        .groups = "drop") %>% 
-  ## Move our Facility IDs to rowname
-  column_to_rownames("facilityId") 
+
+##NOTE Commented this out since only assessing 1 condition
+# dataAnalyzeNoEncoding <- dataAnalyzeNoEncoding %>%
+#     group_by(facilityId) %>%
+#     summarize(across(
+#         ## Summarize across all the columns
+#         .cols = everything(),
+#         ## If it's a numeric column, take the mean; otherwise, take the first()
+#         ## on the categorical columns; but retains the REAL NAs (vs conversion)
+#         ## to NaN
+#         .fns = ~ { if (is.numeric(.)) {
+#           if (all(is.na(.))) NA_real_ else mean(., na.rm = TRUE)
+#           } else {
+#             first(.)
+#           }},
+#         ## Retain column names
+#         .names = "{.col}"), 
+#         ## Ungroup
+#         .groups = "drop") %>% 
+#   ## Move our Facility IDs to rowname
+#   column_to_rownames("facilityId") 
     
 ## Save file for students:
 save(dataAnalyzeNoEncoding, file = "FY2024_data_files/dataAnalyzeNoEncoding2024.Rdata")
