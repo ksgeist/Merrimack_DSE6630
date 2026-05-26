@@ -81,7 +81,11 @@ Adventure 1 was selected for this project. The analysis focuses on heart failure
 
 ```{r}
 ## Comment out if this is NOT your choice:
-HF_Ready <- read.csv("HF_Ready.csv")
+HF_Ready <- read.csv(
+  "HF_Ready_Updated.csv",
+  stringsAsFactors = FALSE,
+  check.names = FALSE
+)
 dat2Analyze <- HF_Ready
 ```
 
@@ -468,6 +472,7 @@ To explore these relationships, I will create another long-format dataset and us
 
 ```{r, echo = FALSE}
 
+
 longScore <- dat2Analyze %>%
 
   rename(
@@ -476,24 +481,58 @@ longScore <- dat2Analyze %>%
   ) %>%
 
   mutate(
+
     NatlComparisonHospitalDays = case_when(
       NatlComparisonHospitalDays == 2 ~ "Better",
       NatlComparisonHospitalDays == 1 ~ "Same",
       NatlComparisonHospitalDays == 0 ~ "Worse",
-      TRUE ~ NA_character_
+      TRUE ~ "Unknown"
     ),
 
     NatlComparisonHospitalDays =
       factor(
         NatlComparisonHospitalDays,
         levels = c("Better", "Same", "Worse", "Unknown")
+      ),
+
+    Emergency.department.volume =
+      as.numeric(case_when(
+        Emergency.department.volume == "very high" ~ "5",
+        Emergency.department.volume == "high" ~ "4",
+        Emergency.department.volume == "medium" ~ "3",
+        Emergency.department.volume == "low" ~ "2",
+        TRUE ~ NA_character_
+      )),
+
+    Healthcare.workers.given.influenza.vaccination =
+      as.numeric(
+        na_if(
+          Healthcare.workers.given.influenza.vaccination,
+          "Not Available"
+        )
+      ),
+
+    Left.before.being.seen =
+      as.numeric(
+        na_if(
+          Left.before.being.seen,
+          "Not Available"
+        )
+      ),
+
+    Average..median..time.patients.spent.in.the.emergency.department.before.leaving.from.the.visit.A.lower.number.of.minutes.is.better =
+      as.numeric(
+        na_if(
+          Average..median..time.patients.spent.in.the.emergency.department.before.leaving.from.the.visit.A.lower.number.of.minutes.is.better,
+          "Not Available"
+        )
       )
+
   ) %>%
 
   select(
     NatlComparisonHospitalDays,
     PredictedReadmissionRate,
-    Payment.for.heart.failure.patients,
     Death.rate.for.heart.failure.patients,
     MRSA.Bacteremia,
     Emergency.department.volume,
@@ -515,6 +554,7 @@ longScore <- dat2Analyze %>%
 
   mutate(
     Variable = case_when(
+
       Variable ==
         "Average..median..time.patients.spent.in.the.emergency.department.before.leaving.from.the.visit.A.lower.number.of.minutes.is.better"
         ~ "Median time (minutes) patients spent in ED",
@@ -522,10 +562,6 @@ longScore <- dat2Analyze %>%
       Variable ==
         "Healthcare.workers.given.influenza.vaccination"
         ~ "Healthcare workers vaccinated",
-
-      Variable ==
-        "Payment.for.heart.failure.patients"
-        ~ "Payment for HF patients",
 
       Variable ==
         "Death.rate.for.heart.failure.patients"
@@ -548,67 +584,138 @@ longScore <- dat2Analyze %>%
   )
 
 
+
+
 ```
 
 #### **Question 4**: [1 point]
 
 Change the __y-axis__ out for _each of the four readmission rates. `Predicted Readmission Rates` has been started for you. Re-run the chunk and compare the results. **FOR FULL CREDIT** you must leave the graph on the choice you feel most strongly about AND update the title of the graph with which of the four possible readmission rates you chose. Explain below why you chose this one. 
 
-> I selected Predicted Readmission Rate because it showed the clearest relationships with hospital performance metrics and the strongest separation between hospitals with better and worse post-readmission lengths of stay. In addition, it accounts for patient mix and hospital characteristics, making it a more meaningful measure for comparing hospital performance.
+> I selected Predicted Readmission Rate because it showed the clearest separation between hospital performance groups and the strongest relationships with the quality measures. Since it adjusts for differences in patient populations, it is a better measure for comparing hospitals than the other readmission rate options.
 
 **HINT 1**: What does higher medicare spending per patient tell you about the underlying population of a hospital?
 
 **HINT 2**: Venous thrombolisms and deep vein thromboses (DVTs) are often "sneakier" conditions that have "silent" symptoms until the patient is in crisis. What would having higher scores at providing prophylaxis for these conditions potentially suggest about a hospital's performance?
 
 
-```{r, fig.width=7, fig.height=8, echo = FALSE, message=FALSE, fig.cap="Figure 4. Readmission rate by hospital performance and readmitted patient LOS"}
-longScore %>%  
+```{r, fig.width=7, fig.height=8, echo = FALSE, message=FALSE, fig.cap="Figure 4. Predicted heart failure readmission rate by hospital performance and readmitted patient LOS"}
+
+longScore %>%
   ggplot(aes(y = PredictedReadmissionRate,
-           x = Value)) +
-    geom_point(alpha = 0.25) + 
-    geom_smooth(aes(fill = as.factor(NatlComparisonHospitalDays), color = as.factor(NatlComparisonHospitalDays)), 
-                method = "lm", 
-                se = T, 
-                show.legend = T) + 
-  labs(title = "Relationship of Predicted pneumonia-related hospital \nreadmissions to each performance metric",
-        x = "Rate or Score",
-        y = "Predicted Pneumonia-related Readmissions",
-        color = "Pneumonia-related Readmission Compared to National Average") +
-  scale_fill_manual(values = c("gold", "cadetblue", "maroon")) + 
-  scale_color_manual(values = c("gold", "cadetblue", "maroon"),
-                    labels = c("Better", "Same", "Worse")) + 
-  guides(fill = "none", color = guide_legend(override.aes = list(fill=NA))) +    ## To override the filled SE boxes from geom_smooth() in the legend
+             x = Value)) +
+  geom_point(alpha = 0.25) +
+  geom_smooth(
+    aes(
+      fill = as.factor(NatlComparisonHospitalDays),
+      color = as.factor(NatlComparisonHospitalDays)
+    ),
+    method = "lm",
+    se = TRUE,
+    show.legend = TRUE
+  ) +
+  labs(
+    title = "Relationship of Predicted Heart Failure Readmissions\n to Each Performance Metric",
+    x = "Rate or Score",
+    y = "Predicted Heart Failure Readmissions",
+    color = "HF Readmission Compared to National Average"
+  ) +
+  scale_fill_manual(
+    values = c("gold", "cadetblue", "maroon", "gray70")
+  ) +
+  scale_color_manual(
+    values = c("gold", "cadetblue", "maroon", "gray70"),
+    labels = c("Better", "Same", "Worse", "Unknown")
+  ) +
+  guides(
+    fill = "none",
+    color = guide_legend(override.aes = list(fill = NA))
+  ) +
   theme_minimal() +
-  theme(legend.position = "bottom",
-        strip.text = element_text(size=8),
-        legend.text = element_text(size = 8),
-        legend.title = element_text(size = 10),
-        title = element_text(size = 12, color = "maroon")) + 
-  facet_wrap(~Variable, 
-             scales = "free_x",
-             ncol = 2)
+  theme(
+    legend.position = "bottom",
+    strip.text = element_text(size = 8),
+    legend.text = element_text(size = 8),
+    legend.title = element_text(size = 10),
+    title = element_text(size = 12, color = "maroon")
+  ) +
+  facet_wrap(
+    ~Variable,
+    scales = "free_x",
+    ncol = 2
+  )
+
+
+
 ```
 
-**HINT 3**: Here's how I would interpret the __relationship between PREDICTED pneumonia readmissions and pneumonia death rates, looking at whether hospitals performed better, same, or worse in terms of length-of-stay after readmission__. What I notice immediately is a moderate slope for hospitals with worse readmitted lengths of stay (LOS) [maroon line] compared to same [blue line] and especially better [yellow line]. This relationship is negative, implying that as the pneumonia-related death rate increases, readmissions __goes down__. Oh! So what this implies is that hospitals with higher deaths from pneumonia tend to have lower readmissions - and this is especially true for the ones who are have longer (worse than average) readmitted patient stays. In other words - these hospitals are __ probably releasing their pneumonia patients too soon from their first hospitalization__, leading to higher readmissions, longer readmitted stays, and even higher pneumonia-related deaths! 
+##### HINT 3: Here's how I would interpret the relationship between PREDICTED heart failure readmissions and heart failure death rates, looking at whether hospitals performed better, the same, or worse in terms of length-of-stay after readmission. What I notice immediately is a moderate slope for hospitals with worse readmitted lengths of stay (LOS) [maroon line] compared to same [blue line] and especially better [yellow line]. This relationship is negative, implying that as the heart failure death rate increases, readmissions go down. This suggests that hospitals with higher heart failure death rates tend to have lower readmissions, especially those with longer-than-average readmitted patient stays. One possible explanation is that these hospitals may be discharging some heart failure patients too early during their initial hospitalization, leading to higher readmissions, longer stays when patients return, and poorer outcomes overall.
 
-### 2.5 What is the relationship of pneumonia-related hospital readmissions to the patient satisfaction metrics?
+####2.5 What is the relationship of heart failure-related hospital readmissions to the patient satisfaction metrics?
 
-Now let's do a similar analysis but for the `HcahpsLinear...` variables. The __HCAHPS (Hospital Consumer Assessment of Healthcare Providers and Systems)__ is a standardized survey that measures adult inpatient perceptions of hospital care. It's a national, publicly reported survey mandated by the Centers for Medicare & Medicaid Services (CMS). Because it focuses on aspects of hospital care that are important to patients, it is often used to improve patient satisfaction and hospital quality. 
+Now let's do a similar analysis but for the HcahpsLinear... variables. The HCAHPS (Hospital Consumer Assessment of Healthcare Providers and Systems) is a standardized survey that measures adult inpatient perceptions of hospital care. It is a nationally reported survey required by the Centers for Medicare & Medicaid Services (CMS). Because it focuses on aspects of care that are important to patients, it is commonly used to evaluate patient satisfaction and overall hospital quality.
 
 ```{r, echo = FALSE}
-longHCAHPS <- pneumoniaAnalyzeNoEncoding %>%
-  rename(NatlComparisonHospitalDays = `ComparedToNational_Hospital return days for pneumonia patients`) %>% 
-  select(contains(c("HcahpsLinear", "NatlComparisonHospitalDays", "readmission"))) %>% 
-  ## Flexible handling depending on which dataset students select; changes to better, same, worse
-  mutate(NatlComparisonHospitalDays = case_when(
-    (NatlComparisonHospitalDays == 1  | NatlComparisonHospitalDays == "Fewer Days Than Average per 100 Discharges") ~ "Better", 
-    (NatlComparisonHospitalDays == -1 | NatlComparisonHospitalDays == "More Days Than Average per 100 Discharges") ~ "Worse", 
-    (NatlComparisonHospitalDays == 0  | NatlComparisonHospitalDays == "Average Days per 100 Discharges") ~ "Same", 
-    .default = NA),
-  NatlComparisonHospitalDays = factor(NatlComparisonHospitalDays, levels = c("Better", "Same", "Worse", "Unknown"))) %>% 
-  pivot_longer(1:10, names_to = "Variable", values_to = "Value") %>% 
-  drop_na() %>% 
-  mutate(Variable = gsub("HcahpsLinearMeanValue_", "", Variable))
+
+
+longHCAHPS <- dat2Analyze %>%
+
+  rename(
+    NatlComparisonHospitalDays =
+      Hospital.return.days.for.heart.failure.patients
+  ) %>%
+
+  select(
+    NatlComparisonHospitalDays,
+    PredictedReadmissionRate,
+    Nurse.communication,
+    Doctor.communication,
+    Staff.responsiveness,
+    Communication.about.medicines,
+    Discharge.information,
+    Care.transition,
+    Cleanliness,
+    Quietness,
+    Overall.hospital.rating,
+    Recommend.hospital
+  ) %>%
+
+  mutate(
+    NatlComparisonHospitalDays = case_when(
+      NatlComparisonHospitalDays == 2 ~ "Better",
+      NatlComparisonHospitalDays == 1 ~ "Same",
+      NatlComparisonHospitalDays == 0 ~ "Worse",
+      TRUE ~ "Unknown"
+    ),
+
+    NatlComparisonHospitalDays =
+      factor(
+        NatlComparisonHospitalDays,
+        levels = c("Better", "Same", "Worse", "Unknown")
+      )
+  ) %>%
+
+  pivot_longer(
+    cols = c(
+      Nurse.communication,
+      Doctor.communication,
+      Staff.responsiveness,
+      Communication.about.medicines,
+      Discharge.information,
+      Care.transition,
+      Cleanliness,
+      Quietness,
+      Overall.hospital.rating,
+      Recommend.hospital
+    ),
+    names_to = "Variable",
+    values_to = "Value"
+  ) %>%
+
+  drop_na()
+
+
+  
 ```
 
 
@@ -620,44 +727,86 @@ Again, you task is to change the __y-axis__ out for _each of the four readmissio
 
 **HINT 1**: What does higher nurse and doctor communication mean for improved patient outcomes, including readmission?
 
-**HINT 2**: Why might cleanliness not have much effect here even though pneumonia is a communicable disease?
+**HINT 2**: Why might cleanliness have a weaker relationship with heart failure readmissions than communication, discharge planning, medication management, and care transitions?
 
-```{r, fig.width=7, fig.height=8, echo = FALSE, message=FALSE, fig.cap="Figure 5. Readmission rate by patient satisfaction and readmitted patient LOS"}
-longHCAHPS %>%  
-  ggplot(aes(y = ExpectedReadmissionRate,  ## <-- CHANGE THIS!
-             x = Value)) +
-    geom_point(alpha = 0.25) + 
-    geom_smooth(aes(fill = as.factor(NatlComparisonHospitalDays), color = as.factor(NatlComparisonHospitalDays)), 
-                method = "lm", 
-                se = T, 
-                show.legend = T) + 
-    ## CHANGE THE TITLE FOR FULL CREDIT!
-    labs(title = "Relationship of _ pneumonia-related hospital \nreadmissions to each patient satisfaction metric",
-        x = "Rate or Score",
-        y = "Predicted Pneumonia-related Readmissions",
-        color = "Pneumonia-related Readmission Compared to National Average") +
-  scale_fill_manual(values = c("gold", "cadetblue", "maroon")) + 
-  scale_color_manual(values = c("gold", "cadetblue", "maroon"),
-                    labels = c("Better", "Same", "Worse")) + 
-  guides(fill = "none", color = guide_legend(override.aes = list(fill=NA))) +    ## To override the filled SE boxes from geom_smooth() in the legend
-  theme_minimal() +
-  theme(legend.position = "bottom",
-        strip.text = element_text(size=8),
-        legend.text = element_text(size = 8),
-        legend.title = element_text(size = 10),
-        title = element_text(size = 12, color = "maroon")) + 
-  facet_wrap(~Variable, 
-             scales = "free_x",
-             ncol = 2)
+```{r, fig.width=7, fig.height=8, echo = FALSE, message=FALSE, fig.cap="Figure 5. Predicted Heart Failure Readmission rate by patient satisfaction and readmitted patient LOS"}
+
+
+longHCAHPS <- dat2Analyze %>%
+
+  rename(
+    NatlComparisonHospitalDays =
+      `Hospital return days for heart failure patients`
+  ) %>%
+
+  mutate(
+    NatlComparisonHospitalDays = case_when(
+      NatlComparisonHospitalDays == 2 ~ "Better",
+      NatlComparisonHospitalDays == 1 ~ "Same",
+      NatlComparisonHospitalDays == 0 ~ "Worse",
+      TRUE ~ "Unknown"
+    ),
+
+    NatlComparisonHospitalDays =
+      factor(
+        NatlComparisonHospitalDays,
+        levels = c("Better", "Same", "Worse", "Unknown")
+      ),
+
+    `Nurse communication` =
+      as.numeric(
+        na_if(`Nurse communication`, "Not Available")
+      ),
+
+    `Doctor communication` =
+      as.numeric(
+        na_if(`Doctor communication`, "Not Available")
+      ),
+
+    `Overall hospital rating` =
+      as.numeric(
+        na_if(`Overall hospital rating`, "Not Available")
+      ),
+
+    `Recommend hospital` =
+      as.numeric(
+        na_if(`Recommend hospital`, "Not Available")
+      )
+  ) %>%
+
+  select(
+    NatlComparisonHospitalDays,
+    PredictedReadmissionRate,
+    `Nurse communication`,
+    `Doctor communication`,
+    `Overall hospital rating`,
+    `Recommend hospital`
+  ) %>%
+
+  pivot_longer(
+    cols = c(
+      `Nurse communication`,
+      `Doctor communication`,
+      `Overall hospital rating`,
+      `Recommend hospital`
+    ),
+    names_to = "Variable",
+    values_to = "Value"
+  ) %>%
+
+  drop_na()
+  
+
+
 ```
 
-**HINT 3**: Here's how I would interpret the __relationship between PREDICTED pneumonia readmissions and overall hospital rating, looking at whether hospitals performed better, same, or worse in terms of length-of-stay after readmission__. What I notice immediately is a pretty substantial negative slope for hospitals with worse readmitted lengths of stay (LOS) [maroon line], moderate negative slope for hospitals with the same readmitted LOS [blue line], and slightly decreasing slope for hospitals with better readmitted LOS better [yellow line]. So what this implies is that hospitals with high ratings tend to have lower pneumonia-related readmissions, even among the hospitals with worse readmitted length-of-stays. This relationships is strongest when hospitals have longer LOS; maybe having a long readmission LOS stay **actually implies a form of quality**, like "Well, we got it wrong the first time, let's make darn sure we get it right the second?" But hospitals that were already getting it pretty right don't have as steep of slope because they were already doing well at readmissions to begin with, hence the almost flat line.
+**HINT 3**: Here's how I would interpret the relationship between PREDICTED heart failure readmissions and overall hospital rating, looking at whether hospitals performed better, same, or worse in terms of length-of-stay after readmission. What I notice immediately is a pretty substantial negative slope for hospitals with worse readmitted lengths of stay (LOS) [maroon line], a moderate negative slope for hospitals with the same readmitted LOS [blue line], and a slightly decreasing slope for hospitals with better readmitted LOS [yellow line]. This suggests that hospitals with higher overall ratings tend to have lower heart failure-related readmissions, even among hospitals with worse readmitted lengths of stay. The relationship is strongest for hospitals with longer readmission stays, which may indicate that hospitals with stronger patient satisfaction scores are better able to manage complex heart failure patients and reduce avoidable readmissions.
 
 
 #### **Question 6**: [2 points]
 What relationships do you find most compelling from these scatterplots and why? Also, name one outstanding question you have at this point, whether it is about the data, the data collection, or something more speculative.
 
-> The most interesting relationships were with doctor communication, nurse communication, communication about medicines, and overall hospital rating. Hospitals with better scores in these areas generally had lower predicted readmission rates, suggesting that good communication may help patients recover and avoid returning to the hospital. One question I still have is whether these relationships are due to communication itself or if higher-performing hospitals also have other advantages that reduce readmissions.
+> The most interesting relationships were doctor communication, nurse communication, communication about medicines, and overall hospital rating. Hospitals with higher scores in these areas tended to have lower predicted readmission rates. One question I still have is whether communication actually reduces readmissions or if these hospitals are just better overall.
 
 Although there is certainly more EDA we could do, we are going to wrap that up here for the sake of moving on - but, as always, I encourage you to think about or even explore what else you would like to know about your data that we did not do!
 
@@ -669,7 +818,7 @@ Going forward, I have selected `PredictedReadmissionRate` as our target. In a mo
 
 2. Perform experiments with our models to find the best predictive model since that is our ultimate goal. 
 
-However, given that we do not have the option or time for that, let me explain my choice. It's the **best balance** of distinguishing hospitals with better and worse readmitted hospital stays, while still providing an __adjusted, hospital-specific__ measure. Adjusted values will generally always be a better choice than the crude, even if our crude measure captures something interesting about the data, as it did here, or if it's easier for our stakholder to comprehend. Our crude measure, `observed_readmission_rate` did the __best job__ of recapitulating the readmitted hospital LOS (`ComparedToNational_Hospital return days for pneumonia patients`), but if that's really our focus, wouldn't it then be better to switch from a readmission rate to that as our target? Probably. 
+However, given that we do not have the option or time for that, let me explain my choice. It's the **best balance** of distinguishing hospitals with better and worse readmitted hospital stays, while still providing an __adjusted, hospital-specific__ measure. Adjusted values will generally always be a better choice than the crude, even if our crude measure captures something interesting about the data, as it did here, or if it's easier for our stakholder to comprehend. Our crude measure, observed_readmission_rate did the best job of recapitulating the readmitted hospital LOS (Hospital return days for heart failure patients), but if that's really our focus, wouldn't it then be better to switch from a readmission rate to that as our target? Probably. 
 
 If you still feel unsure about what is the best choice, you're not alone - so do I! This is where, because we are working with an __imagined stakeholder__, we must make the best decision we can given the question we defined in the Demo. I would defend my choice of `Predicted Readmission Rate` for three key reasons:
 
@@ -692,7 +841,7 @@ ANSWER: Yes, I agree with choosing PredictedReadmissionRate. It seemed to do the
 #### **Question 8**: [2 points]
 All studies have bias (introduced or systemic error) and limitations (failure to fully explain something). We could go more deeply into these concepts, but for now I want you to take a stab and just brainstorming either ways we might have bias OR the limitations of using this target variable. You do not need to answer both, but you're welcome to do so. You can read more about bias [here](https://www.ncbi.nlm.nih.gov/books/NBK574513/) or see some deeper explanations of limitations [here](https://www.aje.com/arc/how-to-write-limitations-of-the-study/). You do not need to write a lot; just 2-3 sentences. I am simply asking you to pause and reflect on our choices here before we proceed. 
 
-> One limitation of using PredictedReadmissionRate is that it is based partly on historical data and model adjustments, so it may not fully reflect a hospital's current performance. Another limitation is that there may be factors affecting readmissions, such as patient health, economic status (how much they make, rich/poor?), or access to follow-up care, that are not completely captured in the dataset.
+> One limitation of using PredictedReadmissionRate is that it is based partly on historical data and model adjustments, so it may not fully reflect a hospital's current performance. In addition, factors such as patient health status, socioeconomic conditions, and access to follow-up care may influence readmissions but are not fully captured in the dataset.
 
 
 # 3 Pre-processing and Feature Selection
@@ -712,22 +861,39 @@ Add your comments to the code as indicated to explain what I was doing at each o
 
 ```{r}
 dat2Analyze <- dat2Analyze %>% 
+ 
+
   ## Remove alternative target variables and sample size fields that will not be used in modeling
-  select(-ExpectedReadmissionRate, 
-         -ExcessReadmissionRatio,
-         -observed_readmission_rate, 
-         -contains(c("Sample_", "NumberOfPatients")),
-         -NumberSurveysCompleted) %>% 
+  select(
+    -ExpectedReadmissionRate,
+    -ExcessReadmissionRatio,
+    -observed_readmission_rate,
+    -contains(c("Sample_", "NumberOfPatients"))
+  ) %>% 
+
   ## Rename long variable names to shorter, more readable names
-  rename(`Median time (minutes) patients spent in ED` = 
-         `Score_Average (median) time patients spent in the emergency department before leaving from the visit A lower number of minutes is better`,
-         `Composite patient safety` = `Score_CMS Medicare PSI 90: Patient safety and adverse events composite`,
-         `ComparedToNational_Composite patient safety` = `ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`) %>% 
+  rename(
+    `Median time (minutes) patients spent in ED` =
+      `Average (median) time patients spent in the emergency department before leaving from the visit A lower number of minutes is better`,
+
+    `Composite patient safety` =
+      `CMS Medicare PSI 90: Patient safety and adverse events composite`
+  ) %>% 
+
   ## Move the target variable to the first column of the dataset
-  select(PredictedReadmissionRate, everything())
+  select(
+    PredictedReadmissionRate,
+    everything()
+  )
 
 ## Remove common prefixes from column names to make them easier to read
-colnames(dat2Analyze) <- gsub('Score_|HcahpsLinearMeanValue_|_Payment', '', colnames(dat2Analyze))
+colnames(dat2Analyze) <- gsub(
+  "Score_|HcahpsLinearMeanValue_|_Payment",
+  "",
+  colnames(dat2Analyze)
+)
+  
+  
 ```
 
 
@@ -776,6 +942,7 @@ We are going to deal with imputation in a rather quick and elegant way that requ
 #### **Question 10**: [1 point]
 Write some code that will quickly tally the number of columns in the dataset that contain missing values. You will find `colSums()` and `is.na()` functions likely useful here. **What percent of the features have at least some level of missingness?**
 
+
 ```{r}
 
 # Count columns that contain at least one missing value
@@ -794,11 +961,11 @@ percent_missing
 
 ```
 
-> All 31 of the features contained at least one missing value, meaning 100% of the features had some level of missingness. This suggests that handling missing data through imputation will be an important step before building predictive models.
+>  There are 29 columns with at least one missing value out of 36 total columns. This means that approximately 80.6% of the features contain some level of missingness. Because missing values are present in most of the variables, an imputation strategy will be important before building predictive models.
 
 **Which column(s) are not missing any data?**
 
-> None of the columns are complete. Every feature contains at least one missing value.
+> The following columns contain no missing values: FacilityId, NumberOfDischarges, ExcessReadmissionRatio, PredictedReadmissionRate, ExpectedReadmissionRate, NumberOfReadmissions, and observed_readmission_rate.
 
 **How many complete observations do we have in the dataset?** You may find `nrow()` with `complete.cases()` or `drop_na()` useful!
 ```{r}
@@ -807,20 +974,20 @@ sum(complete.cases(dat2Analyze))
 
 
 ```
-There are 644 complete observations in the dataset. These are hospitals that have data available for every feature without any missing values.
+There are 1636 complete observations in the dataset. These are hospitals that have data available for every feature without any missing values.
 
 
 ### 3.2.1 Use the `md.pairs()` function from the `mice` package to assess the extent of missing values before imputing. 
 
 When we are missing a lot of data, as we are here, it can sometimes be useful to predetermine whether the _patterns of missing correlate with our target_. Why? We care if missing values correlate with the target because this may indicate that the missingness itself carries information. Thus, ignoring it could lead to biased models or low predictive power!
 
-In fact, missingness can itself __become a predictor__. If a missing value is associated with the outcome, it may carry predictive signal. For example, in our data, hospitals with high rates of missingness in `Left before being seen` highly associated with pneumonia readmission might indicate a worrying pattern. Perhaps hospitals are negligently failing to report how many of their patients leave without being seen because of larger, systemic issues that ALSO happen to impact overall quality and patient care. Thus, missingness could itself become a predictor! 
+In fact, missingness can itself __become a predictor__. If a missing value is associated with the outcome, it may carry predictive signal. For example, in our data, hospitals with high rates of missingness in Left before being seen that are highly associated with heart failure readmission might indicate a worrying pattern. Perhaps hospitals are negligently failing to report how many of their patients leave without being seen because of larger, systemic issues that ALSO happen to impact overall quality and patient care. Thus, missingness could itself become a predictor! 
 
 To do, I will leverage the `md.pairs()` function from the `mice` package which calculates the pairwise correlations of missingness between variables and allows us to visualize those patterns using a clustered heatmap. When I do this, I will drop `State` from the matrix because it will create errors if I retain it. (**Why?**)
 
 ```{r}
 ## Drop State and analyze the pairwise missingness using the mice package
-miceMatrix <- dat2Analyze %>% select(-State) %>% md.pairs()
+miceMatrix <- md.pairs(dat2Analyze)
 ```
 
 What `md.mice()` does is create two pairwise correlation matrices, `mr` and `mm`, where:
@@ -855,7 +1022,7 @@ Similarly, `miceMatrix$mm[i, j]` gives us the number of cases where both variabl
 #### **Question 11A**: [0.5 points]
 Explain what you think the number in cell $[6,1]$ means. Out of all the observations in the dataset, does this feel like a high degree of co-missingness?
 
-> The value in cell [6,1] means that 1,788 hospitals were missing both variables at the same time. Since there are 4,816 hospitals in the dataset, that's about 37% of the observations. That seems pretty high to me and suggests the missing values in these variables may be connected instead of happening completely by chance.
+> The value in cell [6,1] is 0, which means there were no hospitals where both of those variables were missing at the same time. Out of the 2,305 hospitals in the dataset, this does not represent a high degree of co-missingness. In fact, it suggests there is no overlap in the missing values between those two variables.
 
 Lastly, we can calculate a **proportion of missingness vs. response** between any two variables $i$ and $j$ such that:
 
@@ -866,20 +1033,33 @@ In non-mathy speak, it's the fraction of the times that variable $j$ is observed
  - If this ratio is close to 1, $j$ is nearly always available when $i$ is missing, so $j$ might be useful for imputing $i$.
  - If this ratio is close to 0, $j$ is usually missing when $i$ is missing, so it’s not helpful for imputing $i$. You can also use this to tell you about **patterns of missingness with regard to your target variable when you target is** $i$. 
 
-```{r, fig.cap="Figure 5. Correlation between Missing and Response", echo = FALSE, fig.width = 9, fig.height = 9}
+```{r, fig.cap="Figure 5. Correlation between Missing and Response", echo = FALSE, ```{r, fig.cap="Figure 5. Correlation between Missing and Response", echo = FALSE, fig.width = 9, fig.height = 9}
+
 ## Calculate proportion from pairwise pattern of missingness
-p <- as.matrix(miceMatrix$mr/(miceMatrix$mr+miceMatrix$mm))
+p <- as.matrix(
+  miceMatrix$mr / (miceMatrix$mr + miceMatrix$mm)
+)
+
+## Replace NaN, NA, and Inf values so heatmap can be generated
+p[is.nan(p)] <- 0
+p[is.na(p)] <- 0
+p[is.infinite(p)] <- 0
 
 ## Set a color palette
-prettyPurples <- colorRampPalette(brewer.pal(8, "PuRd"))(8)
+prettyPurples <- colorRampPalette(
+  brewer.pal(8, "PuRd")
+)(8)
 
 ## Make a heatmap
-heatmap(p, 
-        col = prettyPurples, 
-        cexRow = 0.5, 
-        cexCol = 0.5, 
-        margins = c(13, 13), 
-        Colv = NA)
+heatmap(
+  p,
+  col = prettyPurples,
+  cexRow = 0.5,
+  cexCol = 0.5,
+  margins = c(13, 13),
+  Colv = NA
+)
+
 ```
 
 It may feel a little counterintuitive, but here __darker colors__ indicate a higher correlation between missingness and response (proportions nearer to 1). In other words, these are the variables that are going to be more informative during imputation for a given variable. 
