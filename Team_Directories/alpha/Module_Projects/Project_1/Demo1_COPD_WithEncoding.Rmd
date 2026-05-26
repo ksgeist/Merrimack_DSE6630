@@ -1,0 +1,883 @@
+---
+title: "Project 1: Biomedical & Clinical Informatics"
+subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
+author: "Katherine S. Geist, PhD"
+date: "20 May 2025"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: flatly
+    fig_crop: no
+bibliography: references.bib
+nocite: '@*'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      error = FALSE,
+                      cache = TRUE,
+                      cache.comments = TRUE,
+                      size = 13)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
+# Turn off scientific notation
+options(scipen=999)
+
+# Set seed
+set.seed(98501)
+
+# Clean, set up, and load
+pacman::p_unload(pacman::p_loaded(), character.only = TRUE)
+rm(list = ls(all = TRUE))
+
+pacman::p_load(tidyverse,
+               janitor,
+               naniar,
+               stringr,
+               ggplot2, 
+               kableExtra,
+               RColorBrewer,
+               gridExtra,
+               gtsummary,
+               prcomp,
+               factoextra,
+               ggrepel,
+               caret,
+               missForest,
+               mice,
+               car,
+               stargazer,
+               glmnet,
+               forcats,
+               snakecase
+)
+```
+
+# Introduction
+
+This document follows the exact Demo 1 pipeline to produce a fully encoded COPD
+analysis dataset (`copdAnalyzeFullyEncoded`), ready to load into the Adventure 1
+Part 2 modeling Rmd. The four condition-specific changes from the pneumonia demo
+are flagged with `## COPD CHANGE` comments. All other code is structurally
+identical to Demo 1.
+
+---
+
+```{r libraries}
+library(tidyverse)
+library(janitor)
+library(lubridate)
+library(readr)
+```
+
+# Data
+
+```{r filepath}
+## !! Adjust this path to your local machine !!
+filepath <- "C:\\Users\\alica\\Downloads\\hospitals_current_data_FY2024\\"
+```
+
+## Read in the hospital-level CSV files
+
+**Question 1** [1 point]: A comment has been added to each line of code.
+
+```{r read-data}
+# Creates a list of all files in the folder whose names contain "Hospital.csv"
+files <- list.files(path = filepath, pattern = "Hospital.csv")
+
+# Starts a loop through each file in the files list one at a time
+for(f in 1:length(files)) {
+
+  # Reads the current csv file by combining the folder path and file name
+  dat <- read_csv(paste0(filepath, files[f]),
+                  show_col_types = FALSE,
+                  # HOT FIX: treat empty, NA, N/A, NULL, and . as missing values
+                  na = c("", "NA", "N/A", "NULL", ".")) %>%
+    # Cleans column names into upper camel case format
+    clean_names(case = "upper_camel") %>%
+    # HOT FIX: converts character columns to numeric where possible
+    type_convert() %>%
+    # HOT FIX: converts any date columns from month/day/year format
+    mutate(across(contains("Date"), ~ mdy(.)))
+
+  # Removes "Hospital.csv" from the file name so the dataframe name is the remainder
+  filename <- gsub(".Hospital\\.csv", "", files[f])
+
+  # Creates a new dataframe using the cleaned file name and stores dat inside it
+  assign(filename, dat)
+}
+
+# Cleans the file names by removing "Hospital.csv" and converts into a dataframe
+files <- gsub(".Hospital\\.csv", "", files) %>% data.frame()
+
+# Renames the single column to "File Name"
+names(files) <- "File Name"
+```
+
+---
+
+# Explore the Raw Data
+
+```{r head-hcahps}
+head(HCAHPS)
+```
+
+```{r head-readmissions}
+head(FY_2024_Hospital_Readmissions_Reduction_Program)
+```
+
+**Question 2** [1 point]: What do you notice about the format / structure of the data?
+
+> ##The data is in **long format** each row represents one measure for one hospital rather than one complete hospital-level observation. The same `FacilityId` appears multiple times, once per condition tracked. This means the dataset has many more rows than unique hospitals, and it needs to be pivoted wider before it can be used for analysis or modeling.
+
+```{r glimpse-readmissions}
+glimpse(FY_2024_Hospital_Readmissions_Reduction_Program)
+```
+
+**Question 3** [1 point]: What do you notice about numeric variables like `NumberOfReadmissions`?
+
+```{r check-class}
+sapply(FY_2024_Hospital_Readmissions_Reduction_Program, class)
+```
+
+> ##`NumberOfReadmissions` is stored as character type even though it should be numeric. This is because the column contains the text string `"Too Few to Report"`, which forces R to read the entire column as character. We need to handle these entries before converting to numeric.
+
+---
+
+# Clean the Readmissions Dataset
+
+**Question 5** [1 point]: What specific issue exists in `NumberOfReadmissions` and why does it exist?
+
+```{r unique-readmissions}
+unique(FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions)
+```
+
+> ##CMS suppresses counts below a minimum patient threshold (typically around 5–11 cases) to protect patient privacy and prevent publication of statistically unreliable rates. The suppression text `"Too Few to Report"` coerces the entire column to character type.
+
+**Question 6** [1 point]: Use `gsub()` to replace the problematic text.
+
+```{r fix-gsub}
+# Updating the dataframe by substituting "Too Few to Report" with "5"
+FY_2024_Hospital_Readmissions_Reduction_Program <-
+  FY_2024_Hospital_Readmissions_Reduction_Program %>%
+  mutate(NumberOfReadmissions = gsub(
+    "Too Few to Report",
+    "5",
+    NumberOfReadmissions
+  ))
+```
+
+**Question 7** [1 point]: Why replace with `5` rather than `0` or `NA`?
+
+> ##Using `5` is a conservative floor estimate. CMS suppresses values below its minimum threshold, so we know at least some readmissions occurred. Using `0` would falsely represent the hospital as having no readmissions. Using `NA` would cause these rows to be dropped when we later filter out missing target values, unnecessarily discarding real hospitals from the analysis.
+
+**Question 8** [1 point]: What would replacing with a random integer from 1–10 do? Would `gsub()` work?
+
+> ##A random integer introduces natural variation rather than a fixed constant, better representing the unknown true value within the suppressed range. However, `gsub()` applies a single fixed string substitution — it cannot generate a different random number for each individual match. We need `gregexpr()` and `regmatches()` combined with `lapply()` to loop over every match and assign a distinct random draw to each occurrence.
+
+**Question 9** [3 points]: Replace the text with a randomly sampled integer from 1–10.
+
+```{r fix-random}
+# Makes the random numbers reproducible
+set.seed(123)
+
+# Find every occurrence of "Too Few to Report" in the NumberOfReadmissions column
+matches <- gregexpr(
+  "Too Few to Report",
+  FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions
+)
+
+# Replace each matched text with a randomly sampled integer from 1 to 10
+regmatches(
+  FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions,
+  matches
+  # Loops over each matched text
+) <- lapply(
+  regmatches(
+    FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions,
+    matches
+  ),
+  function(x) sample(1:10, length(x), replace = TRUE)
+)
+```
+
+**Question 10** [1 point]: Fix the aberrant character columns by converting to numeric using `mutate_at()`.
+
+```{r convert-numeric}
+FY_2024_Hospital_Readmissions_Reduction_Program <-
+  FY_2024_Hospital_Readmissions_Reduction_Program %>%
+  # Modify columns 5 and 7–10 from character to numeric
+  mutate_at(vars(5, 7:10), as.numeric)
+
+# Check
+glimpse(FY_2024_Hospital_Readmissions_Reduction_Program)
+```
+
+## Strip MeasureName prefix/suffix
+
+```{r clean-measure-names}
+FY_2024_Hospital_Readmissions_Reduction_Program <-
+  FY_2024_Hospital_Readmissions_Reduction_Program %>%
+  mutate(MeasureName = gsub("READM-30-", "", MeasureName)) %>%
+  mutate(MeasureName = gsub("-HRRP",     "", MeasureName))
+```
+
+
+**Question 11** [1 point]: Investigate `pivot_wider()`. Try pivoting the readmissions dataset wider and confirm with `dim()`.
+
+```{r pivot-wider-demo}
+# Create a new wide dataframe from the cleaned readmissions dataset
+wideDF <- FY_2024_Hospital_Readmissions_Reduction_Program %>%
+
+  # Change from long format to wide format
+  pivot_wider(
+
+    # Use values in MeasureName as the new column names
+    names_from = MeasureName,
+
+    # Use readmission-related variables as the values
+    values_from = c(
+      NumberOfDischarges,
+      ExcessReadmissionRatio,
+      PredictedReadmissionRate,
+      ExpectedReadmissionRate,
+      NumberOfReadmissions
+    )
+  )
+
+# Check dimensions of the new wide dataframe
+dim(wideDF)
+## Expected: [1] 6875   36
+```
+
+## Filter for COPD
+
+```{r filter-copd}
+## COPD CHANGE: filter for "COPD" instead of "PN"
+readmissionsClean <-
+  FY_2024_Hospital_Readmissions_Reduction_Program %>%
+  filter(MeasureName == "COPD")
+
+dim(readmissionsClean)
+## Expected: [1] 3129   12
+```
+
+---
+
+# Prepare Supporting Dataframes
+
+```{r payment-only}
+paymentOnly <- Payment_and_Value_of_Care %>%
+  select(FacilityId, PaymentMeasureName, PaymentCategory, Payment) %>%
+  mutate(Payment = gsub("\\$", "", Payment)) %>%  # Remove dollar sign
+  mutate(Payment = gsub("\\,",  "", Payment)) %>% # Remove comma
+  rename(MeasureName = PaymentMeasureName)         # Make consistent with other tables
+
+valueOnly <- Payment_and_Value_of_Care %>%
+  select(FacilityId, ValueOfCareDisplayName, ValueOfCareCategory) %>%
+  rename(MeasureName = ValueOfCareDisplayName)     # Make consistent with other tables
+```
+
+```{r clean-hcahps}
+HCAHPS <- HCAHPS %>%
+  select(-HcahpsMeasureId, -PatientSurveyStarRatingFootnote,
+         -HcahpsAnswerPercentFootnote, -NumberOfCompletedSurveysFootnote,
+         -SurveyResponseRatePercentFootnote, -HcahpsAnswerDescription,
+         -PatientSurveyStarRating) %>%      ## Drop columns we don't need
+  rename(MeasureName = HcahpsQuestion) %>%  ## Make a consistent MeasureName column
+  mutate(MeasureName = gsub(" - linear mean score", "", MeasureName))
+  ## Remove the phrase we don't want from measure names
+```
+
+```{r hospital-info}
+hospitalInfo <- Payment_and_Value_of_Care %>%
+  ## Capture hospital-level identifiers once here; they are dropped elsewhere
+  select(FacilityId, FacilityName, Address, CityTown,
+         State, ZipCode, CountyParish, TelephoneNumber)
+```
+
+---
+
+# Build the Merged COPD Dataset
+
+```{r dat-list}
+datList <- list(
+  Healthcare_Associated_Infections,
+  paymentOnly,
+  Outpatient_Imaging_Efficiency,
+  Complications_and_Deaths,
+  Medicare_Hospital_Spending_Per_Patient,
+  Timely_and_Effective_Care,
+  Unplanned_Hospital_Visits,
+  HCAHPS
+)
+```
+
+```{r filter-list}
+## COPD CHANGES (3 strings updated from the pneumonia demo):
+##   "Payment for COPD patients"              (was "Payment for pneumonia patients")
+##   "Death rate for COPD patients"           (was "Death rate for pneumonia patients")
+##   "Hospital return days for COPD patients" (was "Hospital return days for pneumonia patients")
+filterList <- list(
+  "MRSA Bacteremia",
+
+  ## COPD CHANGE
+  "Payment for COPD patients",
+
+  "Abdomen CT Use of Contrast Material",
+
+  c(## COPD CHANGE
+    "Death rate for COPD patients",
+    "Perioperative pulmonary embolism or deep vein thrombosis rate",
+    "CMS Medicare PSI 90: Patient safety and adverse events composite",
+    "Postoperative respiratory failure rate"),
+
+  "Medicare spending per patient",
+
+  c("Healthcare workers given influenza vaccination",
+    "Percentage of healthcare personnel who completed COVID-19 primary vaccination series",
+    "Average (median) time patients spent in the emergency department before leaving from the visit A lower number of minutes is better",
+    "Left before being seen",
+    "Venous Thromboembolism Prophylaxis",
+    "Intensive Care Unit Venous Thromboembolism Prophylaxis",
+    "Emergency department volume"),
+
+  ## COPD CHANGE
+  "Hospital return days for COPD patients",
+
+  c("Nurse communication",
+    "Doctor communication",
+    "Staff responsiveness",
+    "Communication about medicines",
+    "Discharge information",
+    "Care transition",
+    "Cleanliness",
+    "Quietness",
+    "Overall hospital rating",
+    "Recommend hospital")
+)
+```
+
+**Question 12** [5 points]: Write the `tidyNjoin()` function.
+
+```{r tidy-n-join}
+# Function to clean, filter, reshape, and join multiple hospital datasets
+tidyNjoin <- function(datList, filterList, hospitalInfo) {
+
+  # Create an empty list to store each cleaned/wide dataset
+  cleanedList <- list()
+
+  # Loop through each dataframe in datList
+  for(i in 1:length(datList)) {
+
+    # Pull out one dataframe from the list
+    tempDF <- datList[[i]]
+
+    # Drop columns not needed for joining or analysis
+    # any_of() prevents errors if a column doesn't exist in a given dataframe
+    tempDF <- tempDF %>%
+      select(-any_of(c(
+        "StartDate", "EndDate", "Footnote", "MeasureId",
+        "FacilityName", "Address", "CityTown", "State",
+        "ZipCode", "CountyParish", "TelephoneNumber"
+      )))
+
+    # Keep only the measure(s) listed in the matching filterList entry
+    tempDF <- tempDF %>%
+      filter(MeasureName %in% filterList[[i]])
+
+    # Remove duplicate rows before pivoting
+    tempDF <- tempDF %>%
+      distinct()
+
+    # Pivot wider so MeasureName values become column names
+    tempDF <- tempDF %>%
+      pivot_wider(
+        names_from  = MeasureName,
+        values_from = -c(FacilityId, MeasureName)
+      )
+
+    # Store the cleaned and widened dataset
+    cleanedList[[i]] <- tempDF
+  }
+
+  # Join all cleaned datasets together on FacilityId
+  mergedDF <- reduce(cleanedList, full_join, by = "FacilityId")
+
+  # Join the merged dataset to hospitalInfo so hospital details are included once
+  mergedDF <- hospitalInfo %>%
+    full_join(mergedDF, by = "FacilityId")
+
+  ## COPD CHANGE: readmissionsClean is now the COPD-filtered dataset
+  mergedDF <- readmissionsClean %>%
+    full_join(mergedDF, by = "FacilityId")
+
+  # Remove duplicate rows from the final merged dataset
+  mergedDF <- mergedDF %>%
+    distinct()
+
+  return(mergedDF)
+}
+
+## Build the merged COPD dataset
+copdFull <- tidyNjoin(datList, filterList, hospitalInfo)
+
+dim(copdFull)
+## Expected: [1] 4816  103
+```
+
+
+**Question 13** [1 point]: Why did we work through this function?
+
+> ##We worked through this function because in Adventure 1 we need to re-run the same full pipeline for a different condition (COPD). By changing just four strings in `filterList` and one reference to `readmissionsClean`, the entire cleaning, filtering, reshaping, and joining pipeline runs on COPD with no structural changes. This teaches us to build reusable, generalizable data pipelines — a core skill for any clinical informatics project where we need to swap conditions, years, or data sources.
+
+---
+
+# Feature Selection (Culling Features)
+
+**Question 14** [1 point]: Drop `LowerEstimate`, `HigherEstimate`, `Denominator`, `HcahpsAnswerPercent`, and the facility text columns.
+
+```{r drop-estimates}
+copdFull <- copdFull %>%
+  select(
+    -contains("LowerEstimate"),
+    -contains("HigherEstimate"),
+    -contains("Denominator"),
+    -contains("HcahpsAnswerPercent")
+  )
+
+dim(copdFull)
+## Expected: [1] 4816   81
+```
+
+```{r drop-facility-text}
+## Drop facility-level text columns and row-level metadata not needed for modeling.
+## NOTE: The join produces FacilityName.x / FacilityName.y and State.x / State.y
+## because readmissionsClean also contains those columns. We keep FacilityName.y
+## and State.y (from hospitalInfo), drop the .x duplicates, then drop FacilityName
+## itself (not a predictor). We use any_of() so this won't error if a column
+## is already absent.
+copdFull <- copdFull %>%
+  ## Keep .y versions (hospitalInfo), rename them, drop .x duplicates
+  rename(
+    FacilityName = FacilityName.y,
+    State        = State.y
+  ) %>%
+  select(
+    -FacilityName.x,
+    -State.x,
+    ## Drop facility text columns not used as predictors
+    -FacilityName,
+    -TelephoneNumber,
+    -Address,
+    -CityTown,
+    ## Drop row-level metadata
+    -any_of(c("MeasureName", "StartDate", "EndDate", "Footnote"))
+  )
+
+dim(copdFull)
+## Expected: [1] 4816   74
+```
+
+```{r glimpse-copd-full}
+glimpse(copdFull)
+```
+
+---
+
+# Encoding
+
+## Mystery encoding!
+
+**Question 15** [1 point]: What kind of encoding should we perform on the `ComparedToNational_` columns? Why?
+
+> ##We should use **ordinal encoding** on the `ComparedToNational_` columns because these categories have a clear natural order: "Worse" < "No Different" < "Better". Since they represent ranked performance levels rather than completely separate unordered groups, ordinal encoding — assigning numeric values that preserve that order (e.g., Worse = 0, No Different = 1, Better = 2) — is the appropriate choice. One-hot encoding would discard the ordering information and needlessly create extra columns.
+
+**Question 16** [1 point]: What other column also needs this kind of encoding?
+
+> ##The `Score_Emergency department volume` column also needs ordinal encoding. It uses ordered text categories ("low", "medium", "high", "very high") that must be converted to an ordered numeric scale. The `PaymentCategory` column would also need encoding in the pneumonia version, but for COPD the payment dataset does not include a COPD-specific payment measure, so that column is absent from our merged dataset.
+
+```{r glimpse-compared-col}
+## Check one of the ComparedToNational_ columns to see what we're working with
+glimpse(copdFull$`ComparedToNational_Death rate for COPD patients`)
+```
+
+**Question 17** [3 points]: Encode the `ComparedToNational_` columns using ordinal encoding.
+
+```{r ordinal-encoding-test}
+## Create a temp dataset so we can test encoding without damaging copdFull
+## That way, we don't have to keep reloading the original data if we make mistakes!
+temp_copd <- copdFull
+
+## Find all columns that start with ComparedToNational_
+cols2encode <- names(temp_copd)[startsWith(names(temp_copd), "ComparedToNational_")]
+
+## Check which columns we are about to encode
+cols2encode
+
+## Encode all ComparedToNational_ columns in the temporary dataframe
+temp_copd <- temp_copd %>%
+  mutate(across(
+    all_of(cols2encode),
+    ~ case_when(
+      grepl("Worse|More Days",           ., ignore.case = TRUE) ~ 0,
+      grepl("No Different|Average Days", ., ignore.case = TRUE) ~ 1,
+      grepl("Better|Fewer Days",         ., ignore.case = TRUE) ~ 2,
+      TRUE ~ NA_real_
+    )
+  ))
+
+## Check the encoded values — should see only 0, 1, 2, and NA
+lapply(temp_copd[cols2encode], unique)
+```
+
+```{r apply-ordinal-encoding}
+## Encoding looks correct — now apply it directly to copdFull
+copdFull <- copdFull %>%
+  mutate(across(
+    all_of(cols2encode),
+    ~ case_when(
+      grepl("Worse|More Days",           ., ignore.case = TRUE) ~ 0,
+      grepl("No Different|Average Days", ., ignore.case = TRUE) ~ 1,
+      grepl("Better|Fewer Days",         ., ignore.case = TRUE) ~ 2,
+      TRUE ~ NA_real_
+    )
+  ))
+```
+
+
+## Encode `Score_Emergency department volume`
+
+```{r encode-ed-volume}
+## Score_Emergency department volume uses ordered text categories and needs
+## ordinal encoding — matching the demo's encodeList pattern
+## "Score_Emergency department volume"
+
+## Check what unique values are present in your data
+unique(copdFull$`Score_Emergency department volume`)
+## Confirmed values: "high", "low", "medium", "very high", "Not Available", NA
+
+## Encode: low = 1, medium = 2, high = 3, very high = 4, Not Available → NA
+copdFull <- copdFull %>%
+  mutate(`Score_Emergency department volume` = case_when(
+    grepl("very high", `Score_Emergency department volume`, ignore.case = TRUE) ~ 4,
+    grepl("^high$",    `Score_Emergency department volume`, ignore.case = TRUE) ~ 3,
+    grepl("medium",    `Score_Emergency department volume`, ignore.case = TRUE) ~ 2,
+    grepl("low",       `Score_Emergency department volume`, ignore.case = TRUE) ~ 1,
+    TRUE ~ NA_real_
+  ))
+
+## Confirm: should now see 1, 2, 3, 4, and NA only
+unique(copdFull$`Score_Emergency department volume`)
+```
+
+---
+
+## Frequency encoding State and County
+
+**Question 18** [1 point]: Go through the frequency encoding code chunk and comment each line.
+
+```{r freq-encoding}
+## Identify the two geographic categorical columns to frequency encode
+## Frequency encoding preserves geographic information as a numeric count
+cols2encode_freq <- c("State", "CountyParish")
+
+## Create a temp dataset containing only the columns we want to encode
+## This protects the original dataset in case we need to go back
+temp <- copdFull[, names(copdFull) %in% cols2encode_freq]
+
+## Create a function that replaces each category in a column with its frequency count
+add_freq <- function(data, column_name) {
+
+  ## Count how many times each category appears, including missing values
+  frequency_map <- table(data[[column_name]], useNA = "always")
+
+  ## Replace each original category with its matching frequency count
+  data[[column_name]] <- frequency_map[match(data[[column_name]],
+                                             names(frequency_map))]
+  ## Return the updated dataset
+  return(data)
+}
+
+## Apply the frequency encoding function to each column in the temp dataset
+for (col in names(temp)) {
+  temp <- add_freq(temp, col)
+}
+
+## Copy the encoded State and CountyParish columns back into copdFull
+for (c in 1:length(cols2encode_freq)) {
+  copdFull[, cols2encode_freq[c]] <- temp[, cols2encode_freq[c]]
+}
+```
+
+**Question 19** [1 point]: Are we justified in keeping `State` and `CountyParish`? Write code to answer.
+
+```{r check-state-county}
+## Check uniqueness after frequency encoding
+length(unique(copdFull$State))
+length(unique(copdFull$CountyParish))
+
+## Investigate the duplicate structure
+table(copdFull$State)
+table(copdFull$CountyParish)
+```
+
+> ##We are justified in keeping `State` but not `CountyParish`. `State` originally had ~57 unique values (US states, DC, territories) and after frequency encoding retains ~50 unique value. Most geographic information is preserved with low duplication. `CountyParish`, by contrast, originally had ~1,549 unique county values that collapse to only ~36 unique frequency values after encoding. This extreme duplication means hundreds of different counties share the same encoded value, losing nearly all geographic specificity. The feature becomes potentially misleading for modeling, so we drop it which is consistent with the pneumonia demo.
+
+```{r drop-county}
+## Remove the CountyParish column — too heavily duplicated after encoding
+copdFull <- copdFull %>%
+  select(-CountyParish)
+
+## Check
+glimpse(copdFull)
+```
+
+---
+
+# Finishing Touches: Build `copdAnalyze`
+
+## 1. Drop Condition_ and Sample_ columns — keep only Score_ values
+
+```{r drop-condition-sample}
+## The Timely_and_Effective_Care join produced three column types per measure:
+##   Condition_ = text category label (not needed)
+##   Score_     = the actual numeric score we want
+##   Sample_    = sample size metadata (not needed for modeling)
+## We only keep the numeric Score_ values.
+copdFull <- copdFull %>%
+  select(-contains("Condition_"),
+         -contains("Sample_"))
+
+dim(copdFull)
+```
+
+## 2. Ensure every feature is numeric
+
+```{r convert-to-numeric}
+## The remaining Score_ columns (e.g. Score_MRSA Bacteremia, Score_Death rate...) and
+## HcahpsLinearMeanValue_ columns are still character type. Convert all of them.
+## suppressWarnings() silences "NAs introduced by coercion"is expected
+## for any Score_ column that contains "Not Available" text.
+copdFull <- copdFull %>%
+  mutate(across(where(is.character), ~ suppressWarnings(as.numeric(.))))
+```
+
+## 3. Drop ZipCode — meaningless as a numeric predictor
+
+```{r drop-zipcode}
+## ZipCode is a 5-digit postal code stored as character. After as.numeric()
+## it becomes a raw number (e.g. 36301) with no mathematical meaning.
+## Drop it to avoid introducing spurious signal.
+copdFull <- copdFull %>%
+  select(-ZipCode)
+
+dim(copdFull)
+```
+
+## 4. Move FacilityId to rownames
+```{r}
+## Deduplicate on FacilityId before moving to rownames.
+## The full_join can create multiple rows per hospital when supporting
+## tables have more than one row per FacilityId (e.g. list-columns from
+## pivot_wider). Keeping the first occurrence per FacilityId is safe here
+## because all measure columns have already been pivoted wide.
+## Drop rows where FacilityId is NA, deduplicate, then move to rownames
+
+copdFull <- copdFull %>%
+  rownames_to_column("FacilityId")
+
+rownames(copdFull) <- NULL
+
+copdFull <- copdFull %>%
+  filter(!is.na(FacilityId)) %>%
+  group_by(FacilityId) %>%
+  slice(1) %>%
+  ungroup() %>%
+  column_to_rownames("FacilityId")
+```
+
+## 5. Collapse duplicate survey columns
+
+```{r consolidate-survey-cols}
+## NumberOfCompletedSurveys_ and SurveyResponseRatePercent_ are repeated
+## identically for every HCAHPS measure — they are survey-level metadata,
+## not measure-specific. Collapse each to one representative column.
+copdAnalyze <- copdFull %>%
+  ## Arbitrarily use Cleanliness as the representative — values are identical
+  mutate(NumberSurveysCompleted = NumberOfCompletedSurveys_Cleanliness,
+         ## Convert response rate from percent to a proportion
+         SurveyResponseRate     = SurveyResponseRatePercent_Cleanliness / 100) %>%
+  ## Drop all the individual per-measure duplicates
+  select(-contains("NumberOfCompletedSurveys_"),
+         -contains("SurveyResponseRatePercent_"))
+
+## Should now be down to ~51 features — matching the pneumonia demo
+dim(copdAnalyze)
+```
+
+## 6. Identify the target variable
+
+**Question 20** [2 points]: Calculate `observed_readmission_rate` and compare it to the CMS target variables. Choose the best target.
+
+```{r create-observed-rate}
+## Create observed_readmission_rate using the raw readmission count
+## divided by the number of discharges, then multiply by 100.
+## After creating the new rate, remove the two raw count columns used to calculate it.
+copdAnalyze <- copdAnalyze %>%
+  mutate(
+    observed_readmission_rate =
+      (NumberOfReadmissions / NumberOfDischarges) * 100
+  ) %>%
+  select(
+    -NumberOfReadmissions,
+    -NumberOfDischarges
+  )
+
+## Compare the raw observed rate, CMS predicted rate,
+## expected rate, and excess readmission ratio
+summary(
+  copdAnalyze[, c(
+    "observed_readmission_rate",
+    "PredictedReadmissionRate",
+    "ExpectedReadmissionRate",
+    "ExcessReadmissionRatio"
+  )]
+)
+```
+
+```{r target-correlations}
+## Observe the relationships between the possible target variables
+## Use correlation to show whether they move together or not
+cor(
+  copdAnalyze[, c(
+    "observed_readmission_rate",
+    "PredictedReadmissionRate",
+    "ExpectedReadmissionRate",
+    "ExcessReadmissionRatio"
+  )],
+  use = "complete.obs"
+)
+```
+
+> ##The four possible targets are: our crude `observed_readmission_rate`, CMS's `PredictedReadmissionRate` (hospital-specific adjusted estimate), `ExpectedReadmissionRate` (standardized by patient mix), and `ExcessReadmissionRatio` (ratio of predicted to expected). We select `PredictedReadmissionRate` for the same three reasons as the pneumonia analysis: (1) it uses a hospital-specific intercept and historical data, giving a fair comparison across hospitals treating very different COPD patient populations; (2) we lose fewer rows to missingness compared to the crude observed rate; and (3) it directly answers our stakeholder's question about hospital readmission performance. For COPD specifically, patient-mix adjustment is even more critical than for pneumonia — COPD severity (GOLD staging, FEV₁, exacerbation history) varies enormously across hospital populations and would heavily confound a crude, unadjusted rate.
+
+**Question 21** [1 point]: Why did we drop `NumberOfReadmissions` and `NumberOfDischarges`?
+
+> ##We dropped these two columns because they were used directly to calculate `observed_readmission_rate`. Keeping them would introduce **data leakage**. The model could trivially reconstruct the target variable from its raw inputs, producing artificially perfect training predictions that completely fail on new data. Dropping them forces the model to learn from genuine hospital quality signals instead.
+
+---
+
+# EDA: Explore the Target Variable
+
+**Question 22** [3 points]: Explore the target variable with at least one other variable. Use a violin or density plot. The `ComparedToNational_` columns are now numeric (0/1/2), so we re-label them inside the plot.
+
+```{r eda-plot, fig.width=10, fig.height=6}
+## Create a smaller dataset just for EDA visualization
+eda_plot <- copdAnalyze %>%
+
+  ## Select only the variables needed for this visualization
+  select(
+    observed_readmission_rate,
+    `ComparedToNational_Death rate for COPD patients`,
+    `ComparedToNational_MRSA Bacteremia`
+  ) %>%
+
+  ## Remove missing values so the graph is easier to interpret
+  drop_na() %>%
+
+  ## Convert the encoded numeric categories back into readable labels for the plot
+  mutate(
+    death_rate_comparison = factor(
+      `ComparedToNational_Death rate for COPD patients`,
+      levels = c(0, 1, 2),
+      labels = c(
+        "Worse than National Rate",
+        "No Different than National Rate",
+        "Better than National Rate"
+      )
+    ),
+
+    mrsa_comparison = factor(
+      `ComparedToNational_MRSA Bacteremia`,
+      levels = c(0, 1, 2),
+      labels = c(
+        "Worse than National Benchmark",
+        "No Different than National Benchmark",
+        "Better than National Benchmark"
+      )
+    )
+  )
+
+## Create a violin plot comparing COPD readmission rates across
+## national COPD death-rate comparison categories
+ggplot(
+  eda_plot,
+  aes(
+    x = death_rate_comparison,
+    y = observed_readmission_rate
+  )
+) +
+
+  ## Violin plot helps show the spread and density of the readmission rates
+  geom_violin(trim = FALSE, fill = "hotpink", alpha = 0.5) +
+
+  ## Add a boxplot inside the violin to make the median/spread easier to see
+  geom_boxplot(width = 0.15) +
+
+  ## Split the graph by MRSA benchmark comparison so we can compare
+  ## another hospital quality-related feature
+  facet_wrap(~ mrsa_comparison) +
+
+  ## Add labels and title
+  labs(
+    title    = "Observed COPD Readmission Rates by National COPD Death Rate Comparison",
+    subtitle = "Faceted by MRSA Bacteremia National Benchmark Comparison",
+    x        = "COPD Death Rate Compared to National Rate",
+    y        = "Observed Readmission Rate (%)"
+  ) +
+
+  ## Rotate x labels slightly so they do not overlap
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+```
+
+> ##This visualization shows that for COPD, hospitals performing worse than the national COPD death rate tend to have a wider spread of readmission rates with more extreme high outliers, suggesting broader difficulties with COPD management. Hospitals performing better on COPD deaths show lower, more tightly clustered readmission rates. The MRSA faceting adds an important dimension: hospitals with worse infection control AND worse COPD mortality show the highest readmission rates, consistent with the idea that systemic quality-of-care deficiencies affect all outcomes simultaneously. This pattern differs somewhat from the pneumonia analysis, where the death-readmission relationship showed a stronger negative slope (higher pneumonia deaths → lower readmissions, interpreted as early discharge). For COPD, deaths and readmissions tend to track more closely together as joint markers of chronic disease severity.
+
+---
+
+# Save the Fully Encoded Dataset
+
+```{r final-check}
+## Final check of dimensions and structure
+cat("Dimensions:", nrow(copdAnalyze), "rows x", ncol(copdAnalyze), "columns\n\n")
+glimpse(copdAnalyze)
+```
+
+```{r save-encoded}
+## Save the fully encoded COPD analysis dataset.
+## This is the COPD equivalent of pneumoniaAnalyzeFullyEncoded2024.Rdata.
+copdAnalyzeFullyEncoded <- copdAnalyze
+
+save(copdAnalyzeFullyEncoded,
+     file = "C:\Users\alica\OneDrive\Documents\Merrimack_DSE6630\Team_Directories\alpha\Module_Projects\Project_1C:\\Users\\alica\\OneDrive\\Documents\\Merrimack_DSE6630\\I. Biomedical & Clinical Informatics\\Project_1copdAnalyzeFullyEncoded2024.Rdata")
+
+cat("Saved: copdAnalyzeFullyEncoded2024.Rdata\n")
+```
+
+---
+
+# References
+
+De Alba, Israel, and Alpesh Amin. 2014. "Pneumonia Readmissions: Risk Factors
+and Implications." *Ochsner Journal* 14 (4): 649–54.
+
+R Core Team. 2019. *R: A Language and Environment for Statistical Computing*.
+Vienna, Austria: R Foundation for Statistical Computing.
+https://www.R-project.org.
+
+Wickham, Hadley. 2014. "Tidy Data." *Journal of Statistical Software* 59 (10):
+1–23. https://doi.org/10.18637/jss.v059.i10.
