@@ -2228,7 +2228,7 @@ We don't technically have to stop our segmentation analysis here, but we will so
 #### **Question 26**: [1 point]
 Make a recommendation for our client for 1-2 machine learning analyses __your team__ would choose to use to test whether these clusters can be used for robust predictions of hospital performance for pneumonia patients. How would you know whether or not your predictions were robust? What would you look for or compare?
 
-> Our team would test these clusters using a Random Forest model and a logistic regression model to predict hospital performance outcomes such as pneumonia readmission rates. To determine whether the predictions are robust, we would evaluate performance on a separate test dataset and compare metrics such as accuracy, precision, and recall. We would also compare results across both models to see whether the clusters consistently improve predictive performance
+> Our team would test these clusters using Random Forest and logistic regression models to predict hospital performance outcomes such as heart failure readmission risk. To evaluate robustness, we would compare model performance on a separate test dataset using metrics such as accuracy, precision, and recall. We would also compare model performance with and without the cluster assignments to determine whether the clusters improve prediction accuracy.
 
 # 6 Supervised Learning Methods
 
@@ -2291,7 +2291,7 @@ summary(mod)$adj.r.squared
 #### **Question 27B**: [1 point] {#rmse}
 It is a surprisingly high (although it isn't stellar). You may need to do some outside research, but explain in a sentence or two why, generally speaking, we use **adjusted** $R^2$ and not the unadjusted one (confusingly labeled as `multiple r-squared` in the `summary()` output below). 
 
-> We use adjusted r-squared because it accounts for the number of predictors in the model, whereas r-squared always increases when additional variables are added, even if those variables provide little predictive value. Adjusted r-squared therefore provides a more realistic measure of model fit and helps reduce the risk of overfitting.
+> We use adjusted R-squared because it accounts for the number of predictors included in the model, while regular R-squared will almost always increase when additional variables are added, even if they contribute very little. Adjusted R-squared provides a more realistic measure of model performance and helps reduce the risk of overfitting.
 
 3. Find the best model. 
 
@@ -2329,7 +2329,7 @@ Can you interpret what the RMSE tells your client here? Why or why not? What abo
 
 **Hint 2**: Is it practical to undo both transformations? How does that hinder our ability to make an interpretation for our client?
 
-> The RMSE and r-squared provide information about model performance, but they are difficult to interpret directly for a client because the outcome variable was Box-Cox transformed and standardized before modeling. To express the error or variance explained in the original readmission-rate units, we would need to reverse both transformations. While r-squared can still be used to compare models, neither metric provides an easily interpretable measure of hospital readmission rates in its current form.
+> The RMSE and R-squared describe model performance, but they are difficult to interpret directly because the outcome variable was Box-Cox transformed and standardized. As a result, these metrics are more useful for comparing models than for interpreting actual readmission rates.
 
 Lastly, let's graph the effect predictive ability of our OLS model by comparing the relationship between the **true** values of `bc_PredictedReadmissionRate` from the `readyTest` dataset to the predictions we made using the model on the testing data.
 
@@ -2394,17 +2394,25 @@ ctrl <- trainControl(method = "repeatedcv",  ## Do repeated CV
 #### 6.2.2.2 Then, we fit the model using the `train()` function in `caret`, specifying that we want to perform an elastic net, which will tune the model and perform CV per the specifications in the `trainControl()`. **NOTE** that I am allowing the values of $\alpha$ to range from $0 \rightarrow 1$ and allowing $\lambda$ to range from $0 \rightarrow 5$. 
 
 ```{r}
-## Create a search grid that allows alpha to range from 0 --> and 
-## allows lambda to range from 0 --> 5
+library(caret)
+library(glmnet)
+
+## Define cross-validation scheme
+ctrl <- trainControl(method = "cv",
+                     number = 10)
+
+## Create tuning grid
 searchGrid <- expand.grid(.alpha = seq(0, 1, length.out = 10), 
                           .lambda = seq(0, 5, length.out = 15))
 
-## Fit the elastic net using the tuning grid and CV scheme laid out
+## Fit elastic net
 elasticMod <- train(bc_PredictedReadmissionRate ~ ., 
                     data = readyTrain, 
                     method = "glmnet", 
                     tuneGrid = searchGrid,
-                    trControl = ctrl) 
+                    trControl = ctrl)
+
+
 ```
 
 #### **Question 28**: [1 point]
@@ -2579,28 +2587,43 @@ To interpret $RMSE$ from training (Table 13) vs. testing (Table 12), we're looki
 #### 6.2.3.4 Graphical comparison of the two models' predictions
 
 ```{r, echo = FALSE, warning=FALSE, message=FALSE, fig.cap="Figure 19. Predictions Plot for Elastic Net vs. OLS Regression"}
-elasticPredictions <- predict(elasticMod, newdata = readyTest)
-testingResults <- c(readyTest$predictions,
-                    elasticPredictions)
-label <- c(rep("OLS Prediction", nrow(readyTest)),
-           rep("Elastic Net Prediction", length(elasticPredictions)))
-temp <- cbind.data.frame(testingResults, label)
-temp$actual <- rep(readyTest$bc_PredictedReadmissionRate, 2)
 
-## Graph what the predictions look like relative to the actual data
-ggplot(temp, 
-       aes(x = testingResults, y = actual, fill = label, color = label)) +
-       geom_point(alpha = 0.5) +
-       geom_smooth(se = T, method = "lm", alpha = 0.45) +
+
+elasticPredictions <- predict(elasticMod, newdata = readyTest)
+
+ols_df <- data.frame(
+  testingResults = readyTest$predictions,
+  actual = readyTest$bc_PredictedReadmissionRate[1:length(readyTest$predictions)],
+  label = "OLS Prediction"
+)
+
+elastic_df <- data.frame(
+  testingResults = elasticPredictions,
+  actual = readyTest$bc_PredictedReadmissionRate[1:length(elasticPredictions)],
+  label = "Elastic Net Prediction"
+)
+
+temp <- rbind(ols_df, elastic_df)
+
+## Graph predictions relative to actual values
+ggplot(temp,
+       aes(x = testingResults,
+           y = actual,
+           fill = label,
+           color = label)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(se = TRUE, method = "lm", alpha = 0.45) +
   scale_color_manual(values = c("navy", "hotpink")) +
   scale_fill_manual(values = c("navy", "hotpink")) +
   theme_minimal() +
   labs(title = "Elastic Net vs. OLS Predictive Power",
        x = "Predicted Readmission Rate from Model",
        y = "Actual Readmission Rate",
-       fill = "", 
+       fill = "",
        color = "") +
   theme(legend.position = "bottom")
+
+
 ```
 
 **It should not come as a surprise, but these models are performing VERY similarly!**
@@ -2611,7 +2634,7 @@ What conclusions do you make at this point about whether to make predictions wit
 
 **HINT**: Make sure to ask yourself whether these data appear linear or not. Could non-linearity be a cause for a low $R^2$? If not, what other causes are there and how will that impact your recommendations?
 
-> Both the OLS and Elastic Net models showed only moderate predictive performance, with similar r-squared values of about 0.35. Because Elastic Net selected alpha = 0 and lambda = 0, it effectively reduced to an OLS regression and provided almost identical predictions. Since the data appear reasonably linear, the modest performance is likely due to important predictors not being included in the dataset rather than model choice. I would recommend using the simpler OLS model, collecting additional patient and hospital characteristics, and testing more flexible models such as Random Forests to see if predictive accuracy can be improved.
+> Both the OLS and Elastic Net models showed only moderate predictive performance, with similar r-squared values of about 0.35. Although the models performed similarly overall, the Elastic Net predictions appeared somewhat more compressed toward the mean, while the OLS model captured slightly more variation in the observed outcomes. Since the data appear reasonably linear, the modest performance is likely due to important predictors not being included in the dataset rather than model choice. I would recommend using the simpler OLS model, collecting additional patient and hospital characteristics, and testing more flexible models such as Random Forests to see if predictive accuracy can be improved.
 
 # 7 Choose Your Own Adventure
 
