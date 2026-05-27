@@ -75,7 +75,7 @@ It's time to choose your adventure! After working through this demo and answerin
 
 You can avoid going back to Demo 1 to do your importing, cleaning, and pre-processing by running this source code:
 
-```{r}
+```{r, warning=FALSE, message=FALSE}
 ## Make any necessary changes in the R source code
 ## Uncomment to run!
 source(file = "reRunDemoData.R")
@@ -226,16 +226,18 @@ As done with the pneumonia investigation, we will begin our assessment of which 
 ```{r, echo = FALSE}
 #MH updated for Heart attack patients
 sliceData <- dataAnalyzeNoEncoding %>% 
-  select(`ComparedToNational_Hospital return days for heart attack patients`, 
-         PredictedReadmissionRate,
-         observed_readmission_rate, 
-         ExcessReadmissionRatio,
-         ExpectedReadmissionRate) %>% 
+  select(`Score_Death rate for heart attack patients`,
+         `ComparedToNational_Hospital return days for heart attack patients`) %>% 
+         # PredictedReadmissionRate,
+         # observed_readmission_rate, 
+         # ExcessReadmissionRatio,
+         # ExpectedReadmissionRate) %>% 
   rename(`National Comparison Return Hospital Days` = `ComparedToNational_Hospital return days for heart attack patients`,
-         `Predicted Readmission Rate` = PredictedReadmissionRate, 
-         `Observed Readmission Rate` = observed_readmission_rate, 
-         `ExcessReadmissionRatio` = ExcessReadmissionRatio,
-         `Expected Readmission Rate` = ExpectedReadmissionRate) %>% 
+         `Death Rate` = `Score_Death rate for heart attack patients`) %>% 
+         # `Predicted Readmission Rate` = PredictedReadmissionRate, 
+         # `Observed Readmission Rate` = observed_readmission_rate, 
+         # `ExcessReadmissionRatio` = ExcessReadmissionRatio,
+         # `Expected Readmission Rate` = ExpectedReadmissionRate) %>% 
   mutate(`National Comparison Return Hospital Days` = ifelse(is.na(`National Comparison Return Hospital Days`), "Unknown", 
                                                       ifelse(`National Comparison Return Hospital Days` == 1, "Better than average",
                                                       ifelse(`National Comparison Return Hospital Days` == 0, "Same as average", "Worse than average")))) %>% 
@@ -266,10 +268,11 @@ I don't have to store it as a separate data frame (i.e., I can just pipe it dire
 longTargets <- dataAnalyzeNoEncoding %>%
   ## Make a shorter name
   rename(NatlComparisonHospitalDays = `ComparedToNational_Hospital return days for heart attack patients`,
-         `Predicted Readmission Rate` = PredictedReadmissionRate,
-         `Excess Readmission Ratio` = ExcessReadmissionRatio,
-         `Observed Readmission Rate` = observed_readmission_rate, 
-         `Expected Readmission Rate` = ExpectedReadmissionRate) %>% 
+         # `Predicted Readmission Rate` = PredictedReadmissionRate,
+         # `Excess Readmission Ratio` = ExcessReadmissionRatio,
+         # `Observed Readmission Rate` = observed_readmission_rate, 
+         # `Expected Readmission Rate` = ExpectedReadmissionRate) %>% 
+         `Death Rate From Heart Attack` = `Score_Death rate for heart attack patients`) %>% 
   ## Flexible handling depending on which dataset students select; recodes into better, same, and worse
   mutate(NatlComparisonHospitalDays = case_when(
     (NatlComparisonHospitalDays == 1  | NatlComparisonHospitalDays == "Fewer Days Than Average per 100 Discharges") ~ "Better", 
@@ -278,9 +281,9 @@ longTargets <- dataAnalyzeNoEncoding %>%
     .default = "Unknown"),
   NatlComparisonHospitalDays = factor(NatlComparisonHospitalDays, levels = c("Better", "Same", "Worse", "Unknown"))) %>% 
   ## Grab just the five features we want so we can compare them
-  select(contains(c("readmission", "NatlComparisonHospitalDays"))) %>% 
+  select(contains(c("Death Rate From Heart Attack", "NatlComparisonHospitalDays"))) %>% 
   ## Pivot longer
-  pivot_longer(-c(5), names_to = "Variable", values_to = "Value")
+  pivot_longer(-c(2), names_to = "Variable", values_to = "Value")
 ```
 
 I mentioned `violin` and `density` plots specifically in Question 19 of Demo 1, as well as faceting. I am going to show you two ways to explore these data with these types of plots and you can decide which one(s) you find most informative here. You also may have thought of a better way to display the data too!
@@ -391,23 +394,17 @@ So, to do this, I'm going to make another long-format dataset and use this to ma
 #MH removed `Score_Emergency department volume` mutation as it was already completed in reRunDemoData Source
 #MH updated pneumonia to heart attack
 longScore <- dataAnalyzeNoEncoding %>%
-  rename(NatlComparisonHospitalDays = `ComparedToNational_Hospital return days for heart attack patients`) %>% 
-  select(contains(c("Score", "NatlComparisonHospitalDays", "readmission"))) %>% 
+  rename(NatlComparisonHospitalDays = `ComparedToNational_Hospital return days for heart attack patients`,
+         `Death Rate` = `Score_Death rate for heart attack patients`) %>% 
+  select(contains(c("Score", "NatlComparisonHospitalDays", "Death Rate"))) %>% 
   ## Flexible handling depending on which dataset students select; changes to better, same, worse
   mutate(NatlComparisonHospitalDays = case_when(
     (NatlComparisonHospitalDays == 1  | NatlComparisonHospitalDays == "Fewer Days Than Average per 100 Discharges") ~ "Better", 
     (NatlComparisonHospitalDays == -1 | NatlComparisonHospitalDays == "More Days Than Average per 100 Discharges") ~ "Worse", 
     (NatlComparisonHospitalDays == 0  | NatlComparisonHospitalDays == "Average Days per 100 Discharges") ~ "Same", 
     .default = NA),
-  NatlComparisonHospitalDays = factor(NatlComparisonHospitalDays, levels = c("Better", "Same", "Worse", "Unknown"))#,
-  # `Score_Emergency department volume` = as.numeric(case_when(`Score_Emergency department volume` == "very high" ~ "5",
-  #                                                        `Score_Emergency department volume` == "high" ~ "4",
-  #                                                        `Score_Emergency department volume` == "medium" ~ "3", 
-  #                                                        `Score_Emergency department volume` == "low"~ "2", 
-  #                                                        `Score_Emergency department volume` == "very low" ~ "1",
-  #                                                       .default = `Score_Emergency department volume`))
-  ) %>% 
-  pivot_longer(1:12, names_to = "Variable", values_to = "Value") %>% 
+  NatlComparisonHospitalDays = factor(NatlComparisonHospitalDays, levels = c("Better", "Same", "Worse", "Unknown"))) %>% 
+  pivot_longer(1:11, names_to = "Variable", values_to = "Value") %>% 
   drop_na() %>% 
   mutate(Variable = gsub("Score_", "", Variable)) %>% 
   mutate(Variable = case_when(
@@ -435,7 +432,7 @@ Comparing the different readmission rates for composite patient safety, `Excess 
 ```{r, fig.width=7, fig.height=8, echo = FALSE, message=FALSE, fig.cap="Figure 4. Readmission rate by hospital performance and readmitted patient LOS"}
 ##MH updated pneumonia to heart attack
 longScore %>%  
-  ggplot(aes(y = PredictedReadmissionRate,  ## <-- CHANGE THIS! PredictedReadmissionRate, ExcessReadmissionRatio, ExpectedReadmissionRate,  observed_readmission_rate
+  ggplot(aes(y = `Death Rate`,  ## <-- CHANGE THIS! PredictedReadmissionRate, ExcessReadmissionRatio, ExpectedReadmissionRate,  observed_readmission_rate
              x = Value)) +
     geom_point(alpha = 0.25) + 
     geom_smooth(aes(fill = as.factor(NatlComparisonHospitalDays), color = as.factor(NatlComparisonHospitalDays)), 
@@ -443,9 +440,9 @@ longScore %>%
                 se = T, 
                 show.legend = T) + 
     ## CHANGE THE TITLE FOR FULL CREDIT!
-    labs(title = "Relationship of `Predicted Readmission Rate` AMI-related \nhospital readmissions to each performance metric",
+    labs(title = "Relationship of AMI-related death date \nto each performance metric",
         x = "Rate or Score",
-        y = "Predicted AMI-related Readmissions",
+        y = "AMI-related Death Rate",
         color = "AMI-related Readmission Compared to National Average") +
   scale_fill_manual(values = c("gold", "cadetblue", "maroon")) + 
   scale_color_manual(values = c("gold", "cadetblue", "maroon"),
@@ -470,8 +467,10 @@ Now let's do a similar analysis but for the `HcahpsLinear...` variables. The __H
 ```{r, echo = FALSE}
 #MH updated pneumonia to heart attack
 longHCAHPS <- dataAnalyzeNoEncoding %>%
-  rename(NatlComparisonHospitalDays = `ComparedToNational_Hospital return days for heart attack patients`) %>% 
-  select(contains(c("HcahpsLinear", "NatlComparisonHospitalDays", "readmission"))) %>% 
+  select(-contains("readmission"), `Score_Death rate for heart attack patients`) %>% 
+  rename(NatlComparisonHospitalDays = `ComparedToNational_Hospital return days for heart attack patients`,
+       `Death Rate` = `Score_Death rate for heart attack patients`) %>% 
+  select(contains(c("HcahpsLinear", "NatlComparisonHospitalDays", "Death Rate"))) %>% 
   ## Flexible handling depending on which dataset students select; changes to better, same, worse
   mutate(NatlComparisonHospitalDays = case_when(
     (NatlComparisonHospitalDays == 1  | NatlComparisonHospitalDays == "Fewer Days Than Average per 100 Discharges") ~ "Better", 
@@ -498,7 +497,7 @@ Again, you task is to change the __y-axis__ out for _each of the four readmissio
 ```{r, fig.width=7, fig.height=8, echo = FALSE, message=FALSE, fig.cap="Figure 5. Readmission rate by patient satisfaction and readmitted patient LOS"}
 #MH updated pneumonia to heart attack
 longHCAHPS %>%  
-  ggplot(aes(y = observed_readmission_rate,  ## <-- CHANGE THIS! PredictedReadmissionRate, ExcessReadmissionRatio, ExpectedReadmissionRate,  observed_readmission_rate
+  ggplot(aes(y = `Death Rate` ,  ## <-- CHANGE THIS! PredictedReadmissionRate, ExcessReadmissionRatio, ExpectedReadmissionRate,  observed_readmission_rate
              x = Value)) +
     geom_point(alpha = 0.25) + 
     geom_smooth(aes(fill = as.factor(NatlComparisonHospitalDays), color = as.factor(NatlComparisonHospitalDays)), 
@@ -587,23 +586,27 @@ Add your comments to the code as indicated to explain what I was doing at each o
 dataAnalyzeNoEncoding <- dataAnalyzeNoEncoding %>% 
   ## Remove features not needed for analysis: 
   ## ExpectedReadmissionRate,ExcessReadmissionRatio,observed_readmission_rate,NumberSurveysCompleted, any columns containing "Sample_" or "NumberOfPatients" in the name
-  select(-ExpectedReadmissionRate, 
-         -ExcessReadmissionRatio,
-         -observed_readmission_rate, 
-         -contains(c("Sample_", "NumberOfPatients")),
+  select(-contains(c("Sample_", "NumberOfPatients", "readmission")),
          -NumberSurveysCompleted) %>% 
   ## Rename column names to be more concise
   ## EX: Change  `Score_Average (median) time patients spent in the emergency ...` to `Median time (minutes) patients spent in ED`
   rename(`Median time (minutes) patients spent in ED` = 
          `Score_Average (median) time patients spent in the emergency department before leaving from the visit A lower number of minutes is better`,
          `Composite patient safety` = `Score_CMS Medicare PSI 90: Patient safety and adverse events composite`,
-         `ComparedToNational_Composite patient safety` = `ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`) %>% 
+         `ComparedToNational_Composite patient safety` = `ComparedToNational_CMS Medicare PSI 90: Patient safety and adverse events composite`,
+         `Death Rate` = `Score_Death rate for heart attack patients`) %>% 
+ 
   ## Reorder columns so that PredictedReadmissionRate is the first column
-  select(PredictedReadmissionRate, everything())
+  select(`Death Rate`, everything())
 
 ## Remove specified text from column names: Score_, HcahpsLinearMeanValue_ and _Payment
 ## EX: Score_Emergency department volume -> Emergency department volume
 colnames(dataAnalyzeNoEncoding) <- gsub('Score_|HcahpsLinearMeanValue_|_Payment', '', colnames(dataAnalyzeNoEncoding))
+
+##KG: Importantly, we'd have to check to make sure we don't have any missing values in the new target since we're switching the target!
+sum(is.na(dataAnalyzeNoEncoding$`Death Rate`)) ## So we need to drop those!
+dataAnalyzeNoEncoding <- dataAnalyzeNoEncoding %>% 
+  filter(is.na(`Death Rate`))
 ```
 
 
@@ -709,7 +712,8 @@ sort(na_counts, decreasing = TRUE)
 # Your code here.
 #MH
 sum(complete.cases(dataAnalyzeNoEncoding))
-#nrow(drop_na(dataAnalyzeNoEncoding))
+#nrow(drop_na(dataAnalyzeNoEncoding)
+
 ```
 
 
