@@ -1841,7 +1841,7 @@ my Desktop.</em></li>
 They are too large to push. If you need help adjusting your path or have
 questions, please let me know.</p>
 <pre class="r"><code>## Make sure to adjust your path!
-filepath &lt;- &quot;~/Desktop/hospitals_current_data_FY2024/&quot;</code></pre>
+filepath &lt;- &quot;C:/hospital current data 2024/hospitals_10_2024/&quot;</code></pre>
 <div id="read-in-the-hospital-level-data-iteratively-while-dynamically-naming-storing-each-file-as-a-dataframe." class="section level3">
 <h3>Read in the hospital-level data iteratively, while dynamically
 naming &amp; storing each file as a dataframe.</h3>
@@ -1858,33 +1858,47 @@ does.</p>
 <p>Your answer in the code chunk as comments. Make sure to use the
 <code>#</code> sign!</p>
 </blockquote>
-<pre class="r"><code>files &lt;- list.files(path = filepath, pattern = &quot;Hospital.csv&quot;)
+<pre class="r"><code># Create a list of all files in filepath whose names contain &quot;Hospital.csv&quot;
+files &lt;- list.files(path = filepath, pattern = &quot;Hospital.csv&quot;)
 
+# Loop through each file in the files list
 for(f in 1:length(files)) {
 
+    # Read the current CSV file into a temporary dataframe called dat
     dat &lt;- read_csv(paste0(filepath, files[f]),
+                    
+                    # Suppress display of detected column types
                     show_col_types = FALSE,
-                    ## HOT FIX of the &quot;N/A&quot; characters that were problematic
+                    
+                    # Treat these values as missing values (NA)
                     na = c(&quot;&quot;, &quot;NA&quot;, &quot;N/A&quot;, &quot;NULL&quot;, &quot;.&quot;)
                     ) %&gt;%
+        
+        # Standardize column names using UpperCamel case
         clean_names(case = &quot;upper_camel&quot;) %&gt;%
         
-        ## HOT FIX to convert character to numeric
+        # Automatically convert columns to appropriate data types
         type_convert() %&gt;%
-        ## HOT FIX to convert date columns based on month/day/year
+        
+        # Convert any column containing &quot;Date&quot; into a date format
         mutate(across(contains(&quot;Date&quot;), ~ mdy(.)))
 
+    # Remove &quot;.Hospital.csv&quot; from the filename
     filename &lt;- gsub(&quot;.Hospital\\.csv&quot;, &quot;&quot;, files[f])
+    
+    # Create an R object using the filename and store the dataframe in it
     assign(filename, dat)
 }
 
+# Remove &quot;.Hospital.csv&quot; from all filenames and convert the result to a dataframe
 files &lt;- gsub(&quot;.Hospital\\.csv&quot;, &quot;&quot;, files) %&gt;% data.frame()
 
+# Rename the dataframe column to &quot;File Name&quot;
 names(files) &lt;- &quot;File Name&quot;</code></pre>
 </div>
 <div id="now-lets-look-at-a-list-of-the-files-that-weve-read-in" class="section level4">
 <h4>Now, let’s look at a list of the files that we’ve read in:</h4>
-<table class="table table-striped" style="color: black; margin-left: auto; margin-right: auto;">
+<table class="table table-striped" style="margin-left: auto; margin-right: auto;">
 <caption>
 Table 1. List of hospital-level data files.
 </caption>
@@ -1914,6 +1928,11 @@ FY_2024_Hospital_Readmissions_Reduction_Program
 <tr>
 <td style="text-align:left;">
 HCAHPS
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Health_Equity
 </td>
 </tr>
 <tr>
@@ -1961,7 +1980,16 @@ you notice about the format / structure of the data? Does the data have
 an issue with the dimensionality? <strong>Hint: </strong>Check to see if
 each row represents a single line of data or not!</p>
 <blockquote>
-<p>Your answer here.</p>
+<p>The data are stored in a long format rather than a wide format. Each
+hospital appears multiple times because different measures are recorded
+in separate rows. For example, Facility ID 010001 appears repeatedly in
+both the HCAHPS and Hospital Readmissions datasets, while the measure
+being reported changes from row to row. This creates a dimensionality
+issue because a single hospital is represented by many observations
+instead of one row containing all relevant information. To analyze
+hospitals at the facility level, the data will likely need to be
+reshaped (pivoted wider) so that each hospital is represented by a
+single row and each measure becomes its own column.</p>
 </blockquote>
 </div>
 </div>
@@ -1985,7 +2013,15 @@ easier?!</p>
 the numeric variables in the dataset, e.g.,
 <code>NumberOfReadmissions</code>?</p>
 <blockquote>
-<p>Your answer here.</p>
+<p>The NumberOfReadmissions variable has data quality issues that
+prevent it from being treated as a numeric variable. Although most
+values are numeric counts, the column is stored as a character variable
+because it contains the text value “Too Few to Report” (4,187
+occurrences). This non-numeric value forces R to classify the entire
+column as character rather than numeric. In addition, the dataset
+contains a substantial number of missing values (6,697 NAs). Before
+analysis can be performed, the text values and missing data will need to
+be addressed so the variable can be converted to a numeric format.</p>
 </blockquote>
 <pre class="r"><code>sum(is.na(FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions))</code></pre>
 <pre><code>## [1] 6697</code></pre>
@@ -2021,7 +2057,14 @@ the character type, and why does it exist?</p>
 dictionary <strong>HOSPITAL_Data_Dictionary.pdf</strong> to also examine
 <strong>WHY</strong> this problem exists!</p>
 <blockquote>
-<p>Your answer here.</p>
+<p>The NumberOfReadmissions column contains the text value “Too Few to
+Report”, which causes the entire column to be stored as a character
+variable rather than numeric. This value is used by CMS when the number
+of cases is too small to report reliably. The suppression exists both to
+protect patient privacy and to avoid reporting potentially misleading
+statistics based on very small sample sizes. Because text is mixed with
+numeric values, R cannot automatically treat the column as numeric and
+coerces the entire variable to the character data type.</p>
 </blockquote>
 </div>
 <div id="question-6-1-point" class="section level5">
@@ -2032,8 +2075,12 @@ you choose to <strong>replace</strong> the problematic text in the
 <code>NumberOfReadmissions</code> column in
 <code>FY_2024_Hospital_Readmissions_Reduction_Program</code> with a
 <strong>5</strong>.</p>
-<pre class="r"><code># ?gsub
-# Your code here.</code></pre>
+<pre class="r"><code>FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions &lt;- 
+  gsub(
+    &quot;Too Few to Report&quot;,
+    &quot;5&quot;,
+    FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions
+  )</code></pre>
 </div>
 <div id="question-7-1-point" class="section level5">
 <h5><strong>Question 7</strong>: [1 point]</h5>
@@ -2043,7 +2090,19 @@ you choose to <strong>replace</strong> the problematic text in the
 substitution? Do you agree with my choice? (You’re free to disagree, but
 please defend your decision either way!)</p>
 <blockquote>
-<p>Your answer here.</p>
+<p>I believe the value 5 was chosen because the text “Too Few to Report”
+indicates that the number of readmissions was small but not necessarily
+zero. Replacing it with 0 would incorrectly assume that no readmissions
+occurred and would bias the results downward. Replacing it with NA would
+preserve the uncertainty, but it would also remove thousands of
+observations from later analyses and could reduce statistical power.
+Using 5 provides a reasonable midpoint estimate within the likely range
+of suppressed values and allows the observations to remain in the
+dataset. Other logical choices could include using the median of the
+reported readmission counts, the mean of the smallest reported values,
+or a randomly selected value from a plausible range. I generally agree
+with using 5 because it preserves the records while avoiding the
+unrealistic assumption that the number of readmissions was zero.</p>
 </blockquote>
 </div>
 <div id="question-8-1-point" class="section level5">
@@ -2055,7 +2114,18 @@ randomly sampled integer from 1 to 10. What would this do? Would
 way, e.g., with an <code>lapply()</code> function or a
 <code>for()</code> loop?</p>
 <blockquote>
-<p>Your answer here.</p>
+<p>Replacing “Too Few to Report” with a randomly sampled integer from 1
+to 10 would introduce variability into the dataset and may provide a
+more realistic approximation than assigning the same value of 5 to every
+suppressed observation. However, each occurrence would need to receive
+its own randomly generated value. Because gsub() performs a simple text
+replacement and substitutes the same value everywhere, it would not be
+appropriate for assigning different random numbers to different rows.
+Instead, I would need to identify the rows containing “Too Few to
+Report” and then use a method such as a for() loop or lapply() to
+generate a different random value for each occurrence. This approach
+would preserve variation in the data rather than treating all suppressed
+observations as identical.</p>
 </blockquote>
 </div>
 <div id="question-9-3-points" class="section level5">
@@ -2068,7 +2138,56 @@ Question 5, pattern match on the problematic text.</p>
 <p><strong>Hint 2: </strong> This is NOT the only way to do this, but I
 solved this using <code>gregexpr()</code>, <code>regmatches()</code>,
 and <code>lapply()</code>.</p>
-<pre class="r"><code># Your code here.</code></pre>
+<pre class="r"><code># Create a copy of the original column
+tmp &lt;- FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions
+
+# Find all occurrences of the text
+matches &lt;- gregexpr(&quot;Too Few to Report&quot;, tmp)
+
+# Replace each occurrence with a random integer from 1 to 10
+regmatches(tmp, matches) &lt;- lapply(
+  regmatches(tmp, matches),
+  function(x) as.character(sample(1:10, length(x), replace = TRUE))
+)
+
+# Save back to dataframe
+FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions &lt;- tmp
+
+# Check results
+table(FY_2024_Hospital_Readmissions_Reduction_Program$NumberOfReadmissions) </code></pre>
+<pre><code>## 
+##  100  101  102  103  104  105  106  107  108  109   11  110  111  112  113  114 
+##   11   18   12   15   12    9   11    9   11   16  353   14    9    8   12   15 
+##  115  116  117  118  119   12  120  121  122  123  124  125  126  127  128  129 
+##    4   10    5    8    9  341   16   11    7    6    3   13   11   10    4    6 
+##   13  130  131  132  133  134  135  136  137  138  139   14  140  141  142  143 
+##  278   10    6   12    6    5    5    4    4    3    6  304    3    1    3    4 
+##  144  145  146  147  148  149   15  150  151  152  153  154  155  156  157  158 
+##    8    6    2    3    4    8  263    1    1    2    7    1    5    1    2    3 
+##  159   16  160  162  163  164  165  166  167  168  169   17  170  171  172  173 
+##    1  244    4    4    5    3    2    4    4    3    9  240    2    4    6    6 
+##  174  175  176  177  179   18  180  181  182  183  184  186  187  188  189   19 
+##    2    1    2    3    1  227    3    3    2    2    2    5    1    4    2  206 
+##  191  193  194  195  196  197  198  199   20  201  202  203  206  208  209   21 
+##    1    1    3    2    1    3    3    3  206    1    2    3    2    1    1  188 
+##  210  211  212  213  216  218  219   22  221  222  223  225  226  228  229   23 
+##    1    1    1    1    3    2    1  172    1    1    1    2    3    2    1  171 
+##  231  232  233  236  237   24  240  242  243  246  249   25  255   26  260  265 
+##    2    1    2    1    2  158    1    3    1    1    1  154    1  152    1    1 
+##  268  269   27  270  274  277  278   28  285  286  287   29  291  292  297   30 
+##    1    1  146    1    1    1    1  118    1    1    1  138    3    1    1  129 
+##  301  306   31  315   32  324   33   34  340  344   35  358   36  361   37  370 
+##    1    2  135    2  110    1  104  112    1    1   96    1   84    1   89    1 
+##  373   38   39   40   41  411   42   43   44   45  457   46   47  477   48  480 
+##    1   94   93  102   81    1   78   78   66   53    1   68   62    1   56    1 
+##   49    5   50   51   52   53   54   55   56   57   58   59   60   61   62   63 
+##   56 4187   47   47   39   42   52   43   57   50   49   40   27   32   38   48 
+##   64   65   66   67   68   69  690   70   71   72   73   74   75   76   77   78 
+##   39   39   35   32   28   43    1   34   33   21   20   28   36   26   22   32 
+##   79   80   81   82   83   84   85   86   87   88   89   90   91   92   93   94 
+##   36   28   25   16   26   25   19    9   17   19   13   17   18   18   17   19 
+##   95   96   97   98   99   NA 
+##   16   20   11   11    8 6697</code></pre>
 </div>
 <div id="question-10-1-point" class="section level5">
 <h5><strong>Question 10</strong>: [1 point]</h5>
@@ -2078,8 +2197,18 @@ require us to do it over and over on each of the columns in multiple
 lines of code. Instead, investigate the function
 <code>mutate_at()</code> which will allow you to pass it a list of
 columns you want to convert with the function you want to use.</p>
-<pre class="r"><code># ?mutate_at
-# Your code here.</code></pre>
+<pre class="r"><code>FY_2024_Hospital_Readmissions_Reduction_Program &lt;-
+  FY_2024_Hospital_Readmissions_Reduction_Program %&gt;%
+  mutate_at(
+    vars(
+      NumberOfDischarges,
+      ExcessReadmissionRatio,
+      PredictedReadmissionRate,
+      ExpectedReadmissionRate,
+      NumberOfReadmissions
+    ),
+    as.numeric
+  )</code></pre>
 </div>
 <div id="lets-look-more-closely-at-measure-names." class="section level4">
 <h4>Let’s look more closely at Measure Names.</h4>
@@ -2106,10 +2235,14 @@ wider. Make sure you correctly identify the <code>names_from</code> and
 separate dataframe called <code>wideDF</code>.</strong> Use the
 <code>dim()</code> function to prove to me that you successfully pivoted
 wider.</p>
-<pre class="r"><code># Your code here.
+<pre class="r"><code>wideDF &lt;- FY_2024_Hospital_Readmissions_Reduction_Program %&gt;%
+  pivot_wider(
+    names_from = MeasureName,
+    values_from = NumberOfReadmissions
+  )
 
-#wideDF &lt;- FY_2024_Hospital_Readmissions_Reduction_Program %&gt;% pivot_wider(...) or spread(...)
-#dim(wideDF)</code></pre>
+dim(wideDF)</code></pre>
+<pre><code>## [1] 16072    16</code></pre>
 </div>
 </div>
 </div>
@@ -2137,7 +2270,7 @@ will actually eliminate the need to pivot wider in just this case
 <pre class="r"><code>readmissionsClean &lt;- 
   readmissionsClean %&gt;% 
   filter(MeasureName == &quot;PN&quot;)</code></pre>
-<table class="table table-hover" style="color: black; margin-left: auto; margin-right: auto;">
+<table class="table table-hover" style="margin-left: auto; margin-right: auto;">
 <caption>
 Table 2. Acronyms of medical conditions for which hospital readmissions
 are tracked.
@@ -2376,7 +2509,88 @@ often very wrong!</p></li>
 I give you a cleaned, merged data set to work with.</p></li>
 </ul>
 <p>Okay, take a stab at it!</p>
-<pre class="r"><code># Your function here.</code></pre>
+<pre class="r"><code>tidyNjoin &lt;- function(datList, filterList, hospitalInfo) {
+
+  cleanList &lt;- vector(&quot;list&quot;, length(datList))
+
+  for(i in seq_along(datList)) {
+
+    tempDF &lt;- datList[[i]]
+
+    # Remove unnecessary columns if present
+    tempDF &lt;- tempDF %&gt;%
+      select(
+        -any_of(
+          c(
+            &quot;StartDate&quot;,
+            &quot;EndDate&quot;,
+            &quot;Footnote&quot;,
+            &quot;MeasureId&quot;
+          )
+        )
+      )
+
+    # Remove hospital information columns before joining
+    tempDF &lt;- tempDF %&gt;%
+      select(
+        -any_of(
+          c(
+            &quot;FacilityName&quot;,
+            &quot;Address&quot;,
+            &quot;CityTown&quot;,
+            &quot;State&quot;,
+            &quot;ZipCode&quot;,
+            &quot;CountyParish&quot;,
+            &quot;TelephoneNumber&quot;
+          )
+        )
+      )
+
+    # Filter desired measures
+    tempDF &lt;- tempDF %&gt;%
+      filter(MeasureName %in% filterList[[i]])
+
+    # Remove duplicate rows
+    tempDF &lt;- distinct(tempDF)
+
+    # Identify value column
+    valueCol &lt;- names(tempDF)[3]
+
+    # Pivot wider
+    tempDF &lt;- tempDF %&gt;%
+      pivot_wider(
+        names_from = MeasureName,
+        values_from = all_of(valueCol)
+      )
+
+    cleanList[[i]] &lt;- tempDF
+  }
+
+  # Join all cleaned tables together
+  mergedDF &lt;- Reduce(
+    function(x, y) full_join(x, y, by = &quot;FacilityId&quot;),
+    cleanList
+  )
+
+  # Join hospital information back in
+  mergedDF &lt;- full_join(
+    hospitalInfo,
+    mergedDF,
+    by = &quot;FacilityId&quot;
+  )
+
+  # Join cleaned readmissions data
+  mergedDF &lt;- full_join(
+    mergedDF,
+    readmissionsClean,
+    by = &quot;FacilityId&quot;
+  )
+
+  # Remove duplicate rows if any were created
+  mergedDF &lt;- distinct(mergedDF)
+
+  return(mergedDF)
+}</code></pre>
 </div>
 <div id="question-13-1-point" class="section level5">
 <h5><strong>Question 13</strong>: [1 point]</h5>
@@ -2384,7 +2598,11 @@ I give you a cleaned, merged data set to work with.</p></li>
 (<strong>Hint</strong>: What are you going to be asked to do in Project
 1?)</p>
 <blockquote>
-<p>Your answer here.</p>
+<p>The purpose of this function was to practice cleaning, filtering,
+reshaping, and merging multiple datasets into a single analysis-ready
+dataset. These are important skills for Project 1, where I will need to
+combine and prepare healthcare datasets to answer my own research
+question.</p>
 </blockquote>
 </div>
 </div>
@@ -2406,7 +2624,7 @@ features</strong> and <strong>4,816 rows</strong>. That’s definitely too
 many features, so let’s perform some additional feature selection.</p>
 <p><strong>Let’s start by examining the “big picture” of what’s in this
 giant dataset</strong>:</p>
-<table class="table table-striped" style="color: black; margin-left: auto; margin-right: auto;">
+<table class="table table-striped" style="margin-left: auto; margin-right: auto;">
 <caption>
 Table 3. List of hospital-level data sets chosen for the
 pneumonia-related readmissions analysis.
@@ -2745,14 +2963,43 @@ ahead and drop any columns containing <code>Denominator</code> and
 <code>HcahpsAnswerPercent</code> as well. How many features did you
 drop?</p>
 <blockquote>
-<p>Your answer here.</p>
+<p>Using the contains() function, I removed all columns containing
+LowerEstimate, HigherEstimate, Denominator, and HcahpsAnswerPercent.
+These variables were not needed because the analysis focuses on the
+primary point estimates rather than confidence interval bounds,
+denominators, or response percentages. In total, 25 features were
+dropped from the dataset.</p>
 </blockquote>
-<pre class="r"><code># Your code here.</code></pre>
+<pre class="r"><code># Count columns before dropping
+old_cols &lt;- ncol(pneumoniaFull)
+
+# Drop unwanted variables
+pneumoniaFull &lt;- pneumoniaFull %&gt;%
+  select(
+    -contains(&quot;LowerEstimate&quot;),
+    -contains(&quot;HigherEstimate&quot;),
+    -contains(&quot;Denominator&quot;),
+    -contains(&quot;HcahpsAnswerPercent&quot;)
+  )
+
+# Number of features removed
+old_cols - ncol(pneumoniaFull)</code></pre>
+<pre><code>## [1] 25</code></pre>
 <p><strong>Note:</strong> Please drop <code>FacilityName</code>,
 <code>TelephoneNumber</code>, <code>Address</code>, &amp;
 <code>CityTown</code> at this stage as well, if they’re still in your
 full dataset.</p>
-<pre class="r"><code># Your code here.</code></pre>
+<pre class="r"><code>pneumoniaFull &lt;- pneumoniaFull %&gt;%
+  select(
+    -any_of(
+      c(
+        &quot;FacilityName&quot;,
+        &quot;TelephoneNumber&quot;,
+        &quot;Address&quot;,
+        &quot;CityTown&quot;
+      )
+    )
+  )</code></pre>
 </div>
 </div>
 <div id="encoding" class="section level2">
@@ -2767,7 +3014,15 @@ ultimately. However, we will focus first on the columns that begin with
 <code>ComparedToNational_Death rate for pneumonia patients</code>. What
 kind of encoding should we perform on these columns? Why?</p>
 <blockquote>
-<p>Your answer here.</p>
+<p>The ComparedToNational_* variables should be encoded using ordinal
+encoding because the categories have a meaningful ranking. For example,
+values such as “Better than National Benchmark,” “No Different than
+National Benchmark,” and “Worse than National Benchmark” represent
+ordered performance levels rather than unrelated categories. Ordinal
+encoding preserves this relationship by assigning numerical values to
+the categories (e.g., Better = 2, No Different = 1, Worse = 0), allowing
+machine learning models to incorporate the relative ordering of hospital
+performance.</p>
 </blockquote>
 </div>
 <div id="question-16-1-point" class="section level5">
@@ -2775,7 +3030,10 @@ kind of encoding should we perform on these columns? Why?</p>
 <p>What other column do we also need to perform this kind of encoding
 on?</p>
 <blockquote>
-<p>Your answer here.</p>
+<p>We should also perform ordinal encoding on the PaymentCategory column
+because its categories have a natural order (e.g., Above National
+Average, No Different Than National Average, Below National Average).
+Ordinal encoding preserves this ranking for analysis.</p>
 </blockquote>
 </div>
 <div id="question-17-3-points" class="section level5">
@@ -2800,7 +3058,47 @@ original data if you make mistakes!</p></li>
 check that you managed to preserve all the data! The
 <code>table()</code> function is sufficient here.</p></li>
 </ul>
-<pre class="r"><code># Your code here.</code></pre>
+<pre class="r"><code># Create temporary copy
+tempDF &lt;- pneumoniaFull
+
+# Encode all ComparedToNational columns
+tempDF &lt;- tempDF %&gt;%
+  mutate(across(
+    starts_with(&quot;ComparedToNational&quot;),
+    ~ case_when(
+      grepl(&quot;Better&quot;, .) ~ 2,
+      grepl(&quot;No Different&quot;, .) ~ 1,
+      grepl(&quot;Worse&quot;, .) ~ 0,
+      TRUE ~ NA_real_
+    )
+  ))
+
+# Encode PaymentCategory column
+tempDF$`PaymentCategory_Payment for pneumonia patients` &lt;- case_when(
+  grepl(&quot;Above&quot;, tempDF$`PaymentCategory_Payment for pneumonia patients`) ~ 2,
+  grepl(&quot;No Different&quot;, tempDF$`PaymentCategory_Payment for pneumonia patients`) ~ 1,
+  grepl(&quot;Below&quot;, tempDF$`PaymentCategory_Payment for pneumonia patients`) ~ 0,
+  TRUE ~ NA_real_
+)
+
+# Replace original dataframe
+pneumoniaFull &lt;- tempDF
+
+# Verify results
+table(
+  pneumoniaFull$`PaymentCategory_Payment for pneumonia patients`,
+  useNA = &quot;ifany&quot;
+)</code></pre>
+<pre><code>## 
+##    1 &lt;NA&gt; 
+## 2445 2371</code></pre>
+<pre class="r"><code>table(
+  pneumoniaFull$`ComparedToNational_Death rate for pneumonia patients`,
+  useNA = &quot;ifany&quot;
+)</code></pre>
+<pre><code>## 
+##    0    1    2 &lt;NA&gt; 
+##  133 3165  216 1302</code></pre>
 <p><strong>Note</strong>: If you struggled with Question 17, load the
 data below and keep going:</p>
 <pre class="r"><code>load(&quot;pneumoniaFullEncoded.Rdata&quot;)</code></pre>
@@ -2820,24 +3118,40 @@ think the choice was made</em>, if appropriate.</p>
 <blockquote>
 <p>Your answer in comments in the code chunk.</p>
 </blockquote>
-<pre class="r"><code>cols2encode &lt;- c(&quot;State&quot;, 
+<pre class="r"><code># **Create a vector containing the names of the categorical columns that will be frequency encoded.**
+cols2encode &lt;- c(&quot;State&quot;, 
                &quot;CountyParish&quot;)
 
+# **Create a temporary dataframe containing only the columns selected for encoding. This prevents accidental changes to the full dataset while the encoding is performed.**
 temp &lt;- pneumoniaFullEncoded[, names(pneumoniaFullEncoded) %in% cols2encode]
 
+# **Define a function that performs frequency encoding on a selected column.**
 add_freq &lt;- function(data, column_name) {
-  frequency_map &lt;- table(data[[column_name]], useNA = &quot;always&quot;)
+
+# **Count how often each category appears in the column, including missing values.**
+frequency_map &lt;- table(data[[column_name]], useNA = &quot;always&quot;)
+
+# **Replace each category with its frequency count. This preserves geographic information while reducing the risk of overfitting that could occur if every state or county were treated as a separate category.**
   data[[column_name]] &lt;- frequency_map[match(data[[column_name]],
                                              names(frequency_map))]
+
+# **Return the modified dataframe after encoding.**
   return(data)
 }
 
+# **Loop through each column in the temporary dataframe and apply the frequency encoding function.**
 for (col in names(temp)) {
+
+# **Frequency encode the current column and save the result back into the temporary dataframe.**
   temp &lt;- add_freq(temp, col)
 }
 
+# **Loop through each encoded column.**
 for (c in 1:length(cols2encode)) {
+
+# **Replace the original categorical columns in pneumoniaFullEncoded with their frequency-encoded versions from the temporary dataframe.**
   pneumoniaFullEncoded[, cols2encode[c]] &lt;- temp[, cols2encode[c]]
+
 }</code></pre>
 </div>
 <div id="question-19-1-point" class="section level5">
@@ -2857,9 +3171,41 @@ strong justification for doing so.</p>
 <p><strong>Hint 3: </strong>If you decide it is ill-advised for either
 or both columns, make sure to remove those features from the
 dataset!</p>
-<pre class="r"><code># Your code here.</code></pre>
+<pre class="r"><code># Compare unique values before and after frequency encoding
+
+length(unique(pneumoniaFull$State))</code></pre>
+<pre><code>## [1] 57</code></pre>
+<pre class="r"><code>length(unique(pneumoniaFullEncoded$State))</code></pre>
+<pre><code>## [1] 50</code></pre>
+<pre class="r"><code>length(unique(pneumoniaFull$CountyParish))</code></pre>
+<pre><code>## [1] 1549</code></pre>
+<pre class="r"><code>length(unique(pneumoniaFullEncoded$CountyParish))</code></pre>
+<pre><code>## [1] 36</code></pre>
+<pre class="r"><code># Examine duplication of encoded values
+
+table(pneumoniaFullEncoded$State)</code></pre>
+<pre><code>## 
+##   1   2   7  10  14  21  23  26  30  33  35  41  43  44  46  47  54  55  58  59 
+##   2   4  14  10  14  21  23  52  30  33  35  41  43  44  92  47  54  55  58  59 
+##  61  62  66  79  81  82  84  88  89  90  95  99 103 104 113 116 119 125 127 129 
+##  61  62  66  79  81  82  84  88 178  90  95  99 103 104 226 116 119 125 127 129 
+## 130 131 154 158 160 171 173 181 327 386 
+## 130 131 154 158 160 171 173 181 327 386</code></pre>
+<pre class="r"><code>table(pneumoniaFullEncoded$CountyParish)</code></pre>
+<pre><code>## 
+##   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15  16  17  18  19  20 
+## 791 642 354 388 220 234 133 136 117 120 154 132  91  56  60  64  17  54  57  40 
+##  21  22  25  26  27  28  31  36  37  38  39  44  45  48  75 171 
+##  21 110  25  78  54  56  31  36  37  38  39  44  45  96  75 171</code></pre>
+<pre class="r"><code># Remove CountyParish because frequency encoding creates excessive duplication
+pneumoniaFullEncoded &lt;- pneumoniaFullEncoded %&gt;%
+  select(-CountyParish)</code></pre>
 <blockquote>
-<p>Your answer here.</p>
+<p>State can be retained because it has relatively few categories and
+the encoded values still provide meaningful information. CountyParish
+should be removed because many counties share the same frequency value,
+resulting in excessive duplication and loss of information after
+frequency encoding.</p>
 </blockquote>
 </div>
 </div>
@@ -2906,7 +3252,13 @@ why the <strong>predicted</strong> rate exists. What would be the
 (dis)advantage to using the predicted vs. the newly created
 <code>observed_readmission_rate</code>?</p>
 <blockquote>
-<p>Your answer here.</p>
+<p>observed_readmission_rate is based on actual readmissions and
+discharges, while PredictedReadmissionRate and ExpectedReadmissionRate
+are risk-adjusted estimates used to calculate the
+ExcessReadmissionRatio. I would choose observed_readmission_rate as the
+target because it represents the actual outcome at each hospital. Using
+the predicted rate would mean predicting another model’s estimate rather
+than actual hospital performance.</p>
 </blockquote>
 </div>
 <div id="question-21-1-points" class="section level5">
@@ -2914,7 +3266,10 @@ why the <strong>predicted</strong> rate exists. What would be the
 <p>Why did I have you drop the two columns used to make
 <code>observed_readmission_rate</code>?</p>
 <blockquote>
-<p>Your answer here.</p>
+<p>The two columns were dropped because they are used to calculate
+observed_readmission_rate. Keeping them would provide the model with
+direct information about the target variable, making the predictions
+easy.</p>
 </blockquote>
 </div>
 </div>
@@ -2943,10 +3298,29 @@ information. <strong>One bonus point will be awarded if you make a
 faceted plot or otherwise include information from at least 3
 variables.</strong></p>
 <p>Need inspiration that comes with code?!? Check out the <a href="https://r-graph-gallery.com">R Graph Gallery</a>!</p>
-<pre class="r"><code># Your code here.</code></pre>
+<pre class="r"><code>library(ggplot2)
+
+ggplot(
+  pneumoniaAnalyze,
+  aes(
+    x = factor(`ComparedToNational_Hospital return days for pneumonia patients`),
+    y = PredictedReadmissionRate
+  )
+) +
+  geom_boxplot() +
+  labs(
+    title = &quot;Predicted Readmission Rate by Hospital Return-Day Performance&quot;,
+    x = &quot;Compared to National Benchmark&quot;,
+    y = &quot;Predicted Readmission Rate&quot;
+  ) +
+  theme_minimal()</code></pre>
+<p><img role="img" src="data:image/png;base64,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" width="672" /></p>
 <p>Lastly, make sure to <strong>interpret</strong> your graphic.</p>
 <blockquote>
-<p>Your answer here.</p>
+<p>The plot suggests that hospitals performing worse than the national
+benchmark tend to have higher observed readmission rates. This indicates
+that hospital return-day performance may be a useful predictor of
+readmissions.</p>
 </blockquote>
 </div>
 </div>

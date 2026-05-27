@@ -15,7 +15,7 @@ pacman::p_load(tidyverse,
 )
 
 #### CHANGE IF NEEDED #################
-filepath <- "~/Desktop/hospitals_current_data_FY2024/"
+filepath <- "C:/GitHub/Merrimack_DSE6630/I. Biomedical & Clinical Informatics/Project_1/FY2024_data_files/"
 ########################################
 
 
