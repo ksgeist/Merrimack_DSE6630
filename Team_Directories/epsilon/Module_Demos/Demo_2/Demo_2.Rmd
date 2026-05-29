@@ -98,6 +98,8 @@ head(states) %>%
 
 Now, let's make a base map leveraging the `ggplot2` package using the `states` dataset. Notice that `x` will always be longitude, `y` will always be latitude, and that we must also pass it a grouping variable. Why do you think we need the `group` variable here?
 
+>This is to make sure where ever the point on the grid/matrix (map) it can line up and connect the lines to form the polygon in the given area it needs to represent a specific area.
+
 ```{r, echo=FALSE}
                 ## x = longitude, y = latitude, group must be set!
 ggplot(states, aes(x = long, y = lat, group = group)) + 
@@ -127,7 +129,7 @@ Great, we've made our first map of the continental US! It's pretty uninteresting
 ### 1.2.1 Bring in the hospital readmissions data
 
 ```{r}
-load("../../I. Biomedical & Clinical Informatics/Demo_1/pneumoniaFull.Rdata")
+load("E:/GitHub/Merrimack_DSE6630/I. Biomedical & Clinical Informatics/Demo_1/pneumoniaFull.Rdata")
 ## Let's change some key data types as well:
 pneumoniaFull <- pneumoniaFull %>% 
   mutate_at(c("Score_Death rate for pneumonia patients", 
@@ -144,7 +146,7 @@ Why didn't I choose to bring in the fully-processed dataset from Project 1? What
 
 **Hint**: What information was deleted and/or changes were made downstream that would make those later datasets poor choices for spatial analysis?
 
-> Your answer here.
+> From the last set of data we did need to delete the information we would need for our maps, specifically data like 'Address', 'CityTown', 'Zipcode'; since this type of data we really didn't need for our previous analysis so we didn't keep our bloated with info unneeded for our previous models.  
 
 ### 1.2.2 Make sure the geographic levels match
 
@@ -152,11 +154,8 @@ Now, take a look at the names of the states in the `states` dataset (from the `r
 
 #### **Question 2A**: [0.25 points]
 
-```{r}
-# Your code here.
-```
 
-> Your answer here.
+> The states data set has the states by lowercase fully spelt out. The pneumoniaFull data set have states in their abbreviated form. We have to convert the abbreviations to full state name to have an easier time merging the state.fips information into the 'pneumoniaFull' df.
 
 I am sure you've now realized that before we can merge them with the state data that we extracted for the map we must make the state names match. This is because `State` in our pneumonia-related readmissions data is an abbreviation (e.g., "AL") but it's the name of the state in the `map_data` ("alabama"). **How can we fix that?**
 
@@ -178,7 +177,8 @@ head(state.fips) %>%
 Now, write code that would allow you to replace the two-letter abbreviation for `State` in the `pneumoniaFull` dataset with the full-name of the state in `states$region` to allow merging.
 
 ```{r}
-# Your code here.
+state.name[match(pneumoniaFull$State, state.abb)]
+
 ```
 
 Sadly, sometimes this can fall short. For example, take a look at the state of Washington:
@@ -198,7 +198,7 @@ States with islands, like WA state or NY, can have additional mappings that we'd
 
 What could we do to `state.fips` to fix this problem? Would your solution become tedious if, for example, we were doing counties instead?
 
-> Your answer here.
+> We would need to see where these particular islands would line up with the counties which would be tedious work. We'd then need to seperate the colons, delete them, then match up the islands to the particular counties; which can potentially break the table into more sections than we'd really need.
 
 An alternative solution (and not the only one by any means) could be to write a function to do the mapping ourselves. It's easier in this particular case to write our own little function, I think. Notice also that I am choosing to name the new column in `pneumoniaFull.Rdata` as `region`; this is to match the column name in the `states` dataframe that we use for mapping so we can merge the tables more easily.
 
@@ -237,7 +237,10 @@ Show that you understand how the `getStateName` works by using it to replace the
 **HINT**: You can use the `mutate()` function or you could just use the base `R` way, either one!
 
 ```{r}
-# Your code here.
+pneumoniaFull <- pneumoniaFull %>%
+  mutate(feature = getStateName(State))
+
+head(pneumoniaFull$feature)
 ```
 
 ### 1.2.3 Aggregate `PredictedReadmissionsRate` by state
@@ -249,31 +252,29 @@ Now, before we add the pneumonia-related hospital readmissions to the map, we ne
 Start from my code and finish the aggregation by state for the `mean()` and `median()` by filling in the blanks. Notice that we are making a separate dataset called `stateAggPneumonia`. Make sure to uncomment the code when you're ready to run it.
 
 ```{r}
-# stateAggPneumonia <- ___ %>%
-#   ## Grab readmissions and region
-#   select(PredictedReadmissionRate, ___, 
-#          `Score_Death rate for pneumonia patients`, 
-#          `Score_Hospital return days for pneumonia patients`, 
-#          `Score_Medicare spending per patient`) %>%  
-#   ## Change region to a factor
-#   mutate(region = as.factor(___)) %>% 
-#   ## Change any other columns from character to numeric
-#   mutate_if(is.character, ___) %>% 
-#   ## Group by region
-#   group_by(___) %>%  
-#   ## Create the new aggregated variables for each measure
-#   summarize(meanReadmissions = mean(PredictedReadmissionRate, na.rm = TRUE),
-#             medianReadmissions = ___(PredictedReadmissionRate, na.rm = TRUE),
-#             meanDeathRate = mean(`Score_Death rate for pneumonia patients`, 
-#               na.rm = ___),
-#             medianDeathRate = ___(`Score_Death rate for pneumonia patients`, 
-#               na.rm = TRUE),
-#             meanHospitalReturnDays = ___,
-#             medianHospitalReturnDays = ___,
-#             meanMedicareSpending = ___,
-#             medianMedicareSpending = ___) %>% 
-#   ## Remove the missing region
-#   filter(!is.na(region))
+ stateAggPneumonia <- pneumoniaFull %>%
+   ## Grab readmissions and region
+   select(PredictedReadmissionRate, feature, 
+          `Score_Death rate for pneumonia patients`, 
+          `Score_Hospital return days for pneumonia patients`, 
+        `Score_Medicare spending per patient`) %>%  
+   ## Change region to a factor
+   mutate(region = as.factor(feature)) %>% 
+   ## Change any other columns from character to numeric
+   mutate_if(is.character, as.numeric) %>% 
+   ## Group by region
+   group_by(region) %>%  
+   ## Create the new aggregated variables for each measure
+   summarize(meanReadmissions = mean(PredictedReadmissionRate, na.rm = TRUE),
+             medianReadmissions = median(PredictedReadmissionRate, na.rm = TRUE),
+             meanDeathRate = mean(`Score_Death rate for pneumonia patients`, na.rm = TRUE),
+             medianDeathRate = median(`Score_Death rate for pneumonia patients`, na.rm = TRUE),
+             meanHospitalReturnDays = mean(`Score_Hospital return days for pneumonia patients`, na.rm = TRUE),
+             medianHospitalReturnDays = median(`Score_Hospital return days for pneumonia patients`, na.rm = TRUE),
+             meanMedicareSpending = mean(`Score_Medicare spending per patient`, na.rm = TRUE),
+             medianMedicareSpending = median(`Score_Medicare spending per patient`, na.rm = TRUE)) %>% 
+   ## Remove the missing region
+   filter(!is.na(region))
 ```
 
 ### 1.2.4 If you were not able to figure it out, load the state-level aggregated data set
@@ -285,7 +286,7 @@ load(file = "stateAggPneumonia.Rdata")
 #### **Question 6**: [1 point]
 Are there any missing data? If so, what data are missing? Did you make a mistake?
 
-> Your answer here.
+> There isn't any missing data since the data from every state was split into seperate rows, and will find the mean and median to their state respectively. It'll leave behind all of the other info we don't need to do our specific region / state analysis.
 
 ### 1.2.5 Means or medians? How do you choose?
 
@@ -332,7 +333,20 @@ On the other hand, we will choose the **median** when:
 #### **Question 7**: [1 point]
 You may have to do some research if you do not recall, but why would showing someone a mean when we should have showed them a median, or vice versa, potentially create interpretation problems for us or our stakeholders?
 
-> Your answer here.
+> It can give a bias account for what is really going on in the data from the mean can be manipulated by really high outliers on either side of the specific skew. It's kind of like if you get a population of folks income and majority is in range of 40 - 90k but a few folks have a couple million dollars rolling in; it'll put a skewed idea people are living very comfortly in actuality that is far from the truth from those few outliers, the millionairs for distorting the whole data set.
+
+>Long story short:
+"-----------------
+Day 1, 100
+Day 2, 120
+Day 3, 150
+Day 4, 200
+Day 5, 5000
+-----------------
+Mean Sales: 1134 (skewed by the extremely high sales on Day 5)
+Median Sales: 150 (a better representation of the typical daily sales)
+Using the mean sales might lead to overestimating typical sales, resulting in incorrect decisions. In contrast, the median sales provide a more accurate representation of typical sales, enabling better business decisions."
+Resource: <https://www.linkedin.com/pulse/understanding-mean-vs-median-key-accurate-business-decisions-thakur-fo7ff>
 
 \   
 
@@ -343,7 +357,8 @@ Practice reading boxplots to decide, for each measure, whether you should use th
 
 **Based on Figure 1 below**, which measure(s) do you think would benefit from the median over the mean? Why?
 
-> Your answer here.
+> For myself I would likely say from the results shown down below, 'Pneumonia Hospital Return Days', 'Pneumonia Readmission Rate', and 'Pneumonia Death Rate'.
+Since for the majority of the ones said have large amount of outliers on either side with the mean not really being in the middle the 'y' value on the side. Also all of the these aren't usually a normal occurance enough to use an average of them from the means but more so using the median instead since areas within a feature (state) can effect the major outcome for the state as a whole. There be a potential effect for more spending per subsection inside the polygon (state) but usually states are founded as a state and not per city area. So with that thinking I feel the three I said should be used for their median instead of the mean.
 
 ```{r, echo = FALSE, fig.height=8, fig.width=10, fig.cap="Figure 1. Violin and boxplots to assess distribution symmetry"}
 pneumoniaFull %>% 
@@ -387,25 +402,25 @@ agostino.test(pneumoniaFull$PredictedReadmissionRate)
 ___Interpretation___: Because $p<0.05$, we reject the hypothesis of symmetry and conclude that predicted readmissions are __significantly skewed__. We should use the median to aggregate this variable.
 
 #### **Question 8B**: [1 point]
-Your task is to repeat this test, with interpretations, for `Score_Death rate for pneumonia patients`, `Score_Hospital return days for pneumonia patients`, and          `Score_Medicare spending per patient`:
-
+Your task is to repeat this test, with interpretations, for `Score_Death rate for pneumonia patients`, `Score_Hospital return days for pneumonia patients`, and          :
+'Score_Medicare spending per patient'
 ```{r}
-# Your code here.
+agostino.test(pneumoniaFull$`Score_Hospital return days for pneumonia patients`)
 ```
 
-___Interpretation___: ...
+__`Score_Hospital return days for pneumonia patients`__: Because $p<0.05$, we can't reject the hypothesis of symmetry and conclude that Hospital Return Days are __significantly skewed__. We should use the median to aggregate this variable.
 
 ```{r}
-# Your code here.
+agostino.test(pneumoniaFull$`Score_Medicare spending per patient`)
 ```
 
-___Interpretation___: ...
+__'Score_Medicare spending per patient'__: Because $p<0.05$, we can't reject the hypothesis of symmetry and conclude that Medicare spending per patients are __significantly skewed__. We should use the median to aggregate this variable.
 
 ```{r}
-# Your code here.
+agostino.test(pneumoniaFull$`Score_Hospital return days for pneumonia patients`)
 ```
 
-___Interpretation___: ...
+__'Score_Death rate for pneumonia patients'___: Because $p<0.05$, we can't reject the hypothesis of symmetry and conclude that Hospital return days for pneumonia patients are __significantly skewed__. We should use the median to aggregate this variable.
 
 #### 1.2.5.3 Assessing stability of central tendency estimates
 
