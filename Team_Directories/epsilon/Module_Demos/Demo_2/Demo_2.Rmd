@@ -454,10 +454,14 @@ The time has come to make your final selection! Your job is to __remove__ the co
 
 #### **Question 8D**: [1 points]
 ```{r}
-# Your code here.
+stateAggPneumonia <- stateAggPneumonia %>%
+  select(-meanReadmissions, -meanDeathRate, -meanHospitalReturnDays, -meanMedicareSpending)
 ```
 
+```{r, label = "Testing for StateAggPneumonia"}
+names(stateAggPneumonia)
 
+```
 ### 1.3 Merge `stateAggPneumonia` with the `states` data for mapping.
 
 Let's use a `left_join` on `stateAggPneumonia` on the `states` dataframe we made in [Section 1](#section1). __Make sure to join by the shared geographic identifier__; here that is `region`.
@@ -506,12 +510,109 @@ p1 <- ggplot(mergedStateAggPneumonia, aes(x = long, y = lat, group = group,
 
 ## Displays the map
 p1
+
+## Store the plot into a variable called p2
+p2 <- ggplot(mergedStateAggPneumonia, aes(x = long, y = lat, group = group, 
+                               ## !!Update the fill to the variable you want
+                               fill = medianDeathRate)) +  
+  geom_polygon(color = "grey20", size = 0.2, alpha = 1) +
+  ## !!Update this change the legend and color scale
+  scale_fill_continuous(name="Median % of death rate within 30 days", 
+            low = "white", high = skittles[3]) +       ## !!Update color here   
+            ## Leave low as white; only !!update high!
+  
+  ## !!Update the title to reflect a better map title
+  labs(title = "Median pneumonia-related death rate by state",
+   ## Leave the caption as-is
+   caption = "Source: Centers for Medicare & Medicaid Services (CMS), 2024") +
+  
+  ## -- This makes the map pretty. No need to change any of this -- ##
+  ## Makes a completely blank map background
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    legend.position = "bottom"
+  ) +
+  ## Sets the aspect ratio to roughly match US map proportions
+  coord_fixed(1.3)
+
+## Displays the map
+p2
+
+## Store the plot into a variable called p3
+p3 <- ggplot(mergedStateAggPneumonia, aes(x = long, y = lat, group = group, 
+                               ## !!Update the fill to the variable you want
+                               fill = medianHospitalReturnDays)) +  
+  geom_polygon(color = "grey20", size = 0.2, alpha = 1) +
+  ## !!Update this change the legend and color scale
+  scale_fill_continuous(name="Median of hospital return days within 30 days", 
+            low = "white", high = skittles[5]) +       ## !!Update color here   
+            ## Leave low as white; only !!update high!
+  
+  ## !!Update the title to reflect a better map title
+  labs(title = "Median pneumonia-related hospital return days by state",
+   ## Leave the caption as-is
+   caption = "Source: Centers for Medicare & Medicaid Services (CMS), 2024") +
+  
+  ## -- This makes the map pretty. No need to change any of this -- ##
+  ## Makes a completely blank map background
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    legend.position = "bottom"
+  ) +
+  ## Sets the aspect ratio to roughly match US map proportions
+  coord_fixed(1.3)
+
+## Displays the map
+p3
+
+## Store the plot into a variable called p4
+p4 <- ggplot(mergedStateAggPneumonia, aes(x = long, y = lat, group = group, 
+                               ## !!Update the fill to the variable you want
+                               fill = medianMedicareSpending)) +  
+  geom_polygon(color = "grey20", size = 0.2, alpha = 1) +
+  ## !!Update this change the legend and color scale
+  scale_fill_continuous(name="Median of Medicare spending days within 30 days", 
+            low = "white", high = skittles[7]) +       ## !!Update color here   
+            ## Leave low as white; only !!update high!
+  
+  ## !!Update the title to reflect a better map title
+  labs(title = "Median pneumonia-related spending from Medicare per patient by state",
+   ## Leave the caption as-is
+   caption = "Source: Centers for Medicare & Medicaid Services (CMS), 2024") +
+  
+  ## -- This makes the map pretty. No need to change any of this -- ##
+  ## Makes a completely blank map background
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    legend.position = "bottom"
+  ) +
+  ## Sets the aspect ratio to roughly match US map proportions
+  coord_fixed(1.3)
+
+## Displays the map
+p4
 ```
 
 #### **Question 9A**: [0.25 points] {#table4}
 Do you notice any trends that could be worth testing? If you're not sure, take a look at this sorted table showing the top 10 states for median pneumonia-related hospital readmissions:
 
 ```{r, echo = FALSE, message=FALSE, warning=FALSE}
+#Median Prediction Readmissions by State
 stateAggPneumonia %>% 
   arrange(desc(medianReadmissions)) %>%
   select(region, medianReadmissions) %>% 
@@ -523,9 +624,50 @@ stateAggPneumonia %>%
     caption = "Table 4. Top 10 states for pneumonia-related readmissions.") %>%
     kable_styling(bootstrap_options = c("hover", full_width = F)
   )
+
+#Median Death Rates by State
+stateAggPneumonia %>% 
+  arrange(desc(medianDeathRate)) %>%
+  select(region, medianDeathRate) %>% 
+  rename(Region = region, 
+         `Median Death Rates by Pneumonia` = medianDeathRate) %>% 
+  top_n(10) %>% 
+   kable(digits = 2,
+    format = "html",
+    caption = "Table 4. Top 10 states for pneumonia-related readmissions.") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F)
+  )
+
+#Median Medicare spent per Patient by State
+stateAggPneumonia %>% 
+  arrange(desc(medianMedicareSpending)) %>%
+  select(region, medianMedicareSpending) %>% 
+  rename(Region = region, 
+         `Median Medicare spending per Patient infected w/ Pneumonia by State` = medianMedicareSpending) %>% 
+  top_n(10) %>% 
+   kable(digits = 2,
+    format = "html",
+    caption = "Table 4. Top 10 states for pneumonia-related infections expenses by Medicare.") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F)
+  )
+
+#Median Medicare spent per Patient by State
+stateAggPneumonia %>% 
+  arrange(desc(medianHospitalReturnDays)) %>%
+  select(region, medianHospitalReturnDays) %>% 
+  rename(Region = region, 
+         `Median Hospital Return Days by State` = medianHospitalReturnDays) %>% 
+  top_n(10) %>% 
+   kable(digits = 2,
+    format = "html",
+    caption = "Table 4. Top 10 states for pneumonia-related hospital return days.") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F)
+  )
 ```
 
 **HINT**: It may not be readily obvious from the map or table! If you don't see a hypothesis, that's okay. But try to think about anything some of these states might have in common, if anything.
+
+> At the moment I find a hypthesis from these to visuals.
 
 #### **Question 9B**: [1.75 points]
 
@@ -563,16 +705,16 @@ source(file = "loadTrainTest.R")
 Check that all of the states (in `region`) made it into the training set. If you choose to do this by counting, say with `unique()` or `distinct()`, you should get __52__ if they are all present.
 
 ```{r}
-# Your code here
+unique(stateTrain$region)
 ```
 
-> Your answer here.
+> Looks like there is 52 including NA, or not including NA 51.
 
 #### **Question 10B**: [0.25 points]
 
 Why am I not asking you to check the states in the testing data?
 
-> Your answer here.
+> Since the Testing data could have any amount of new data that may not contain all of the regions in the Training DF.
 
 #### **Question 10C**: [0.25 points]
 
@@ -582,7 +724,7 @@ In the aggregation that I did for both `stateAggTrain` and `stateAggTest` I took
 
 **HINT 2**: Why is a median _or_ a mean acceptable if we're working with scaled and centered data?
 
-> Your answer here.
+> So we could specifically see which variables we should look at and what the outcomes could look like if either test or training dataframes are some how off.
 
 ### 2.1.2 Identify your geographic level of aggregation for each variable. 
 
@@ -605,6 +747,8 @@ states_sf <- st_as_sf(map("state", plot = FALSE, fill = TRUE))
 #### **Question 10D**: [0.25 points]
 
 You may need to do a little digging, but what exactly is the `st_as_sf()` function from the `sf` package doing? Can you figure out why I didn't just use the `states` object we already used for mapping?
+
+>The st_as_sf() initailizes the process to convert already made data like our data frame we have to shapefiles w/ geometry columns. Other functions mainly try to import or create geometry objects. This uses what is already been made data. It can also build into the columns like wkt, CRS if provided, and returns a sf data frame after it.
 
 ### 2.1.4 Calculate spatial weights for our target, predicted pneumonia readmission rate. {#findSW}
 
@@ -641,7 +785,8 @@ As an example, Colorado and Arizona do not share a border only a corner, right? 
 #### **Question 11A**: [0.5 points]     
 Look up "rook" continuity and explain what (1) what it means, (2) how the neighbor relationship of Colorado and Arizona would change, if it would, and (3) how we change to this type of contiguity in the `poly2nb()` function. (You don't need to actually change it in the code, however.)
 
-> Your answer here. 
+> What "Rook" contiguity means is when two polygons are neighbors only if they share a common border. It works with "Queen" contiguity since at least the point at the famous "Four Corners" touch. To change it you'll need to have the queen = FALSE for the contiguity to be changed to Rook. It can matter since "Rook" can get rid of numerical amount of neighbors. This can help with the weight of spatial matrix to be more sparse, so it can't influence some potential neighbor data to skew the data.
+
 
 
 _We can find neighboring states using queen contiguity like this:_
@@ -669,8 +814,8 @@ sf_use_s2(TRUE)
 
 The first state in our dataset is Alabama. Take a look at one of our maps if needed. How many neighbors do you expect it to have?
 
-> Your answer here.
-Based on queen contiguity, you wouod expect Alabama to have 4 neighbors. 
+> For queen contiguity it'll be 4.
+Based on queen contiguity, you would expect Alabama to have 4 neighbors. 
 
 Now investigate Alabama's spatial weights:
 
@@ -680,8 +825,7 @@ states_sw$weights[[1]]
 
 Does this feel consistent (1) with what you know about the number of neighbors Alabama has and (2) what I mentioned above about row-standardizing our weights? Why or why not?
 
-> Your answer here. 
-This does feel consistent, as each neighbors is equally associated with Alabama (no one state has a greater degree of association than another state).
+>This does feel consistent, as each neighbors is equally associated with Alabama (no one state has a greater degree of association than another state).
 
 Lastly, investigate the spatial weights for Massachusetts (number __20__). Does it fit with your expectations given the number of neighbors?
 
@@ -690,8 +834,7 @@ Lastly, investigate the spatial weights for Massachusetts (number __20__). Does 
 states_sw$weights[[20]]
 ```
 
-> Your answer here. 
-It also fits my expectation, based on my above logic.
+>It also fits my expectation, based on my above logic.
 
 **Join the Spatial Weights back to our Training Data**
 
@@ -699,7 +842,7 @@ Our final step is to attach the neighbor lists and spatial weights back to the t
 
 **NOTE** that if the shapefile spatial names (`ID`) did not already match `region` in `stateAggTrain` we'd have to convert that first! Further, it is at this stage you would add FIPS to facilitate merging, if needed.
 
-_We can calculate the spatial weights as folows:_
+_We can calculate the spatial weights as follows:_
 ```{r}
 ## If we want to make sure that the shapefile ID matches region:
 ## unique(states_sf$ID)
@@ -716,7 +859,7 @@ I am sure you caught this, but spatial weights and everything are being done on 
 
 **HINT**: It is the same reason we did all of our other pre-processing AFTER splitting the data!
 
-> Your answer here. 
+> We only fit the preprocessing towards the training data to help control the amount of possible data leakage that the test data can gain from the fulldata set.
 
 
 ## 2.2 Global Spatial Autocorrelation: Global Moran’s $I$
