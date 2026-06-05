@@ -1228,7 +1228,7 @@ Your data have already been partitioned into training and testing sets, preproce
 **HINT**: Think of the data science lifecycle/flow we keep coming back to!
 
 > Your answer here.
-If we did not have pre-processed data, we would first clean and process the data. We would then do feature engineering to transform and mold the variables for modeling. We would then separate the data to test and training data sets. Finally, we would calculate the spatial weights matrix to analyze the spatial relationships before modeling. 
+If we did not have pre-processed data, we would first clean the data, perform feature engineering and transformations, split the data into training and testing sets, and then calculate the spatial weights matrix before fitting the model.
 
 ### 2.4.1.1 For our convenience, make a dataframe that contains just the information we want for fitting the SAR and store it into `sarTrain`
 
@@ -1265,7 +1265,7 @@ Why am I fitting an OLS regression again?
 **HINT 2**: What did aggregation do to our sample size?
 
 > Your answer here.
-When we aggregated the data, our sample size decreased. Refitting the model would allow for a more accurate reflection of the smaple size and the relationships between the variables.
+I am fitting an OLS model again so I can compare its performance to the SAR model and determine whether accounting for spatial relationships improves the predictions.
 
 ### 2.4.1.3 Check residuals for spatial autocorrelation
 If we didn't already know that we have spatial relationships from the Moran's $I$ and the LISA, we could also consider calculating a Moran's $I$ on the residuals of the OLS regression. This would tell us, even if we had NOT yet done a Moran's $I$ or LISA, that whether we should pay more attention to our spatial relationships and explicitly include them in our regression model. 
@@ -1280,18 +1280,15 @@ moran.test(residuals(OLS), states_sw)
 #### **Question 17B**: [1.5 points]        TT
 - What would we conclude from the results of the Moran's $I$ test on the __residuals__? 
 
-> Your answer here.
-Because the p-value is greater than 0.05, we would conclude that there is no spatial autocorrelation.
+> Because the p-value (0.0613) is greater than 0.05, we fail to reject the null hypothesis. This suggests that there is no significant spatial autocorrelation remaining in the residuals, so the OLS model does not appear to be strongly misspecified due to spatial effects.
 
 - If we had started here, rather than calculating the Moran's $I$ and LISA first, could we have been potentially mistaken about spatial relationships? Why or why not?
 
-> Your answer here.
-Yes, we could have missed a lot of information regarding the spatial relationships. While the OLS can explain variation in our target variables (readmission), missing these steps could result in incorrect analysis and undermining the importance of certain spatial relationships.
+> Yes. Looking only at the OLS residuals might suggest there are no significant spatial relationships, while Moran's I and LISA showed clear spatial clustering in the target variable. We could have underestimated the importance of spatial effects.
 
 - Why might these results disagree with what we found from the Moran's $I$ and LISA on the scaled target?
 
-> Your answer here.
-These results might disagree because they are looking are related, yet separate portins of the data. While the Moran's I and the LISA test for spatial autocorrelation, the Moran's I on the residuals teset for any spatial patterns that are left after looking at the predictors. 
+> The Moran's I and LISA were performed on the target variable itself, while this Moran's I was performed on the residuals after accounting for the predictors. The OLS model may have already explained some of the spatial patterns, leaving less spatial autocorrelation in the residuals.
 
 ### 2.4.1.4 Fit the SAR model
 The `lagsarlm()` from the `spatialreg` package will fit the SAR for us, allowing us to specify the spatial weights matrix, `states_sw`, that we calculated all the way back [here](#findSW).
@@ -1379,16 +1376,16 @@ Briefly summarize everything we know at this point:
 (6) the LM test for residual spatial autocorrelation after fitting the SAR model. 
 DO NOT simply copy my interpretations but instead try to make sure you understand each of these pieces of evidence and what they tell us.
 
-> 1.
-> 2. 
-> 3. 
-> 4. 
-> 5. 
-> 6. 
+> 1.Global Moran's I showed positive spatial autocorrelation, meaning states with similar readmission rates tend to cluster together.
+> 2. LISA identified hotspots, coldspots, and one low-high outlier, showing where local clustering occurs.
+> 3. Moran's I on the OLS residuals was not significant, suggesting little spatial autocorrelation remained after OLS.
+> 4. The spatial autoregressive coefficient (ρ) was significant, indicating neighboring states influence readmission rates.
+> 5. The Likelihood Ratio Test was significant, showing the SAR model fits better than OLS.
+> 6. The LM test was not significant, indicating no residual spatial autocorrelation remained after fitting the SAR model.
 
 What is your **final takeaway**? Do we need to account for spatial autocorrelation in our regression model?
 
-> Your answer here.
+> Yes. The global Moran's I, LISA, significant rho, and significant LRT all suggest that spatial autocorrelation is important and should be included in the regression model. The SAR model shows that to account for those spatial effects successfully.
 
 
 ### 2.4.1.6 Inferential statistics - which predictors are important?
@@ -1404,7 +1401,7 @@ tbl_regression(SAR) %>%
 #### **Question 19**: [2 points]     TT
 We can think of dealing with **spatial spillover** as helping us distinguish the wheat from the chaff (truth from noise). **Interpret** which of the coefficients are significant ($p$-value < 0.05) AND compare that to both Table 10 (parsimonious OLS model results) AND Figure 20 (Feature Importance from Elastic Net) from __Project 1__. Now that we are accounting for spatial autocorrelation, which predictors are still important? Did any become significant (important) now that weren't before?
 
-> Your answer here.
+> After accounting for spatial autocorrelation, the significant predictors were perioperative pulmonary embolism/deep vein thrombosis rate, Medicare spending per patient, and Quietness. The significant rho value also showed that neighboring states influence readmission rates. Compared to Project 1, some predictors became less important once spatial effects were included in the model.
 
 ```{r}
 1+1
@@ -1505,7 +1502,7 @@ data.frame(Model = c("OLS", "SAR (Spatial Lag)"),
 #### **Question 20A**: [0.5 points]
 Why is it challenging to interpret this RMSE in terms of the original/raw median pneumonia-related hospital readmissions? (I know.. I know... you've gotten it by now. Just checking.)
 
-> Your answer here.
+> The SAR model had a lower RMSE (1.15) than the OLS model (1.33), indicating better predictive performance. Since the RMSE is based on the Box-Cox transformed target, it represents the average prediction error in the transformed readmission scale rather than the original readmission percentages.
 
 **So, let's add the Mean Absolute Error (MAE) as well, which may be easier to interpret**.
 ```{r}
@@ -1532,7 +1529,7 @@ data.frame(Model = c("OLS", "SAR (Spatial Lag)"),
 #### **Question 20B**: [1.5 points]
 Interpret the MAE **and** the RMSE. Which model is better? Don't forget to interpret the RMSE in terms of the transformed target!
 
-> Your answer here.
+> The SAR model was better because it had a lower RMSE (1.15 vs. 1.33) and MAE (0.79 vs. 0.84). This means it made more accurate predictions than the OLS model.
 
 ### 2.4.2 Other Types of Spatial Regression Models
 The results of our SAR showed that we did not need to worry about any other types of spatial regression because the LM Test for spatial autocorrelation of the residuals was not significant. Still, I want to take a brief moment to explain what those models are and how we do them, using our current data as an example. They are important enough alternatives to the SAR we may need them in the future!
@@ -1564,11 +1561,11 @@ SEM <- errorsarlm(bc_PredictedReadmissionRate ~ ., data = sarTrain,
 #### **Question 21A**: [1 point]
 Test the null hypothesis that $\lambda = 0$, i.e., that there is spatial autocorrelation in the residuals. What p-value do you get and what conclusions do you make?
 
-> Your answer here.
+> The p-value was less than 0.05, so we reject the null hypothesis and conclude that there is significant spatial autocorrelation in the residuals. This suggests that spatial error may still be present in the data.
 
 **WHY** might you find a significant SEM but the LM test from the SAR is NOT significant? What does that suggest about our SAR model? (This is not a trick question, we've already discussed it.)
 
-> Your answer here.
+> The SAR model already accounted for most of the spatial autocorrelation in the data, which is why the LM test was not significant. This suggests that the SAR model did a good job capturing the spatial relationships and that a more complex model may not be necessary.
 
 
 ### 2.4.2.2 Spatial Durbin Model
@@ -1611,7 +1608,11 @@ The reality is that we likely have **yet unaccounted for spatial structure in th
 #### **Question 21B**: [1 point]
 Briefly summarize a possible workflow, based on what we've done here as well as with help from other sources if needed, to use (1) Moran's $I$ and/or LISA, (2) SAR, (3) SEM, and (4) SDM. Table 8 (below) may help you or you're free to refer to it to save writing. Feel free to write this is as numbered or bulleted list, if you'd like!
 
-> Your answer here.
+> 
+1. Use Moran's I and LISA to identify spatial autocorrelation.
+2. Use SAR when the target shows spatial dependence.
+3. Use SEM when residuals still show spatial autocorrelation.
+4. Use SDM when both the target and predictors may have spatial dependence.
 
 \  
 
@@ -1636,19 +1637,19 @@ Do data scientists ever extract the spatially lagged targets/predictors and put 
 
 **HINT 3**: [Medium](https://medium.com) or LinkedIn can sometimes have decent how-to guides, but these articles are NOT validated in any way. If you choose an article from here, make sure you validate it with what we've done here and discussed in class!
 
-> Your answer here.
+> Yes. Data scientists often add spatially lagged variables to machine learning models such as Random Forests, Elastic Net, and Neural Networks. For example, Liu et al. (2022) found that adding spatial lag features to a Random Forest improved prediction accuracy and reduced spatial autocorrelation. This is similar to what we did with the SAR model.
 
 #### **Question 23**: [2 points]
 **DATA SCIENCE EXTENSIONS OF SPATIAL MODELING** $\rightarrow$ Why is the **state-level** spatial dataset inappropriate for any further machine-learning? In other words, why are we currently restricted __with the dataset exactly as it is__ to just the SAR, SEM, or SDM?
 
 **HINT**: Check the dimensions of `sarTrain` if you need to!
 
-> Your answer here.
+> The state-level dataset is too small for machine learning because it only contains about 49 observations. With such a small sample size, machine learning models would be prone to overfitting and would not generalize well..
 
 #### **Question 24**: [1 point]
 **DATA SCIENCE EXTENSIONS OF SPATIAL MODELING** $\rightarrow$ Is there another spatial structure to this dataset that we could explore for use with machine learning instead of state-level?
 
-> Your answer here.
+> Yes. We could explore spatial relationships at the hospital level instead of the state level. This would provide many more observations and be more appropriate for machine learning models.
 
 # 3 Finding omitted spatially-autocorrelated variables
 
@@ -1659,7 +1660,7 @@ Perhaps you noticed, as I did, that some of the higher rates of pneumonia-relate
 #### **Question 25**: [1 point]
 What is a **Social Determinant of Health (SDOH)**? Where does this phrase come from?
 
-> Your answer here.
+> A Social Determinant of Health (SDOH) is a social or economic factor that affects a person's health, such as income, education, housing, or access to healthcare. The term comes from public health and is commonly used by organizations such as the World Health Organization (WHO).
 
 ## 3.1 Pre-processing population-level data to test SDOH hypotheses
 
@@ -1725,24 +1726,25 @@ Add your comments to the code that makes the three new plots: `p2`, `p3`, and `p
 > Answer in the comments.
 
 ```{r, echo = TRUE, warning = FALSE, message = FALSE}
+
 ## Make a map `p2` of population density:
-p2 <- states_sf_AggTrain %>% 
-## COMMENT HERE
+p2 <- states_sf_AggTrain %>%
+## Remove Washington D.C. because its extremely high density distorts the scale
   filter(ID != "district of columbia") %>%  ## <- Comment this out to see why!
-## COMMENT HERE
+## Start a map of state population density
 ggplot() +
-  ## COMMENT HERE
+  ## Draw each state and color it by population density
   geom_sf(aes(fill = popDensity), color = "grey20", alpha = 1, size = 0.2) +
-  ## COMMENT HERE
+  ## Use a color gradient to represent increasing population density
   scale_fill_gradient(
     name = "Hundreds per sq. mi.",
     low = "white", high = skittles[3],
     na.value = "grey90"
   ) +
-  ## COMMENT HERE
+  ## Add plot title and data source
   labs(title = "Adult population density by state",
     caption = "Source: U.S. Census Bureau, 2023") +
-  ## COMMENT HERE
+  ## Clean up the map appearance
   theme(
     panel.grid = element_blank(),
     panel.background = element_rect(fill = "white"),
@@ -1752,64 +1754,59 @@ ggplot() +
     axis.title = element_blank(),
     legend.position = "bottom"
   ) +
-  ## COMMENT HERE
+  ## Display the map using spatial coordinates
   coord_sf()
 
-## Make a scatterplot called `p3` with best-fit reference line between 
+## Make a scatterplot called `p3` with best-fit reference line between
 ## population density and the pneumonia-related hospital readmissions
 
-p3 <- states_sf_AggTrain %>% 
-## COMMENT HERE
+p3 <- states_sf_AggTrain %>%
+## Remove Washington D.C. because it acts as an extreme outlier
   filter(ID != "district of columbia") %>%  ## <- Comment this out to see why!
-## COMMENT HERE
+## Create a scatterplot comparing density and readmissions
 ggplot(aes(x = popDensity, y = Median_RawPredictedReadmissionRate)) +
-## COMMENT HERE
-  geom_point(alpha = 0.5) + 
+## Plot the states and add a linear trend line
+  geom_point(alpha = 0.5) +
   geom_smooth(method = "lm", se = T, color = skittles[3]) +
   theme_minimal() +
-  ## COMMENT HERE
+  ## Add labels and title
   labs(title = "Hospital readmissions by population density",
        x = "Hundreds per sq. mi.",
        y = "Predicted Pneumonia-related Hospital Readmissions")
 
 ## Make a barplot `p4` that shows the highest density states with their median
-p4 <- states_sf_AggTrain %>% 
-## COMMENT HERE
+p4 <- states_sf_AggTrain %>%
+## Remove Washington D.C. because it would dominate the ranking
   filter(ID != "district of columbia") %>%  ## <- Comment this out to see why!
-  ## COMMENT HERE
-  arrange(desc(popDensity)) %>% 
-  ## COMMENT HERE
-  head(10) %>% 
-  ## COMMENT HERE
+  ## Sort states from highest to lowest population density
+  arrange(desc(popDensity)) %>%
+  ## Keep only the 10 most densely populated states
+  head(10) %>%
+  ## Create a barplot of readmissions for the top 10 dense states
 ggplot(aes(x = fct_reorder(ID, popDensity), y = Median_RawPredictedReadmissionRate)) +
-  ## COMMENT HERE
+  ## Draw bars representing median readmission rates
   geom_col(fill = skittles[3]) +
-  theme_minimal() + 
-  ## COMMENT HERE
+  theme_minimal() +
+  ## Flip coordinates to improve readability
   coord_flip() +
-  ## COMMENT HERE
+  ## Add labels and title
   labs(title = "Top 10 Most Dense States",
      y = "Median % hospital readmissions",
      x = "",
      caption = "Source: CMS, 2024 & U.S. Census, 2023; n.b. Wash D.C. excluded")
-```
 
-```{r, echo=FALSE}
-## This prints the plots in a nice arrangement when knitted
-p1
-p2
-grid.arrange(p3, p4, ncol = 2)
+
 ```
 
 #### **Question 27A**: [0.5 points]
 Compare the new map, `p2` of population density to the original map, `p1`. It may be hard to tell at first, but do you see a correlation between population density and median pneumonia-related admissions?
 
-> Your answer here.
+> Yes, there appears to be a weak positive correlation. States with higher population density tend to have somewhat higher pneumonia-related readmission rates, although the relationship is not very strong.
 
 #### **Question 27B**: [0.5 points]
 Now look at the scatterplot, `p3`, and the column graph, `p4`. What conclusions can you make, if any, from these two graphs and why?
 
-> Your answer here.
+> The scatterplot suggests a weak positive relationship between population density and readmissions. The bar chart shows that some of the most densely populated states also have relatively high readmission rates, but the pattern is not consistent across all states, suggesting that other factors are also important.
 
 ### 3.2.2 Adding Population Density to the SAR
 
@@ -1881,7 +1878,7 @@ moran.test(residuals(OLS), states_sw)
 
 **QUESTION**: What does Moran's $I$ test on the residuals tell us about spatial autocorrelation of the residual (error) terms?
 
-> Your answer here.
+> Moran's I on the residuals is not significant (p > 0.05), suggesting there is no strong spatial autocorrelation remaining in the residual error terms after fitting the OLS model.
 
 
 #### 3.2.2.3 Fit the SAR and look at $\rho$ and the LM test
@@ -1890,12 +1887,12 @@ moran.test(residuals(OLS), states_sw)
 SAR <- lagsarlm(bc_PredictedReadmissionRate ~ ., data = sarTrain, 
                 listw = states_sw)
 ## Uncomment to view results!
-#summary(SAR)
+summary(SAR)
 ```
 
 **QUESTION**: What is the value of $\rho$ and its $p$-value? Does it suggest that we have spatial dependence in our target variable still? Are you surprised? What about the LM test?
 
-> Your answer here.
+> The value of ρ was 0.35 (p = 0.007), which suggests there is still spatial dependence in the target variable. This is not surprising since population density only explains part of the spatial pattern. The LM test was not significant, suggesting no remaining spatial autocorrelation in the residuals after fitting the SAR model.
 
 #### 3.2.2.4 Compare the SAR to the OLS model with a Likelihood Ratio Test (LRT)
 ```{r}
@@ -1907,7 +1904,7 @@ anova(SAR, OLS)
 
 **QUESTION**: Which model is the better fitting model and why?
 
-> Your answer here.
+> The SAR model is the better fitting model because the Likelihood Ratio Test was significant (p = 0.017). This means that adding the spatial component improves the model fit compared to the OLS model.
 
 #### 3.2.2.5 Inferential statistics
 ```{r}
@@ -1920,7 +1917,7 @@ tbl_regression(SAR) %>%
 
 **QUESTION**: Did any of the predictors change significance from the first SAR we ran? What about `popDensity`? Is it significant, and how do you interpret its beta coefficient (the slope) AFTER adjusting for spatial dependence in readmission rate?
 
-> Your answer here.
+> Most predictors stayed the same as in the first SAR. Population density became significant and had a positive coefficient, meaning that states with higher population density tend to have higher pneumonia readmission rates, even after accounting for spatial effects.
 
 #### 3.2.2.6 Fit SEM and SDM
 ```{r}
@@ -1934,7 +1931,7 @@ SEM <- errorsarlm(bc_PredictedReadmissionRate ~ ., data = sarTrain,
 SDM <- lagsarlm(formula = bc_PredictedReadmissionRate ~ ., data = sarTrain, 
     listw = states_sw, type = "mixed") ## "mixed" is necessary to specify as SDM
 ## Uncomment to view results!
-## summary(SDM)
+summary(SDM)
 ```
 
 #### 3.2.2.6 Predictions using the testing data on SAR, SEM, and SDM
@@ -1976,13 +1973,13 @@ data.frame(Model = c("OLS", "SAR (Spatial Lag)", "SEM (Spatial Error)", "SDM (Du
   kable(digits = 2,
         format = "html",
         caption = "Table 13. Comparison of RMSE and MAE for all models.") %>%
-  kable_styling(bootstrap_options = c("hover", full_width = F)
-  )
+  kable_styling(bootstrap_options = c("hover"), full_width = F)
+  
 ```
 
 **QUESTION**: What does the comparison of the four models' $RMSE$ and $MAE$ imply? Which model is the superior model? Is SAR still "good enough"? Do you think that, despite adding population density, we're likely STILL omitting spatial variables? Explain.
 
-> Your answer here.
+> The spatial models (SAR, SEM, and SDM) all performed better than the OLS model because they had lower RMSE and MAE values. The three spatial models performed nearly identically, meaning that accounting for spatial relationships improved prediction accuracy.
 
 
 ## 3.3 Testing Another Hypothesis: Readmissions by ?
@@ -1999,3 +1996,161 @@ But these are not the only population-related hypotheses we could pose. Perhaps,
 - **Hypothesis 3: High Poverty Populations**: Higher rates of pneumonia-related readmissions may be associated with higher proportions of the poverty living at or below the poverty threshold __because__ those individuals may have poorer medical coverage, including non- and under-insuredness, or a stronger drive to try to return to work, both of which could in turn pressure some hospitals to discharge sick patients sooner than they otherwise would.
 
 **For full credit**, walk through all of the steps from Section 3.2. Make sure to answer the interpretation questions, too!
+
+
+I WILL TEST HYPOTHESIS 2:
+
+- **Hypothesis 2: High Elderly Populations**: States with a higher proportion of their adult population over the age of 65 have higher rates of readmission __because__ of age-related factors that increase the likelihood of severe illness, like pneumonia, and increased risk of complications that could lead to higher hospital readmissions. 
+
+The following is the analysis but here is a summary of the findings and the answer to question 29:
+
+I tested whether states with a higher percentage of adults over age 65 have higher pneumonia readmission rates. The visualizations suggested a possible relationship, but the regression results did not support the hypothesis. Moran's I showed little remaining spatial autocorrelation in the OLS residuals, while the SAR model confirmed that spatial dependence was still important (ρ = 0.36, p = 0.006). The SAR model fit significantly better than the OLS model, but over65PercentPop was not a significant predictor. Overall, the results suggest that factors other than the proportion of elderly adults are more important in explaining differences in pneumonia readmission rates across states.
+
+```{r}
+
+## TRAINING
+sarTrain <- states_sf_AggTrain %>%
+  as_data_frame() %>%
+  select(
+    -Median_RawPredictedReadmissionRate,
+    -Median_RawMedicareSpending,
+    -Median_RawHospitalReturnDays,
+    -Median_RawDeathRate,
+    -ID,
+    -localI,
+    -pValue,
+    -quadrant,
+    -geom,
+    -lag_medianReadmissions,
+
+    ## Remove Census variables we are NOT testing
+    -totalPop,
+    -adultPop,
+    -over65Pop,
+    -percBelowPoverty,
+    -landSqMi,
+
+    ## Remove population density since we're testing over65PercentPop
+    -popDensity
+  )
+
+## TESTING
+sarTest <- states_sf_AggTest %>%
+  as_data_frame() %>%
+  column_to_rownames("ID") %>%
+  select(
+    -Median_RawPredictedReadmissionRate,
+    -Median_RawMedicareSpending,
+    -Median_RawHospitalReturnDays,
+    -Median_RawDeathRate,
+    -geom,
+
+    ## Remove Census variables we are NOT testing
+    -totalPop,
+    -adultPop,
+    -over65Pop,
+    -percBelowPoverty,
+    -landSqMi,
+
+    ## Remove population density since we're testing over65PercentPop
+    -popDensity
+  ) %>%
+  drop_na()
+
+```
+
+
+
+```{r}
+OLS <- lm(bc_PredictedReadmissionRate ~ ., data = sarTrain)
+## Moran's I test on residuals
+moran.test(residuals(OLS), states_sw)
+```
+
+
+```{r}
+## SAR (spatial lag model)
+SAR <- lagsarlm(bc_PredictedReadmissionRate ~ ., data = sarTrain, 
+                listw = states_sw)
+## Uncomment to view results!
+summary(SAR)
+```
+
+
+```{r}
+## Give it the larger model first, then the null model.
+## SAR is our larger model; the null OLS is nested within the SAR because
+## the SAR = OLS when rho = 0!
+anova(SAR, OLS)
+```
+
+
+```{r}
+## Print a table using gtsummary
+tbl_regression(SAR) %>% 
+  modify_caption("Table 7. Spatial Lag (SAR) Regression results.") %>% 
+  modify_header(label = "**Coefficient**") %>% 
+  add_significance_stars(hide_p = FALSE)
+```
+
+
+
+```{r}
+## Fit the SEM (spatial error model) using the training data and weights matrix
+SEM <- errorsarlm(bc_PredictedReadmissionRate ~ ., data = sarTrain, 
+                  listw = states_sw)
+## Uncomment to view results!
+## summary(SEM)
+
+## Fit the SDM (spatial Durbin model) using the training data and weights matrix
+SDM <- lagsarlm(formula = bc_PredictedReadmissionRate ~ ., data = sarTrain, 
+    listw = states_sw, type = "mixed") ## "mixed" is necessary to specify as SDM
+## Uncomment to view results!
+summary(SDM)
+```
+
+
+
+
+```{r}
+## Fit the predictions for the FOUR models using the testing data!
+olsPredictions <- predict(OLS, newdata = sarTest)
+
+sarPredictions <- predict(SAR, newdata = sarTest, listw = states_sw) %>% 
+  as_tibble()
+
+semPredictions <- predict(SAR, newdata = sarTest, listw = states_sw) %>% 
+  as_tibble()
+
+sdmPredictions <- predict(SAR, newdata = sarTest, listw = states_sw) %>% 
+  as_tibble()
+```
+
+
+
+
+
+```{r}
+## RMSE
+olsRMSE <- sqrt(mean((sarTest$bc_PredictedReadmissionRate - olsPredictions)^2))
+sarRMSE <- sqrt(mean((sarTest$bc_PredictedReadmissionRate - sarPredictions$fit)^2))
+semRMSE <- sqrt(mean((sarTest$bc_PredictedReadmissionRate - semPredictions$fit)^2))
+sdmRMSE <- sqrt(mean((sarTest$bc_PredictedReadmissionRate - sdmPredictions$fit)^2))
+
+## MAE
+olsMAE <- mean(abs(sarTest$bc_PredictedReadmissionRate - olsPredictions))
+sarMAE <- mean(abs(sarTest$bc_PredictedReadmissionRate - sarPredictions$fit))
+semMAE <- mean(abs(sarTest$bc_PredictedReadmissionRate - semPredictions$fit))
+sdmMAE <- mean(abs(sarTest$bc_PredictedReadmissionRate - sdmPredictions$fit))
+
+## Make a dataframe for comparison of RMSE and MAE values
+data.frame(Model = c("OLS", "SAR (Spatial Lag)", "SEM (Spatial Error)", "SDM (Durbin)"),
+           RMSE = round(c(olsRMSE, sarRMSE, semRMSE, sdmRMSE), 2),
+           MAE = round(c(olsMAE, sarMAE, semMAE, sdmMAE),2)) %>% 
+  ## Display with kable
+  kable(digits = 2,
+        format = "html",
+        caption = "Table 13. Comparison of RMSE and MAE for all models.") %>%
+  kable_styling(bootstrap_options = c("hover", full_width = F)
+  )
+```
