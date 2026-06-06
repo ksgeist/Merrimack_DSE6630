@@ -1,8 +1,8 @@
 ---
 title: "Project 2: Public Health & Epidemiology"
 subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
-author: "Katherine S. Geist, PhD"
-date: "1 June 2026"
+author: "Team Epsilon: Desi Spark (DS), Elizabeth Greenan (EG), Meghan Holden (MH)"
+date: "9 June 2026"
 output:
   html_document:
     toc: true
@@ -159,7 +159,23 @@ Notice that the directory contains six files, three of them with file extensions
 
 What do each of these six files represent? You will not be able to open them directly on your computer, so you may need to refer back to lecture and do a little digging to figure out the type of data you would expect each of these files to contain.
 
-> Your answer here.
+EG
+
+Source: https://desktop.arcgis.com/en/arcmap/latest/manage-data/shapefiles/shapefile-file-extensions.htm
+
+> California_County_Boundary.cpg is an optional file, where CPG stands for code page file. It specifically defines the encoding used in the dataset.
+
+> California_County_Boundary.dbf is a database file which stores the attribute information in the dataset. These features are stored in a tabular form.
+
+> California_County_Boundary.prj is a projection file that stores the projection (coordinate system) of the data.
+
+> California_County_Boundary.shp is the shapefile. This file has the geometry of all the features in the dataset. When loaded in to a software like ArcGIS or QGIS, it will show the polygons (or points if applicable) in the dataset.
+
+> California_County_Boundary.shp.xml is a metadata file for the shapefile and contains information about the shapefile. 
+
+> California_County_Boundary.shx indexes the geometry. This is a necessary file and SHX stands for shape index file.
+
+> As mentioned in the lecture, all of these files must have the same file name and be stored in the same directory for them to open and work correctly.
 
 ## 2.2 Your objective
 
@@ -182,10 +198,10 @@ __The initial processing steps will include:__
 You will leverage the `read_sf()` function that is part of the `sf` package. As you might have guessed, `sf` refers to __shapefile__. Note that there is an alternative method to read in shapefiles called `st_read`, which is an alias for `read_sf()` with some different default arguments. By default, `read_sf()` is quiet, whereas `read_st()` will print information about the data source by default. Additionally, `read_sf()` returns a tibble rather than a dataframe. So which to choose? It's your preference, in this case. By default, your code below will use `read_sf()` but you could instead use `read_st()` if you wanted.
 
 ```{r}
-cali_sf <- read_sf("~/Downloads/California_County_Boundaries2025/California_County_Boundary.shp") 
+cali_sf <- read_sf("/Users/elizabethgreenan/Desktop/California_County_Boundaries2025/California_County_Boundary_view_layer_for_public_use_-7341318997869969624/California_County_Boundary.shp") 
 
 ## Alternatively, you can read in the shapefile using the 'st_read()' function
-## cali_st <- st_read("~/Downloads/California_County_Boundaries2025/California_County_Boundary.shp") 
+## cali_st <- st_read("/Users/elizabethgreenan/Desktop/California_County_Boundaries2025/California_County_Boundary_view_layer_for_public_use_-7341318997869969624/California_County_Boundary.shp") 
 ```
 
 **NOTE** If you get a warning (as opposed to a critical error) is from [GDAL](https://gdal.org/en/stable/), a library of raster and vector geospatial data formats that your `read_sf()` (or `st_read()`) functions are using to transform the polygons for mapping. This warning indicates that some polygon geometries in the shapefile have boundaries (rings) with an inconsistent order of coordinates ("invalid winding order"). GIS tools assume that it will read from the right-hand, and the warning is letting you know that it is autocorrecting it. However, you could still have issues and it isn't ideal.
@@ -212,9 +228,22 @@ print(cali_sf$COUNTY_NAM)
 #### Question 2 [1 point]:
 Why did `TRUE` print 69 times? What are the "69 features" in the geometry? 
 
-**Hint 1**: Are all of them counties? Try running `print(calif_sf$COUNTY_NAME)`. What do you see?
+**Hint 1**: Are all of them counties? Try running `print(calif_sf$COUNTY_NAM)`. What do you see?
 
-> Your answer here.
+EG
+Source: https://r-spatial.github.io/sf/reference/valid.html
+
+```{r}
+# Print each of the COUNTY_NAM vcalues in cali_sf dataframe
+print(cali_sf$COUNTY_NAM)
+
+# Check to see if there are duplicate counties
+table(cali_sf$COUNTY_NAM)
+
+```
+
+
+> According to the above code and the source cited at the beginning of this question, st_is_valid checks whether geometries are valid. In this case, TRUE printed 69 times because there are 69 geometries in this dataset. When I ran print(cali_sf$COUNTY_NAM), the county names were output. However, Colusa county is duplicated, showing up twice in the output. This shows that although there are 59 counties (58 unique), there are more geometry features than counties.
 
 *Next, let's take a look at the geometry of the shapefile that you loaded.*
 ```{r}
@@ -226,12 +255,20 @@ Notice that, just like Demo 2, you only have the __polygon__ geometry in your sh
 #### Question 3A [0.5 points]:
 What is the bounding box that comes with your shapefile and what does it tell us? **What would you do to the bounding box if you wanted to zoom in or out on a geographic feature?**
 
-> Your answer here.
+EG
+
+Source: https://epirhandbook.com/en/new_pages/gis.html
+
+> The  bounding box (bbox) that come with the shapefile are coordinate boundaries. They provide the minimum and maximum x and y values where the entire map can be seen. In this case, the bounding box is: xmin: -13849230 ymin: 3833650 xmax: -12704990 ymax: 5162402.
+
+> If you wanted to zoom into a geographic feature (ex. Los Angeles county instead of the entire state of CA), you would make the bounding box smaller. If you wanted to zoom out on a geographic feature (ex. look at the whole US instead of CA), you would make the bounding box larger.
 
 #### Question 3B [0.5 points]:
 What is the projection? What does it tell you and why does projection matter? **What will change if you change the projection?**
 
-> Your answer here.
+EG
+
+> The projection is WGS 84/ Pseudo-Mercator. The projection tells us how the data is being displayed on the map. When the projection is changed, so is the coordinate system. Changing the projection can cause the map to look distorted and features such as distance, area, and angles will change.
 
 ### 2.3.2 Create a basic map of California
 
@@ -277,32 +314,49 @@ Notice that the county names are accessible through `cali_sf$COUNTY_NAM`. Thus, 
 #### Question 4 [1 point]:
 Finish the code below to create a map of the northernmost 3 counties in California. You can copy and paste, with minor modifications, the code for the entire state map to do this. **NOTE** that you are storing your map into `map1`. This is because I will show you how to add labels in the next section! Don't forget to update your plot title for full credit!
 
-```{r}
-# ## Start from the California spatial tibble - Uncomment to run
-# map1 <- cali_sf %>% 
-#   ## Filter to just the 3 counties that border Oregon - Uncomment to run
-#   filter(COUNTY_NAM == "Del Norte" | COUNTY_NAM == "Siskiyou" | COUNTY_NAM == "Modoc") %>% 
+EG
 
-## YOUR CODE HERE.
+```{r}
+# Start from the California spatial tibble
+map1 <- cali_sf %>% 
+# Filter to just the 3 counties that border Oregon
+  filter(COUNTY_NAM == "Del Norte" | COUNTY_NAM == "Siskiyou" | COUNTY_NAM == "Modoc") %>% 
+
+## Initiate the plot and tell it the dataset
+ggplot() +
+  ## Give it specific fill and border colors
+  geom_sf(fill = skittles[6], 
+          color = "gray20", 
+          linewidth = 0.25, 
+          alpha = 0.65) +
+  
+  ## Set map projection explicitly
+  coord_sf(expand = FALSE) +   ## <- keeps map tight to its bounding box
+  ## Give it a title and footnote/caption 
+  labs(title = "3 Northernmost California Counties",
+       caption = "Source: California State Geoportal") 
+
+# Print map1
+print(map1)
 ```
 
 *Now let's add labels!* 
 This code will not run unless you have made `map1` correctly!
 
 ```{r}
-### UNCOMMENT THIS CODE TO RUN:
+### Uncommented the following code, which adds labels
 
-# ## Calculate the county centers:
-# county_centroids <- st_centroid(cali_sf) %>% 
-# ## Filter for just the northern centroids
-#     filter(COUNTY_NAM == "Del Norte" | COUNTY_NAM == "Siskiyou" | COUNTY_NAM == "Modoc") 
-# 
-# ## Now, add the labels to the map:
-# map1 + geom_sf_text(data = county_centroids, 
-#                     aes(label = COUNTY_NAM), 
-#                     size = 3.5, fontface = "bold") +
+# Calculate the county centers:
+ county_centroids <- st_centroid(cali_sf) %>% 
+# Filter for just the northern centroids
+     filter(COUNTY_NAM == "Del Norte" | COUNTY_NAM == "Siskiyou" | COUNTY_NAM == "Modoc") 
+ 
+# Now, add the labels to the map:
+ map1 + geom_sf_text(data = county_centroids, 
+                     aes(label = COUNTY_NAM), 
+                     size = 3.5, fontface = "bold") +
 #   ## fix the x and y axis labels to make a beautiful map!
-#   theme(axis.title = element_blank())
+   theme(axis.title = element_blank())
 ```
 
 ## 2.3.4 Creating points for major cities in California {#overlayPoints}
@@ -363,12 +417,52 @@ ggplot(data = cali_sf) +
 #### Question 5 [1 point]:
 Your stakeholders point out that you have forgotten San Jose, one of the most populated cities in California! They ask you to go back to the map and add it on. 
 
-**Hint 1**: The coordinates of San Jose are 37.3387° N, 121.8853° W
+**Hint 1**: The coordinates of San Jose are 37.3387° N, -121.8853° W
 **Hint 2**: Don't forget to add a `cityType` for San Jose!
 **Hint 3**: Don't forget to add a skittles color for San Jose in `scale_color_manual`!
 
+EG
+
 ```{r}
-## YOUR CODE HERE.
+
+# Create a cities data frame with coordinates and add in San Diego
+cities <- data.frame(
+  city = c("Sacramento", "San Diego", "Los Angeles", "San Francisco", "San Jose"), # Added San Jose to the list of cities
+  lon = c(-121.4944, -117.1611, -118.2437, -122.4194, -121.8853), # Added latittude and longitude (added negative sign to San Jose longitude)
+  lat = c(38.5816, 32.7157, 34.0522, 37.7749, 37.3387),
+  cityType = c("capital", "major", "major", "major", "major") # Added major as a city type for San Jose
+)
+
+# Convert to shapefile object with the same projection as what you had
+cities_sf <- st_as_sf(cities, coords = c("lon", "lat"), crs = 4326)
+
+# Plot California counties with city points
+ggplot(data = cali_sf) +
+  # Give it specific fill and border colors
+  geom_sf(fill = skittles[6], 
+          color = "gray20", 
+          linewidth = 0.25, 
+          alpha = 0.65) +
+  
+  # Set map projection explicitly
+  coord_sf(expand = FALSE) +   ## <- keeps map tight to its bounding box
+  
+  #### ----- Here is where you overlay the points! -------- ####
+  geom_sf(data = cities_sf, 
+          ## Different colors & shapes & sizes for different cities
+          aes(color = city, shape = cityType, size = cityType)) + 
+  
+  ## Define shapes and sizes manually for cityType
+  scale_shape_manual(values = c(capital = 18, major = 16), guide = "none") +  
+  scale_size_manual(values = c(capital = 6, major = 3), guide = "none") +
+  
+  ## Define the fill color for the city shapes
+  scale_color_manual(values = skittles[1:5], name = "City") + # Updated to 1:5 to account for San Jose
+
+  ## Give it a title and footnote/caption 
+  labs(title = "California Counties with Major Cities Marked",
+       caption = "Source: California State Geoportal") 
+
 ```
 
 ## 2.4 Joining shapefiles with a tibble or dataframe
@@ -388,44 +482,75 @@ __Our Process:__
 #### Question 6 [1 point]:
 Annotate the following code chunk with comments to make sure you understand what you are doing here. **HINT**: refer back to the earlier tables with the data descriptions to help you understand the data better!
 
+EG
+
 ```{r, echo = TRUE, warning=FALSE, message=FALSE}
-## YOUR COMMENT HERE - make sure to comment on the choice of data
+# Create morality_sf, which contains the number of total deaths
 mortality_sf <- totalDeaths %>% 
-  ## YOUR COMMENT HERE
-  rename(COUNTY_NAM = County) %>%
-  ## YOUR COMMENT HERE
+  # Rename County to COUNTY_NAM  so it matches the shapefile
+  rename(COUNTY_NAM = County) %>% # The syntax for this is (new_name = old_name)
+  # Group the data by county, year, and month
   group_by(COUNTY_NAM, Year, Month) %>% 
-  ## YOUR COMMENT HERE
+  # Calculate the summary of the total deaths, which is the sum of total deaths and na.rm = TRUE tells us to ignore the NA values
   summarise(totalDeaths = sum(totalDeaths, na.rm = TRUE)) %>%
-  ## YOUR COMMENT HERE - make sure to comment on the relationship parameter
+  # Join the cali_sf dataframe by COUNTY_NAM. The relationship parameter is many-to-many, indicating that there can be duplicate counties
   full_join(cali_sf, by = "COUNTY_NAM", relationship = "many-to-many") %>% 
-  ## YOUR COMMENT HERE
+  # convert the dataframe into a sf
   st_as_sf()
 ```
 
 #### Question 7A [0.5 points]:
 What does `st_join()` do? Could you have executed the join with `st_join()` instead of `full_join()` here? Why or why not? 
 
-> Your answer here.
+EG
+
+Source: https://r-spatial.github.io/sf/reference/st_join.html
+
+> st_join() performs a spatial join on two dataframes based on their geometries. We could not have executed the join with st_join() because the totalDeaths data does not have a spatial aspect to it. cali_sf has a geometry field, indciating that it has spatial data. Since only one of the dataframes has geometry, a spatial join using st_join() would not have worked.
 
 
 #### Question 7B [0.5 points]:
 This question has three subparts.
 
 1. How many features are there in `mortality_sf`? 
+
+EG
+
 ```{r}
-# Your code here.
+# check number of rows in morality_sf
+nrow(mortality_sf)
 ```
+
+> There are 2,596 features in the mortality_sf dataframe.
 
 2. Why are there so many more than in `cali_sf`?
-> Your answer here.
 
-3. How many counties are there now in `COUNTY_NAM`? (Hint: Use `unique()` or `n_distinct()` to help you get the true number!) Why is it different from the number you saw in Question 2?  
+EG
+
 ```{r}
-# Your code here.
+# Check number of rows in cali_sf
+nrow(cali_sf)
 ```
 
-> Your answer here.
+> The cali_sf dataframe only has 59 features. There are so many more features in the mortality_sf dataframe because in Question 6, we grouped morality_sf by county, year, and month. Therefore, any given county will show up multiple times in morality_df, whereas the cali_sf dataframe just lists the 59 counties in California.
+
+3. How many counties are there now in `COUNTY_NAM`? (Hint: Use `unique()` or `n_distinct()` to help you get the true number!) Why is it different from the number you saw in Question 2?
+
+EG
+
+
+```{r}
+# Calculate the number of counties in mortality_sf
+n_distinct(mortality_sf$COUNTY_NAM)
+```
+
+```{r}
+# Check the unique number of counties in mortality_sf
+unique(mortality_sf$COUNTY_NAM)
+```
+
+
+> There are 58 counties in COUNTY_NAM. In Question 2, there were 59 counties. These numbers are different because in Question 2, we looked at all of the counties in California, regardless of whether or not they were unique, in the cali_sf dataframe. As noted earlier, Colusa county has a duplicate. Now, in Question 7B, we are looking at the unique counties in mortality_sf. In Quesion 6, morality_sf was grouped by county, year, and month and joined to cali_sf on the county name. In this question we are now looking at the unique county names in the mortality_sf dataframe.
 
 
 ## 2.5 Visualizing annual trends in overall mortality
@@ -484,7 +609,9 @@ Is there any pattern that is a cause for concern in your interpretation of **tot
 **Hint 1**: The county with the highest number of deaths (darkest purple) is **Los Angeles county**. What is special about LA county?
 **Hint 2**: Do you see other similar darker colors in counties around cities?
 
-> Your answer here.
+EG
+
+> This plot is showing the raw numbers of annual deaths by county per year in California. Los Angeles has the highest number of deaths and is the county with the largest population in California. Therefore, when looking at total number of deaths, the county with the largest population will always have the largest number of deaths. There are similar darker colors (5,000-49,999 deaths) in the following counties: Fresno, San Bernardino, Riverside, Orange, and San Diego counties. These trends are consistent in all four graphs. From a quick Google search, all of these counties have anywhere between 1-3 million people. Los Angeles county has over 9 million residents. This issue shows why it is important to use rates or proportions instead of raw numbers.
 
 ## 2.6 Accessing the 2020 US Census API
 
@@ -502,9 +629,13 @@ In order to access the Census API, you will need your own Census API key. I coul
 You will sign up for your API census key [here](https://api.census.gov/data/key_signup.html). You should be able to obtain your key very quickly, but if you run into trouble then I will give you the data I have downloaded through __my__ API key so that you can still keep going with the project.
 
 Once your have your key, fill it into this code chunk here:
+
+EG
+EG Key: 5c232fce69ab41e424284fac644002c1aa02f6b1
+
 ```{r}
 ## Set your API key (put it between the quotation marks):
-key <- "c97023d5abec46e195c7bf2c16ffaf23c05623c7"
+key <- "5c232fce69ab41e424284fac644002c1aa02f6b1" # EG key
 ```
 
 ### 2.6.2 Downloading data tables from the 2020 Census API
@@ -553,7 +684,11 @@ The custom function, `getPopSizes()`, pulls population data from the U.S. Census
 #### Question 10A [0.5 points]:
 Using a search engine or the [Census table explorer](https://data.census.gov), whichever you find easier to use, look for the differences between table variables `DP1_0048C` and  `DP1_0048P`. What different information do these two variables hold?
 
-> Your answer here.
+EG
+
+Source: https://api.census.gov/data/2020/dec/dpmp/variables.html
+
+> DP1_0048C is a number, while DP1_0048P is a percent. They both represent general demographic characteristics of the male population age 65 and older. However, since one is a raw number and one is a percentage, they are represented differently. DP1_0048C provides the raw counts while DP1_0048P provides the proportions. The numeric values have C at the end of them, representing count, while the percentages have P at the end of them, representing percent. Looking back at Question 8, this is an example of when you would want to use percentages instead of raw counts.
 
 *Digging into the Function*
 
@@ -587,7 +722,7 @@ This line runs the function using your API key and saves the result to a variabl
 
 **NOTE** Make sure to change `include=FALSE` to `TRUE` in the first line (the `{r}` setup line) the chunk or you will get an error upon knitting.
 
-```{r, eval = FALSE, echo = TRUE}
+```{r, eval = TRUE, echo = TRUE}
 ## Set the state want you in double-digit FIPS; if you want all states, use *
 state = "06" ## California
 
@@ -646,7 +781,13 @@ census <- census %>%
 #### Question 10B [0.5 points]:
 Use code or some other method to explore the resulting dataframe, `census`. Explain what this dataframe contains. 
 
-> Your answer here
+EG
+
+```{r}
+names(census)
+```
+
+> The census dataframe contains 58 rows and 12 columns. By using names(census), we can see what the 12 columns in the dataframe are. By looking at the table, we can see that each county has its own row and it provides information such as the number of males and females, total population, percentage of people age 65 and over, number and percentage of males and females age 65 and over, and the state and county information. There are also no duplicate county names. The County field gives the actual county name, while the STATE AND COUNTY fields provide the FIPs information. STATE is 06, representing the California FIPs code and each county has a different County FIPs code, which is three digits.
 
 #### Question 11 [1 point]:
 Now that you know more generally how this function works and have seen it in action, in your own words, explain how you could adapt this approach (or even this function!) to work with a different API (not the Census). I am not asking you to code, but I am asking you to think through:
@@ -658,7 +799,11 @@ Now that you know more generally how this function works and have seen it in act
 - **Hint 2**: Think about how the data is retrieved (e.g., using `fromJSON()`) and cleaned afterward.
 - **Hint 3**: For simplicity, assume that the data retrieved are in `JSON` format, since that is the most commonly used format.
 
-> Your answer here.
+EG
+
+> Since the current URL is customized to the Census data, to use a different API, the first step would be to change the URL. In order to get data from an API, the URL must be set up. Since the beginning of the URL has the base API endpoint, it would need to be changed from api.census.gov/data to the new source. Next, the specific dataset would have to be adjusted. This could include the year and what specific dataset you are looking for. An example would be using a weather API (https://openweathermap.org/api) and looking at historical weather data. The variales to retrieve and any county or state data would also be adjusted depending on the use case. Lastly, you would need to add your personal API key. For any new API, a new key will need to be requested.
+
+> Once the data has been obtained through the API, a function can be used or written to pull the data. The steps followed by this function include building the URL for the API request, requesting the data and converting it to a dataframe, cleaning the data, and returning a cleaned dataset. Although the process generally stays the same regardless of what API is used, the URL will change depending on either the dataset or the use case. Even if the same API is being used, there may be instances where you need different data or different years of data. In this case, the base API endpoint would remain the same, but the data request step would change.
 
 
 ### 2.6.3 Joining the census with the spatial data and updating the maps
@@ -672,16 +817,44 @@ Now, it's your turn to do some work! Your task is to join the census data to the
 
 * **Hint 3**: If you're having problems, check your data types!
 
+EG
+
 ```{r}
-# Your code here.
+# Check data types in mortality_sf
+str(mortality_sf)
+
+# Check data types in census
+str(census)
+
+# Check fields in mortality_sf
+names(mortality_sf)
+
+# Check fields in census
+names(census)
+```
+
+> The common field between mortality_sf and census is the county field. In mortality_sf, it is called COUNTY_NAM and in census, it is called County. This is the field we will want to join on when creating mortality_sf2. Hint 1 suggests using the FIPS data to join, but there is not FIPS data in the mortality_sf dataframe.
+
+Source: https://www.rdocumentation.org/packages/joyn/versions/0.3.0/topics/left_join
+
+```{r}
+# Create mortality_sf2 by joining the census data to the mortality_sf data on the County field. A left join is used to ensure all data from the mortality_sf dataset remains when joining with census data to make mortality_sf2
+mortality_sf2 <- mortality_sf %>%
+  left_join(census, by = c("COUNTY_NAM" = "County"))
+
+# Check the field names
+names(mortality_sf2)
 ```
 
 **Note**: If you're unable to do this for any reason, you can pick back up here. You will need to download the data from [Google Drive](https://drive.google.com/file/d/15MT127zoySDS7kOfr9uhLwPSIWBCok1W/view?usp=sharing), as the shapefile is too large for GitHub yet again. I have placed mine on my Desktop, but you can put it anywhere you like and update the directory path. Just make sure not to put it in your GitHub repo!
 
-```{r, eval = TRUE}
+EG NOTE: I downloaded Professor Geist's file and compared it to mine. Her file had 2,552 observations and 22 variables. The variables she has that we don't are COUNTY_ABB, COUNTY_COD, and ISLAND. I opted to comment her code out for Question 13 and use ours. However, if this causes issues for later questions, feel free to comment my part out for Question 12.
+
+EG commented r, eval = FALSE
+```{r, eval = FALSE}
 ## Comment me out or change EVAL=FALSE to run your own versions!
-load("~/Desktop/mortality_sf2.Rdata")
-load("census.Rdata")
+#load("~/Desktop/mortality_sf2.Rdata")
+#load("census.Rdata")
 ```
 
 ## 2.7 Mapping population-adjusted mortality
@@ -765,7 +938,9 @@ For example, for 3 of the 4 years, **Shasta County** (2017-2019) shows the **hig
 #### Question 13 [1 points]:
 What patterns do you observe now, if any? Do you think this is a true pattern? Aren't you being told that deaths are going **up** due to COVID-19??
 
-> Your answer here.
+EG
+
+> Since this plot is now showing the California annual percent mortality by county, as opposed to raw counts, it tells a different story. Previously, the plot was showing death counts, so the most populated counties had the highest number of deaths. In this case, we are now seeing counties like Los Angeles have lower percentages of mortality, as opposed to counties such as Inyo, or more notably, in 2018 especially, Shasta county. We are being told that deaths are going up due to COVID-19, but this is not a graph looking at the the number of deaths, but the percentages. Additionally, since COVID-19 started in 2020, it would be easier to see trends in death rates that included more COVID-19 data if we looked at 2020-2023. Doing this would allow us to focus on years when COVID-19 was rampant and we were seeing many deaths.
 
 ## 2.8 The data for 2020 isn't complete... {#linegraph1}
 
