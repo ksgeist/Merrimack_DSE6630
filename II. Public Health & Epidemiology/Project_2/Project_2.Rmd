@@ -399,7 +399,65 @@ Your stakeholders point out that you have forgotten San Jose, one of the most po
 **Hint 3**: Don't forget to add a skittles color for San Jose in `scale_color_manual`!
 
 ```{r}
-## YOUR CODE HERE.
+## Create a cities data frame with coordinates
+cities <- data.frame(
+  city = c("Sacramento", "San Diego", "Los Angeles", "San Francisco", "San Jose"),
+  lon = c(-121.4944, -117.1611, -118.2437, -122.4194, -121.8853),
+  lat = c(38.5816, 32.7157, 34.0522, 37.7749, 37.3387),
+  cityType = c("capital", "major", "major", "major", "major")
+)
+
+## Convert to shapefile object
+cities_sf <- st_as_sf(cities, coords = c("lon", "lat"), crs = 4326)
+
+# Plot California counties with city points
+ggplot(data = cali_sf) +
+  
+  ## County polygons
+  geom_sf(
+    fill = skittles[6],
+    color = "gray20",
+    linewidth = 0.25,
+    alpha = 0.65
+  ) +
+  
+  ## Keep map tight to California
+  coord_sf(expand = FALSE) +
+  
+  ## Overlay city points
+  geom_sf(
+    data = cities_sf,
+    aes(
+      color = city,
+      shape = cityType,
+      size = cityType
+    )
+  ) +
+  
+  ## Different marker for Sacramento (capital)
+  scale_shape_manual(
+    values = c(capital = 18, major = 16),
+    guide = "none"
+  ) +
+  
+  scale_size_manual(
+    values = c(capital = 6, major = 3),
+    guide = "none"
+  ) +
+  
+  ## One color for each city
+  scale_color_manual(
+    values = skittles[1:5],
+    name = "City"
+  ) +
+  
+  ## Title and caption
+  labs(
+    title = "California Counties with Major Cities Marked",
+    caption = "Source: California State Geoportal"
+  )
+
+
 ```
 
 ## 2.4 Joining shapefiles with a tibble or dataframe
@@ -420,43 +478,57 @@ __Our Process:__
 Annotate the following code chunk with comments to make sure you understand what you are doing here. **HINT**: refer back to the earlier tables with the data descriptions to help you understand the data better!
 
 ```{r, echo = TRUE, warning=FALSE, message=FALSE}
-## YOUR COMMENT HERE - make sure to comment on the choice of data
+
+## Start with the mortality dataset containing the total number of deaths by county, year, and month
 mortality_sf <- totalDeaths %>% 
-  ## YOUR COMMENT HERE
+  
+## Rename the County variable so it matches the county name field in the California shapefile
   rename(COUNTY_NAM = County) %>%
-  ## YOUR COMMENT HERE
+  
+## Group the data by county, year, and month so deaths can be summarized for each county-month combination
   group_by(COUNTY_NAM, Year, Month) %>% 
-  ## YOUR COMMENT HERE
+  
+## Calculate the total number of deaths within each county, year, and month group
   summarise(totalDeaths = sum(totalDeaths, na.rm = TRUE)) %>%
-  ## YOUR COMMENT HERE - make sure to comment on the relationship parameter
+  
+## Join the mortality data to the California county shapefile using county names;
+## relationship = "many-to-many" allows multiple mortality records and multiple spatial records
+## to be matched when the join key appears more than once in either dataset
   full_join(cali_sf, by = "COUNTY_NAM", relationship = "many-to-many") %>% 
-  ## YOUR COMMENT HERE
+  
+## Convert the joined dataset back into an sf object so it can be used for mapping and spatial analysis
   st_as_sf()
 ```
+
 
 #### Question 7A [0.5 points]:
 What does `st_join()` do? Could you have executed the join with `st_join()` instead of `full_join()` here? Why or why not? 
 
-> Your answer here.
+> st_join() joins data based on geographic location, while full_join() joins data using a matching column. In this case, we used full_join() because both datasets have county names that can be matched. st_join() wouldn't really make sense here since the mortality data doesn't have any geographic features to join on.
 
 
 #### Question 7B [0.5 points]:
 This question has three subparts.
 
 1. How many features are there in `mortality_sf`? 
+ANSWER:There are 2596 features in mortality_sf
 ```{r}
-# Your code here.
+
+nrow(mortality_sf)
+
 ```
 
 2. Why are there so many more than in `cali_sf`?
-> Your answer here.
+> There are many more features in mortality_sf because each county appears multiple times for different months and years. In cali_sf, each county only appears once, but in mortality_sf there is a separate record for each county-month-year combination.
 
 3. How many counties are there now in `COUNTY_NAM`? (Hint: Use `unique()` or `n_distinct()` to help you get the true number!) Why is it different from the number you saw in Question 2?  
 ```{r}
-# Your code here.
+
+n_distinct(mortality_sf$COUNTY_NAM)
+
 ```
 
-> Your answer here.
+> There are 58 counties in COUNTY_NAM.
 
 
 ## 2.5 Visualizing annual trends in overall mortality
@@ -515,7 +587,7 @@ Is there any pattern that is a cause for concern in your interpretation of **tot
 **Hint 1**: The county with the highest number of deaths (darkest purple) is **Los Angeles county**. What is special about LA county?
 **Hint 2**: Do you see other similar darker colors in counties around cities?
 
-> Your answer here.
+> Yes. The darker counties seem to be the ones with bigger populations, especially Los Angeles County. You can see similar patterns around other large cities too. This suggests that total deaths are being driven by population size, not necessarily by a higher risk of death.
 
 ## 2.6 Accessing the 2020 US Census API
 
@@ -584,7 +656,7 @@ The custom function, `getPopSizes()`, pulls population data from the U.S. Census
 #### Question 10A [0.5 points]:
 Using a search engine or the [Census table explorer](https://data.census.gov), whichever you find easier to use, look for the differences between table variables `DP1_0048C` and  `DP1_0048P`. What different information do these two variables hold?
 
-> Your answer here.
+> DP1_0048C contains the actual number of people in that demographic group, while DP1_0048P contains the percentage of the population that belongs to that group. The "C" stands for count and the "P" stands for percent
 
 *Digging into the Function*
 
@@ -618,7 +690,7 @@ This line runs the function using your API key and saves the result to a variabl
 
 **NOTE** Make sure to change `include=FALSE` to `TRUE` in the first line (the `{r}` setup line) the chunk or you will get an error upon knitting.
 
-```{r, eval = FALSE, echo = TRUE}
+```{r, eval = TRUE, echo = TRUE}
 ## Set the state want you in double-digit FIPS; if you want all states, use *
 state = "06" ## California
 
@@ -677,7 +749,7 @@ census <- census %>%
 #### Question 10B [0.5 points]:
 Use code or some other method to explore the resulting dataframe, `census`. Explain what this dataframe contains. 
 
-> Your answer here
+> The `census` dataframe has 2020 Census population and demographic data for California counties. It includes total population, male and female counts, and the number and percent of people age 65 and older. Each row is one county.
 
 #### Question 11 [1 point]:
 Now that you know more generally how this function works and have seen it in action, in your own words, explain how you could adapt this approach (or even this function!) to work with a different API (not the Census). I am not asking you to code, but I am asking you to think through:
@@ -689,7 +761,7 @@ Now that you know more generally how this function works and have seen it in act
 - **Hint 2**: Think about how the data is retrieved (e.g., using `fromJSON()`) and cleaned afterward.
 - **Hint 3**: For simplicity, assume that the data retrieved are in `JSON` format, since that is the most commonly used format.
 
-> Your answer here.
+> To use a different API, I would need to change the URL, API key, and the variables I want to pull. The basic process would stay the same though: connect to the API, get the data, turn it into a dataframe, clean it up, and then use it for whatever analysis I'm doing.
 
 
 ### 2.6.3 Joining the census with the spatial data and updating the maps
