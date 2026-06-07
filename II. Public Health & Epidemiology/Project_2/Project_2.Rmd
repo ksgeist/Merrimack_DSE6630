@@ -159,7 +159,10 @@ Notice that the directory contains six files, three of them with file extensions
 
 What do each of these six files represent? You will not be able to open them directly on your computer, so you may need to refer back to lecture and do a little digging to figure out the type of data you would expect each of these files to contain.
 
-> Your answer here.
+> The `.shp` file contains the actual geographic boundary information for each California county. The `.shx` file is an index file that helps GIS software locate the geographic features stored in the shapefile. The `.dbf` file contains the attribute data associated with each county, such as names and identifiers.
+
+The `.prj` file stores the map projection and coordinate system information. The `.cpg` file specifies the character encoding used by the attribute table. Finally, the `.shp.xml` file contains metadata describing the dataset, including information about its source and contents.
+
 
 ## 2.2 Your objective
 
@@ -182,7 +185,7 @@ __The initial processing steps will include:__
 You will leverage the `read_sf()` function that is part of the `sf` package. As you might have guessed, `sf` refers to __shapefile__. Note that there is an alternative method to read in shapefiles called `st_read`, which is an alias for `read_sf()` with some different default arguments. By default, `read_sf()` is quiet, whereas `read_st()` will print information about the data source by default. Additionally, `read_sf()` returns a tibble rather than a dataframe. So which to choose? It's your preference, in this case. By default, your code below will use `read_sf()` but you could instead use `read_st()` if you wanted.
 
 ```{r}
-cali_sf <- read_sf("~/Downloads/California_County_Boundaries2025/California_County_Boundary.shp") 
+cali_sf <- read_sf("./__California_County_Boundaries2025__/California_County_Boundary.shp")
 
 ## Alternatively, you can read in the shapefile using the 'st_read()' function
 ## cali_st <- st_read("~/Downloads/California_County_Boundaries2025/California_County_Boundary.shp") 
@@ -214,7 +217,8 @@ Why did `TRUE` print 69 times? What are the "69 features" in the geometry?
 
 **Hint 1**: Are all of them counties? Try running `print(calif_sf$COUNTY_NAME)`. What do you see?
 
-> Your answer here.
+> `TRUE` printed 69 times because there are 69 geographic features in the shapefile that were validated. California only has 58 counties, so not every feature is a unique county. When I printed the county names, some counties appeared more than once. This suggests that some counties are made up of multiple polygons or separate geographic areas, so the 69 features represent individual map geometries rather than 69 different counties.
+
 
 *Next, let's take a look at the geometry of the shapefile that you loaded.*
 ```{r}
@@ -226,12 +230,12 @@ Notice that, just like Demo 2, you only have the __polygon__ geometry in your sh
 #### Question 3A [0.5 points]:
 What is the bounding box that comes with your shapefile and what does it tell us? **What would you do to the bounding box if you wanted to zoom in or out on a geographic feature?**
 
-> Your answer here.
+> The bounding box shows the outer limits of the map data, basically acting as a tight frame around all 59 features. It tells us the exact spatial footprint of the data on a grid, which is measured in meters here. If you want to zoom in on a specific feature, you just shrink that frame by raising the minimum coordinates ($xmin$, $ymin$) and lowering the maximums ($xmax$, $ymax$). To zoom out, you do the opposite and expand the frame by lowering the minimums and raising the maximums.
 
 #### Question 3B [0.5 points]:
 What is the projection? What does it tell you and why does projection matter? **What will change if you change the projection?**
 
-> Your answer here.
+> The projection is WGS 84 / Pseudo-Mercator. It tells us how the 3D globe is flattened into a 2D map, measuring the coordinates in meters instead of degrees. Projection matters because flattening a sphere always distorts either shape, area, distance, or direction. If you change the projection, the visual shape of your map will shift, and your calculations for distances or land area will change based on the new system's math.
 
 ### 2.3.2 Create a basic map of California
 
@@ -283,7 +287,34 @@ Finish the code below to create a map of the northernmost 3 counties in Californ
 #   ## Filter to just the 3 counties that border Oregon - Uncomment to run
 #   filter(COUNTY_NAM == "Del Norte" | COUNTY_NAM == "Siskiyou" | COUNTY_NAM == "Modoc") %>% 
 
-## YOUR CODE HERE.
+
+## Start from the California spatial tibble
+map1 <- cali_sf %>% 
+  ## Filter to just the 3 counties that border Oregon
+  filter(COUNTY_NAM == "Del Norte" | COUNTY_NAM == "Siskiyou" | COUNTY_NAM == "Modoc") %>% 
+
+  ## Initiate the plot using the filtered data
+  ggplot() +
+  
+  ## Add the geometry layers with a standard color
+  geom_sf(fill = "cadetblue3", 
+          color = "gray20", 
+          linewidth = 0.25, 
+          alpha = 0.65) +
+          
+  ## Keep the map tight to its bounding box
+  coord_sf(expand = FALSE) + 
+  
+  ## Add the updated title and caption
+  labs(title = "Northern California Counties Bordering Oregon",
+       caption = "Source: California State Geoportal")
+
+## Now explicitly call it to force R to draw it in your plot window
+map1
+
+
+
+
 ```
 
 *Now let's add labels!* 
@@ -292,17 +323,17 @@ This code will not run unless you have made `map1` correctly!
 ```{r}
 ### UNCOMMENT THIS CODE TO RUN:
 
-# ## Calculate the county centers:
-# county_centroids <- st_centroid(cali_sf) %>% 
-# ## Filter for just the northern centroids
-#     filter(COUNTY_NAM == "Del Norte" | COUNTY_NAM == "Siskiyou" | COUNTY_NAM == "Modoc") 
-# 
+###Calculate the county centers:
+county_centroids <- st_centroid(cali_sf) %>% 
+## Filter for just the northern centroids
+    filter(COUNTY_NAM == "Del Norte" | COUNTY_NAM == "Siskiyou" | COUNTY_NAM == "Modoc") 
+ 
 # ## Now, add the labels to the map:
-# map1 + geom_sf_text(data = county_centroids, 
-#                     aes(label = COUNTY_NAM), 
-#                     size = 3.5, fontface = "bold") +
+map1 + geom_sf_text(data = county_centroids, 
+                    aes(label = COUNTY_NAM), 
+                    size = 3.5, fontface = "bold") +
 #   ## fix the x and y axis labels to make a beautiful map!
-#   theme(axis.title = element_blank())
+  theme(axis.title = element_blank())
 ```
 
 ## 2.3.4 Creating points for major cities in California {#overlayPoints}
