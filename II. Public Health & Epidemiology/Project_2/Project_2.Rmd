@@ -1110,10 +1110,12 @@ ggplot(temp, aes(x = Month, y = percMortality,
 Do you think this regression prediction is robust? Why or why not? (**Hint**: Check your assumptions with `plot(olsModel)`!!) 
 
 ```{r}
-# Your code here.
+
+plot(olsModel)
+
 ```
 
-> Your answer here.
+> No, I don't think the regression is very robust. The diagnostic plots show several outliers and the residuals do not appear to be normally distributed. The Scale-Location plot also suggests the variance is not constant. Because of this, I think the predictions are rough estimates rather than reliable forecasts.
 
 ## 3.2 Spatial lag regression
 
@@ -1153,13 +1155,17 @@ Why am I calculating the neighbors on just the **distinct counties** in the mort
 
 **Hint 2**: What happens if I calculate spatial weights on redundant data? Does it cost me computationally?
 
-> Your answer here.
+> I only used the distinct counties because there are only 58 unique county boundaries in California, even though mortality_sf2 contains many more rows from different months and years. Calculating neighbors on all of those duplicate county records would repeat the same spatial calculations many times and make the analysis slower without adding any new information. The output of 58 confirms that the neighbor list was created for the 58 unique counties.
 
 2. Calculate row-standardized spatial weights matrix based on the neighbors-list.
 *This converts the neighbor information stored in `mortality_nb` into a usable weight list using `nb2listw()`. Neighbors have equal influence (row-standardized: `style = "W"`).*
 
 ```{r}
-mortality_sw <- nb2listw(mortality_nb, style = "W")
+
+mortality_sw <- nb2listw(mortality_nb,
+                         style = "W",
+                         zero.policy = TRUE)
+
 ```
 
 ### 3.2.2 Join spatial weights to the mortality shapefile so that every datapoint has its spatial weight. {#calcSpatialLag}
@@ -1205,8 +1211,15 @@ Run a **spatial lag regression (SAR)** model using the spatial lag you just calc
 **Hint 2**: Make sure to include both time elements as covariates!
 
 ```{r}
-# __ <- lm(__ ~ __ + __ + lagged_monthlyPercMortality, 
-#     data = __)
+
+
+sarModel <- lm(
+  monthlyPercMortality ~ Year + Month + lagged_monthlyPercMortality,
+  data = mortality_sf2
+)
+
+anova(sarModel, olsModel)
+
 ```
 
 Now, let's compare `sarModel` to `olsModel` and see which model better explains monthly percent mortality in California (uncomment to run).
@@ -1217,7 +1230,7 @@ Now, let's compare `sarModel` to `olsModel` and see which model better explains 
 #### Question 17C [0.25 points]
 Which model, the spatial lag regression (`sarModel`) or the ordinary least squares regression (`olsModel`), is a better fit to the data? Why?
 
-> Your answer here.
+> The OLS model is a better fit to the data. It has a lower RSS than the spatial lag model, and the ANOVA results show that the difference between the models is statistically significant (p < 0.001). This suggests that county-specific factors, along with year and month, explain mortality better than the spatial lag variable.  Essentially the information about the county is more significant than the information about the neighboring counties
 
 #### Question 17D [0.5 points]
 Using the model you chose as the better model, `sarModel` to `olsModel`, interpret the results of that model. **HINT**: Remember that `summary()` helps you access the results from the model! 
@@ -1225,19 +1238,22 @@ Using the model you chose as the better model, `sarModel` to `olsModel`, interpr
 Make sure to interpret both the coefficients and their significance as well as the $R^2$!
 
 ```{r}
-## Your code here.
+summary(olsModel)
+
 ```
 
-> Your answer here.
+> The OLS model shows that mortality varies by county, and many of the county coefficients are significant. The Year and Month variables are also significant, suggesting mortality changes over time. The model has an R² of 0.668, meaning it explains about 67% of the variation in monthly mortality, so it does a fairly good job overall.
 
 #### Question 17E [0.25 points]
 Can you trust the results of the model? Why or why not?
 
 ```{r}
-## Your code here.
+plot(olsModel)
+
+
 ```
 
-> Your answer here.
+> Not completely. The model explains a good amount of the variation in mortality (R² = 0.668), but the diagnostic plots show some outliers and violations of the regression assumptions. I think the model is useful for looking at general trends, but I would be cautious about relying on the predictions too heavily.
 
 
 # 4 Improve Predictions with Machine Learning
@@ -1270,15 +1286,21 @@ mortalityTest <- mortality_sf2 %>%
 #### Question 18A [0.5 points]
 What percent of the data are in the training set and what percent in the testing set? You should use code to figure this out! How does it compare to the canonical 80-20 split?
 ```{r}
-## Your code here.
+nrow(mortalityTrain)
+nrow(mortalityTest)
+
+nrow(mortalityTrain) / (nrow(mortalityTrain) + nrow(mortalityTest)) * 100
+nrow(mortalityTest) / (nrow(mortalityTrain) + nrow(mortalityTest)) * 100
+
+
 ```
 
-> Your answer here.
+> The training set contains about 81.8% of the data and the testing set contains about 18.2%. This is very close to the standard 80-20 train-test split, with slightly more data in the training set.
 
 #### Question 18B [0.5 points]
 What caveats or limitations can you think of by using none of the 2020 data in the training set?
 
-> Your answer here.
+> One limitation is that the model does not learn any of the patterns from 2020, including the effects of COVID-19. If mortality changed a lot in 2020, the model may not predict those changes very well because it was trained only on data from earlier years.
 
 ## 4.1 Fitting an out-of-bag (OOB) random forest (RF) model
 You decide to use random forest (RF) for this task because it handles non-linearity, which you know you have from your time plots above AND from the summaries of both your OLS and SAR regressions. You also choose to use RF because it can be more robust to outliers and still give some idea of importance for interpretability for your stakeholders. Your basic workflow will be to:
@@ -1299,7 +1321,7 @@ You decide to leverage the `caret` package in R again for much of your model fit
 #### Question 19A [0.5 points]
 What does it mean to "fit a model with out-of-bag (OOB) error"? Why do we do it? What can it tell you here?
 
-> Your answer here.
+> Out-of-bag (OOB) error is an estimate of how well a random forest predicts new data. Each tree is built using a random sample of the training data, and the observations left out are used to test the model. We use OOB error to evaluate model performance without needing a separate validation set. In this project, it gives us an idea of how accurately the random forest can predict mortality.
 
 
 Even though you have no encoding, you know that you need to center and scale your data before running the random forest! So, you decide to leverage the `preProcess()` function in the `caret` package to help you center and scale the predictors. You perform the preprocessing explicitly here, storing the pre-processed training *instructions* in `preProcInstructions`. Then, you can apply the pre-processing to the training data, `mortalityTrain`, using the `predict()` function. Note that this is a different step than when you are predicting from a model for performance evaluation!
@@ -1347,7 +1369,7 @@ Note that here you coerce it to use an `mtry` hyperparameter grid search of 1 th
 #### Question 19B [0.5 points]
 What is `mtry` and what is it doing in the context of a random forest? What is the default `mtry` for a random forest regression? Why am I choosing to override it here, do you think?
 
-> Your answer here.
+> mtry is the number of predictors that the random forest can consider at each split in a tree. For regression, the default is usually about one-third of the predictors. In this dataset there are only three predictors, so the default would not give many options. By testing mtry values from 1 to 3, the model can compare different settings and choose the one that gives the best performance.
 
 *Look at the results ($RMSE$ and $R^2$) of the OOB random forest*
 ```{r}
@@ -1366,7 +1388,7 @@ Recall from the Elastic Net you fitted a couple weeks ago on the hospital readmi
 #### Question 19C [0.5 points]
 Which value of  `mtry` gave the best results? (**Hint**: Can $R^2$ values be negative?!?). Are you able to compare the $RMSE$ of this model to the one you fitted in Question 16C? Why or why not? (**Hint**: Does your pre-processing step apply to the target too? You may have to do a little research!)
 
-> Your answer here.
+> The best model used mtry = 1 because it had the lowest RMSE and highest R². R² can be negative, which means the model is doing a poor job of explaining the data. I don't think the RMSE can be directly compared to the earlier regression because the random forest used preprocessed data, so the models were not fit under exactly the same conditions.
 
 
 
@@ -1408,7 +1430,7 @@ rfCV$results %>%
 #### Question 19D [0.5 points]
 What do you notice about the effects of cross-validation on your model? (**Hint**: Do you see any negative $R^2$ values this time?) Which value of  `mtry` gave the best results? How does the $RMSE$ of that model compare to the one you chose as the optimal OOB model?
 
-> Your answer here.
+> Cross-validation slightly improved the model. Unlike the OOB results, none of the R² values were negative, although they were still very low. The best model again used mtry = 1 because it had the lowest RMSE (0.984) and highest R² (0.035). The RMSE was only slightly lower than the best OOB model (0.987), so cross-validation did not lead to a major improvement in performance.
 
 
 ## 4.3  Test the training model with the 2020 data
