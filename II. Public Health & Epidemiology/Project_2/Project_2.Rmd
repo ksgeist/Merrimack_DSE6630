@@ -1478,7 +1478,7 @@ Can you interpret the $RMSE$ and $MAE$ values? **Remember** all of the data were
 
 **How did the training model perform?** Does it seem to be overfitting (training error >> testing error), underfitting (training error and testing error both high but roughly equal with a low $R^2$), or doing okay?
 
-> Your answer here.
+> The RMSE and MAE suggest that the model's predictions are still fairly inaccurate. The training and testing RMSE values are very similar, so the model is not overfitting. Instead, it seems to be underfitting because both the error is relatively high and the R squared values are very low, highlighting that the model is not capturing much of the variation in mortality.
 
 ### 4.3.4 Plot Actual vs. Predicted Values
 
@@ -1505,7 +1505,7 @@ ggMarginal(p, type = "histogram", fill = skittles[2], color = "gray30")
 #### Question 19F [0.5 points]
 Interpret the scatterplot of the actual vs. predicted values. What is happening to the predicted values? (Use the histogram on the side to help you, that's why they're there!) Make sure to mention whether the training model is leading to an **under prediction** or an **over prediction** of mortality. What **real information** might that provide your stakeholders, even if the model is underperforming?
 
-> Your answer here.
+> The model tends to underpredict high mortality values and overpredict low mortality values, so most predictions are pulled toward the average. This matches the low R² values we saw earlier. Even though the model isn't very accurate, it still suggests mortality in 2020 may have been higher than in previous years.
 
 ## 4.4 Extract variable importance from the final model
 
@@ -1554,9 +1554,38 @@ Since the pandemic is over in reality, you can find the actual number of deaths,
 **Hint**: You can read this file in as a dataframe using an API and `fromJSON()` as follows! Note the structure of the data - it returns a list of a list, so in order to extract the data as a dataframe we have to go two layers deep. I also show you the structure (`str()`) of the data so you have an idea what you're getting.
 
 ```{r}
-caliDeaths <- fromJSON("https://data.chhs.ca.gov/api/3/action/datastore_search?resource_id=078185a9-e3a7-403f-a546-b8c582f0a9d8")
 
-caliDeaths <- caliDeaths$result$records
+library(jsonlite)
+library(dplyr)
+
+## Pull a larger portion of the dataset
+offsets <- seq(0, 650000, by = 50000)
+
+caliDeaths <- lapply(offsets, function(x) {
+  fromJSON(
+    paste0(
+      "https://data.chhs.ca.gov/api/3/action/datastore_search?",
+      "resource_id=078185a9-e3a7-403f-a546-b8c582f0a9d8",
+      "&limit=50000",
+      "&offset=", x
+    )
+  )$result$records
+}) %>%
+  bind_rows()
+
+## Filter to Sept-Dec 2020, all causes, total population
+caliDeaths2020 <- caliDeaths %>%
+  filter(
+    Year == "2020",
+    Month %in% c("09", "10", "11", "12"),
+    Cause == "ALL",
+    Strata == "Total Population",
+    Geography_Type == "Occurrence"
+  )
+
+## Check results
+table(caliDeaths2020$Month)
+nrow(caliDeaths2020)
 
 caliDeaths %>% 
   str()
@@ -1568,22 +1597,81 @@ caliDeaths %>%
 **Remember** to filter for the proper condition, Year, and Months to get the data you need. Take time to explore the data, and make sure that you are matching the data we've been using (total mortality, all causes of death) to your filter. 
 
 ```{r}
-## Your code here
+
+## Download all records (default is only 100)
+caliDeaths <- fromJSON(
+  "https://data.chhs.ca.gov/api/3/action/datastore_search?resource_id=078185a9-e3a7-403f-a546-b8c582f0a9d8&limit=50000"
+)
+
+caliDeaths <- caliDeaths$result$records
+
+## Filter to the months you were predicting
+caliDeaths2020 <- caliDeaths %>%
+  filter(
+    Year == "2020",
+    Month %in% c("09", "10", "11", "12"),
+    Cause == "ALL",
+    Strata == "Total Population",
+    Geography_Type == "Occurrence"
+  )
+
 ```
 
 Now make sure to compute the **monthly percent mortality** as you have done before. Otherwise, you won't be comparing apples-to-apples!
 
 ```{r}
-## Your code here
+
+## Calculate monthly percent mortality
+
+caliDeaths2020 <- caliDeaths2020 %>%
+  mutate(Count = as.numeric(Count)) %>%
+  left_join(census, by = "County") %>%
+  mutate(monthlyPercMortality = Count / totalN * 100)
+
+
+
 ```
 
 Lastly, create (1) a scatterplot with trend line and (2) perform a correlation test on your **Sept to December 2020** predictions relative to the true **Sept to December 2020** monthly percent mortality. 
 
 ```{r}
-## Your code here
+## Only run if actual 2020 mortality data exist
+
+if (nrow(caliDeaths2020) > 0) {
+
+  comparisonDF <- data.frame(
+    Actual = caliDeaths2020$monthlyPercMortality,
+    Predicted = rfPredictions
+  )
+
+  ggplot(comparisonDF, aes(x = Actual, y = Predicted)) +
+    geom_point(alpha = 0.6) +
+    geom_smooth(method = "lm", se = FALSE, color = "red") +
+    theme_minimal() +
+    labs(
+      title = "Actual vs Predicted Monthly Percent Mortality",
+      x = "Actual Mortality",
+      y = "Predicted Mortality"
+    )
+
+  cor.test(
+    comparisonDF$Actual,
+    comparisonDF$Predicted
+  )
+
+} else {
+
+  print("Actual 2020 mortality data were unavailable from the API, so the comparison could not be performed.")
+
+}
+
+
 ```
 
 __For full credit__ include a brief interpretation of your findings.
+
+ANSWER: The scatterplot shows little relationship between predicted and actual mortality. The correlation was very weak (r = 0.047) and not statistically significant (p = 0.335), suggesting the model did a poor job predicting mortality in late 2020, likely because it was trained on pre-pandemic data.
+
 
 #### Question 19H [1 point]
 
@@ -1593,13 +1681,13 @@ Since you can't go deeply into doing it, instead you will do a little reading/re
 
 **Note**: Doing the time-aware data partition into before 2020 and after 2020 IS a form of controlling for temporal patterns/seasonality, albeit not as robust as including temporally lagged variables.
 
-> Your answer here.
+> The Month variable captures seasonality, but time lags also capture how mortality in previous months influences current mortality. Similar to spatial lags, they provide additional information that Month alone cannot capture and may improve predictions.
 
 
 #### Question 19I [1 point]
 Now, let's say you add several time-series lagged variables to your random forest; but with 10-fold CV, the testing MAE is 0.129. The scale of the target variable is unchanged - recall that previously, you got a testing MAE of 0.745. Does this suggest that the time series lagged variables are helping or hurting the model? If I tell you that the training MAE is 0.134, do you think the model is **overfitted**, **underfitted**, or doing pretty well?
 
-> Your answer here.
+> The time-series lagged variables appear to improve the model because the testing MAE decreased from 0.745 to 0.129. Since the training MAE (0.134) and testing MAE (0.129) are very similar, it doesn't seem like there is  overfitting. The model seems to be doing pretty good and working with the new data.
 
 **Would you like to see how I got this?** This source code contains all of the steps of analysis, with comments, and will show you these same results! Make sure to open the source code if you want to see the step-by-step instructions and not just the output! In brief, what I do is engineer temporal lag and rolling means features to inform the model how the target behaved in the past. Lags are explicitly accounting for temporal autocorrelation; rolling averages show recent trends and smooth noise. Then, I do the time-aware split again using the 2020 data as my holdout testing set. I then add the lagged and rolling means features, along with the spatial lag, month, and year variables as predictors to the RF model and assess performance on the testing holdout set. Note that RF is a particularly good choice for temporal models because it is non-linear; further, adding lags makes it partially time-aware. **However, don't forget to ALWAYS  validate with time held out, not random sampling, in temporal models!**
 
@@ -1611,12 +1699,14 @@ source("mortalityTemporalLagRF.R")
 #### Question 19J [1 point]
 What is something **else** you can do to improve your model that you have not discussed or explored at all here? **Hint**: Random forest models need complexity!
 
-> Your answer here.
+> One way to improve the model would be to add more variables. Right now the model only uses a few predictors, so adding things like demographics, health factors, or COVID-related data could help explain more of the variation in mortality and improve predictions.
 
 #### Question 19K [3 points]
 Take all of the findings and interpretations from questions 18A-J and write up a short paragraph or two summary for your stakeholders. Your writing should not be overly technical but it should include caveats and limitations. Make sure to include 1-2 sentences of recommendations about what you would do next.
 
-> Your answer here.
+> We analyzed monthly mortality patterns across California counties using regression and random forest models. The results showed clear seasonal patterns and some spatial relationships between neighboring counties. However, models trained on 2017–2019 data struggled to predict mortality during 2020, likely because of the unusual effects of the COVID-19 pandemic.
+
+Adding time-series lag variables greatly improved model performance, showing that recent mortality trends are important predictors of future mortality. Despite these improvements, the model is limited by the variables available and the unique conditions of 2020. Future work should include additional predictors and more advanced time-series methods to improve accuracy.
 
 
 
@@ -1699,7 +1789,7 @@ ggplot(aes(y = deathsInjuriesProportion, x = biologicalSex, fill = as.factor(Yea
 
 Would it be fair to model the proportion of deaths due to injury or accident without accounting for an effect of sex? Why or why not?
 
-> Your answer here.
+> No. Males have a noticeably higher proportion of injury-related deaths than females across all years. Ignoring sex would overlook an important source of variation and could bias the results.
 
 #### 5.1.1.2 Proportion of Deaths by Sex {#lineGraphInjSex}
 
@@ -1729,7 +1819,7 @@ ggplot(aes(x = Month,
 
 What do you notice about the trend? Is there anything compelling here? Can you find any possible explanation for what happened in May (month 5) of 2020?
 
-> Your answer here.
+> The most noticeable pattern is that males consistently have a higher proportion of injury-related deaths than females. There also appears to be a decline in injury-related deaths during 2020, especially after May. One possible explanation for the increase around May 2020 is that restrictions began to ease in some areas, leading to increased travel and activity compared with the strict stay-at-home period earlier in the pandemic.
 
 ### 5.1.2 Mapping injury-related deaths by stay-at-home orders & sex {#chloropethInjSex}
 
@@ -1822,13 +1912,13 @@ Do you think there is any evidence that the percent of deaths due to accident & 
 
 **Hint**: Make sure to explain what you would want to do to these maps, either in terms of filtering and/or additional faceting, to better address whether (1) the shutdown has had a likely effect and (2) whether there is an interaction with biological sex on the proportion of deaths due to accident or injury.
 
-> Your answer here.
+> There is not strong evidence from these maps alone that the stay-at-home orders changed injury-related deaths. The patterns look fairly similar across years. To better assess the effect, I would compare maps before and after the shutdown and create separate maps for males and females.
 
 #### Question 21B [0.5 points]::
 
 Why are some counties filled gray? Are the data truly missing or is it a data maturity problem? Or, is there another reason? (**Hint**: What will happen if the number of deaths in a county are very small?)
 
-> Your answer here.
+> The gray counties are most likely not true missing data. In counties with very small numbers of injury-related deaths, the data may be suppressed to protect privacy or avoid reporting unstable estimates. When those values are suppressed, they appear as missing and are shown in gray on the map.
 
 
 #### Question 21C [3 points]::
@@ -1836,8 +1926,31 @@ Why are some counties filled gray? Are the data truly missing or is it a data ma
 Answer one of the two situations you answered in Question 21A. Either make more compelling maps before and after the shutdown OR show interactivity with biological sex, your choice. 
 
 ```{r}
-## Your code here.
+
+injuryDeathSex <- injDeaths %>%
+  group_by(biologicalSex, COUNTY_NAM = County) %>%
+  summarise(
+    deathsInjuriesPercent = mean(deathsInjuriesProportion, na.rm = TRUE) * 100,
+    .groups = "drop"
+  ) %>%
+  full_join(cali_sf, by = "COUNTY_NAM", relationship = "many-to-many") %>%
+  st_as_sf()
+
+ggplot(injuryDeathSex) +
+  geom_sf(aes(fill = deathsInjuriesPercent), color = "gray20", size = 0.2) +
+  scale_fill_viridis_c(name = "% Injury Deaths") +
+  facet_wrap(~ biologicalSex) +
+  theme_bw() +
+  labs(
+    title = "Percent of Deaths Due to Accident or Injury by Sex",
+    subtitle = "California Counties, 2017-2020"
+  )
+
+
 ```
+ANSWER AND ANALYSIS: The maps suggest that males have a higher proportion of injury-related deaths than females across much of California. Several counties show noticeably higher values for males, while female rates are generally lower and more uniform. This supports the idea that biological sex is an important factor and should be included in the analysis.
+
+
 
 
 ### 5.1.3 Controlling for population-level differences in sex ratio
@@ -1877,12 +1990,18 @@ You can see that you have a very strongly __left-skewed__ distribution, with the
 Calculate the correlation of `femaleMaleRatio` and the `deathsInjuriesProportion`, making sure to be careful to drop or exclude any NAs before making your calculation. 
 
 ```{r}
-## Your code here.
+cor.test(
+  injDeaths$femaleMaleRatio,
+  injDeaths$deathsInjuriesProportion,
+  use = "complete.obs"
+)
+
+
 ```
 
 Do you think that this correlation coefficient indicates that you need to make a correction on your maps, or is it likely sufficient just to make the correction in your models? In other words, large correlation coefficients (in the absolute value sense) would indicate a need to correct the maps; smaller coefficients would indicate that it's probably not a big deal for your visualizations provided to stakeholders.
 
-> Your answer here.
+> The correlation was 0.28 (p < 0.001), indicating a positive relationship between sex ratio and injury-related deaths. Counties with relatively more males tended to have a higher proportion of injury-related deaths, so controlling for sex ratio may be a good idea.
 
 
 #### Question 23 [1 point]:
@@ -1907,14 +2026,20 @@ injDeaths %>%
   theme_minimal()
 ```
 
-> Your answer here.
+> Yes. The plot agrees with the correlation coefficient because the best-fit line has a positive slope. Counties with higher female-to-male ratios tend to have a higher percentage of injury-related deaths. However, the points are fairly scattered, which is consistent with the relatively weak correlation (r = 0.28).
 
 #### Question 24 [3 points]:
 Originally, I was going to walk you through predictive modeling here as well - but given a need to abbreviate this project, instead I am going to ask you to simply construct **data science question** and **hypothesis** given the information you have here so far. Are there any variables you pulled from the Census that would be worth considering here as well?
 
 Choose what kind of model you would do. Would you include spatial lags? Ideally, would you include temporal lags?
 
-> Your answers here.
+> Data Science Question: Did the COVID-19 stay-at-home orders change the proportion of deaths due to accidents and injuries across California counties?
+
+Hypothesis: The proportion of deaths due to accidents and injuries decreased during the stay-at-home period because reduced travel and movement lowered the risk of accidents.
+
+Additional Census variables worth considering include the female-to-male ratio, retiree ratio, population over age 65, and total county population. These factors may influence injury-related mortality and could help explain differences between counties.
+
+I would use a random forest model because it can capture non-linear relationships and interactions between variables. I would also include a spatial lag because neighboring counties may have similar mortality patterns. Ideally, I would include temporal lags as well since previous analyses showed that past mortality values were strong predictors of future mortality.
 
 ## 5.2 Choose your own cause-of-death to explore.
 
