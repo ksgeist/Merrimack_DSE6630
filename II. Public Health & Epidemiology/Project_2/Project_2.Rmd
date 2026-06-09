@@ -2066,3 +2066,242 @@ Feel free to get creative! You are not required to continue stratifying by sex, 
 5. **A data science question you would like to test**
 
 6. **A data science hypothesis based on what you found** [Note: if you find nothing compelling, you may defend with evidence why there is no point developing a hypothesis instead.]
+
+
+QUESTION 25.
+
+I AM PICKING HEART DISEASE TO ANALYZE.
+
+The following is the code with graphics and data output followed by the analysis and interpretation of the code.
+
+CODE:
+
+```{r}
+## For this analysis, I chose to examine heart disease (HTD). Heart disease is a leading cause of death and may ##have been affected by changes in healthcare access and behavior during the COVID-19 pandemic. I will explore ##spatial and temporal patterns in heart disease mortality and examine whether counties with older populations ##experienced higher rates of heart disease mortality.
+
+## Join the sex deaths table with the census data; then filter for HTD
+htdDeaths <- sexDeaths %>% 
+  full_join(census, by = "County") %>% 
+  ## Filter for heart disease deaths
+  filter(leadingCauseDeath == "HTD") %>% 
+  ## Join total deaths
+  full_join(totalDeaths[, 1:4], by = c("County", "Year", "Month")) %>%
+  ## Rename the death count column
+  rename(heartDiseaseDeaths = sexDeaths) %>% 
+  ## Calculate metrics
+  mutate(
+    deathsHeartDiseaseProportion = heartDiseaseDeaths / totalDeaths,
+    femaleMaleRatio = femalesN / malesN,
+    femaleMaleRatio65 = females65plus / males65plus,
+    retireeRatio = over65 / totalN,
+    Date = as.Date(
+      paste(Year, Month, "1", sep = "-"),
+      format = "%Y-%m-%d"
+    )
+  ) %>% 
+  ## Convert NaN values to 0
+  mutate(
+    deathsHeartDiseaseProportion =
+      ifelse(deathsHeartDiseaseProportion == "NaN",
+             0,
+             deathsHeartDiseaseProportion)
+  )
+```
+
+```{r, echo = FALSE}
+## Plot heart disease deaths by sex and year
+htdDeaths %>% 
+ggplot(aes(y = deathsHeartDiseaseProportion,
+           x = biologicalSex,
+           fill = as.factor(Year))) +
+  geom_boxplot(alpha = 0.7) +
+  labs(
+    x = "Biological Sex of Decedent",
+    y = "Proportion of All Deaths Due to Heart Disease",
+    fill = "Year",
+    title = "Proportion of All Deaths Due to Heart Disease",
+    subtitle = "California Counties, Jan 2017 - Aug 2020"
+  ) +
+  scale_fill_manual(values = skittles[c(5, 9:11)]) +
+  theme_classic()
+
+
+
+```
+NOTES:
+Males consistently show a higher proportion of heart disease deaths than females across all years. Heart disease mortality appears relatively stable over time, although 2020 may show a slight decline compared with previous years.
+
+```{r, echo = FALSE}
+##### Calculate the proportion of all deaths due to heart disease
+heartDiseaseSummary <- htdDeaths %>% 
+  ## Group by year, county, and sex
+  group_by(Year, County, biologicalSex) %>% 
+  ## Change the name to make the join easier
+  rename(COUNTY_NAM = County) %>% 
+  ## Mean proportion of heart disease deaths
+  summarise(
+    deathsHeartDiseasePercent =
+      mean(deathsHeartDiseaseProportion, na.rm = TRUE) * 100,
+    .groups = "drop"
+  ) %>% 
+  ## Join to get geometries for mapping
+  full_join(cali_sf, by = "COUNTY_NAM", relationship = "many-to-many") %>% 
+  st_as_sf()
+
+#### Find the five-number summary
+summ <- fivenum(heartDiseaseSummary$deathsHeartDiseasePercent)
+
+paste0("The five-number summary of % of deaths that are heart disease-related is: ")
+
+paste(
+  c("Min", "Lower Quartile", "Median", "Upper Quartile", "Max"),
+  round(summ, 3)
+)
+
+##### Create labels for mapping
+heartDiseaseSummary <- heartDiseaseSummary %>%
+  mutate(
+    deathLabels = cut(
+      deathsHeartDiseasePercent,
+      breaks = quantile(
+        deathsHeartDiseasePercent,
+        probs = c(0, .33, .66, 1),
+        na.rm = TRUE
+      ),
+      include.lowest = TRUE
+    )
+  )
+```
+
+
+```{r, echo=FALSE}
+
+## Initialize the plot
+ggplot(heartDiseaseSummary) +
+  
+  ## Draw county polygons
+  geom_sf(aes(fill = deathLabels),
+          color = "gray20",
+          size = 0.2) +
+
+  ## Apply fill scale
+  scale_fill_manual(
+    name = "% of Deaths Due to Heart Disease",
+    values = c4a(palette = "brewer.or_rd", n = 3),
+    na.value = "gray70",
+    drop = FALSE
+  ) +
+
+  ## Set map projection
+  coord_sf(expand = FALSE) +
+
+  theme_bw() +
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    strip.text = element_text(size = 12, face = "bold"),
+    legend.position = "bottom"
+  ) +
+
+  labs(
+    title = "California Annual Percent Deaths Due to Heart Disease, by County",
+    subtitle = "Cumulative Monthly Deaths, Jan 2017 - Aug 2020",
+    caption = "Source: California DPH Vital Records"
+  ) +
+
+  facet_wrap(~ Year, ncol = 4)
+
+
+
+
+```
+
+
+```{r}
+htdDeaths %>%
+  group_by(Year, Month) %>%
+  summarise(
+    heartDiseasePercent =
+      mean(deathsHeartDiseaseProportion, na.rm = TRUE) * 100,
+    .groups = "drop"
+  ) %>%
+  ggplot(
+    aes(
+      x = as.numeric(Month),
+      y = heartDiseasePercent,
+      color = as.factor(Year),
+      group = Year
+    )
+  ) +
+  geom_line(size = 1) +
+  geom_point() +
+  scale_color_manual(values = skittles[c(5, 9:11)]) +
+  labs(
+    title = "Monthly Heart Disease Mortality by Year",
+    subtitle = "California Counties, Jan 2017 - Aug 2020",
+    x = "Month",
+    y = "% of Deaths Due to Heart Disease",
+    color = "Year"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+
+cor.test(
+  htdDeaths$retireeRatio,
+  htdDeaths$deathsHeartDiseaseProportion,
+  use = "complete.obs"
+)
+```
+
+There was a weak negative correlation between retiree ratio and heart disease mortality (r = -0.233, p < 0.001). Counties with more retirees tended to have slightly lower proportions of deaths due to heart disease.
+
+
+```{r}
+htdDeaths %>%
+  ggplot(aes(x = retireeRatio,
+             y = deathsHeartDiseaseProportion * 100)) +
+  geom_point(alpha = 0.6, color = skittles[5]) +
+  geom_smooth(method = "lm", color = skittles[8]) +
+  labs(
+    title = "Heart Disease Mortality vs Retiree Ratio",
+    subtitle = "California Counties, 2017-2020",
+    x = "Retiree Ratio",
+    y = "% of Deaths Due to Heart Disease"
+  ) +
+  theme_minimal()
+```
+
+The scatterplot agrees with the correlation coefficient. The fitted line has a negative slope, indicating that counties with higher retiree ratios tended to have slightly lower proportions of deaths due to heart disease. Although the relationship is statistically significant, the wide spread of points suggests the association is relatively weak.
+
+
+
+ANALYSIS:
+Analysis of Heart Disease Mortality (HTD)
+
+For my analysis, I chose to examine heart disease (HTD) mortality across California counties from 2017–2020. I explored heart disease mortality using a boxplot, choropleth map, monthly trend graph, and a correlation analysis with retiree ratio.
+
+Key findings:
+
+Boxplot by sex: Males consistently had a higher proportion of deaths due to heart disease than females across all years. Heart disease mortality was fairly stable from 2017–2020, although there was a slight decline in 2020.
+Choropleth map: Heart disease mortality varied across California counties, with some counties showing consistently higher percentages of heart disease deaths than others. The overall geographic pattern remained fairly stable over time.
+Monthly trend analysis: Heart disease mortality was relatively stable from 2017–2019, generally ranging between 10% and 12% of all deaths. In 2020, the proportion of deaths due to heart disease declined during the spring and summer months, suggesting that the pandemic may have influenced mortality patterns.
+Correlation and scatterplot: The correlation was weakly negative (r = -0.233, p < 0.001), suggesting that counties with more retirees generally had slightly lower proportions of heart disease deaths. The scatterplot showed a lot of variation, indicating that retiree ratio alone does not strongly explain heart disease mortality.
+Data Science Question
+
+Did heart disease mortality patterns vary across California counties during the COVID-19 pandemic, and were these patterns associated with county demographics such as retiree ratio and biological sex?
+
+Hypothesis
+Heart disease mortality varies across California counties and demographic groups. Counties with different age structures and sex distributions may experience different levels of heart disease mortality, and these patterns may have changed during the COVID-19 pandemic.
+
+Overall Conclusion
+Overall, heart disease represented a substantial share of deaths across California counties and showed both geographic and demographic variation. Males consistently experienced a higher proportion of heart disease deaths than females, and heart disease mortality patterns appeared relatively stable before the pandemic. The decline observed during 2020 suggests that COVID-19 may have influenced heart disease mortality patterns, although additional analysis would be needed to determine the exact cause. Future analyses could incorporate spatial and temporal modeling to better understand the factors driving heart disease mortality across California counties.
+
+
+
+
