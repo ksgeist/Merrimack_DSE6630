@@ -202,7 +202,7 @@ You will leverage the `read_sf()` function that is part of the `sf` package. As 
 cali_sf <- read_sf("/Users/elizabethgreenan/Desktop/California_County_Boundaries2025/California_County_Boundary_view_layer_for_public_use_-7341318997869969624/California_County_Boundary.shp")
 
 # #For MH comp 
-# cali_sf <- read_sf("C:/Users/User/Documents/DSE6630/California_County_Boundaries2025/California_County_Boundary.shp") 
+# cali_sf <- read_sf("C:/Users/User/Documents/DSE6630/California_County_Boundaries2025/California_County_Boundary.shp")
 
 ## Alternatively, you can read in the shapefile using the 'st_read()' function
 ## cali_st <- st_read("/Users/elizabethgreenan/Desktop/California_County_Boundaries2025/California_County_Boundary_view_layer_for_public_use_-7341318997869969624/California_County_Boundary.shp") 
@@ -640,7 +640,7 @@ EG Key: 5c232fce69ab41e424284fac644002c1aa02f6b1
 ```{r}
 ## Set your API key (put it between the quotation marks):
 #key <- "5c232fce69ab41e424284fac644002c1aa02f6b1" # EG key
-# key <- "dfbb9b8a4e5fe8bcf8b1c5615c86e644771a0976" # MH key
+#key <- "dfbb9b8a4e5fe8bcf8b1c5615c86e644771a0976" # MH key
 ```
 
 ### 2.6.2 Downloading data tables from the 2020 Census API
@@ -858,11 +858,11 @@ EG NOTE: I downloaded Professor Geist's file and compared it to mine. Her file h
 MH NOTE: Testing for issue with section 3.2.1. There are some counties appearing with 0 neighbors which is preventing weights from generating. It works when running with the google drive data. I believe this is likely due to islands associated with some of the counties. **NOTE TO PROF: ALL WRITTEN RESPONSES BEFORE SECTION 3.2.1 WERE BASED ON OUR DATA AND THEN PIVOTED BEGINNING IN 3.2.1 DUE TO ISSUE WITH WEIGHTS**
 
 EG commented r, eval = FALSE
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 ## Comment me out or change EVAL=FALSE to run your own versions!
-#load("~/Desktop/mortality_sf2.Rdata")
+load("~/Desktop/mortality_sf2.Rdata")
 #MH path:
-load("C:/Users/User/Downloads/mortality_sf2.Rdata")
+# load("C:/Users/User/Downloads/mortality_sf2.Rdata")
 load("census.Rdata")
 ```
 
@@ -2018,3 +2018,167 @@ Feel free to get creative! You are not required to continue stratifying by sex, 
 5. **A data science question you would like to test**
 
 6. **A data science hypothesis based on what you found** [Note: if you find nothing compelling, you may defend with evidence why there is no point developing a hypothesis instead.]
+
+
+
+> The selected cause of death for this question is: **ALZ**: Alzheimer’s Disease 
+
+
+
+
+```{r}
+## Join the sex deaths table with the census data; then filter for INJ
+alzDeaths <- sexDeaths %>% 
+  full_join(census, by = "County") %>% 
+  ## Here is where you filter for a specific cause of death relative to sex
+  filter(leadingCauseDeath == "ALZ") %>% 
+  ## Now full join with the first 4 columns of the totalDeaths table to get 
+  ## total deaths also
+  full_join(totalDeaths[ , 1:4], by = c("County", "Year", "Month")) %>%
+  ## Rename the sexDeaths column to something more appropriate
+  rename(alzDeaths = sexDeaths) %>% 
+  ## Calculate the proportion of all deaths that are from Alzheimer’s 
+  ## RELATIVE TO ALL DEATHS (not population!!)
+  mutate(deathsALZProportion = alzDeaths/totalDeaths,
+         ## The ratio of females to males in the population
+         femaleMaleRatio = femalesN/malesN,   
+         ## The ratio of 65+ females to males in the population
+         femaleMaleRatio65 = females65plus/males65plus,  
+         ## Ratio of retirees to non-retirees
+         retireeRatio = over65/totalN,  
+         ## Convert the date to a date format for plotting
+         Date = as.Date(paste(Year, Month, "1", sep = "-"), 
+                        format = "%Y-%m-%d")) %>%    
+         ## Illegal div by 0 turned to NaN; turn back to 0
+  mutate(deathsALZProportion = ifelse(deathsALZProportion == "NaN", 
+                                           0, deathsALZProportion))  
+```
+
+```{r}
+## Encode stayAtHome as any date after March 19, 2020
+alzDeaths <- alzDeaths %>% 
+  mutate(stayAtHome = ifelse(Date >= "2020-03-19", "Stay-at-Home", "None"))
+```
+
+
+```{r}
+##### Calculate the proportion of all deaths due to Alzheimer’s
+alzDeathsSummary <- alzDeaths %>% 
+  ## Group by stay-at-home order, year, county, AND sex
+  group_by(stayAtHome, Year, County, biologicalSex) %>% 
+  ## Change the name to make the join easier
+  rename(COUNTY_NAM = County) %>% 
+  ## Mean proportion of deaths for each month-year-county-sex combo
+  summarise(deathsAlzPercent = mean(deathsALZProportion, na.rm = TRUE)*100) %>% 
+  ## Join to get the geometries for mapping
+  full_join(cali_sf, by = "COUNTY_NAM", relationship = "many-to-many") %>% 
+  ## Coerce to make sure it is seen as a shapefile
+  st_as_sf() %>% 
+  ungroup() 
+
+#### Find the five number summary
+summ <- fivenum(injuryDeathSummary$deathsInjuriesPercent)
+paste0("The five-number summary of % of deaths that are Alzheimer’s-related is: ")
+paste(c("Min", "Lower Quartile", "Median", "Upper Quartile", "Max"), 
+      round(summ, 3))
+## Notice that, with the minimum, 1st quartile, AND median all equal to 0, we
+## really only have three groups
+
+##### Now add on the cuts alzDeathsSummary labels for mapping:
+alzDeathsSummary <- alzDeathsSummary %>% 
+  mutate(deathLabels = cut(deathsAlzPercent, 
+                          breaks = c(0, 3.343, 18.489, Inf),
+                          labels = c("0-3.342", "3.343-18.489", "18.489+"),
+                          ordered_result = TRUE, right = F)) 
+```
+
+```{r, echo=FALSE}
+## Initialize the plot
+ggplot(alzDeathsSummary) +
+  ## Chloropeth: draw the polygons of the counties and color by total deaths
+  geom_sf(aes(fill = deathLabels), color = "gray20", size = 0.2) +
+
+  ## Apply manual fill scale for total deaths
+  scale_fill_manual(
+    name = "% of Deaths Due to Alzheimer’s Disease",
+    values = c4a(palette="brewer.or_rd", n=3),
+    na.value = "gray70",
+    drop = FALSE
+  ) +
+  ## Set map projection explicitly
+  coord_sf(expand = FALSE) +   ## <- keeps map tight to its bounding box
+  
+  theme_bw() +
+  ## Make a completely blank map background this time
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    strip.text = element_text(size = 12, face = "bold"),
+    legend.position = "bottom"
+  ) +
+
+
+  # Add title and caption
+  labs(
+    title = "California Annual Percent Deaths due to Alzheimer’s Disease, by County",
+    subtitle = "Cumulative Monthly Deaths, Jan 2017 - Aug 2020",
+    caption = "Source: California DPH Vital Records"
+  ) + 
+  
+  ## Use facet_wrap to make one map per year
+  facet_wrap(~ Year, ncol = 4)
+```
+MH
+> It is not clear whether the NA data is due to a lack of individuals in counties with Alzheimer's Disease or a lack of reporting in the chloropeth graps. Regardless, the Alzheimer's related deaths appear to be consistent for most counties over the years, with 2020 showing the most `NA` counties. A couple of the counties with higher mortality in 2017-2019 had lower mortality in 2020.
+
+```{r, echo=FALSE}
+alzDeaths %>% 
+  group_by(Month, biologicalSex, Year) %>% 
+  summarise(deathsALZProportion = mean(deathsALZProportion, na.rm = TRUE)) %>% 
+ggplot(aes(x = Month, 
+           y = deathsALZProportion, 
+           color = as.factor(Year), 
+           linetype = as.factor(biologicalSex))) +
+  geom_line(alpha = 0.7, size = 1.1) +
+  scale_x_continuous(n.breaks = 10) +
+  scale_color_manual(values = skittles[c(5, 9:11)]) +
+  scale_linetype_manual(values=c("dotdash", "solid")) +
+  labs(title = "Proportion all deaths due to Alzheimer’s Disease, by sex",
+       y = "Proportion of All Deaths Due to Alzheimer’s Disease", 
+       subtitle = "Cumulative for all California counties, Jan 2017 - Aug 2020",
+       color = "Year",
+       linetype = "Sex of Decedent") +
+  theme_minimal()
+```
+
+EG
+> It appears that females are at a much higher risk of death due to Alzheimer's Disease than males, which is the opposite of what we saw in the ealier injury graphs.In 2020 it appears that deaths for males plateaued around March and then dropped after May, while the females peaked in April 2020, but also dropped significantly in May. 2017 through 2019 showed similar trends for mobidity in male Alzheimer's patients. 
+
+```{r, echo = FALSE}
+## Now plot the numbers of deaths per year due to accident and injury by sex
+alzDeaths %>% 
+ggplot(aes(y = deathsALZProportion, x = biologicalSex, fill = as.factor(Year))) +
+  geom_boxplot(alpha = 0.7) +
+  labs(x = "Biological Sex of Decedent", 
+       y = "Proportion of All Deaths Due to Alzheimer's Disease", 
+       fill = "Year", 
+       title = "Proportion of All Deaths Due to Alzheimer's Disease",
+       subtitle = "California Counties, Jan 2017 - Aug 2020") + 
+  scale_fill_manual(values = skittles[c(5, 9:11)]) + 
+  theme_classic()
+```
+
+DS
+> According to all the years, females have a much higher morbidity for Alzheimer's Disease than males. Amongst the 2020 year, there is one outlier for females. There is one outlier for males in 2019. This could lead to skew of the morbidity rates for the corresponding years. Additionally, the mean mobidity for males appears to be 0 which could be a data error and merits additional investigation. The averages across all years appear to be the same, but should be noted that 2020's data only accounts for deaths through August and the September through December data is expected to alter the 2020 plots. 
+
+
+ **Data Science Question:**
+ 
+ > Were there less reported deaths due to Alzheimer's Disease in 2020 than in previous years? Is one sex impacted more than another?
+ 
+ **Hypothesis**
+ > Morbidity due to Alzheimer's Disease decreases in 2020 due to Alzheimer's patients often living in group homes that were at higher risk of COVID exposure/outbreaks changing the leading cause of death in these patients.
