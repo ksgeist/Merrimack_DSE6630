@@ -2203,6 +2203,10 @@ Feel free to get creative! You are not required to continue stratifying by sex, 
 
 6. **A data science hypothesis based on what you found** [Note: if you find nothing compelling, you may defend with evidence why there is no point developing a hypothesis instead.]
 
+```{r}
+unique(sexDeaths$leadingCauseDeath)
+```
+
 
 ## Choose Your Own Cause-of-Death: Diseases of the Heart (HTD)
 
@@ -2362,3 +2366,156 @@ ggplot(htdMonthly, aes(x = Month, y = meanHeartProp * 100,
     caption  = "Source: California DPH Vital Records"
   )
 ```
+
+
+**Interpretation:** There are three patterns stand out clearly in this graph.
+
+First, males (solid lines) consistently show a higher proportion of heart disease deaths than females (dashed lines) across all years, roughly 12–13% for males versus 9–10% for females. This is the opposite of what one might expect if females were simply living longer and therefore accumulating more heart disease. It is consistent with the pattern seen in Section 5.1: males die from accidents and injuries at much higher rates than females and males die from heart disease at higher rates than females.
+
+Second, there is a pronounced seasonal dip: for both sexes and in most years, heart disease deaths as a proportion of all deaths fall through the summer months (June–August) before recovering in the fall. This likely reflects a combination of true seasonal variation in cardiovascular events (cold weather increases cardiac stress in winter) and compositional effects from summer spikes in other causes of death such as accidents.
+
+Third, and most strikingly, 2020 (pink) shows a dramatic and unusual collapse in the female dashed line from approximately June through August, reaching a low of around 7% in August — well below all other years and both sexes. This is the opposite of the hospital-avoidance hypothesis (which would predict higher proportions), and instead may reflect a denominator effect: total female deaths rose sharply in summer 2020 due to COVID-19, causing heart disease to represent a smaller share of female deaths even if absolute heart disease counts remained stable or grew. The male 2020 lines do not show the same collapse, suggesting this denominator effect was more pronounced for females. This unexpected finding motivates the need for both age-adjusted and cause-stratified analyses to disentangle these compositional shifts.
+
+
+#### Additional Exploration 1: Stratified Boxplots by Sex and Retirement-Age Status
+
+To understand whether the stay-at-home orders had a differential impact across demographic subgroups, I compare the distribution of the heart disease death proportion before and during the stay-at-home period, stratified by both biological sex and retirement-age status.
+
+Because the sexDeaths table does not directly separate deaths by age group within a cause-of-death category, I use the retiree ratio (proportion of each county's population aged 65 and older from the Census) as a continuous proxy for age burden, and then create a categorical split at the median to distinguish "high retiree" from "low retiree" counties.
+
+```{r, echo = FALSE}
+
+## Create a high/low retiree-burden category split at the median retiree ratio
+medianRetiree <- median(htdDeaths$retireeRatio, na.rm = TRUE)
+
+htdDeaths <- htdDeaths %>%
+  mutate(
+    retireeGroup = ifelse(
+      retireeRatio >= medianRetiree,
+      "High Retiree County (≥ median % over 65)",
+      "Low Retiree County (< median % over 65)"
+    )
+  )
+
+## Boxplots: stay-at-home status x sex, faceted by retiree group
+ggplot(
+  htdDeaths %>% filter(!is.na(biologicalSex), !is.na(retireeGroup)),
+  aes(x = stayAtHome,
+      y = deathsHeartProportion * 100,
+      fill = biologicalSex)
+) +
+  geom_boxplot(alpha = 0.75, outlier.shape = 21, outlier.size = 1.5) +
+  scale_fill_manual(
+    name   = "Biological Sex",
+    values = c(skittles[2], skittles[5])
+  ) +
+  facet_wrap(~ retireeGroup) +
+  theme_minimal() +
+  theme(
+    strip.text      = element_text(size = 11, face = "bold"),
+    legend.position = "bottom"
+  ) +
+  labs(
+    title    = "Heart Disease Death Proportion Before vs. During Stay-at-Home Orders",
+    subtitle = "Stratified by Biological Sex and County Retiree Burden",
+    x        = "Stay-at-Home Status",
+    y        = "Heart Disease Deaths (% of All Deaths)",
+    caption  = "Source: California DPH Vital Records & 2020 US Census"
+  )
+```
+**Interpretation:** Four findings are visible in this plot.
+
+First, males (orange) show a consistently higher median heart disease death proportion than females (yellow) in every condition both before and during stay-at-home orders, and in both high and low-retiree counties. Males sit roughly at 12–13% while females sit at 9–10%, confirming the sex difference established in the line graph and ruling out the possibility that it was driven solely by seasonal or pandemic-era effects.
+
+Second, the stay-at-home period is associated with a decline in median heart disease proportion for both sexes, not an increase as the hospital-avoidance hypothesis would predict. In high-retiree counties, the female median drops from approximately 10% to 9%,and the male median drops from approximately 13% to 12%. The same downward shift appears in low-retiree counties. As discussed in the line graph interpretation, this is most likely a denominator effect: COVID-19 deaths inflated total deaths during the shutdown period, shrinking heart disease's share of the total even if absolute cardiac death counts did not fall.
+
+Third, high and low-retiree counties are nearly indistinguishable in their medians and interquartile ranges. The retiree ratio does not appear to meaningfully stratify heart disease death proportions at the county level, which is surprising given the well-known age–cardiovascular risk relationship. One explanation is that high-retiree counties are often small and rural, where other causes of death are also elevated (e.g., accidents, limited hospital access), keeping heart disease's proportional share from rising above that of lower-retiree counties.
+
+Fourth, outliers are more extreme in the "None" (pre-shutdown) period across all groups, with some counties showing proportions above 20–25%. These likely represent small-population counties where a handful of cardiac deaths in a single  month produce volatile proportions which is the same suppression issue noted in the choropleth maps.
+
+
+#### Additional Exploration 2: Correlation Test
+
+I calculate the correlation between the county retiree ratio (proportion of residents aged 65+) and the proportion of deaths due to heart disease, to assess whether age composition of a county is associated with cardiovascular mortality burden.
+
+```{r, echo = FALSE}
+
+## Pearson correlation: retiree ratio vs. heart disease death proportion
+htdDeaths %>%
+  select(retireeRatio, deathsHeartProportion) %>%
+  na.omit() %>%
+  summarise(
+    correlation = cor(retireeRatio, deathsHeartProportion)
+  )
+```
+
+```{r, echo = FALSE}
+## Formal correlation test with confidence interval
+cor.test(
+  htdDeaths$retireeRatio,
+  htdDeaths$deathsHeartProportion,
+  use = "complete.obs"
+)
+```
+
+**Interpretation:** The correlation between the county retiree ratio and the proportion of deaths attributed to heart disease is r = −0.233 (t = −12.917, df = 2897, p < 0.001, 95% CI: −0.267 to −0.199). The result is highly statistically significant, but the direction is the opposite of what the individual-level age–cardiovascular risk relationship would predict: counties with a higher proportion of residents aged 65 and older actually show a lower proportion of deaths attributed to heart disease.
+
+This is a textbook example of the ecological fallacy which is the danger of inferring individual-level relationships from aggregate (county-level) data. Several mechanisms likely contribute to this negative ecological correlation:
+
+- **Competing causes:** Older rural counties tend to have elevated mortality from respiratory disease, diabetes, and     Alzheimer's, all of which compete with heart disease for share of total deaths. Even if absolute cardiac deaths are high, heart disease may represent a smaller proportion of the total in counties with many co-occurring causes.
+- **Denominator inflation:** High-retiree counties, which are often small and rural, may have higher overall death rates from multiple causes, depressing any single cause's proportional share.
+- **Access to care:** Counterintuitively, counties with many retirees may have developed stronger primary care infrastructure for that population, leading to better-managed cardiovascular disease and fewer acute cardiac deaths relative to other causes.
+
+Despite being statistically significant at p < 0.001, the effect size is modest (r = −0.23, R² ≈ 0.054), meaning the retiree ratio explains only about 5% of the variance in heart disease death proportions. The retiree ratio should still be included as a covariate in any predictive model because its relationship with the outcome is real and significant but it is not a strong standalone predictor, and its negative direction must be interpreted carefully in context.
+
+#### Additional Exploration 3: Scatterplot of Retiree Ratio vs. Heart Disease Proportion
+
+```{r, echo = FALSE}
+
+ggplot(
+  htdDeaths %>% filter(!is.na(retireeRatio), !is.na(deathsHeartProportion)),
+  aes(x = retireeRatio * 100,
+      y = deathsHeartProportion * 100,
+      color = biologicalSex)
+) +
+  geom_point(alpha = 0.35, size = 1.5) +
+  geom_smooth(method = "lm", se = TRUE, linewidth = 1.1) +
+  scale_color_manual(
+    name   = "Biological Sex",
+    values = c(skittles[2], skittles[5])
+  ) +
+  theme_minimal() +
+  labs(
+    title    = "County Retiree Burden vs. Proportion of Deaths Due to Heart Disease",
+    subtitle = "By Biological Sex, California 2017–2020",
+    x        = "Population Aged 65+ (%)",
+    y        = "Heart Disease Deaths (% of All Deaths)",
+    caption  = "Source: California DPH Vital Records & 2020 US Census"
+  )
+```
+**Interpretation:** The scatterplot visually confirms and extends the correlation result (r = −0.233, p < 0.001). Several features are worth noting.
+
+Both regression lines slope downward, running from upper-left to lower-right across the full range of retiree burden (~10% to ~31% aged 65+). This confirms the negative ecological correlation: as a county's elderly share of population increases, heart disease's proportion of all deaths decreases. The male line (dark orange) sits consistently above the female line (yellow) at every level of retiree burden, reinforcing the sex difference established in the line graph and boxplots.
+
+The two lines converge at high retiree ratios. At low retiree burden (~10–13%), the sex gap is widest. Males are roughly 3–4 percentage points above females. By the time retiree burden reaches ~30%, both lines approach similar values around 4–5%. This convergence suggests the sex difference in heart disease proportions may be partially mediated by age composition: in the most elderly counties, competing causes of death (Alzheimer's, respiratory disease) may depress heart disease's share equally for both sexes, erasing the gap seen in younger-skewing counties.
+
+Variance is highest at low-to-moderate retiree burden (~10–20%), where the dense cloud of points spans from near 0% to over 25%. This is consistent with the small-county volatility noted in earlier analyses. These low-retiree counties include both large urban counties (where proportions are stable and moderate) and small rural counties (where a handful of deaths in a single month creates extreme swings). As retiree burden increases beyond ~22%, the point cloud narrows and the zeros largely disappear, suggesting that higher-retiree counties tend to be more demographically stable with fewer months of suppressed or zero counts.
+
+Taken together with the correlation test, these results indicate that the retiree ratio captures a real but modest ecological signal that runs counter to individual-level expectations, a finding consistent with the ecological fallacy and with the competing, causes mechanism discussed above. The retiree ratio should be retained as a covariate in any formal model, with its negative direction interpreted at the county level rather than as a statement about individual cardiovascular risk.
+
+
+### Data Science Question
+
+How did California's mandatory COVID-19 stay-at-home orders affect the proportion of deaths attributed to heart disease  across counties, and was this effect moderated bycounty-level age structure and the biological sex of the decedent?
+
+
+### Data Science Hypothesis
+
+We hypothesize that the proportion of deaths attributed to heart disease increased during the stay-at-home period (March 19–August 2020) relative to comparable months in 2017–2019, and that this effect was larger in:
+
+1. **High-retiree counties** (those above the median proportion of residents aged 65+), because elderly individuals are both at greater cardiovascular risk and more likely to defer emergency care during a public health emergency.
+2. **Female decedents**, because females already represent a higher proportion of heart-disease deaths relative to males (whose deaths are more distributed across causes such as injury and accident), making any pandemic-era increase in cardiovascular deaths more detectable as a share of female mortality.
+
+To test this formally, we would fit a spatial lag regression or random forest model predicting the monthly proportion of heart disease deaths per county, with predictors including: stay-at-home status (binary), biological sex, retiree ratio, female-to-male population ratio (to control for county sex composition), total county population size, spatial lag of the outcome, and month/year indicators to control for seasonality and secular trends. We would additionally consider temporal lag variables given the strong seasonal patterns observed in the line graph. A significant positive interaction between
+stay-at-home status and retiree ratio, and/or stay-at-home status and female sex, would support our hypothesis.
+
