@@ -199,7 +199,7 @@ __The initial processing steps will include:__
 You will leverage the `read_sf()` function that is part of the `sf` package. As you might have guessed, `sf` refers to __shapefile__. Note that there is an alternative method to read in shapefiles called `st_read`, which is an alias for `read_sf()` with some different default arguments. By default, `read_sf()` is quiet, whereas `read_st()` will print information about the data source by default. Additionally, `read_sf()` returns a tibble rather than a dataframe. So which to choose? It's your preference, in this case. By default, your code below will use `read_sf()` but you could instead use `read_st()` if you wanted.
 
 ```{r}
-cali_sf <- read_sf("/Users/elizabethgreenan/Desktop/California_County_Boundaries2025/California_County_Boundary_view_layer_for_public_use_-7341318997869969624/California_County_Boundary.shp")
+cali_sf <- read_sf("C:/Users/Desicious Win/Desktop/California_County_Boundary_view_layer_for_public_use_-7341318997869969624/California_County_Boundary.shp")
 
 # #For MH comp 
 # cali_sf <- read_sf("C:/Users/User/Documents/DSE6630/California_County_Boundaries2025/California_County_Boundary.shp")
@@ -639,6 +639,7 @@ EG Key: 5c232fce69ab41e424284fac644002c1aa02f6b1
 
 ```{r}
 ## Set your API key (put it between the quotation marks):
+key <- "b45feb2ccbeea85f5dbbbd783544f75092df5a90" #DS key
 #key <- "5c232fce69ab41e424284fac644002c1aa02f6b1" # EG key
 #key <- "dfbb9b8a4e5fe8bcf8b1c5615c86e644771a0976" # MH key
 ```
@@ -860,7 +861,7 @@ MH NOTE: Testing for issue with section 3.2.1. There are some counties appearing
 EG commented r, eval = FALSE
 ```{r, eval = TRUE}
 ## Comment me out or change EVAL=FALSE to run your own versions!
-load("~/Desktop/mortality_sf2.Rdata")
+#load("C:/Users/Desicious Win/Desktop/mortality_sf2.Rdata") DS data location
 #MH path:
 # load("C:/Users/User/Downloads/mortality_sf2.Rdata")
 load("census.Rdata")
@@ -1303,7 +1304,7 @@ anova(sarModel, olsModel)
 Which model, the spatial lag regression (`sarModel`) or the ordinary least squares regression (`olsModel`), is a better fit to the data? Why?
 
 MH
-> Note to team/self: unlike Demo2, the model above used `lm()` instead of `lagsarlm()`. What was done here, different from Demo2 was that the spatially lagged predictor was calculated and added a s a predictor instead of using the spatial lag of the dependent variable, so the anova is not performing Likelihood Ratio Test as it was in Demo2, it is testing if there is a signficiant difference between `sarModel` and `olsModel`, or more specifically: does the spatial lag feature improve the model. The null hypothesis would be that spaital lag does not improve the model; however the results of an F-stat 97.6 and P-value < 0.001 (much less) lead us to reject that null hypothesis and determine that a county's mortality rate is significantly associated with that of it's neighbors.
+> Note to team/self: unlike Demo2, the model above used `lm()` instead of `lagsarlm()`. What was done here, different from Demo2 was that the spatially lagged predictor was calculated and added as a predictor instead of using the spatial lag of the dependent variable, so the anova is not performing Likelihood Ratio Test as it was in Demo2, it is testing if there is a signficiant difference between `sarModel` and `olsModel`, or more specifically: does the spatial lag feature improve the model. The null hypothesis would be that spaital lag does not improve the model; however the results of an F-stat 97.6 and P-value < 0.001 (much less) lead us to reject that null hypothesis and determine that a county's mortality rate is significantly associated with that of it's neighbors.
 
 #### Question 17D [0.5 points]
 Using the model you chose as the better model, `sarModel` to `olsModel`, interpret the results of that model. **HINT**: Remember that `summary()` helps you access the results from the model! 
@@ -1555,7 +1556,9 @@ Can you interpret the $RMSE$ and $MAE$ values? **Remember** all of the data were
 
 **How did the training model perform?** Does it seem to be overfitting (training error >> testing error), underfitting (training error and testing error both high but roughly equal with a low $R^2$), or doing okay?
 
-> Your answer here.
+>The results of the RMSE and MAE do seem to be quite high compared to the training model. So there must be something deeper within the data or preprocessing of the data sets due to potential data leakage, a common error amongst these types of complex computing / problem solving.
+
+>The results of the RMSE and MAE do seem to have an overly optimistic training model which may lead to be overfitting problems and a bit of bias as well.
 
 ### 4.3.4 Plot Actual vs. Predicted Values
 
@@ -1582,7 +1585,9 @@ ggMarginal(p, type = "histogram", fill = skittles[2], color = "gray30")
 #### Question 19F [0.5 points]
 Interpret the scatterplot of the actual vs. predicted values. What is happening to the predicted values? (Use the histogram on the side to help you, that's why they're there!) Make sure to mention whether the training model is leading to an **under prediction** or an **over prediction** of mortality. What **real information** might that provide your stakeholders, even if the model is underperforming?
 
-> Your answer here.
+> The scatterplot seems to be under predicting compared to the actual mortality rates. Since the predicted mortality results are more so on the lower end of mortality then what the real results were. The training model compared to the test model did show underprection errors that caused the graph shown on the right histograph to have a bias future outcome to be lower than what the actual results showed us.
+
+>
 
 ## 4.4 Extract variable importance from the final model
 
@@ -1631,13 +1636,14 @@ Since the pandemic is over in reality, you can find the actual number of deaths,
 **Hint**: You can read this file in as a dataframe using an API and `fromJSON()` as follows! Note the structure of the data - it returns a list of a list, so in order to extract the data as a dataframe we have to go two layers deep. I also show you the structure (`str()`) of the data so you have an idea what you're getting.
 
 ```{r}
-caliDeaths <- fromJSON("https://data.chhs.ca.gov/api/3/action/datastore_search?resource_id=078185a9-e3a7-403f-a546-b8c582f0a9d8")
+url <- 'https://data.chhs.ca.gov/api/3/action/datastore_search?resource_id=f0979d00-9add-40f3-a51f-1ce1ba039faa&filters={"Cause":"ALL","Geography_Type":"Residence","Strata":"Total%20Population"}&limit=100000'
+caliDeaths <- fromJSON(url)
 
 caliDeaths <- caliDeaths$result$records
 
-caliDeaths %>% 
+caliDeaths %>%
   str()
-
+dim(caliDeaths)
 ## Alternatively, load from Rdata:
 # source("caliDeaths.Rdata")
 ```
@@ -1645,13 +1651,47 @@ caliDeaths %>%
 **Remember** to filter for the proper condition, Year, and Months to get the data you need. Take time to explore the data, and make sure that you are matching the data we've been using (total mortality, all causes of death) to your filter. 
 
 ```{r}
-## Your code here
+caliDeaths <- caliDeaths %>% filter(Year == 2020)
+
+#Shows the unique amount of "Months" * number of unique amount of 'County'(should be 58) which does equal 696
+caliDeaths %>% summarise(n_distinct(Month)) #12 months
+caliDeaths %>% summarise(n_distinct(County)) #58 counties in cali
+caliDeaths %>% summarise(n_distinct(Month, County)) #counties * months
+
+#A double check to make sure the sum we got above does result in the amount of observations we know we should have; 696 
+counties = 58
+months = 12
+counties * months
+
+#Changing the data type of Year and Month to integers from numbers being stored as text
+#Changing the data type of Count to numeric to do mathematics equations for future analysis.
+caliDeaths <- caliDeaths %>%
+  mutate(
+    Year  = as.integer(Year),
+    Month = as.integer(Month),
+    Count = as.numeric(Count)
+)
+str(caliDeaths)
 ```
 
 Now make sure to compute the **monthly percent mortality** as you have done before. Otherwise, you won't be comparing apples-to-apples!
 
-```{r}
-## Your code here
+```{r, echo = TRUE, warning=FALSE, message=FALSE}
+# Create morality_sf, which contains the number of total deaths
+actual_mortality_sf <- caliDeaths %>% 
+  # Rename County to COUNTY_NAM  so it matches the shapefile
+  rename(COUNTY_NAM = County) %>% # The syntax for this is (new_name = old_name)
+  # Group the data by county, year, and month
+  group_by(COUNTY_NAM, Year, Month, Count) %>% 
+  # Calculate the summary of the total deaths, which is the sum of total deaths and na.rm = TRUE tells us to ignore the NA values
+  summarise(Count = sum(Count, na.rm = TRUE)) %>%
+  # Join the cali_sf dataframe by COUNTY_NAM. The relationship parameter is many-to-many, indicating that there can be duplicate counties
+  full_join(cali_sf, by = "COUNTY_NAM", relationship = "many-to-many") %>% 
+  # convert the dataframe into a sf
+  st_as_sf()
+
+head(actual_mortality_sf, 14)
+unique(actual_mortality_sf$COUNTY_NAM)
 ```
 
 Lastly, create (1) a scatterplot with trend line and (2) perform a correlation test on your **Sept to December 2020** predictions relative to the true **Sept to December 2020** monthly percent mortality. 
