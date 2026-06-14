@@ -1,7 +1,7 @@
 ---
 title: "Demo 3: Bioinformatics of Gene Expression"
 subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
-author: "Dr. Katherine S. Geist"
+author: "Team Epsilon: Desi Spark (DS), Elizabeth Greenan (EG), Meghan Holden (MH)"
 date: "9 June 2026"
 output:
   html_document:
@@ -79,9 +79,17 @@ __Metadata__ refer to information about sequencing files that describe the sampl
 ```{r, echo=FALSE}
 # Load the metadata files
 metadata <- read_csv("./23524047/Complete_sampleinfo.csv",
-                     show_col_types = FALSE) %>% 
-            as.data.frame() %>% 
+                     show_col_types = FALSE) %>%
+            as.data.frame() %>%
             mutate_if(is.character, as.factor)
+
+# #MH load metadata files
+# metadata <- read_csv("C:/Users/OhMegha/Documents/GitHub/Merrimack_DSE6630/Team_Directories/epsilon/Module_Demos/Demo_3/23524047/Complete_sampleinfo.csv",
+#                      show_col_types = FALSE) %>% 
+#             as.data.frame() %>% 
+#             mutate_if(is.character, as.factor)
+
+
 
 dict <- tribble(
   ~ Variable, ~ Description,
@@ -106,7 +114,11 @@ head(metadata)
 #### **Question 1**: [1 point]      TT
 Looking at the [original study]("https://drive.google.com/file/d/1X3z251hebpjBVdOXsQtYzDG-SaeCa6M1/view"), what method of RNA sequencing was performed? This is an unusual method of sequencing, and you will need to look it up. Can you explain, approximately, how it works? (Give your best attempt)
 
-> Your answer here.
+MH
+> The method of RNA sequencing performed in the study by Verble et al. (2023), was 3' Tag-based RNA sequencing (TagSeq).The method is described in Lohman et al. (2016) as a less cost-prohibitive method of RNA sequencing. Standard RNAseq, such as NEBNext and Illumina, sequence portions of the full length of all transcripts. Lohman argues that this method is redundant when investigating relative gene expression. TagSeq as an alternative method, narrows in on mRNAs' 3' end, which both reduces the sequencing depth as well as cost. TagSeq consists of 11 steps: "(i) isolate total RNA, (ii) remove genomic DNA with DNase..., (iii) fragment total RNA with Mg+ buffer via hydrolysis(NEB), (iv) synthesize cDNA with a poly-dT oligo, (v) PCR amplify cDNA, (vi) purify PCR products with DNA-binding magnetic beads..., (vii) fluormetrically quantify PCR products, (viii) normalize among-sample concentrations, (ix) add sample-specific barcodes via PCR, (x) pool samples and select a small range of fragment sizes... via automated gel extraction..., (xi) quantify concentrations of postextraction products via Qubit..., (xii) normalize among pools."
+> Then, Paropkari et al. (2024) describes, using BBDuk, the sequences are trimmed, QC is performed using FastQC, and then the QC'd data is ed to generate a gene count table that therin is used to run differential gene expression analysis.
+Source: https://pubmed.ncbi.nlm.nih.gov/27037501/
+Source: https://pmc.ncbi.nlm.nih.gov/articles/PMC9930165/
 
 ## 1.3 Sequence Data Pre-processing
 
@@ -122,8 +134,9 @@ This means that what you have in front of you are **raw read counts** that have 
 #### **Question 2**: [1 point]      TT
 Look at the Methods of the [original study]("https://drive.google.com/file/d/1X3z251hebpjBVdOXsQtYzDG-SaeCa6M1/view"). Can you find what quality threshold was used to filter the reads? Do a quick search; does this appear standard?
 
-> Your answer here.
-
+MH
+> Samples that did not meet the sequence data threshold of < 8 million reads were excluded. 10xGenomis suggests that some papers will use arbitrary thresholds, so perhaps there is not 'true' standard approach, but many data-drive approaches include thresholds that are 2 to 5 times the SD
+Source: https://www.10xgenomics.com/analysis-guides/common-considerations-for-quality-control-filters-for-single-cell-rna-seq-data
 
 ## 1.4 Reading in the Raw Read Counts
 
@@ -131,18 +144,33 @@ You will be working with the __raw count__ data as __CPM (read counts per millio
 
 #### **Question 3**: Explain CPM for someone who might not know what that means. You may need to do a little extra reading on the subject! Are read counts in CPM _adjusted_ or _unadjusted_?
 
-> Your answer here.
+MH
+> Accouding to Pluto, Counts Per Million (CPM) is used to normalize the gene data, it looks to adjust for sequencing depths so that values can be compared on the same scale. It is calculated by scaling the raw counts by total counts, multiplied by 1,000,000. One setback for CPM Normalization is that it "Does not account for gene length, potentially leading to biases in gene expression estimation."
+> Since, according to Paropkari et al. (2024), TagSeq is only resulting in one copy of cDNA per sample, the risk of this bias is reduced.
+Source: https://pluto.bio/resources/Learning%20Series/navigating-rna-seq-data-a-guide-to-normalization-methods
+Source:https://pmc.ncbi.nlm.nih.gov/articles/PMC9930165/
+
 
 First, you read in the raw counts and get a sense of these data. Notice that, by this stage, the reads are simply stored in a comma-separated (`.csv`) file!
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 counts <- read_csv(file = "./23524047/ECK_CountData_Complete.csv") %>% as.data.frame()
-head(counts[,1:6]) %>% 
+head(counts[,1:6]) %>%
     kable(
     format = "html",
     caption = "Table 1. The first 6 rows and 6 columns of the raw read counts.") %>%
     kable_styling(bootstrap_options = c("striped", full_width = F)
   )
+
+# #FOR MH LOCAL FILE READ
+# counts <- read_csv(file = "C:/Users/OhMegha/Documents/GitHub/Merrimack_DSE6630/Team_Directories/epsilon/Module_Demos/Demo_3/23524047/ECK_CountData_Complete.csv") %>% as.data.frame()
+# head(counts[,1:6]) %>% 
+#     kable(
+#     format = "html",
+#     caption = "Table 1. The first 6 rows and 6 columns of the raw read counts.") %>%
+#     kable_styling(bootstrap_options = c("striped", full_width = F)
+#   )
+
 ```
 
 #### **Question 4A**: [0.33 points]      TT
@@ -150,19 +178,23 @@ What does column `COOECK6` represent?
 
 **Hint**: Take a look at [Table S1](https://drive.google.com/file/d/1X3z251hebpjBVdOXsQtYzDG-SaeCa6M1/view) for more information!
 
-> Your answer here.
+MH
+> `COOECK6` represents the data for that sampleID. `COOECK6` was from the Daisy colony in the control group, sampled at 00m.
 
 #### **Question 4B**: [0.33 points]      TT
 Why is the `geneID` something like, 'LOC100740276'? What does that mean? 
 
 **Hint:** 'LOC' is shorthand for 'locus' in a genome! What's a 'locus'?
 
-> Your answer here.
+MH
+> A locus is the physical location in a genome. The `geneID` is an ID that corresponds to a specific gene.
+Source: https://www.genome.gov/genetics-glossary/Locus
 
 #### **Question 4C**: [0.33 points]      TT
 For column `COOECK6`, gene 'LOC100740276' has a value of 6. What does that mean?
 
-> Your answer here.
+MH
+> The value of 6 for gene 'LOC100740276' for sample `COOECK6` means that this specific gene was tagged by TagSeq 6 times.
 
 # 2 Conventional Method: Differential Expression (DE) Analysis using `DESeq2`
 
@@ -235,7 +267,8 @@ Which variable is the 'batch' variable in this analysis and why?
 
 **Hint**: Look at the design formula in the next code chunk!
 
-> Your answer here.
+MH
+> The `Colony` feature is the batch variable in this analysis. Verble et al. (2023) states that flight muscle plays an important role in thermoregulation and therefore, to minimize batch effects, samples were randomly selected across colonies and treatments. Since we are investigating the effect on the treamtent groups, it, then our batch variable is `Colony`.
 
 ### 2.2.1 The Design Formula 
 
@@ -273,12 +306,16 @@ str(dsgnObject)
 #### **Question 6**: [1 point] 
 In this course so far, you have been exposed to a number of different non-dataframe structures for data. Here's another one! Explore the `dsgnObject` with `str()` as above or another function of your choice. What differences do you notice about the structure of this object vs. a dataframe?
 
-> Your answer here.
+MH
+> Whereas a datframe usually includes a quick summary of observations x feature, as well as feature types, and some of the values, `dsgnObject` is marked as an S4 object of class DESeqDataSet, it contains details several datasets, including the metadata as well as the formula that we are interested in.
 
 Now write code to extract a dataframe of read counts from the design object `dsgnObject`. You will need to leverage the `assay()` function from `DESeq2` to do this! Show the `head()` of this dataframe only as proof you could extract it.
 
 ```{r}
 ## Your code here.
+##MH
+assay_df <- as.data.frame(assay(dsgnObject))
+head(assay_df)
 ```
 
 
@@ -296,6 +333,7 @@ Add comments to the function, including doing your best to define the arguments.
 **Hint**: To learn what each of the arguments do, you may want to play around with them.
 
 ```{r}
+#Comments added by MH
 runVST <- function(dsgnObject, 
                    blind, 
                    fitType, 
@@ -304,63 +342,67 @@ runVST <- function(dsgnObject,
                    writeRData = FALSE) {
   ############################################
   ## YOUR COMMENT HERE - include a usage statement
-  ## dsgnObject = ...
-  ## blind = ...
-  ## fitType = ...
-  ## makePlot = ...
-  ## writeTable = ...
-  ## writeRData = ...
+  ## dsgnObject = this is our DESeqDataSet containing our data
+  ## blind = part of the vst function - identifies if transformation should be blind to the sample info in the design formula - if true, the functions will re-stimate the dispersions uding only and intercept.
+  ## fitType = assign the transformation function
+  ## makePlot = generate mean-sd plots before and after transformation
+  ## writeTable = write transformed counts to a table
+  ## writeRData = save the data to an .Rdata file
   ############################################
   
   ## YOUR COMMENT HERE
   ## Make sure to address why we are checking for fitType to equal rlog!
+  ##this line is checking if  the fittype is rlog. This is because it is a separte transformation function from VST
   if(fitType == "rlog") {
-    ## YOUR COMMENT HERE
+    ## apply rlog, keep the blind
     vsData <- rlog(dsgnObject, blind = blind)
   }
-  ## YOUR COMMENT HERE
+  ## OTHERWISE
   else {
-    ## YOUR COMMENT HERE
+    ## apply VST transformation
     vsData <- varianceStabilizingTransformation(dsgnObject, 
                                               blind = blind, 
                                               fitType = fitType)
   }
   
-  ## YOUR COMMENT HERE
+  ## Generate the comparison plots
   if(makePlot == TRUE) {
     ## YOUR COMMENT HERE
     ## Hint: meandSDPlot() helps us see the effect of the VS transform
+    ##create plot showing the variance before transformation
     p1 <- meanSdPlot(assay(dsgnObject), plot = F)
-    ## YOUR COMMENT HERE
+    ## format the pre-transformation plot
     p1 <- p1$gg + ggtitle("Before Variance Stabilization") + 
       scale_fill_gradient(low = skittles[1], high = skittles[2]) + 
       theme_bw() + theme(legend.position = "bottom")
     
-    ## YOUR COMMENT HERE
+    ## Show variance plot after transformation
     p2 <- meanSdPlot(assay(vsData), plot = F)
-    ## YOUR COMMENT HERE
+    ## format the plot
     p2 <- p2$gg + ggtitle("After Variance Stabilization") + 
       scale_fill_gradient(low = skittles[1], high = skittles[2]) + 
       theme_bw() + theme(legend.position = "bottom")
-    ## YOUR COMMENT HERE
+    ## display side by side
     grid.arrange(p1, p2, nrow=1)
   }
   
-  ## YOUR COMMENT HERE
+  ## write the transformed values
   if(writeTable == TRUE) {
     
     ## YOUR COMMENT HERE - make sure to mention the output format!
+    ## write the table in a text format that usees tab-deliniation
     write.table(assay(vsData),
               file = "vst.txt",
               sep="\t", 
               quote=F, 
               row.names=T)
   }
-  ## YOUR COMMENT HERE
+  ## Also save the data as an r.data file
   if(writeRData == TRUE) {
     save(vsData, file="vst_all_timepoints.Rdata")
   }
   ## YOUR COMMENT HERE - what is being returned?
+  ## the object with the transformed data is being returned
   return(vsData)
 }
 ```
@@ -368,7 +410,8 @@ runVST <- function(dsgnObject,
 #### **Question 7B**: [1 point] 
 Why do we bother writing wrapper functions? What's the purpose and how can they make our lives easier? 
 
-> Your answer here.
+MH
+> Wrapper functions allow us to bundle many steps into a single function that reduces the risk of errors from repatative copy and pasting.
 
 
 Now, **run the function**! Note that here you will run a __parametric transformation__ with `blind = FALSE` because you do not want the transformations to be blind to the experimental design (treatment) at this stage; in fact, you expect large differential expression in some genes! Thus, to control for outliers you will want to set `blind = FALSE`.
@@ -387,7 +430,8 @@ runVST(dsgnObject,
 #### **Question 8**: [1 point]
 What do you notice about the plot on the left (the `dsgnObject` without any transformation) vs. the plot on the right after the variance stabilizing transform? Is the VST effective at stabilizing the variance and, if so, how can you tell?
 
-> Your answer here.
+MH
+> The plot on the left shows strong heteroscedasticity, where the lower mean expression has lower SD, but higher means have higher SD. After performing the VST stabilization, the spread is much more uniform across the ranges of mean expression. The SD have also been compressed. 
 
 ### 2.3.1 Digging deeper: Estimating gene-wise dispersion
 
@@ -418,7 +462,7 @@ abline(lm(log(varCounts+0.0001) ~ log((meanCounts+0.0001))),
 #### **Question 10**: [1 point]
 Does this plot support that a VST is (1) needed, (2) not needed, or (3) likely to be ineffective? Please explain.
 
-> Your answer here.
+> The assumption that we expect that for low mean counts the variance estimates have a much larger spread, such that the dispersion estimates will differ much more between genes with small means is not met when it comes to the absolute smallest mean expresssions, but the largest variance is seen on the lower side of the mean expression and the variance does get tighters at the highest mean expressions. Therefore VST is likely needed.
 
 
 ### Other VST Functions 
@@ -435,16 +479,49 @@ Other functions you could try:
 
 Use the custom `runVST()` function, changing out the `fitType` parameter to do some tuning. Heuristically (i.e., assessing just from the visuals you have), which `fitType` seems to be most appropriate here?
 
-> Your answer here.
+MH
+> After comparing fitTypes "local", "rlog" and "mean" against "parametric", the best seeming fitType is "local," with "parametric" as a close second. "Local" beats out "parametric in this instance because the trend line stays flatter at the end, whereas "parametric" upticks ever so slightly at the higher mean.
 
 ```{r}
 ## Your code here.
+##MH: Selected local
+runVST(dsgnObject, 
+       blind = FALSE, 
+       fitType = "local", 
+       makePlot = TRUE, 
+       writeTable = FALSE, 
+       writeRData = FALSE)
+
+#also tested
+# runVST(dsgnObject, 
+#        blind = FALSE, 
+#        fitType = "rlog", 
+#        makePlot = TRUE, 
+#        writeTable = FALSE, 
+#        writeRData = FALSE)
+
+# runVST(dsgnObject, 
+#        blind = FALSE, 
+#        fitType = "mean", 
+#        makePlot = TRUE, 
+#        writeTable = FALSE, 
+#        writeRData = FALSE)
 ```
+
+
 
 **FINALLY**, don't forget to `runVST()` with the `fitType` parameter of your choice! 
 
 ```{r}
 ## Your code here.
+#MH
+##the chosen fitType was local
+runVST(dsgnObject, 
+       blind = FALSE, 
+       fitType = "local", 
+       makePlot = TRUE, 
+       writeTable = FALSE, 
+       writeRData = FALSE)
 ```
 
 
@@ -510,12 +587,13 @@ Suppose that Gene A has a $log_2$-fold change of -4 in the chill-coma bumblebees
 
 Use the information in the cheatsheet (or calculate it directly) to find the approximate multiplicate factor in gene expression change in the chill coma bees versus the control bees.
 
-> Your answer here.
+MH
+> Gene A is downregulated by 16-fold in the chill-coma bees versus control. Or that Gene A is expressed 1/16 (6.25%) in the chill-coma bees compared to that of the control bees.
 
 If a second gene, Gene B, shows a $log_2$-fold change of +3, how does the direction and magnitude of Gene B's expression change compared to Gene A in chill coma vs. control bumblebees?
 
-> Your answer here.
-
+MH
+> Gene B is upregulated 8-fold. Since Gene A is down regulated 16 fold, and Gene B is upregulated 8 fold, Gene B is 128 times more highly expressed than Gene A in the chill coma bees.
 
 ### 2.4.2 Wald Tests for significant differential expression between conditions
 
@@ -575,9 +653,10 @@ ggplot(normalized_counts_long,
 ```
 
 #### **Question 13A**: [0.5 points]
-How well did the scaling do that I chose? Make sure to look at it across not only all samples but also whether those samples are from the Control vs. the cold-exposed Treatment groups. Are you concerned about any of the samples specifically? Why or why not?
+How well did the scaling do that I chose? Make sure to look at it across not only all samples but also whether those samples are from the Control vs. the cold-exposed Treatment groups. Are you concerned about any of the samples specifically? Why or why not?  
 
-> Your answer here.
+MH
+> Based on the Effect of scaling / normalization across all 74 samples figure, most samples seem well scaled. The box plots overlap very well, and the medians are well aligned as well. There is some variation in the width of distributions but it does not appear visually egregious. So I do not have any obvious concern over any one sample.
 
 #### 2.4.2.3 Let's FINALLY call significantly DE genes!
 We will finally loop through a set of LFC values and perform Wald tests to see which genes are significantly differentially expressed between the treatment groups using tha FDR-adjusted $p$-value of 0.05. **NOTE**: Be patient, this could take up to a minute to run on your machine.
