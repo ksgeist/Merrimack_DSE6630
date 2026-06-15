@@ -238,7 +238,8 @@ Which variable is the 'batch' variable in this analysis and why?
 
 **Hint**: Look at the design formula in the next code chunk!
 
-> Your answer here.
+> The **Colony** variable is the batch variable in this analysis. Different colonies may have natural differences in gene expression that are unrelated to the chill treatment. Including Colony in the model helps account for those differences so they do not affect the treatment results.
+
 
 ### 2.2.1 The Design Formula 
 
@@ -276,12 +277,17 @@ str(dsgnObject)
 #### **Question 6**: [1 point] 
 In this course so far, you have been exposed to a number of different non-dataframe structures for data. Here's another one! Explore the `dsgnObject` with `str()` as above or another function of your choice. What differences do you notice about the structure of this object vs. a dataframe?
 
-> Your answer here.
+> The `dsgnObject` is more complex than a regular dataframe. A dataframe is usually just rows and columns, but the `dsgnObject` contains several different pieces of information, including the read counts, metadata, and design formula all stored together. It is a special DESeq2 object that uses multiple slots to organize the data rather than a single table.
+
 
 Now write code to extract a dataframe of read counts from the design object `dsgnObject`. You will need to leverage the `assay()` function from `DESeq2` to do this! Show the `head()` of this dataframe only as proof you could extract it.
 
 ```{r}
-## Your code here.
+counts_df <- as.data.frame(assay(dsgnObject))
+
+head(counts_df)
+
+
 ```
 
 
@@ -306,64 +312,74 @@ runVST <- function(dsgnObject,
                    writeTable = FALSE, 
                    writeRData = FALSE) {
   ############################################
-  ## YOUR COMMENT HERE - include a usage statement
-  ## dsgnObject = ...
-  ## blind = ...
-  ## fitType = ...
-  ## makePlot = ...
-  ## writeTable = ...
-  ## writeRData = ...
+  ## Function to perform a variance stabilizing transformation (VST) on RNA-Seq count data
+  ## dsgnObject = ... DESeq2 design object containing counts, metadata etc.
+  ## blind = ... whether the tranformation should ignore the experimental deisgn
+  ## fitType = ... method used for fitting the dispersion trend
+  ## makePlot = ... create before/after plots
+  ## writeTable = ... save transformed counts as a text file
+  ## writeRData = ... save transformed data 
   ############################################
   
-  ## YOUR COMMENT HERE
-  ## Make sure to address why we are checking for fitType to equal rlog!
+  ## Check whether the user wants rlog instead of a variance transform
+  ## rlog is an alternative normailziation method
   if(fitType == "rlog") {
-    ## YOUR COMMENT HERE
+        ## Apply regularized log transformation
     vsData <- rlog(dsgnObject, blind = blind)
   }
-  ## YOUR COMMENT HERE
+
+  ## Otherwise perform a variance stabilizing transformation
   else {
-    ## YOUR COMMENT HERE
-    vsData <- varianceStabilizingTransformation(dsgnObject, 
-                                              blind = blind, 
+
+    ## Apply variance stabilizing transformation
+    vsData <- varianceStabilizingTransformation(dsgnObject,
+                                              blind = blind,
                                               fitType = fitType)
   }
-  
-  ## YOUR COMMENT HERE
+
+  ## Create plots comparing data before and
+  ## after variance stabilization
+
   if(makePlot == TRUE) {
-    ## YOUR COMMENT HERE
-    ## Hint: meandSDPlot() helps us see the effect of the VS transform
+
+    ## Calculate mean-SD relationship before VST
+    ## to evaluate variance patterns
     p1 <- meanSdPlot(assay(dsgnObject), plot = F)
-    ## YOUR COMMENT HERE
-    p1 <- p1$gg + ggtitle("Before Variance Stabilization") + 
-      scale_fill_gradient(low = skittles[1], high = skittles[2]) + 
+
+    ## Format and label the pre-transformation plot
+    p1 <- p1$gg + ggtitle("Before Variance Stabilization") +
+      scale_fill_gradient(low = skittles[1], high = skittles[2]) +
       theme_bw() + theme(legend.position = "bottom")
-    
-    ## YOUR COMMENT HERE
+
+    ## Generate a mean-SD plot for the transformed data
     p2 <- meanSdPlot(assay(vsData), plot = F)
-    ## YOUR COMMENT HERE
-    p2 <- p2$gg + ggtitle("After Variance Stabilization") + 
-      scale_fill_gradient(low = skittles[1], high = skittles[2]) + 
+
+    ## Format and label the post-transformation plot
+    p2 <- p2$gg + ggtitle("After Variance Stabilization") +
+      scale_fill_gradient(low = skittles[1], high = skittles[2]) +
       theme_bw() + theme(legend.position = "bottom")
-    ## YOUR COMMENT HERE
+
+    ## Display the two plots side-by-side for comparison
     grid.arrange(p1, p2, nrow=1)
   }
-  
-  ## YOUR COMMENT HERE
+
+  ## Save transformed counts to a file if requested
   if(writeTable == TRUE) {
-    
-    ## YOUR COMMENT HERE - make sure to mention the output format!
+
+    ## Write transformed counts to a tab-delimited text file
     write.table(assay(vsData),
               file = "vst.txt",
-              sep="\t", 
-              quote=F, 
+              sep="\t",
+              quote=F,
               row.names=T)
   }
-  ## YOUR COMMENT HERE
+
+  ## Save the transformed object as an RData file
   if(writeRData == TRUE) {
     save(vsData, file="vst_all_timepoints.Rdata")
   }
-  ## YOUR COMMENT HERE - what is being returned?
+
+  ## Return the transformed DESeq2 object
   return(vsData)
 }
 ```
@@ -371,7 +387,8 @@ runVST <- function(dsgnObject,
 #### **Question 7B**: [1 point] 
 Why do we bother writing wrapper functions? What's the purpose and how can they make our lives easier? 
 
-> Your answer here.
+> Wrapper functions help make code easier to reuse. Instead of writing the same set of commands over and over, we can put them into a function and just change the inputs when needed. This saves time, cuts down on errors, etc.yes
+1
 
 
 Now, **run the function**! Note that here you will run a __parametric transformation__ with `blind = FALSE` because you do not want the transformations to be blind to the experimental design (treatment) at this stage; in fact, you expect large differential expression in some genes! Thus, to control for outliers you will want to set `blind = FALSE`.
@@ -390,7 +407,8 @@ runVST(dsgnObject,
 #### **Question 8**: [1 point]
 What do you notice about the plot on the left (the `dsgnObject` without any transformation) vs. the plot on the right after the variance stabilizing transform? Is the VST effective at stabilizing the variance and, if so, how can you tell?
 
-> Your answer here.
+> The plot on the left shows that the variance increases a lot as gene expression increases. This suggests that the raw data are not very stable and that genes with higher expression levels have much more variation. In the plot on the right, after the VST, the variance looks much more consistent across the range of expression values. This suggests that the VST worked because it reduced the relationship between the mean and variance and made the data more evenly distributed.
+
 
 ### 2.3.1 Digging deeper: Estimating gene-wise dispersion
 
@@ -421,7 +439,7 @@ abline(lm(log(varCounts+0.0001) ~ log((meanCounts+0.0001))),
 #### **Question 10**: [1 point]
 Does this plot support that a VST is (1) needed, (2) not needed, or (3) likely to be ineffective? Please explain.
 
-> Your answer here.
+> I think this plot supports that a VST is needed. Although the relationship between the mean and variance is roughly linear, the spread of the points increases as the mean expression increases. This suggests that the variance is not constant across genes. Since VST is designed to make the variance more stable across different expression levels, applying a VST should help reduce this pattern and make the data better suited for downstream analysis.
 
 
 ### Other VST Functions 
@@ -438,16 +456,37 @@ Other functions you could try:
 
 Use the custom `runVST()` function, changing out the `fitType` parameter to do some tuning. Heuristically (i.e., assessing just from the visuals you have), which `fitType` seems to be most appropriate here?
 
-> Your answer here.
+> Based on the graphs, the rlog transformation looks like it performed the best. The variance was more stable across different expression levels and there was less evidence that variance increased with mean expression compared with the other methods.
 
 ```{r}
-## Your code here.
+runVST(dsgnObject,
+       blind = FALSE,
+       fitType = "parametric")
+
+runVST(dsgnObject,
+       blind = FALSE,
+       fitType = "local")
+
+runVST(dsgnObject,
+       blind = FALSE,
+       fitType = "mean")
+
+runVST(dsgnObject,
+       blind = FALSE,
+       fitType = "rlog")
 ```
 
 **FINALLY**, don't forget to `runVST()` with the `fitType` parameter of your choice! 
 
 ```{r}
-## Your code here.
+vsData <- runVST(dsgnObject,
+                 blind = FALSE,
+                 fitType = "rlog",
+                 makePlot = TRUE,
+                 writeTable = FALSE,
+                 writeRData = FALSE)
+
+
 ```
 
 
