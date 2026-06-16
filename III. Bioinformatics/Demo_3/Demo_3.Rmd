@@ -890,12 +890,12 @@ ggplot(pca, aes(PC1, PC2, color = Treatment, shape = Colony)) +
 #### **Question 20**: [1 point]
 What percent of the variance is attributable to PC1 and PC2? At which time point(s) do you see the most separation between the treatments? Is this consistent with what Verble et al. (2023) found?
 
-> Your answer here.
+> PC1 explains 39% of the variance and PC2 explains 11%. The greatest separation between the Control and Cold treatments is seen at 720 minutes, with some separation at 120 minutes. This is consistent with Verble et al. (2023), who found that cold-induced gene expression differences became more apparent at later time points.
 
 #### **Question 21**: [1 point]
 Think about what we discussed in lecture about Support Vector Machines. Do you see anything in these PCA plots that make you think that SVM might do a much better job of finding the decision boundary between the treatments than the negative binomial generalized linear regression model that `DESeq2` used? (**Hint**: If you can't "see" it, look at the slide from lecture about a non-monotonic decision boundary. Do you think it's possible that there is a non-monotonic boundary between the treatments here because of `Time`?)
 
-> Your answer here.
+> Yes. The treatment groups do not separate in a simple way and the differences seem to change over time. Because SVMs can detect more complex patterns, they might classify the treatments better than the model used by DESeq2.
 
 
 ## 3.4 Volcano Plots
@@ -915,7 +915,7 @@ Using your answer to [Question 13B](#q13b), set the $log_2$-fold threshold in th
 ## print(lfc_thresholds) ## Uncomment to view
 
 ## Change the number of the vector to update
-lfc <- lfc_thresholds[4]
+lfc <- lfc_thresholds[1]
 ```
 
 _The first step is to take the results and turn it into a dataframe containing the relevant information for plotting. This includes defining when genes will be up-regulated or down-regulated!_ 
@@ -973,11 +973,11 @@ On the above volcano plot, the y-axis is the $-log_{10}$ $p$-value and the x-axi
 #### **Question 23B**: [1.5 points] 
 __Interpret__ your version of the volcano plot using the $log_2$-fold change threshold from Question 23A. Does the same gene `LOC100742138` appear to be significantly differentially expressed (and up-regulated) regardless of which LFC threshold you choose? (If you're not sure, look for it in the `volcano` dataframe!). Why is this?
 
-> Your answer here.
+> Using an LFC threshold of 0, many genes are significantly differentially expressed, with more genes up-regulated than down-regulated. Yes, LOC100742138 remains significantly up-regulated regardless of the threshold because it has both a large fold change and a highly significant p-value.
 
 What happened to the dashed gold line in your plot vs. the one I made? (Refer back to the HTML document if needed). Why did this happen?
 
-> Your answer here.
+> In my plot, the dashed gold line moved to 0 and appears as a single line in the center of the plot. This happened because I selected LFC = 0 (lfc_thresholds[1]). Since the code draws lines at −LFC and +LFC, both lines are drawn at 0 and overlap each other. In the example plot with LFC = 2, the dashed lines appear at −2 and +2, creating two separate cutoff boundaries.
 
 
 \newpage
@@ -1105,22 +1105,25 @@ dim(test)
 #### **Question 24A**: [0.5 points] 
 How many samples (observations) are in the training and testing data sets? How many features (genes) are there? What is the ratio of predictors (genes) to samples?
 
-> Your answer here.
+> The training set contains 60 samples and the testing set contains 14 samples. There are 12,927 features (genes). This means there are about 216 genes for every sample in the training set, so there are far more predictors than observations.
 
 ```{r}
-## Your optional code here.
+
+
+
+
 ```
 
 
 #### **Question 24B**: [0.5 points] 
 Remember, we used `caret`'s `createDataPartition()` Using Figure 9, do you notice anything concerning about the training split? What about the testing split? Does adjusting the split seem to make it better, worse, or stay the same? **Make sure to change it back after you are finished playing with it.**
 
-> Your answer here.
+> Based on Figure 9, the training set appears reasonably balanced across treatments, time points, and colonies. The testing set is less balanced because it contains fewer samples and some groups are missing. Changing the split does not seem to substantially improve the balance because the dataset is small.
 
 #### **Question 24C**: [1 point] 
 What are the predictors in the training and testing sets? Can you guess what the target will be? (**Hint**: This will be a _classification_ problem!). If you're still not sure, think about what you think the roles of `Treatment`, `Time` and `Colony` will be in the model.
 
-> Your answer here.
+> The predictors are the gene expression values, along with Time and Colony. The target variable is Treatment (Control vs. Cold), making this a classification problem where the model predicts which treatment group a sample belongs to.
 
 ### 4.1.4 Fitting an OOB Random Forest model
 
@@ -1146,7 +1149,7 @@ The confusion matrix gives you the OOB classification error of the cold-exposed 
 #### **Question 24D**: [1 point] 
 How did the model perform? Where is the classification error highest? Does this suggestion a problem with separating the `Cold` class from the `Control` class or not?
 
-> Your answer here.
+> The model classified Cold samples better than Control samples. The highest classification error was for the Control class (57.1%), suggesting the model had difficulty distinguishing Control from Cold samples.
 
 You can also **plot** the results of the OOB RF to assess how well the classes are separated, as below!
 
@@ -1160,7 +1163,7 @@ plot(rfOOB,
 #### **Question 24E**: [1 point]
 Based on Figure 10, did the OOB RF manage to find complete separation between cold-exposed and control treatments? If yes, approximately how many trees (tree depth) are needed to sufficiently distinguish the `Cold` and `Control` treatment classes? Does this suggest that using 500 trees will significantly improve the model, why or why not?
 
-> Your answer here.
+> No, the model did not completely separate the Cold and Control groups. The error rate levels off after about 50–100 trees, so adding more trees is unlikely to improve the model much.
 
 ### 4.1.5 Assessing training vs. testing accuracy
 
@@ -1183,7 +1186,7 @@ data.frame(overall) %>% kable(
 #### **Question 24F**: [0.5 points]
 Look at the results of the training error. What is the accuracy and is this concerning or a good sign?
 
-> Your answer here.
+> The training accuracy was 100%. This isn't good becuase it suggests the model may have overfit the training data, especially since the test accuracy was much lower.
 
 Now, look at the results of the training set when tested against the test set (a.k.a., __test error__ from which we derive **model accuracy**):
 ```{r}
@@ -1204,7 +1207,7 @@ data.frame(overall) %>% kable(
 #### **Question 24G**: [1.5 points]
 Take a look at the test accuracy. It's only 42.9%! This means it is performing WORSE than random guessing (50%). Take a closer look at **Cohen's Kappa** and the **McNemar's Test**. What do these tests do and what do the results tell you? Do you have any ideas why this may have occurred? (**Hint**: What does the high training accuracy tell us relative to the testing accuracy?)
 
-> Your answer here.
+> The test accuracy was 64.3%. Cohen's Kappa (0.286) shows only some agreement, and McNemar's Test (p = 1.0) means that there is no bias toward either. The much lower test accuracy compared to the 100% training accuracy means the model was overfit.
 
 ### 4.1.6 Extracting Important Genes from an OOB Random Forest model
 
