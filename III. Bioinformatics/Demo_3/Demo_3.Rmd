@@ -1234,10 +1234,32 @@ Write code that will compare the resulting important genes from the RF (**Hint**
 
 **Hint 4**: You may find it helpful to turn `importantRF` into a dataframe first; note that the genes are in the _rownames_. 
 
-> Your answer here.
+> I found 113 overlapping genes, which was about 54.3% of the significant DESeq2 genes. This shows that many of the genes identified by Random Forest were also identified by DESeq2.
 
 ```{r}
-## Your code here.
+## RF important genes
+rfGenes <- importantRF %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("Gene") %>%
+  filter(MeanDecreaseGini > 0)
+
+## Significant DESeq2 genes
+deGenes <- res %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("Gene") %>%
+  filter(padj < 0.05)
+
+## Find overlap
+overlap <- intersect(rfGenes$Gene, deGenes$Gene)
+
+## Counts
+length(overlap)
+
+## Percent overlap
+100 * length(overlap) / nrow(deGenes)
+
+
+
 ```
 
 
@@ -1256,14 +1278,38 @@ Show that your function works for a LFC cutoff of 1 and the same important genes
 **Hint**: I get 9 total overlapping genes when I do this!
 
 ```{r}
-## Your code here.
-```
+compareGenes <- function(lfc_cutoff, importantGenes, p_cutoff = 0.05){
 
+  ## RF genes
+  rfGenes <- importantGenes %>%
+    as.data.frame() %>%
+    tibble::rownames_to_column("Gene") %>%
+    filter(MeanDecreaseGini > 0)
+
+  ## DESeq2 genes
+  deGenes <- res %>%
+    as.data.frame() %>%
+    tibble::rownames_to_column("Gene") %>%
+    filter(padj < p_cutoff,
+           abs(log2FoldChange) > lfc_cutoff)
+
+  ## Find overlap
+  overlap <- intersect(rfGenes$Gene, deGenes$Gene)
+
+  return(length(overlap))
+}
+
+
+compareGenes(1, importantRF)
+
+
+```
+The function returned 9 overlapping genes when using a log2-fold change cutoff of 1 and the important genes identified by the OOB Random Forest.
 
 #### **Question 27**: [2 points]
 Overall, how did the OOB RF model perform? Which prediction (training or testing) had the highest accuracy? How many overlapping genes were found with `DESeq2`? Would you recommend this model as-is for benchmarking? Would you still consider this model for **feature selection**, **cross-validation**, and **tuning**?
 
-> Your answer here.
+> The OOB Random Forest overfit the data. It had 100% training accuracy but only 64.3% test accuracy. There were 113 overlapping genes with DESeq2. I would not use this model as-is for benchmarking, but I would still use it for feature selection and further tuning.
 
 
 ## 4.2 Support Vector Machine (SVM)
@@ -1309,7 +1355,7 @@ paste0("The total number of support vectors was: ", svm$tot.nSV)
 #### **Question 28A**: [1 point]
 What does the **number of support vectors** tell us in SVM, especially with a __linear kernel__? You may need to do a little research!
 
-> Your answer here.
+> Support vectors are the samples the SVM uses to separate the classes. Using 54 support vectors suggests that the Cold and Control samples were not easy to separate.
 
 ### 4.1.3 Find the __training error__
 Once again, check the training accuracy to get a sense for training error. 
@@ -1352,7 +1398,7 @@ data.frame(overall) %>% kable(
 #### **Question 28A**: [1 point]
 How does the training and testing accuracy compare? What does this seem to imply about the model?
 
-> Your answer here.
+> The training accuracy was 100% and the testing accuracy was 71.4%. This suggests the model may be overfitting the training data, but it still performed better than the Random Forest model.
 
 
 ### 4.1.5 Extract the top __important features__
@@ -1393,10 +1439,12 @@ svmImportance2 <- varImp(svm2)
 #### **Question 28B**: [0.5 points]
 How many important genes were identified using `varImp()`?
 
-> Your answer here.
+> 12926
 
 ```{r}
-## Your code here.
+
+nrow(svmImportance2$importance)
+
 ```
 
 
@@ -1404,10 +1452,17 @@ How many important genes were identified using `varImp()`?
 #### **Question 28C**: [0.5 points]
 Use your function from [Question 26](#q26) - do you see any overlap between the `DESeq2` genes with significant $log_2$-fold expression using the LFC cutoff you chose back in Question 13B? If so, what percent overlap?
 
-> Your answer here.
+> Yes. I found 207 overlapping genes, which was 100% overlap. This happened because the SVM assigned importance scores to essentially all genes, including all of the significant DESeq2 genes.
 
 ```{r}
-## Your code here.
+
+length(intersect(
+  rownames(svmImportance2$importance),
+  rownames(subset(as.data.frame(res), padj < 0.05))
+))
+
+
+
 ```
 
 
@@ -1415,10 +1470,28 @@ Use your function from [Question 26](#q26) - do you see any overlap between the 
 #### **Question 29**: [5 points]
 Try quickly repeating the SVM analyses with both a __radial__ and a __sigmoid__ kernel. You may use either the `e1071` or the `caret` methods, but you may find `e1071` easier. **Hint**: For `e1071`, you will change `kernel = "radial"` and `kernel = "sigmoid"`. For `caret`, you will make `method = "svmRadial"` but for the sigmoid it gets complicated. Make sure to do both your training and testing predictions to check accuracy. Which kernel yields the lowest training error and the highest test accuracy? What do you conclude from all of this? (**NOTE**: You should extract the variable importance for the kernel yielding the best performance **if** it is not the linear kernel.)
 
-> Your answer here.
+> The linear kernel performed the best with 71.4% test accuracy. The radial kernel was lower at 57.1%, and the sigmoid kernel was 50%. This suggests the data are best separated with a linear boundary, so I would stick with the linear kernel.
 
 ```{r}
-## Your code here.
+
+## Radial kernel
+svm.radial <- svm(Treatment ~ ., data = train, kernel = "radial")
+
+pred.train.radial <- predict(svm.radial, train)
+confusionMatrix(train$Treatment, pred.train.radial)
+
+pred.test.radial <- predict(svm.radial, test)
+confusionMatrix(pred.test.radial, test$Treatment)
+
+## Sigmoid kernel
+svm.sigmoid <- svm(Treatment ~ ., data = train, kernel = "sigmoid")
+
+pred.train.sigmoid <- predict(svm.sigmoid, train)
+confusionMatrix(train$Treatment, pred.train.sigmoid)
+
+pred.test.sigmoid <- predict(svm.sigmoid, test)
+confusionMatrix(pred.test.sigmoid, test$Treatment)
+
 ```
 
 
@@ -1431,18 +1504,20 @@ Using evidence from (1) the DESeq2 differential expression results, (2) Random F
 
 **Make sure to address why some genes might not show up in all lists, and whether that negates benchmarking completely.** [**Hint**: The answer lies in the key difference between inference (hypothesis) testing and prediction.]
 
-> Your answer here.
+> Yes, the machine learning models found many of the same genes as DESeq2. Random Forest overlapped with 113 genes, and SVM overlapped with all 207 significant DESeq2 genes. Not every gene showed up in every list because DESeq2 looks for statistically significant differences, while machine learning looks for genes that help make predictions. Overall, I think benchmarking was successful because the methods identified many of the same biological signals.
 
 #### **Question 31**: [2 points] 
 
 At this stage, it should feel clear that we need to do SOMETHING else with our machine learning model(s). If not, stop and reflect on that statement. We know there is a lot of __noise__ in the data, and we have worked hard to preserve all of the observations and genes thus far. However, in noisy situations, feature selection and tuning can both have DRASTIC effects on the performance of our models. Although now optional, if you were to proceed with **Project 3**, which model would your team choose to tune moving forward, if any, and why?
 
-> Your answer here.
+> I would continue with the linear SVM because it had the highest test accuracy (71.4%) and performed better than Random Forest, radial SVM, and sigmoid SVM. Since the data are noisy and contain many genes, I think feature selection and tuning could improve the model further..
 
 
 # 5 Final Comments
 
 Did you find this module fun or interesting? Would you like to work with genes and gene expression data more deeply? Interested in a research opportunity? Talk to Dr. Geist about opportunities to work on and potentially publish benchmarking studies like this!
+
+ANSWER: I did find this exercise but also the most challenging one we have done so far.  I did enjoy it but also like the prior exercises including DEMO 2 and Project 2.
 
 # References
 
