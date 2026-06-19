@@ -1,8 +1,8 @@
 ---
 title: "Demo 4: Patient Privacy & Data Integrity"
 subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
-author: "Katherine S. Geist, PhD"
-date: "16 June 2026"
+author: "Team Epsilon: Desi Spark (DS), Elizabeth Greenan (EG), Meghan Holden (MH)"
+date: "26 June 2026"
 output:
   html_document:
     toc: true
@@ -203,21 +203,35 @@ Also, note that even though I put each statement on separate lines (which is how
 
 Try to translate into English exactly what this SQL query does.
 
-> Your answer here.
+EG
+
+> The above SQL query selects the patient unique identifier (pt_key) and counts the number of rows, which in this instance, represent patients, with that unique identifier. The results are grouped by pt_key. The HAVING function filters the results of the GROUP BY function on if there is more than 1 patient with that unique identifer. Therefore, if there were any duplicates, they would have been listed in the output.
 
 #### Question 2 [1 point]:
 
 You try it: check for duplicate insurance keys. Make sure to query the right table! (**Hint**: You should get 81.)
 
+EG
+
+> Here, I updated the SELECT and GROUP BY statements to look for ins_key and updated the FROM statement to look at the patient_insurance table.
+
 ```{r}
-# Your code here.
+dbGetQuery(con, "SELECT ins_key,
+  COUNT(*) AS patient_count
+  FROM patient_insurance
+  GROUP BY ins_key
+  HAVING patient_count > 1")
 ```
+
+> There are 81 duplicate insurance keys. These are located in the patient_insurance table.
 
 #### Question 3 [1 point]:
 
 Is this a problem? Why or why not? (Hint: Can multiple individuals be on the same insurance policy?)
 
-> Your answer here.
+EG
+
+> Duplicate insurance unique idenitifers (ins_key) are not a problem. Since multiple people can be on a policy, duplicates would make sense. Therefore, this shows that there are 81 policies that have multiple people on the insurance policy. This is much different than the issue of a duplicate patient unique identifiers (pt_key). In that case, having a duplicate record for a patient would be a problem, as those must be unique.
 
 ## 2.2 Dropping fields with sensitive data
 
@@ -282,13 +296,64 @@ head() %>%
 #### Question 4 [1 point]:
 Your turn!
 
-Remove all the sensitive information remaining in any of the other tables. 
+Remove all the sensitive information remaining in any of the other tables.
+
+EG
 
 ```{r}
-# Your code here.
+
+# Check the fields in each of the remaining tables
+
+# patient_disability table
+dbGetQuery(con, "PRAGMA table_info(patient_disability)")
+
+# patient_clinical table
+dbGetQuery(con, "PRAGMA table_info(patient_clinical)")
+
+# patient_insurance table
+dbGetQuery(con, "PRAGMA table_info(patient_insurance)")
+
+# patient_binge_drinking table
+dbGetQuery(con, "PRAGMA table_info(patient_binge_drinking)")
+```
+
+> The patient_disability, patient_insurance, and patient_binge_drinking do not contain any sensitive information that would need to be removed. They contain fields such as keys, status, and insurance information, none of which are required to be removed. The patient_clinical table has more fields, including some with sensitive information. The fields that need to be removed form the patient_clinical table include surname and date of birth (DOB).
+
+```{r}
+
+# Remove SURNAME AND DOB from the patient_clinical table
+
+# Step 1
+dbExecute(con, "CREATE TABLE temp AS 
+  SELECT pt_key, flu_innoc, tet_innoc, covid_innoc, bmi_category, smoking_status 
+  FROM patient_clinical")
+
+# Step 2
+dbExecute(con, "INSERT INTO temp (pt_key, flu_innoc, tet_innoc, covid_innoc, bmi_category, smoking_status)
+  SELECT  pt_key, flu_innoc, tet_innoc, covid_innoc, bmi_category, smoking_status
+  FROM patient_clinical")
+
+# Step 3
+dbExecute(con, "DROP TABLE patient_clinical")
+
+# Step 4
+dbExecute(con, "ALTER TABLE temp RENAME TO patient_clinical")
+
+```
+
+```{r, echo = FALSE}
+dbGetQuery(con, "select * from patient_clinical") %>% 
+head() %>% 
+  kable(
+    format = "html",
+    caption = "Table 3. The patient_clinical table AFTER removing any sensitive information. ") %>%
+    kable_styling(bootstrap_options = c("hover"),
+)
 ```
 
 Not sure what to do? Load the R script and run it instead to proceed.
+
+> EG: I ran this code and confirmed the patient_clinical table in the R file matches what I have above.
 
 ```{r}
 source("q4_answer.R")
@@ -297,13 +362,46 @@ source("q4_answer.R")
 Make sure to demonstrate that the sensitive information is gone using the follow code that employs the `head()` function after removing the comments and making it executable. 
 
 ```{r, echo = TRUE}
-# dbGetQuery(con, "select * from ___") %>% ## fill in the name of the table you removed sensitive info from
-# head() %>% 
-#   kable(
-#     format = "html",
-#     caption = "Table 4. The table AFTER removing sensitive information. ") %>%
-#     kable_styling(bootstrap_options = c("hover"),
-# )
+ dbGetQuery(con, "select * from patient_info") %>% ## patient_info table
+ head() %>% 
+   kable(
+     format = "html",
+     caption = "Table 4. The table AFTER removing sensitive information. ") %>%
+     kable_styling(bootstrap_options = c("hover"),
+ )
+
+
+ dbGetQuery(con, "select * from patient_disability") %>% ## patient_disability table
+ head() %>% 
+   kable(
+     format = "html",
+     caption = "Table 4. The table AFTER removing sensitive information. ") %>%
+     kable_styling(bootstrap_options = c("hover"),
+ )
+ 
+  dbGetQuery(con, "select * from patient_clinical") %>% ## patient_clinical table
+ head() %>% 
+   kable(
+     format = "html",
+     caption = "Table 4. The table AFTER removing sensitive information. ") %>%
+     kable_styling(bootstrap_options = c("hover"),
+ )
+  
+    dbGetQuery(con, "select * from patient_insurance") %>% ## patient_insurance table
+ head() %>% 
+   kable(
+     format = "html",
+     caption = "Table 4. The table AFTER removing sensitive information. ") %>%
+     kable_styling(bootstrap_options = c("hover"),
+ )
+    
+      dbGetQuery(con, "select * from patient_binge_drinking") %>% ## patient_binge_drinking table
+ head() %>% 
+   kable(
+     format = "html",
+     caption = "Table 4. The table AFTER removing sensitive information. ") %>%
+     kable_styling(bootstrap_options = c("hover"),
+ )
 ```
 
 
@@ -312,7 +410,9 @@ Make sure to demonstrate that the sensitive information is gone using the follow
 
 Why do you think I have to do this?
 
-> Your answer here.
+EG
+
+> I think you have to do this because head() works on dataframes. It would not work on the table itself without this step. dbGetQuery() ensures that the table is now a dataframe, so it will work when using head().
 
 ## 2.3 Preserving integrity while removing anything that can identify a patient.
 
@@ -402,19 +502,27 @@ dbGetQuery(con,
 ```
 #### Question 6 [1 point]:
 
-What is your best guess about what you think has happened? Do you need to iunclude this in your report back to the developer?
+What is your best guess about what you think has happened? Do you need to include this in your report back to the developer?
 
-> Your answer here.
+EG
+
+> When looking at a state field, the assumption is that there will be approximately 50 unique values (depending on if DC and territories are included). Therefore, seeing 89 values is a red flag. My first thought when seeing abbreviations like AB or BC is that the table is also including Canadian provinces. There are additional codes (ex. AG and BN) that could be data errors or could even be country ISO2 values. My best guess is that this dataset is not confined to just US states, and that these non-US abbreviations would need to be removed. However, this assumption would need to be verified. Information like this must be included in the report back to the developer, so it can be properly investigated and/or verified.
 
 #### Question 7 [1 point]:
 
 Confirm your suspicions by writing a query to print all the ZIP codes in **AB**. Use the `SELECT`, `DISTINCT`, and `WHERE` statements. For example, in SQL, `SELECT zipcodes FROM patient_info WHERE state = 'AL';` would return all of the ZIP codes in the state of Alabama. Look up one of the ZIP codes - does it confirm your suspicions about what happened with the data pull?
 
+EG
+
+Source: https://www.zipcode.com.ng/2022/12/alberta.html
+
 ```{r}
-# Your code here. 
+
+dbGetQuery(con, 
+      "SELECT DISTINCT zipcode FROM patient_info WHERE state = 'AB'")
 ```
 
-> Your answer here.
+> This does confirm my suspicions about what happened with the data pull. When querying on the zipcodes in AB, they have the following format: XXX X. According to zipcode.com, zipcodes in Alberta range from T0A to T9X. Therefore, these all look like Canadian zipcodes and that the data is pulling in other countries, not just the US.
 
 #### Question 8 [2 points]:
 
