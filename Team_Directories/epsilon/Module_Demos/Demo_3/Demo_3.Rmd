@@ -1243,24 +1243,39 @@ rfOOB$confusion %>%
 
 The confusion matrix gives you the OOB classification error of the cold-exposed (chill coma) vs. the reference Control condition. 
 
-#### **Question 24D**: [1 point] 
+#### **Question 24D**: [1 point] DS
 How did the model perform? Where is the classification error highest? Does this suggestion a problem with separating the `Cold` class from the `Control` class or not?
 
-> Your answer here.
+> For the model, total positives resulted at 58%. Looks like the model struggled the most on the Control Observations, by roughly 2.2% worse than the row with Cold Observation.
 
+```{r Confusion-Matrix-Check}
+
+pos_cont = 16
+pos_cold = 19
+neg_col_1 = 13
+neg_col_2 = 12
+
+pos_pos = pos_cont + pos_cold
+neg_neg = neg_col_1 + neg_col_2
+
+total_pos = pos_pos / (pos_pos + neg_neg)
+total_neg = neg_neg / (pos_pos + neg_neg)
+total_pos
+total_neg
+```
 You can also **plot** the results of the OOB RF to assess how well the classes are separated, as below!
 
 #### Figure 10. Result of out-of-bag (OOB) random forest classifier on cold-exposed vs. control changes in gene expression.
-```{r}
+```{r ColdExpo-vs-ContChanges-GraphResults}
 plot(rfOOB, 
      main = "OOB Random Forest", 
      lwd = 2)
 ```
 
-#### **Question 24E**: [1 point]
+#### **Question 24E**: [1 point] DS
 Based on Figure 10, did the OOB RF manage to find complete separation between cold-exposed and control treatments? If yes, approximately how many trees (tree depth) are needed to sufficiently distinguish the `Cold` and `Control` treatment classes? Does this suggest that using 500 trees will significantly improve the model, why or why not?
 
-> Your answer here.
+> It doesn't completely find seperation between the cold-exposed and controled treatments, however there is a good overall lower amount of error around 200:225 trees. This is from both errors are both their lowest error rates together around that range of trees. 
 
 ### 4.1.5 Assessing training vs. testing accuracy
 
@@ -1280,10 +1295,10 @@ data.frame(overall) %>% kable(
 )
 ```
 
-#### **Question 24F**: [0.5 points]
+#### **Question 24F**: [0.5 points] DS
 Look at the results of the training error. What is the accuracy and is this concerning or a good sign?
 
-> Your answer here.
+> It's concerning seeing the overall confusion matrix with results of 1.00 since there shouldn't ever be 100% accuracy. Usually seeing something like this the model has some type of catastrophic error; data leak, overfit, et cetera. We would most likely need to reevaluate the model to correct the error we didn't see beforehand. We also lost the McnemarPValue. 
 
 Now, look at the results of the training set when tested against the test set (a.k.a., __test error__ from which we derive **model accuracy**):
 ```{r}
@@ -1301,10 +1316,10 @@ data.frame(overall) %>% kable(
 )
 ```
 
-#### **Question 24G**: [1.5 points]
+#### **Question 24G**: [1.5 points] DS
 Take a look at the test accuracy. It's only 42.9%! This means it is performing WORSE than random guessing (50%). Take a closer look at **Cohen's Kappa** and the **McNemar's Test**. What do these tests do and what do the results tell you? Do you have any ideas why this may have occurred? (**Hint**: What does the high training accuracy tell us relative to the testing accuracy?)
 
-> Your answer here.
+> The accuracy is with the Kappa value is stating; it's equalvalent to using random guessing. With the McNemar's value resulting in 1.00, there isn't a difference between the two models. It also claims our model is at a poor quality stasis. Even though our acurracy for this particular correction to our model shows more truthful accuracy then it was at 100% accurate, which is impossible.
 
 ### 4.1.6 Extracting Important Genes from an OOB Random Forest model
 
@@ -1324,21 +1339,44 @@ importantRF %>%
     kable_styling(bootstrap_options = c("hover", full_width = F))
 ```
 
-#### **Question 25**: [3 points]
+#### **Question 25**: [3 points] DS
 Write code that will compare the resulting important genes from the RF (**Hint**: take the `Mean Decrease Gini` that is greater than 0) and compare that to the genes stored in `res` that are **significant DE genes per** `DESeq2`. How many overlapping genes did you find and what \% overlap is that? (**Hint 2**: You may find `anti_join()` (to find differing rows) or `intersect()` (to find overlapping rows) helpful here.) 
 
 **Hint 3**: Don't forget to make sure to filter the `DESeq2` results for signifiance using the adjusted $p$-value!
 
 **Hint 4**: You may find it helpful to turn `importantRF` into a dataframe first; note that the genes are in the _rownames_. 
 
-> Your answer here.
+> There is about 109 overlapping genes to give us of ~5.17% that do overlap between the two data sets.
 
-```{r}
-## Your code here.
+```{r Comparing Importance to RES gene list}
+
+#Keep only the rownames of genes average is x > 0.
+importantRF = data.frame(
+  gene = rownames(importantRF),
+  importantRF
+)
+important_genes <- importantRF$gene[importantRF$MeanDecreaseGini > 0 ]
+
+#Do the same but with res data set, but with 0.05 since this is the cut off for any p-value use with the padj col.. 
+res_df = data.frame(
+  gene = rownames(res),
+  res
+)
+sig_genes = res_df$gene[res$padj < 0.05]
+
+#Finds the overlap of the genes from both sets
+overlap <- intersect(important_genes, sig_genes)
+
+#find the percentage overlap.
+num_overlap = length(overlap)
+
+percent_overlap <- (num_overlap / length(important_genes)) * 100
+percent_overlap
+
 ```
 
 
-#### **Question 26**: [2 points] {#q26}
+#### **Question 26**: [2 points] {#q26} DS
 Now, modify your code from Question 25 into a function. Your function should take at least two arguments: 
 
 1. a log-fold change cutoff for the `DESeq` results 
@@ -1354,13 +1392,56 @@ Show that your function works for a LFC cutoff of 1 and the same important genes
 
 ```{r}
 ## Your code here.
+
+find_overlap <- function(res, important_genes, lfc_cutoff, padj_cutoff = 0.05) {
+  
+  # Convert DESeq2 results to dataframe with gene names
+  res_df <- data.frame(
+    gene = rownames(res),
+    res
+  )
+  
+  # Filter DE genes by padj and log2 fold change
+  sig_genes <- res_df$gene[
+    res_df$padj < padj_cutoff & 
+    abs(res_df$log2FoldChange) > as.numeric(lfc_cutoff)
+  ]
+  
+  # Ensure important_genes is just a vector of gene names
+  # (handle case where it's still a dataframe)
+  if (!is.vector(important_genes)) {
+    important_genes <- rownames(important_genes)
+  }
+  
+  # Find overlap
+  overlap <- intersect(important_genes, sig_genes)
+  
+  # Count and percent
+  num_overlap <- length(overlap)
+  percent_overlap <- (num_overlap / length(important_genes)) * 100
+  
+  # Return results
+  list(
+    overlap_genes = overlap,
+    num_overlap = num_overlap,
+    percent_overlap = percent_overlap
+  )
+}
+
+
 ```
 
+```{r}
 
-#### **Question 27**: [2 points]
+find_overlap(res, important_genes, 1, 0.05)
+find_overlap(res, important_genes, 1, 0.10)
+
+```
+
+#### **Question 27**: [2 points] DS
 Overall, how did the OOB RF model perform? Which prediction (training or testing) had the highest accuracy? How many overlapping genes were found with `DESeq2`? Would you recommend this model as-is for benchmarking? Would you still consider this model for **feature selection**, **cross-validation**, and **tuning**?
 
-> Your answer here.
+> It did well overall. The highest prediction overall was the testing at 50% since there is something wrong with the accuracy for the training model since it showed 100%, which it should never result with that. The are between 7-9 overlapping genes. I would say we need to do some more analysis and tune it more so it's accuracy isn't the same as a random guess method. We can still use it for feature selection, cross-validation and tuning.
 
 
 ## 4.2 Support Vector Machine (SVM)
@@ -1403,10 +1484,10 @@ svm <- svm(Treatment ~ .,
 paste0("The total number of support vectors was: ", svm$tot.nSV)
 ```
 
-#### **Question 28A**: [1 point]
+#### **Question 28A**: [1 point] DS
 What does the **number of support vectors** tell us in SVM, especially with a __linear kernel__? You may need to do a little research!
 
-> Your answer here.
+> This number supports the amount of training points are critical for defining the SVM decision boundary. Since there was only 52 support vectors needed out of our observations of 1000+; it's a clean minimal noise results. The data is clean with strong separability between classes.
 
 ### 4.1.3 Find the __training error__
 Once again, check the training accuracy to get a sense for training error. 
@@ -1446,10 +1527,11 @@ data.frame(overall) %>% kable(
 ```
 
 
-#### **Question 28A**: [1 point]
+#### **Question 28A**: [1 point] DS
 How does the training and testing accuracy compare? What does this seem to imply about the model?
 
-> Your answer here.
+> Training model has some type of overfitting from it having usually 100%, and the test model is at ~71.4% in accuracy. Seems to have a pretty successful testing model even with a training model of 100% which isn't good.
+We can feel confident enough to continue using the testing model. 
 
 
 ### 4.1.5 Extract the top __important features__
@@ -1475,7 +1557,7 @@ head(svmImportance, 10) %>% kable(
 )
 ```
 
-Instead, you could leverage the `caret` package instead which has a built-in algorithm for deciding importance through the function `varImp()`. 
+Instead, you could leverage the `caret` package instead which has a built-in algorithm for deciding importance through the function `varImp()`. DS
 
 ```{r}
 ## The caret way:
@@ -1485,26 +1567,22 @@ svm2 <- train(Treatment ~ .,
 
 ## Store the important genes into a dataframe.
 svmImportance2 <- varImp(svm2)
+svmImportance2
 ```
 
 #### **Question 28B**: [0.5 points]
 How many important genes were identified using `varImp()`?
 
-> Your answer here.
-
-```{r}
-## Your code here.
-```
-
-
+> 20 were being used to identify in varImp().
 
 #### **Question 28C**: [0.5 points]
 Use your function from [Question 26](#q26) - do you see any overlap between the `DESeq2` genes with significant $log_2$-fold expression using the LFC cutoff you chose back in Question 13B? If so, what percent overlap?
 
-> Your answer here.
+> No there isn't any overlap of DESeq2 and the SMVImportance2 dataset.
 
 ```{r}
 ## Your code here.
+find_overlap(res, svmImportance, 1, .05)
 ```
 
 
@@ -1512,10 +1590,79 @@ Use your function from [Question 26](#q26) - do you see any overlap between the 
 #### **Question 29**: [5 points]
 Try quickly repeating the SVM analyses with both a __radial__ and a __sigmoid__ kernel. You may use either the `e1071` or the `caret` methods, but you may find `e1071` easier. **Hint**: For `e1071`, you will change `kernel = "radial"` and `kernel = "sigmoid"`. For `caret`, you will make `method = "svmRadial"` but for the sigmoid it gets complicated. Make sure to do both your training and testing predictions to check accuracy. Which kernel yields the lowest training error and the highest test accuracy? What do you conclude from all of this? (**NOTE**: You should extract the variable importance for the kernel yielding the best performance **if** it is not the linear kernel.)
 
-> Your answer here.
+> The Radial SVM model had a better result for the training error, but both had the same accuracy when it came to the test model both had an accuracy of 50%. The linear test model is still the superior of the two.
 
 ```{r}
 ## Your code here.
+svm <- svm(Treatment ~ ., 
+    data = train,
+    kernel = "radial",
+)
+paste0("The total number of support vectors was: ", svm$tot.nSV)
+
+pred.train.svm <- predict(svm, train, type = 'response')
+confMat <- confusionMatrix(train$Treatment,
+                pred.train.svm)
+print(confMat$table)
+
+overall <- round(confMat$overall, 3)
+data.frame(overall) %>% kable(
+    format = "html",
+    caption = "Table 11. Radial SVM Train - Results of Confusion Matrix") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F)
+)
+```
+
+```{r}
+pred.test.svm <- predict(svm, test, type = "response")
+confMat <- confusionMatrix(pred.test.svm, test$Treatment)
+print(confMat$table)
+```
+
+```{r, echo = FALSE}
+overall <- round(confMat$overall, 3)
+data.frame(overall) %>% kable(
+    format = "html",
+    caption = "Table 12. Radial SVM Test - Results of Confusion Matrix") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F)
+)
+```
+
+
+```{r}
+svm <- svm(Treatment ~ ., 
+    data = train,
+    kernel = "sigmoid",
+)
+paste0("The total number of support vectors was: ", svm$tot.nSV)
+
+pred.train.svm <- predict(svm, train, type = 'response')
+confMat <- confusionMatrix(train$Treatment,
+                pred.train.svm)
+print(confMat$table)
+
+overall <- round(confMat$overall, 3)
+data.frame(overall) %>% kable(
+    format = "html",
+    caption = "Table 13. Sigmoid SVM Train - Results of Confusion Matrix") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F)
+)
+
+```
+
+```{r}
+pred.test.svm <- predict(svm, test, type = "response")
+confMat <- confusionMatrix(pred.test.svm, test$Treatment)
+print(confMat$table)
+```
+
+```{r, echo = FALSE}
+overall <- round(confMat$overall, 3)
+data.frame(overall) %>% kable(
+    format = "html",
+    caption = "Table 14. Sigmoid SVM Test - Results of Confusion Matrix") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F)
+)
 ```
 
 
@@ -1528,13 +1675,13 @@ Using evidence from (1) the DESeq2 differential expression results, (2) Random F
 
 **Make sure to address why some genes might not show up in all lists, and whether that negates benchmarking completely.** [**Hint**: The answer lies in the key difference between inference (hypothesis) testing and prediction.]
 
-> Your answer here.
+> For our hypothesis of "Can machine learning methods successfully recover the same biological signals identified by DESeq2," we can get close to a model to result with finding the similarities with the models towards DESeq2. THe closest we could get was the Random Forest by having the most similar Genes than the SVM models. There may or may not be genes within the results by data sets having different amounts of observations and each model calculates differently. When it comes to the hypothesis and prediction, a hypothesis is to see if we can understand relationships between data sets and predictions is more for what will happen in the future and not why. The inference is more important than our predictions since understanding the underlying correlations between relationships can give us a better stance on how we should use the resulting inference to build a model as precisely as we can to see how the relationship will do in the future. 
 
 #### **Question 31**: [2 points] 
 
 At this stage, it should feel clear that we need to do SOMETHING else with our machine learning model(s). If not, stop and reflect on that statement. We know there is a lot of __noise__ in the data, and we have worked hard to preserve all of the observations and genes thus far. However, in noisy situations, feature selection and tuning can both have DRASTIC effects on the performance of our models. Although now optional, if you were to proceed with **Project 3**, which model would your team choose to tune moving forward, if any, and why?
 
-> Your answer here.
+> We do need to take a look at why the accuracy for the some of the training models are at 100%. There could be an overfitting problem with our initial setup for training our models. I would say we can try to tune the Random Forest can find some overlap rather than the SVM. It has a more robust, easier to set up, and built-in validations where we wouldn't have to do seperately than some of the other models. This type of model has a better way of capturing complex gene interactions, and is better to use when there's a bit of noise for within the data being analyzed.
 
 
 # 5 Final Comments
