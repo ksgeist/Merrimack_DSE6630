@@ -406,7 +406,7 @@ Make sure to demonstrate that the sensitive information is gone using the follow
 
 
 #### Question 5 [1 point]:
-**Have your noticed that I am having to first extract the table as a dataframe using `dbGetQuery()` before I can pass it through `head()`?**
+**Have you noticed that I am having to first extract the table as a dataframe using `dbGetQuery()` before I can pass it through `head()`?**
 
 Why do you think I have to do this?
 
@@ -525,7 +525,6 @@ dbGetQuery(con,
 > This does confirm my suspicions about what happened with the data pull. When querying on the zipcodes in AB, they have the following format: XXX X. According to zipcode.com, zipcodes in Alberta range from T0A to T9X. Therefore, these all look like Canadian zipcodes and that the data is pulling in other countries, not just the US.
 
 #### Question 8 [2 points]:
-
 Decipher, into English, what you think this SQL query is doing.
 
 ```{r}
@@ -533,13 +532,18 @@ dbGetQuery(con,
   "SELECT COUNT(DISTINCT pt_key) AS patient_count FROM patient_info WHERE state = 'AL' AND city = 'WETUMPKA' ")
 ```
 
-> Your answer here.
+DS
+> This query is SELECTING a COUNT of how many unique or differing pt_key's are from the patient_info with all locations having AL and city of WETUMPKA. This comes out to a total of 12 patients that are located in Wetumpka, AL
 
 Now write your own! Pick your hometown or your homestate and find out how many patients in the `patient_info` table are from there.
 
 ```{r}
 # Your code here.
+dbGetQuery(con, 
+  "SELECT COUNT(DISTINCT pt_key) AS patient_count FROM patient_info WHERE state = 'HI' AND city = 'WAHIAWA' ")
 ```
+DS
+> I got a result of three distinct patient_count from Wahiawa, HI.
 
 ## 3.2 Age
 
@@ -560,8 +564,14 @@ Can you find the max, min, and mean age of all patients who reside in Massachuse
 
 **Hint**: Use the `WHERE` statement! You should get a mean of 41.90843, max of 96.6, and min of 20.5.
 
+DS
 ```{r}
-#  Your code here.
+dbGetQuery(con, "SELECT 
+    MAX(age_years) AS max_age,
+    MIN(age_years) AS min_age,
+    AVG(age_years) AS mean_age
+  FROM patient_info
+  WHERE state = 'MA' ")
 ```
 
 ## 3.2 Disability Status
@@ -582,12 +592,17 @@ dbGetQuery(con,
 
 Now do the same for `EMPLOYMT_STATUS` and `EDUC_LEVEL`, changing the tables as appropriate.
 
+DS
 ```{r}
-# Your code here for employment status
+dbGetQuery(con, 
+  "SELECT EMPLOYMT_STATUS,
+  COUNT(*) AS patient_count
+  FROM patient_disability
+  GROUP BY EMPLOYMT_STATUS")
 ```
 
 ```{r}
-# Your code here for education level
+#There is not a column for Education Level anymore since it can be considered sensitive information.
 ```
 
 # 4 Joining data tables in SQL
@@ -616,11 +631,14 @@ Notice the syntax: `ON patient_info.pt_key = patient_disability.pt_key`. We name
 Write a quick query to report back how many rows successfully merged.
 
 ```{r, results='show'}
-# Your code here.
+dbExecute(con, 
+  "SELECT pt_key,
+  COUNT(*) AS patient_count
+  FROM patient_info")
 ```
 
 Any problems to report back to the back-end developer?
-> Your answer here.
+> None of the pt_key's from disibility merged with patient_info.
 
 ## 4.2 Inner join with aliasing
 
@@ -686,7 +704,59 @@ dbGetQuery(con, "SELECT * FROM merged") %>%
 Write either a `LEFT JOIN` or `INNER JOIN` to merge the `merged` table with the `patient_insurance` table. Make sure to join on TWO keys; you will find the `AND` statement helpful for this. Try using aliases!
 
 ```{r, results='show'}
-# Your code here.
+dbExecute(con, 
+"CREATE TABLE merged2 AS
+  SELECT
+    m.pt_key,
+    m.ins_key,
+    m.age_years,
+    m.city,
+    m.state,
+    m.zipcode,
+    m.disability_status,
+    m.employmt_status,
+    m.flu_innoc,
+    m.tet_innoc,
+    m.covid_innoc,
+    m.bmi_category,
+    m.smoking_status,
+    c.public_ins
+  FROM merged AS m
+  INNER JOIN
+  patient_insurance AS c
+  ON m.pt_key = c.pt_key AND m.ins_key = c.ins_key")
+
+
+# CREATE TABLE merged2 AS
+#   SELECT 
+#     m.pt_key,
+#     m.ins_key,
+#     m.age_years,
+#     m.city,
+#     m.state,
+#     m.zipcode,
+#     m.disability_status, 
+#     m.employmt_status,
+#     m.flu_innoc,
+#     m.tet_innoc,
+#     m.covid_innoc,
+#     m.bmi_category,
+#     m.smoking_status
+#      c.public_ins
+#   FROM merged AS m
+#   INNER JOIN 
+#   patient_clinical AS c
+#   ON m.pt_key = c.pt_key
+```
+
+```{r, echo = FALSE}
+dbGetQuery(con, "SELECT * FROM merged2") %>% 
+  head() %>% 
+  kable(
+    format = "html",
+    caption = "Table 7. Our beautifully merged table...") %>%
+    kable_styling(bootstrap_options = c("hover"),
+)
 ```
 
 Not sure what to do? Load the R script and run it instead to proceed.
