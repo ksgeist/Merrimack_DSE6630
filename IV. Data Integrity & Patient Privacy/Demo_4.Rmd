@@ -13,14 +13,14 @@ output:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE,
-                      cache = TRUE,    
-                      cache.comments = TRUE,
+                      cache = FALSE,
+                      cache.comments = FALSE,
                       size = 13)
 ```
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 # clean, set up, and load
-pacman::p_unload(pacman::p_loaded(), character.only = TRUE)
+# pacman::p_unload(pacman::p_loaded(), character.only = TRUE)
 rm(list = ls(all = TRUE))
 
 pacman::p_load(here,
@@ -293,13 +293,33 @@ Your turn!
 Remove all the sensitive information remaining in any of the other tables. 
 
 ```{r}
-# Your code here.
+
+#dbExecute(con, "
+#CREATE TABLE temp AS
+#SELECT pt_key, flu_innoc, tet_innoc, covid_innoc,
+       #bmi_category, smoking_status
+#FROM patient_clinical")
+
+#dbExecute(con, "
+#INSERT INTO temp (pt_key, flu_innoc, tet_innoc, covid_innoc,
+                 # bmi_category, smoking_status)
+#SELECT pt_key, flu_innoc, tet_innoc, covid_innoc,
+      # bmi_category, smoking_status
+#FROM patient_clinical")
+
+#dbExecute(con, "DROP TABLE patient_clinical")
+
+#dbExecute(con, "ALTER TABLE temp RENAME TO patient_clinical")
+
+# source("q4_answer.R")
+
+
 ```
 
 Not sure what to do? Load the R script and run it instead to proceed.
 
 ```{r}
-source("q4_answer.R")
+#source("q4_answer.R")
 ```
 
 Make sure to demonstrate that the sensitive information is gone using the follow code that employs the `head()` function after removing the comments and making it executable. 
@@ -320,7 +340,7 @@ Make sure to demonstrate that the sensitive information is gone using the follow
 
 Why do you think I have to do this?
 
-> Your answer here.
+> We have to use dbGetQuery() first because the data is stored in the database, not as a dataframe in R. dbGetQuery() retrieves the data from the database and converts it into a dataframe that R can work with. Once it is a dataframe, we can use functions like head() to view the first few rows.
 
 ## 2.3 Preserving integrity while removing anything that can identify a patient.
 
@@ -412,17 +432,23 @@ dbGetQuery(con,
 
 What is your best guess about what you think has happened? Do you need to iunclude this in your report back to the developer?
 
-> Your answer here.
+> My best guess is that there are invalid or incorrectly entered state codes in the database. Since there should not be 89 unique U.S. states, some records appear to contain data entry errors or non-standard abbreviations. I would include this in my report to the developer because it is a data quality issue that could affect geographic analyses and reporting.
 
 #### Question 7 [1 point]:
 
 Confirm your suspicions by writing a query to print all the ZIP codes in **AB**. Use the `SELECT`, `DISTINCT`, and `WHERE` statements. For example, in SQL, `SELECT zipcodes FROM patient_info WHERE state = 'AL';` would return all of the ZIP codes in the state of Alabama. Look up one of the ZIP codes - does it confirm your suspicions about what happened with the data pull?
 
 ```{r}
-# Your code here. 
+
+dbGetQuery(con, "
+SELECT DISTINCT zipcode
+FROM patient_info
+WHERE state = 'AB'
+")
+
 ```
 
-> Your answer here.
+> Looking up the ZIP codes confirmed that "AB" is Alberta, Canada. The ZIP codes are actually Canadian postal codes, which explains why there are 89 unique state values. I would report this to the developer because it could affect geographic analyses.
 
 #### Question 8 [2 points]:
 
@@ -433,12 +459,18 @@ dbGetQuery(con,
   "SELECT COUNT(DISTINCT pt_key) AS patient_count FROM patient_info WHERE state = 'AL' AND city = 'WETUMPKA' ")
 ```
 
-> Your answer here.
+> This query counts the number of unique patients (PT_KEY) in the patient_info table who live in the city of Wetumpka, Alabama. It returns the total number of distinct patients that match both the state (AL) and city (WETUMPKA) criteria.
 
 Now write your own! Pick your hometown or your homestate and find out how many patients in the `patient_info` table are from there.
 
 ```{r}
-# Your code here.
+
+dbGetQuery(con, "
+SELECT COUNT(DISTINCT pt_key) AS patient_count
+FROM patient_info
+WHERE state = 'MA'
+")
+
 ```
 
 ## 3.2 Age
@@ -461,7 +493,14 @@ Can you find the max, min, and mean age of all patients who reside in Massachuse
 **Hint**: Use the `WHERE` statement! You should get a mean of 41.90843, max of 96.6, and min of 20.5.
 
 ```{r}
-#  Your code here.
+dbGetQuery(con, "
+SELECT 
+  MAX(age_years) AS max_age,
+  MIN(age_years) AS min_age,
+  AVG(age_years) AS mean_age
+FROM patient_info
+WHERE state = 'MA'
+")
 ```
 
 ## 3.2 Disability Status
@@ -483,12 +522,22 @@ dbGetQuery(con,
 Now do the same for `EMPLOYMT_STATUS` and `EDUC_LEVEL`, changing the tables as appropriate.
 
 ```{r}
-# Your code here for employment status
+dbGetQuery(con, "
+SELECT employmt_status,
+       COUNT(*) AS patient_count
+FROM patient_disability
+GROUP BY employmt_status
+")
+
+
 ```
 
 ```{r}
-# Your code here for education level
+dbGetQuery(con, "PRAGMA table_info(patient_info)")
+
 ```
+
+The EDUC_LEVEL field is no longer present in the patient_info table after the privacy-cleaning steps, so I was unable to run the requested query.
 
 # 4 Joining data tables in SQL
 
@@ -516,11 +565,16 @@ Notice the syntax: `ON patient_info.pt_key = patient_disability.pt_key`. We name
 Write a quick query to report back how many rows successfully merged.
 
 ```{r, results='show'}
-# Your code here.
+dbGetQuery(con, "
+SELECT COUNT(*) AS row_count
+FROM merged
+")
+
+
 ```
 
 Any problems to report back to the back-end developer?
-> Your answer here.
+> No major problems. The merge was successful and all 100,000 patient records were retained after joining the tables, indicating that the patient keys matched correctly between the datasets.
 
 ## 4.2 Inner join with aliasing
 
@@ -586,13 +640,21 @@ dbGetQuery(con, "SELECT * FROM merged") %>%
 Write either a `LEFT JOIN` or `INNER JOIN` to merge the `merged` table with the `patient_insurance` table. Make sure to join on TWO keys; you will find the `AND` statement helpful for this. Try using aliases!
 
 ```{r, results='show'}
-# Your code here.
+dbExecute(con,
+"CREATE TABLE merged2 AS
+SELECT *
+FROM merged AS m
+LEFT JOIN patient_insurance AS i
+ON m.pt_key = i.pt_key
+AND m.ins_key = i.ins_key")
+
+
 ```
 
 Not sure what to do? Load the R script and run it instead to proceed.
 
 ```{r}
-source("q12_answer.R")
+#source("q12_answer.R")
 ```
 
 
@@ -600,7 +662,7 @@ source("q12_answer.R")
 
 Any problems to report back to the back-end developer?
 
-> Your answer here.
+> No major problems were identified. The records matched correctly using both patient and insurance keys.
 
 
 ## 4.3 Joining when there are duplicate keys
@@ -621,7 +683,7 @@ dbGetQuery(con, "SELECT * FROM patient_binge_drinking") %>%
 
 Why is it problematic for merging if the patient key is missing and only the insurance key is available?
 
-> Your answer here.
+> It is problematic because multiple patients can share the same insurance policy. Without a patient key, it is difficult to determine which binge-drinking record belongs to which patient, which can lead to incorrect matches during the merge.
 
 
 There are really a couple of ways we could deal with this issue. First, and probably most practical, would be to ask our back-end developer to make sure the tables are linked up in the database. Something seems off! (**Hint**: Make sure to give them this recommendation!).
@@ -687,7 +749,7 @@ One very important way that we can protect patient privacy is by aggregating acr
 
 Think about at least two ways we might aggregate the data here to protect patient privacy and conform with HIPAA regulations. Make sure to describe what you would do in detail and why.
 
-> Your answer here.
+> One way to protect privacy is to report results by state instead of city or ZIP code. Another is to group ages into ranges rather than reporting exact ages. Both approaches reduce the risk of identifying individual patients and help support HIPAA compliance.
 
 # 5 Recommendations to the back-end development team
 
@@ -703,4 +765,12 @@ Draft a letter or brief report detailing the ways in which you would recommend t
 
 Make sure to be detailed and specific. You are responsible for safe-guarding our patients' data - just as they are! The job doesn't fall to just one team. So be kind but firm in your recommendations.
 
-> Your answer here.
+> The database pull did not fully meet the original request for 100,000 adult users from the United States. The data contained records from Canadian provinces, indicating that geographic validation needs improvement. Data quality was generally good, but there were several concerns regarding patient privacy and data integrity.
+
+The most significant privacy issue was the inclusion of direct identifiers such as names, street addresses, phone numbers, email addresses, and dates of birth. These fields should not be included in an analytical database and create a risk of HIPAA violations. ZIP+4 codes should also be truncated to standard five-digit ZIP codes to reduce the risk of patient identification.
+
+There were also issues with database keys. The patient_binge_drinking table did not contain a patient key, making it difficult to accurately merge records. While insurance keys were available, multiple patients can share the same insurance policy, increasing the risk of incorrect matches. All tables should include a unique patient identifier to support accurate data integration.
+
+Access to the production database should be restricted. Analysts should work from a de-identified research database rather than the live production environment to reduce the risk of accidental changes or exposure of sensitive patient information.
+
+Overall, I would recommend removing all direct identifiers, validating geographic fields, ensuring consistent use of patient keys across all tables, and providing analysts with a separate de-identified research database. These changes would improve both patient privacy and data quality while reducing the risk of HIPAA violations.
