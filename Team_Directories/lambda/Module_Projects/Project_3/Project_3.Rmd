@@ -98,7 +98,8 @@ We will spend our final class session this term briefly discussing overfitting, 
 To make your life easier, we will load some pre-prepared datasets from our work in Demo_3. That way, we don't need to spend the computational time running our DESeq and previous machine learning models all over again!
 
 ```{r, echo = TRUE, message=FALSE, warning=FALSE}
-load("../Demo_3/vst_all_timepoints.Rdata")  ## These are the all time-points 
+# Updated file path to match my local
+load("../../Module_Demos/Demo_3/vst_all_timepoints.Rdata")  ## These are the all time-points 
                                             ## used for Demo_3 
 load("./data/DESeqResults.Rdata")                ## Load the results of the all time 
                                             ## points DESeq analysis (so you 
@@ -258,8 +259,18 @@ Whereas the number of features at any given split ($m_{try}$) allows us to contr
 ### 2.1.4 Splitting rule to use during tree construction.
 The main rules we will be using are the __gini__ rule and the __extratrees__ rule. We will practice tuning these rules to see what effect, if any, they can have on forest construction and overall accuracy.
 
-#### **Question 1**: Look up these rules and try to explain what they are doing for yourself. 
-> Your answer here.
+#### **Question 1**: Look up these rules and try to explain what they are doing for yourself.
+
+Source:
+“Gini Impurity and Entropy in Decision Tree.” Geeks for Geeks, 8 Nov. 2025, www.geeksforgeeks.org/machine-learning/gini-impurity-and-entropy-in-decision-tree-ml/. 
+
+> The Gini rule is also known as Gini impurity. This is a metric used when determining how the data should be split into branches in a random forest model. According to Geeks for Geeks, “Gini Impurity checks how often a randomly selected sample would be mislabeled if assigned by class probability” (Gini Impurity and Entropy in Decision Tree). This metric is used in algorithms such as CART (Classification and Regression Trees) to evaluate splits when trying to tune the model.
+
+Source: Source: https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.ExtraTreesClassifier.html
+Source: https://doc.esri.com/en/arcgis-pro/latest/tool-reference/geoai/how-extra-tree-classification-and-regression-works.html
+
+> The extratrees (also known as extremely randomized trees) rule is based on randomized decision trees. According to ESRI, it is similar to the random forest algorithm, since it creates multiple decision trees. It was also noted that it is often faster than random forest, too. However, the sampling for each tree is random and there is no replacement. Therefore, each tree has its own dataset. This is different from other models, where the splits are calculated.
+
 
 ### Sampling scheme.
 This would allow us to alter whether we are sampling features with or without replacement at each node split. We will not be tuning this at this time.
@@ -270,13 +281,26 @@ Two important elements of the data science life cycle that we did not have a cha
 
 #### **Question 2**: Take a moment to go look at the function and the documentation I have written. Also try playing with the parameters a bit - how many more or fewer genes do you get when you lower or raise the `filterCutoff`, respectively?
 
-> Your answer here.
+```{r}
+
+splits <- doSplits(vst = vsData, 
+                   algorithm = "rf", 
+                   splitRatio = 0.8, 
+                   filterCutoff = 10) # Tested 1, 2, and 10
+train <- splits[[1]]
+test <- splits[[2]]
+
+```
+
+> With the original filterCutoff value of 5, after filtering, there were 7,676 genes in the dataset. Keeping everything else the same, I first decreased the filterCutoff, changing it to both 1 and 2. After filtering, there were 12,927 genes in the dataset for both of these values. This was interesting and showed that the slight change in cutoff value did not impact the number of genes being filtered out. Next, I increased the filterCutoff, changing it to 10. After filtering, there were 765 genes in the dataset.
+
+> This shows that when there is a lower filterCutoff value, there are more genes, indicating that fewer genes are being filtered out. When the filterCutoff value is higher, there are fewer genes, indicating that more genes are being filtered out.
 
 Notice in the comments that I am only doing feature selection on the training data set. Why? Current research strongly suggests that filtering on the entire dataset has the potential to generate bias, not surprisingly, which in turn can create __data leakage__. The advice of Vabalas et al. (2019) is to only do our feature selection **only on the training model**.
 
 #### **Question 3a**: Do some research on __data leakage__ and try to explain what that means in this context. Why do we care about data leakage?
 
-> Your answer here.
+> Data leakage happens when data that should not be used during model training is used. An example of this is if the test data is used during training. Ensuring data leakage does not happen is important for various reasons. When there is data leakage, the model will initially look strong and will likely have high performing metrics such as accuracy, recall, and precision. However, once the model is run on unseen data, it will not perform nearly as well.
 
 Now, we will set `filterCutoff = 5` and partition data for random forest tuning.
 ```{r}
@@ -290,8 +314,11 @@ test <- splits[[2]]
 
 #### **Question 3b**: Using the annotation I have provided in the function `doSplits()`, explain the parameters chosen and try to explain ***why*** you think they were chosen, based on what we did in Demo_3. In particular, make sure to explain WHY a filterCutoff of 5 was chosen. (**Hint**: In Demo_3, did we do anything to adjust for genes with low variance in expression?)
 
-> Your answer here.
+> The vst = vsData parameter represents the data being used in the split. Algorithm = "rf" means that the algorithm being used is a random forest model. The split ratio (splitRatio) = 0.8 represents a training and testing split of 80% and 20% respectively. This is further annotated in the train and test code above.
 
+> In Demo 3, we identified genes with low variance in expression. However, we did not filter these genes out. In this case, the low variance in expression was represented by the chill coma the bumblebees were in. Filtering these genes out would be incorrect, as it would have taken away valuable data from when the bees were in their coma, negatively impacting the benchmarking study. After filtering with a filterCutoff = 5, there are 7,676 genes in the dataset.
+
+> Based on my experimentation of the filterCutoff values in Question 2, I think a value of 5 was chosen because it removes a signficiant number of low expression genes from the dataset, without removing too many.
 
 
 ## 2.3 Apply $k$-fold Cross-Validation (CV) to Random Forest
@@ -300,7 +327,7 @@ test <- splits[[2]]
 
 Recall that when were doing OOB random forest in Demo_3, we didn't use `trainControl()`. That will be a deviation from what we do this time. 
 
-Howeverm let's first fit the same RF we fit last week for comparison:
+However let's first fit the same RF we fit last week for comparison:
 
 ```{r, echo = TRUE, eval=T}
 rfOOB <- randomForest::randomForest(
@@ -330,7 +357,7 @@ rfCV <- train(Treatment ~.,
 
 #### **Question 4**: Explain, in your own words, what a 10-fold CV does here. Is it vital to perform with a random forest? Why or why not?
 
-> Your answer here.
+> A 10-fold cross-validation (CV) splits the training data into 10 separate parts, so the model is run 10 times. This can provide better model performance metrics and better show how the model is. While not vital to perform with a random forest, it is often used to enhance the model and better understand the results.
 
 ```{r, echo = FALSE, warning=FALSE, message=FALSE, eval=T, fig.cap="Figure 1. Visualize the 10-fold CV Performance"}
 ggplot(rfCV, highlight = TRUE) +
@@ -342,7 +369,7 @@ You'll notice that by default with the 10-fold CV is that **it is doing automate
 
 #### **Question 5**: What combination of hyperparameters gives the highest accuracy in the **training model**? (Use plot above to answer.)
 
-> Your answer here.
+> The following combination of hyperparameters gives the highest accuracy in the training model: extratrees splitting rule and approximately 8,000 randomly selected predictors. This point has the highest accuracy of just over 0.69 (69%). The gini splitting rule performs notably worse, with the highest accuracy at approxiamtely 0.66 (66%).
 
 ### 2.3.3. Extract best model.
 
@@ -358,7 +385,7 @@ kable(
 
 #### **Question 6**: Explain, in your own words, what the values of these hyperparameters mean.
 
-> Your answer here.
+> The splitting rule is split into gini and extratrees. Therefore, the splitting rule looks at how each of the trees finds its splits. The number of predictors is how many features the splits consider. The number of randomly selected predictors represents the random number of predictors the model uses.
 
 ### 2.3.4. Assess for model stability.
 
@@ -406,11 +433,15 @@ compareConfusion(confusionList = list(confMat, confMatCV)) %>%
     kable_styling(bootstrap_options = c("hover", full_width = F))
 ```
 
-#### **Question 8**: Let's take a moment to unpack what we are looking at here. What do each of these metrics measure? **Hint**: Make sure to look at the documentation for the `confusionMatrix()` function from `caret`. 
+#### **Question 8**: Let's take a moment to unpack what we are looking at here. What do each of these metrics measure? **Hint**: Make sure to look at the documentation for the `confusionMatrix()` function from `caret`.
 
-> __Accuracy__: Your answer here.
+Source: https://www.rdocumentation.org/packages/caret/versions/7.0-1/topics/confusionMatrix
+Source: https://cran.r-project.org/web/packages/ConfMatrix/ConfMatrix.pdf
+Source: https://cran.r-project.org/web/packages/ConfusionTableR/vignettes/ConfusionTableR.html
 
-> __Kappa__: Your answer here.
+> __Accuracy__: The accuracy metric measures how correct the model is. In the confusion matrix, this is calculated by the sum of true positives and true negatives, divided by the sum of true positives, true negatives, false positives, and false negatives.
+
+> __Kappa__: The kappa metric measures the relationship between the observed proportion and the expected proportion (CITE SECOND SOURCE). This metric can be calculated using the values in the confusion matrix.
 
 > __Accuracy Lower Bound__: Your answer here.
 
