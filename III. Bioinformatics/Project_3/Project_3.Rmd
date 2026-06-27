@@ -333,6 +333,67 @@ ggplot(top10_states,
 ```
 State Analysis. After limiting the analysis to states with at least 20 hospitals, New Jersey had the highest average Poor Performance Score, followed by New York and Massachusetts.
 
+# 4 Correlation Analysis
+
+The relationships between mortality, readmission, and safety measures were examined using Pearson correlation coefficients.
+
+```{r}
+# Select variables for correlation analysis
+correlation_data <- hospital_analysis %>%
+  select(
+    mort_worse,
+    readm_worse,
+    safety_worse
+  )
+
+# Calculate correlation matrix
+cor_matrix <- round(
+  cor(
+    correlation_data,
+    use = "complete.obs"
+  ),
+  2
+)
+
+cor_matrix
+```
+Correlation Analysis. The mortality, readmission, and safety measures showed weak positive correlations (0.12–0.19). This suggests that each measure provides different information about hospital performance and supports combining them into the Poor Performance Score.
 
 
+# 5 Poor Performer Classification
 
+Hospitals were classified as poor performers if their Poor Performance Score was at or above the 75th percentile. This binary outcome variable will be used in the Random Forest classification model.
+
+```{r}
+# Calculate the 75th percentile cutoff
+cutoff <- quantile(
+  hospital_analysis$PoorPerformanceScore,
+  probs = 0.75,
+  na.rm = TRUE
+)
+
+# Display the cutoff value
+cutoff
+
+# Create the Poor Performer classification
+hospital_analysis <- hospital_analysis %>%
+  mutate(
+    PoorPerformer = ifelse(
+      PoorPerformanceScore >= cutoff,
+      "Yes",
+      "No"
+    )
+  )
+
+# Convert to a factor for modeling
+hospital_analysis$PoorPerformer <- factor(
+  hospital_analysis$PoorPerformer,
+  levels = c("No", "Yes")
+)
+
+# Display the frequency of each class
+table(hospital_analysis$PoorPerformer)
+```
+**Poor Performer Classification.** Hospitals with Poor Performance Scores at or above the 75th percentile were classified as poor performers and used as the target variable for the Random Forest model.
+
+Poor Performer Classification. Hospitals with a Poor Performance Score of 2 or greater (the top 25% of scores) were classified as poor performers. This resulted in 772 poor-performing hospitals and 2,316 non-poor-performing hospitals.
