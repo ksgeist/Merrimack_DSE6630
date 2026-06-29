@@ -262,6 +262,7 @@ The main rules we will be using are the __gini__ rule and the __extratrees__ rul
 MH
 
 > The Gini index indicates the purity of a node (where a small value means only one, or minimal, classes make up the node). The Gini rule will choose the split that minimizes the variance. The larger the mtry, the more features the Gini rule will consider. 
+
 > Extra Trees (which, acording to Samy Baladram's article in Medium (2024), stands for Extremely Randomized Trees) operates similar to Random Forest, but with more randomization such that it is not searching for optimal thresholds, but instead is making it splits randomly. It then assesses for the best outcomes of those random splits.
 
 >Source: ISLR, v2, 2021
@@ -282,8 +283,8 @@ MH
 Notice in the comments that I am only doing feature selection on the training data set. Why? Current research strongly suggests that filtering on the entire dataset has the potential to generate bias, not surprisingly, which in turn can create __data leakage__. The advice of Vabalas et al. (2019) is to only do our feature selection **only on the training model**.
 
 #### **Question 3a**: Do some research on __data leakage__ and try to explain what that means in this context. Why do we care about data leakage?
-DS
 
+DS
 > We should care about data leakage from our model could potentially be too optimistic, which will use data that it wouldn't run into in the real scenarios. Certian types are: contamination of our Train-Test models, target leakage, and data processing leakage. These types would be caused by; improper data splitting, incorrect preprocessing workflow, using future or unavailable data, poor feature selections, data pipeline mistakes, and merging external data incorrectly. If we don't properly validate our processes in analyzing the data, when not careful, could lead into false results.
 source:"https://www.geeksforgeeks.org/machine-learning/data-leakage/"
 
@@ -356,7 +357,8 @@ You'll notice that by default with the 10-fold CV is that **it is doing automate
 
 #### **Question 5**: What combination of hyperparameters gives the highest accuracy in the **training model**? (Use plot above to answer.)
 
-> Your answer here.
+DS
+> The Gini model.
 
 ### 2.3.3. Extract best model.
 
@@ -372,6 +374,7 @@ kable(
 
 #### **Question 6**: Explain, in your own words, what the values of these hyperparameters mean.
 
+DS
 > The best use of the using the 10-fold CV is 5. The m{try} = 7677; model is using a large number of features at each split equal to 7677 features that are the best to use. This internmeans it'll need to be more heavily relying on high number of variables, rather than leaving it to more randomness. The split rule of gini will have the split be best seperates the classes. The min.node.size = 1 are allowed to split until there is only one observation left.
 
 ### 2.3.4. Assess for model stability.
@@ -423,29 +426,32 @@ compareConfusion(confusionList = list(confMat, confMatCV)) %>%
 
 #### **Question 8**: Let's take a moment to unpack what we are looking at here. What do each of these metrics measure? **Hint**: Make sure to look at the documentation for the `confusionMatrix()` function from `caret`. 
 
-> __Accuracy__: Your answer here.
+DS
+> __Accuracy__: This is the proportion of correct predicitions of True positive to true positive. 
 
-> __Kappa__: Your answer here.
+> __Kappa__: This is the sensitivity measurement where it determines the agreement beyond chance, meaning it calculates if this model is better than random guessing.
 
-> __Accuracy Lower Bound__: Your answer here.
+> __Accuracy Lower Bound__: This would be the detection rate which is the proportionality of correctly identified positive cases in the lower end of the range.
 
-> __Accuracy Upper Bound__: Your answer here.
+> __Accuracy Upper Bound__: This is the same as above but on the max range of accuracy.
 
-> __Accuracy Null__: Your answer here.
+> __Accuracy Null__: This is the controlled cases that are inside the data. So roughly 50% of the data have controlled cases.
 
-> __Accuracy p-value__: Your answer here.
+> __Accuracy p-value__: Value testing the accuracy of the data on how much better it is than random guessing. Since it is less than 0.05% for the pvalue, it's much better of a method to use this than having to choose randomly.
 
-> __McNemar p-value__: Your answer here.
+> __McNemar p-value__: This is to test if there weren't any asymmetry errors at all. In this case there aren't any of those errors. The outcome of the function only looks for false negative and positives and sees if there are any bias errors within our results. 
 
 
 #### **Question 9**: What was the impact, if any, of the pre-processing we performed here? What evidence do you have? Lastly, what was the biggest change, other than tuning, that we made as compared to the OOB RF?
 
-> Your answer here.
+DS
+>For the differences we made were taking a different approach to the splitting rules for the Random Forest along with using K-folds for Cross validation. We're using m{try} values which dictate the amount is a good split point to seperate the classes of information. There was another variable when filtering out data with the filtercutoff that'll exclude data points that were more at a constant rate. 
 
 
 #### **Question 10**: What are your conclusions, at this stage, about the performance of the 10-fold CV, tuning, and applying the filtering cutoff relative to the OOB performance from Demo_3?
 
-> Your answer here.
+DS
+> With the given matrix results from above the Accuracy p-value is higher than .05 (5%) meaning we can't know for sure if this even better than randomly guessing. For Kappa the model has some imbalanced predictions since it's value is lower than .50 (50%). This isn't a good model as of right now since it misses the controlled cases 4 / 7 times! It is interesting to see that the control cases, when the model says it is, are 100% accurate. Seems a bit weird to have an outcome like this in my opinion. With the McNemar's test is heavily biased towards the false negatives, but we have to remember sicne the sample size is small, it's not statistically significant. It seems to have not really gotten too much better than the previous model. 
 
 
 ## 2.4 Further Tuning: Searching
@@ -494,7 +500,8 @@ searchGrid <- expand.grid(
 
 #### **Question 11**: How many different combinations are we going to search with this grid?
 
-> Your answer here.
+DS
+> Seems to have about 30 different combinations of mtry, the splitrule and min.node.size.
 
 
 #### 2.4.1.2. Run the RF, this time adding in the search grid.
@@ -518,7 +525,9 @@ ggplot(rfTuned, highlight = TRUE) +
 
 #### **Question 12**: What combination of hyperparameters gives the highest accuracy in the **training model**? (Use plot above to answer.)
 
-> Your answer here.
+MH
+> (Note this will be different each time we run it due to random seed so maybe right before knitting we can update these):
+> Acknowledging that this may be different each time it is run due to random seed, the highest accuracy is seen using the gini rule, where mtry is approximately 1150 with a minimal node size of 10. The accuracy with this combination of hyperparameters is approximately 71%.
 
 #### 2.4.1.3. Take a look at the hyperparameters of the best model.
 
@@ -560,7 +569,8 @@ compareConfusion(confusionList = list(confMat, confMatCV, confMatTuned)) %>%
 
 #### **Question 13**: What impact did hyperparameter tuning with the grid search have on model performance compared to both the OOB and 10-fold CV with auto-tuning?
 
-> Your answer here.
+MH
+> The hyperparameter tuning did not improve over the 10-fold CV. The tuned model is only slightly better than the OOB model. After running this a couple times with different seeds, this pattern is consistent.
 
 **Note on methodology**:
 As I mentioned above, there is no parameter for the number of trees that we could tune in the search grid. Why not? It's because we used the `train()` function from the `caret` package. `train()` is what is called a __wrapper function__, which means that we may be somewhat stuck using what's available to us in the function. But what if we want to tune hyperparameters that are available through that wrapper function? We would need to switch our tactics. We could either write a __custom function or loop__ to do it, or we could modify the function in `caret`. Wait, we can do that?! Yep!
@@ -568,11 +578,12 @@ As I mentioned above, there is no parameter for the number of trees that we coul
 #### **Question 14**: Use the `modelLookup` function to help you figure out what hyperparameters are available for the `rf` vs. `ranger` methods for performing random forest algorithm with `caret`. What are the key differences you observce in the hypers you can tune?
 
 ```{r}
-# modelLookup("ranger")
-# modelLookup("rf")
+modelLookup("ranger")
+modelLookup("rf")
 ```
 
-> Your answer here.
+MH
+> The hyperparameters available in `rf` are only mtry, whereas for `ranger`, there is `mtry`, `splitrule` and `min.node.size`.
 
 
 ### 2.4.2 Grid Search Using a Customized `caret` Method
@@ -580,38 +591,39 @@ As I mentioned above, there is no parameter for the number of trees that we coul
 #### 2.4.2.1. Write a customized `caret` method for random forest using the `ranger` method.
 
 ```{r, echo = FALSE}
+#MH comments (assisted by ChatGPT)
 makeCustomMethod <- function(paramList, methodName) {
-  ## Add comments here
+  ## Create a function that lets us define hyperparameters
   custom <- list(type = "Classification", 
                  library = "ranger", 
                  loop = NULL)
-  ## Add comments here
+  ## define the parameters to tune 
   custom$parameters <- data.frame(parameter = paramList, 
                                   class = rep("numeric", length(paramList)), 
                                   label = paramList)
-    ## Add comments here
+    ## placeholder for caret's grid generation
     custom$grid <- function(x, y, len = NULL, search = "grid") {}
-    ## Add comments here
+    ## specify how the model should be trained for each hyperparameter combination
     custom$fit <- function(x, y, wts, param, lev, last, weights, classProbs) {
-        ## Add comments here
+        ## train randomforest using parameters
         randomForest(x, y, 
                mtry = param$mtry,    ## Need to update to make dynamic
                num.trees = param$num.trees)
   }
-  ## Add comments here
+  ## How to generate class predictions from fitted model
   custom$predict <- function(modelFit, newdata, preProc = NULL, submodels = NULL)
-  ## Add comments here
+  ## run prediction
   predict(modelFit, newdata)
 
-  ## Add comments here
+  ## How to generate predicted class probabilities
   custom$prob <- function(modelFit, newdata, preProc = NULL, submodels = NULL)
-  ## Add comments here
+  ## run prediction
   predict(modelFit, newdata, type = "prob")
 
-  ## Add comments here
+  ## define how tuning results are sorted
   custom$sort <- function(x) x[order(x[,1]),]
 
-  ## Add comments here
+  ## Return class labels
   custom$levels <- function(x) x$classes
 return(custom)
 }
@@ -619,7 +631,8 @@ return(custom)
 
 #### **Question 15**: Add comments above, as best you can, to our custom function. In your own words, what exactly does this function do? Why are we writing a customized function? (**Hint**: I told you above!)
 
-> Your answer here.
+MH
+> This function allows us to tune additional hyerparameters, define exactly ho the model is trained and gives us additional flexibility and control over the normal tuning done withing `caret`.
 
 #### 2.4.2.2. Run the customized method.
 **NOTE**: This takes about 12 min to run on 16gb of RAM. This is exactly why we are doing caching for this assignment. Otherwise, your report will take forever to re-knit. 
@@ -648,7 +661,8 @@ customTuned <- train(y = train$Treatment, x = train,
 
 #### **Question 16**: Did you catch that I am setting `.splitrule = gini` explicitly? Why do you think I made this choice?
 
-> Your answer here.
+MH
+> Because we already determined that `gini` was a preferred split rule, specifying here can reduce the number of hyperparameters the function is testing.
 
 ```{r, echo=FALSE, fig.cap = "Figure 3. Visualize the Customized Grid Search Performance"}
 ggplot(customTuned, highlight = TRUE) +
@@ -658,7 +672,8 @@ ggplot(customTuned, highlight = TRUE) +
 
 #### **Question 17**: What combination of hyperparameters gives the highest accuracy in the **training model**? (Use plot above to answer.) How does it compare to previous results?
 
-> Your answer here.
+MH
+> Acknowledging again that the seed is random, for this instance where the function was run, the combination of hyperparameters resulting in the highest accuracy in the training model is when `num.trees` is set to 50, `mtry` is 1919, and `minimum.node.size` is 5. The `minimum.node.size` is the same as was seen in the hyperparameter tuning above, the `mtry` is a little higher. `num.tress` was not previously tuned.
 
 #### 2.4.2.3. Take a look at the hyperparameters of the best model.
 ```{r}
@@ -698,7 +713,14 @@ compareConfusion(confusionList = list(confMat, confMatCV, confMatTuned, confMatT
 
 **Hint**: Make sure to check model stability again as well by looking at the performance across folds, even though I didn't do that for you. 
 
-> Your answer here.
+MH
+```{r}
+#Checking fold accuracy for newTuned model
+newTuned$resample
+```
+
+
+> The confusion matrix for the newly tuned model is nearly identical to the model tuned by `caret`.  The stability of the model is very similar to that 10-fold CV model as well, with average accuracy for the newly tuned model at 67.5%. Given this, the 10-fold CV model continues to be the best model, suggesting perhaps continuing down this road of hyperparameter tuning is not worth our while (given our time and computation resources).
 
 ### 2.4.3 Random Search
 
@@ -739,6 +761,7 @@ Note that the setup looks a little reminiscent of our customized `caret` functio
 ```{r}
 searchGrid <- expand.grid(.mtry = floor(ncol(train) * c(0.01, 0.05, 0.10)),
                         .min.node.size = c(1, 5, 10),
+                        
                         .splitrule = "gini"                        
                         )
 ncv <- nestcv.train(y = train$Treatment, x = train,
@@ -756,7 +779,9 @@ ggplot(ncv$outer_result[[1]]$fit) +
 
 #### **Question 19**: Notice that the y-axis is now **log-Loss** and not **accuracy**. You may need to do some digging, but can you figure out why? Citing sources can be helpful to ensure you're on the right track!
 
-> Your answer here.
+MH
+> According to the R documentation for nested cross-validation for caret, 'logLoss' is the default metric for classification rather than 'Accuracy' which is the default classification metric in caret.According to the R documentation, "LogLoss is arguably more consistent than Accuracy for tuning parameters in datasets with small sample size." With this in mind, and based on the results (of the random seed at the time of writing this) of the graph, the `min.nod.size` of 5 with `mtry` around 625 are the best hyperparameters.
+Source: https://search.r-project.org/CRAN/refmans/nestedcv/html/nestcv.train.html
 
 #### 2.5.3.2. Plot the Receiver-operator curves (ROC) and precision-recall curves for both the inner- and outer- loops.
 
@@ -796,11 +821,13 @@ confusionMatrix(preds, test$Treatment)
 
 **Hint**: Make sure to mention why/when ROC curves can be misleading.
 
-> Your answer here.
+DS
+> When it comes to ROC curves it should be said that, if there isn't really much of false positives or negatives or one really high rate of one then the other, depending upon the circumstance it which ever one can be worse then another. Example False negative test for cancer, or for spam filtering a false positive from redirecting an email that could be important into the junk mail group. In this case seeing zero false negatives there could potentially be a bit of false positives. With a small sample it could be harmful to have even if the numeric for the variable on the surface does look great. It's interesting for the Mcnemars test the p-value is still below 50% which seems a bit odd. This will lead to systematic bias with which error it'll bring up.
 
-#### **Question 21**: Using help from generative AI or search engines, figure out how to assess the **stability** of the model across the nested folds. What conclusions can you draw? Write a 1-2 sentence conclusion for your stakeholders about whether or not you think the random forest is tunable and what you'd recommend next.
+#### **Question 21**: Using help from generative AI or search engines, figure out how to assess the **stability** of the model across the nested folds. What conclusions can you draw? Write a 1-2 sentence conclusion for your stakeholders about whether or not you think the random forest is tuneable and what you'd recommend next.
 
-> Your answer here.
+DS
+> The way we can assess stability are visually and tracking different intervals with parameter values to see if there is a somewhat constant range with the model. We've found out there isn't a consistant range like we'd hoped to have. We'll need to jump back into our samples and try to gain more from there being errors with flucuations in results due to how small our observation size is.
 
 
 #### 2.5.3.4. Grab the important features.
@@ -860,7 +887,8 @@ A second gene that came up frequently for me was __LOC100748162__, which is also
 
 #### **Question 22**: Do you think we should we have any confidence in these results? Why or why not? Think about this from the perspective of what you would tell/advise your stakeholder.
 
-> Your answer here.
+MH
+> The results should be interpreted cautiously, while these genes are appearing as top importance between both DESeq and nested CV random forest, neither shows stastical importance when looking at both the p-value and adjusted p-values. The stability of the models is not instilling confidence at this point, as each time they are run with different seeds we see signficiantly different results. Our recommendation is to narrow down by moving forward with controlling for an individual timepoint, whereas before we've been including time as a feature in our model.
 
 
 # 3 Takeaways & Next Steps
