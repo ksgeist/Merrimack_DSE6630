@@ -397,3 +397,155 @@ table(hospital_analysis$PoorPerformer)
 **Poor Performer Classification.** Hospitals with Poor Performance Scores at or above the 75th percentile were classified as poor performers and used as the target variable for the Random Forest model.
 
 Poor Performer Classification. Hospitals with a Poor Performance Score of 2 or greater (the top 25% of scores) were classified as poor performers. This resulted in 772 poor-performing hospitals and 2,316 non-poor-performing hospitals.
+
+## 6.1 Prepare the Data
+
+
+```{r}
+# Select variables for the Random Forest model
+rf_data <- hospital_analysis %>%
+  select(
+    PoorPerformer,
+    `Hospital Ownership`,
+    `Hospital Type`,
+    `Emergency Services`,
+    State,
+    `Hospital overall rating`
+  ) %>%
+  drop_na() %>%
+  filter(!State %in% c("GU", "VI"))
+
+# Rename columns for modeling
+colnames(rf_data) <- c(
+  "PoorPerformer",
+  "HospitalOwnership",
+  "HospitalType",
+  "EmergencyServices",
+  "State",
+  "HospitalRating"
+)
+
+str(rf_data)
+```
+
+## 6.2 Split the Data
+
+The dataset was randomly divided into training (80%) and testing (20%) sets. Predictor variables were converted to factors prior to fitting the Random Forest model.
+```{r}
+# Split the data
+set.seed(50009)
+
+train_index <- createDataPartition(
+  rf_data$PoorPerformer,
+  p = 0.80,
+  list = FALSE
+)
+
+train_data <- rf_data[train_index, ]
+test_data  <- rf_data[-train_index, ]
+
+# Convert predictors to factors
+factor_vars <- c(
+  "HospitalOwnership",
+  "HospitalType",
+  "EmergencyServices",
+  "State",
+  "HospitalRating"
+)
+
+train_data[factor_vars] <- lapply(
+  train_data[factor_vars],
+  factor
+)
+
+test_data[factor_vars] <- lapply(
+  test_data[factor_vars],
+  factor
+)
+
+# Force identical factor levels
+for(v in factor_vars){
+  test_data[[v]] <- factor(
+    test_data[[v]],
+    levels = levels(train_data[[v]])
+  )
+}
+
+# Convert to data frames
+train_data <- as.data.frame(train_data)
+test_data  <- as.data.frame(test_data)
+
+# Display dimensions
+dim(train_data)
+dim(test_data)
+```
+
+
+## 6.3 Build the Random Forest Model
+
+```{r}
+set.seed(50009)
+
+rf_model <- randomForest(
+  PoorPerformer ~ .,
+  data = train_data,
+  ntree = 500,
+  importance = TRUE
+)
+
+rf_model
+```
+Random Forest Model. The Random Forest model achieved an out-of-bag error rate of 22.3%, corresponding to an estimated accuracy of approximately 77.7%. The model was more successful at identifying hospitals that were not poor performers than hospitals classified as poor performers.
+
+## 6.4 Evaluate Model Performance
+
+The Random Forest model was evaluated using the independent testing dataset. Model performance was summarized using a confusion matrix.
+
+```{r}
+# Predict Poor Performer status for the testing data
+rf_predictions <- predict(
+  rf_model,
+  newdata = test_data
+)
+
+# Create the confusion matrix
+rf_results <- confusionMatrix(
+  rf_predictions,
+  test_data$PoorPerformer
+)
+
+# Display the results
+rf_results
+```
+
+
+Model Performance. The Random Forest model achieved an overall accuracy of 78.3% on the testing dataset. The model showed high sensitivity (88.6%) for identifying hospitals that were not poor performers but a lower specificity (47.4%) for identifying poor-performing hospitals.
+
+## 6.5 Variable Importance
+
+The Random Forest model calculates the relative importance of each predictor variable. Variables with higher importance contribute more to correctly classifying hospitals as poor performers.
+
+```{r}
+# Display the variable importance plot
+varImpPlot(
+  rf_model,
+  main = "Variable Importance for Predicting Poor Hospital Performance"
+)
+```
+
+**Variable Importance.** The variable importance plot ranks the predictor variables based on their contribution to the Random Forest model. Variables with higher importance scores have a greater influence on predicting whether a hospital is classified as a poor performer.
+
+
+Variable Importance. Hospital overall rating was the most important predictor of poor hospital performance, followed by state and hospital ownership. Emergency services contributed the least to the Random Forest model.
+
+# 7 Executive Summary
+
+This project examined characteristics associated with poor hospital performance using publicly available CMS hospital quality data. A Poor Performance Score was developed by combining mortality, readmission, and patient safety measures in which hospitals performed worse than the national average.
+
+Exploratory analyses found differences in Poor Performance Scores across hospital ownership, hospital type, emergency service availability, and geographic location. Government-owned state hospitals generally had the highest average Poor Performance Scores, while Critical Access Hospitals tended to have the lowest scores.
+
+Hospitals with Poor Performance Scores in the top 25% were classified as poor performers. A Random Forest classification model was developed using hospital characteristics to predict poor-performing hospitals. The model achieved an overall accuracy of **78.3%** on the testing dataset.
+
+Variable importance analysis showed that Hospital Overall Rating was the strongest predictor of poor hospital performance, followed by State and Hospital Ownership. Emergency Services contributed the least to the prediction model.
+
+Overall, the results suggest that publicly available hospital characteristics can help identify hospitals that may be at greater risk for poor performance. Hospital administrators may use this information to prioritize quality improvement efforts and better understand factors associated with hospital quality.
