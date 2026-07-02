@@ -1,5 +1,5 @@
 ---
-title: "Project 1: Bioinformatics of Gene Expression"
+title: "Project 3: Bioinformatics of Gene Expression"
 subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
 author: "Elizabeth Greenan"
 date: "3 July 2026"
@@ -8,14 +8,14 @@ output:
     toc: true
     toc_float: true
     theme: flatly
-bibliography: ../Demo_3/references.bib  
+bibliography: ../../Module_Demos/Demo_3/references.bib  
 nocite: '@*'
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE,
-                      cache = TRUE,
-                      cache.comments = TRUE,
+                      cache = FALSE, # Change to T when knitting
+                      cache.comments = F, # Change to T when knitting
                       size = 13)
 ```
 
@@ -262,15 +262,17 @@ The main rules we will be using are the __gini__ rule and the __extratrees__ rul
 #### **Question 1**: Look up these rules and try to explain what they are doing for yourself.
 
 Source:
-“Gini Impurity and Entropy in Decision Tree.” Geeks for Geeks, 8 Nov. 2025, www.geeksforgeeks.org/machine-learning/gini-impurity-and-entropy-in-decision-tree-ml/. 
+“Gini Impurity and Entropy in Decision Tree.” Geeks for Geeks, 8 Nov. 2025, www.geeksforgeeks.org/machine-learning/gini-impurity-and-entropy-in-decision-tree-ml/.
 
-> The Gini rule is also known as Gini impurity. This is a metric used when determining how the data should be split into branches in a random forest model. According to Geeks for Geeks, “Gini Impurity checks how often a randomly selected sample would be mislabeled if assigned by class probability” (Gini Impurity and Entropy in Decision Tree). This metric is used in algorithms such as CART (Classification and Regression Trees) to evaluate splits when trying to tune the model.
+Additional source: Referenced Module 6 PPT. from DSE6111
 
-Source: Source: https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.ExtraTreesClassifier.html
-Source: https://doc.esri.com/en/arcgis-pro/latest/tool-reference/geoai/how-extra-tree-classification-and-regression-works.html
+> The Gini rule is also known as Gini impurity. This metric selects the split that reduces impurity the most. When there is a gini impurity of 0, that means that the node is pure and that everything is in the same class. It is used when determining how well the data should be split into branches in a random forest model. According to Geeks for Geeks, “Gini Impurity checks how often a randomly selected sample would be mislabeled if assigned by class probability” (Gini Impurity and Entropy in Decision Tree). This metric is used in algorithms such as CART (Classification and Regression Trees) to determine splits.
 
-> The extratrees (also known as extremely randomized trees) rule is based on randomized decision trees. According to ESRI, it is similar to the random forest algorithm, since it creates multiple decision trees. It was also noted that it is often faster than random forest, too. However, the sampling for each tree is random and there is no replacement. Therefore, each tree has its own dataset. This is different from other models, where the splits are calculated.
+Source: “Extratreesclassifier — Scikit-Learn 1.9.0 Documentation.” Scikit Learn, scikit-learn.org/stable/modules/generated/sklearn.ensemble.ExtraTreesClassifier.html. Accessed 27 June 2026.
 
+Source: “How Extra Trees Classification and Regression Algorithm Works.” ESRI, doc.esri.com/en/arcgis-pro/latest/tool-reference/geoai/how-extra-tree-classification-and-regression-works.html. Accessed 27 June 2026.
+
+> The extratrees (also known as extremely randomized trees) rule is based on randomized decision trees. According to ESRI, it is similar to the random forest algorithm, since it creates multiple decision trees. ESRI also noted that it is often faster than random forest. However, each split is selected randomly. This is different from other models, where the optimal splits are calculated. A benefit of extratrees is that it helps reduce overfitting in the model.
 
 ### Sampling scheme.
 This would allow us to alter whether we are sampling features with or without replacement at each node split. We will not be tuning this at this time.
@@ -292,15 +294,17 @@ test <- splits[[2]]
 
 ```
 
-> With the original filterCutoff value of 5, after filtering, there were 7,676 genes in the dataset. Keeping everything else the same, I first decreased the filterCutoff, changing it to both 1 and 2. After filtering, there were 12,927 genes in the dataset for both of these values. This was interesting and showed that the slight change in cutoff value did not impact the number of genes being filtered out. Next, I increased the filterCutoff, changing it to 10. After filtering, there were 765 genes in the dataset.
+> With the original filterCutoff value of 5, there were 7,676 genes in the dataset after filtering. Keeping everything else the same, I then decreased the filterCutoff, testing it with both values 1 and 2. This caused the number of genes in the dataset to increase to 12,927 in both cases. This showed that a lower filterCutoff filters fewer genes out. It was interesting that the number of genes did not change between filterCutoff values 1 and 2. This showed that in this case, the slight change in the filterCutoff value did not impact the number of genes being filtered out.
 
-> This shows that when there is a lower filterCutoff value, there are more genes, indicating that fewer genes are being filtered out. When the filterCutoff value is higher, there are fewer genes, indicating that more genes are being filtered out.
+> Next, I increased the filterCutoff to 10. There were 765 genes in the dataset after filtering. This showed that a higher filterCutoff value filters more genes out.
 
 Notice in the comments that I am only doing feature selection on the training data set. Why? Current research strongly suggests that filtering on the entire dataset has the potential to generate bias, not surprisingly, which in turn can create __data leakage__. The advice of Vabalas et al. (2019) is to only do our feature selection **only on the training model**.
 
 #### **Question 3a**: Do some research on __data leakage__ and try to explain what that means in this context. Why do we care about data leakage?
 
 > Data leakage happens when data that should not be used during model training is used. An example of this is if the test data is used during training. Ensuring data leakage does not happen is important for various reasons. When there is data leakage, the model will initially look strong and will likely have high performing metrics such as accuracy, recall, and precision. However, once the model is run on unseen data, it will not perform nearly as well.
+
+> In the context of Project 3, this is why we only performed feature selection on the training set. When we move onto cross-validation and additional tuning in later sections, that will be performed on the training set. This ensures that the model results are not inflated during training. 
 
 Now, we will set `filterCutoff = 5` and partition data for random forest tuning.
 ```{r}
@@ -314,12 +318,11 @@ test <- splits[[2]]
 
 #### **Question 3b**: Using the annotation I have provided in the function `doSplits()`, explain the parameters chosen and try to explain ***why*** you think they were chosen, based on what we did in Demo_3. In particular, make sure to explain WHY a filterCutoff of 5 was chosen. (**Hint**: In Demo_3, did we do anything to adjust for genes with low variance in expression?)
 
-> The vst = vsData parameter represents the data being used in the split. Algorithm = "rf" means that the algorithm being used is a random forest model. The split ratio (splitRatio) = 0.8 represents a training and testing split of 80% and 20% respectively. This is further annotated in the train and test code above.
+> The vst = vsData parameter represents the data used in the split. Algorithm = "rf" means that the algorithm used is a random forest model. The split ratio (splitRatio) = 0.8 represents a training and testing split of 80% and 20% respectively. This is further annotated in the train and test code above.
 
-> In Demo 3, we identified genes with low variance in expression. However, we did not filter these genes out. In this case, the low variance in expression was represented by the chill coma the bumblebees were in. Filtering these genes out would be incorrect, as it would have taken away valuable data from when the bees were in their coma, negatively impacting the benchmarking study. After filtering with a filterCutoff = 5, there are 7,676 genes in the dataset.
+> In Demo 3, we identified genes with low variance in expression, but did not filter these genes out. In this case, low variance in expression was represented by the chill coma the bumblebees were in. Filtering these genes out would have taken away valuable data from when the bees were in their coma, negatively impacting the benchmarking study. In Project 3, based on the code above, we do want to filter out some of these genes.
 
-> Based on my experimentation of the filterCutoff values in Question 2, I think a value of 5 was chosen because it removes a signficiant number of low expression genes from the dataset, without removing too many.
-
+> In this project, after filtering with a filterCutoff = 5, there are 7,676 genes in the dataset. I think a value of 5 was chosen because it removes a signficiant number of low expression genes from the dataset, without removing too many. Based on my experimentation of the filterCutoff values in Question 2, I saw that if the filterCutoff value was too low, not enough genes would be filtered out. If the filterCutoff value was too high, too many genes were filtered out. Choosing a value of 5 allows for a sufficient number of genes to remain, without keeping too many, which could create too much noise.
 
 ## 2.3 Apply $k$-fold Cross-Validation (CV) to Random Forest
 
@@ -357,7 +360,7 @@ rfCV <- train(Treatment ~.,
 
 #### **Question 4**: Explain, in your own words, what a 10-fold CV does here. Is it vital to perform with a random forest? Why or why not?
 
-> A 10-fold cross-validation (CV) splits the training data into 10 separate parts, so the model is run 10 times. This can provide better model performance metrics and better show how the model is. While not vital to perform with a random forest, it is often used to enhance the model and better understand the results.
+> A 10-fold cross-validation (CV) splits the training data into 10 different folds and has a 10% hold-out at each iteration. This allows the model to be trained 10 times. 1 fold will be used for testing, while the remaining 9 folds will be used for training. This method often provides better model performance metrics. While not vital to perform with a random forest, it is often used to enhance the model and better understand the results. It can be beneficial to use, as it allows us to evaluate the stability of the model and also provides insight on how the model will perform on unseen test data.
 
 ```{r, echo = FALSE, warning=FALSE, message=FALSE, eval=T, fig.cap="Figure 1. Visualize the 10-fold CV Performance"}
 ggplot(rfCV, highlight = TRUE) +
@@ -369,7 +372,7 @@ You'll notice that by default with the 10-fold CV is that **it is doing automate
 
 #### **Question 5**: What combination of hyperparameters gives the highest accuracy in the **training model**? (Use plot above to answer.)
 
-> The following combination of hyperparameters gives the highest accuracy in the training model: extratrees splitting rule and approximately 8,000 randomly selected predictors. This point has the highest accuracy of just over 0.69 (69%). The gini splitting rule performs notably worse, with the highest accuracy at approxiamtely 0.66 (66%).
+> The following combination of hyperparameters gives the highest accuracy in the training model: the gini splitting rule with approximately 7,800 randomly selected predictors (mtry). This combination gives the highest accuracy of approximately 0.63 (63%). Although both gini and extratrees use approximately the same number of randomly selected predictors, the extratrees splitting rule performs worse, with the highest accuracy at approximately 0.62 (62%).
 
 ### 2.3.3. Extract best model.
 
@@ -385,7 +388,9 @@ kable(
 
 #### **Question 6**: Explain, in your own words, what the values of these hyperparameters mean.
 
-> The splitting rule is split into gini and extratrees. Therefore, the splitting rule looks at how each of the trees finds its splits. The number of predictors is how many features the splits consider. The number of randomly selected predictors represents the random number of predictors the model uses.
+> Hyperparameters allow us to tune the model with the goal of improving performance. In this case, there are two splitting rules: gini and extratrees. These determine how the splits are chosen. Here, they are chosen using either Gini impurity, which measures node impurity or extratrees, which adds randomness to the splits.
+
+> Additional hyperparameters include the number of features at any given split (mtry) and the number of trees in the forest (num.trees). The mtry hyperparameter is an important hyperparameter and allows us to try and improve the model by increasing or decreasing the number of features. This can often help reduce overfitting in a dataset. Similarly, adjusting the number of trees in the forest can help stabilize the model.
 
 ### 2.3.4. Assess for model stability.
 
@@ -403,7 +408,32 @@ kable(
 
 **Hint**: Think about these results relative to our __sample size__. Would we expect instability in resampling from, among other issues, small sample size alone in this case?
 
-> Your answer here.
+```{r}
+# Create accuracy vector
+accuracy <- c(0.6666667, 0.6666667, 0.8333333, 0.1666667, 0.5000000, 1.0000000, 0.5000000, 0.3333333, 0.8333333, 0.8571429)
+
+# Calculate average accuracy
+average_accuracy <- mean(accuracy)
+# Calculate minimum accuracy
+minimum_accuracy <- min(accuracy)
+# Calculate maximum accuracy
+maximum_accuracy <- max(accuracy)
+
+average_accuracy
+minimum_accuracy
+maximum_accuracy
+
+```
+
+```{r}
+# Check training and testing split to answer the question
+nrow(train)
+nrow(test)
+```
+
+> The average accuracy is 0.6357143 (63.57%). The minimum accuracy is 0.1666 (16.66%), and the maximum accuracy is 1 (100%). The train/test split is 60 and 40, respectively. Since this is a 10-fold cross-validation being run on the training set (60 observations), there are approximately 6 observations per fold. This is a very small sample size, which can lead to a high variance in the results. Therefore, the accuracy can fluctuate easily if the data changes even slightly.
+
+> We would expect some instability in resampling from the small sample size in this case. Therefore, this does not necessarily mean there is an issue with the model, but that the model is sensitive. This is describing the big p little n issue that we have discussed in class. This issue makes it harder to obtain useful information from the dataset, since we have such a large number of predictors (p) and a small number of observations (n). 
 
 ### 2.3.5. Fit the test data to the best tuned model from the 10-fold CV.
 Regardless of the decision you made in Question 7, let's proceed with assessing model performance.
@@ -435,34 +465,44 @@ compareConfusion(confusionList = list(confMat, confMatCV)) %>%
 
 #### **Question 8**: Let's take a moment to unpack what we are looking at here. What do each of these metrics measure? **Hint**: Make sure to look at the documentation for the `confusionMatrix()` function from `caret`.
 
-Source: https://www.rdocumentation.org/packages/caret/versions/7.0-1/topics/confusionMatrix
-Source: https://cran.r-project.org/web/packages/ConfMatrix/ConfMatrix.pdf
-Source: https://cran.r-project.org/web/packages/ConfusionTableR/vignettes/ConfusionTableR.html
+Sources:
 
-> __Accuracy__: The accuracy metric measures how correct the model is. In the confusion matrix, this is calculated by the sum of true positives and true negatives, divided by the sum of true positives, true negatives, false positives, and false negatives.
+Ariza-Lopez, Francisco Javier, et al. “Package ‘ConfMatrix.’” CRAN R, 30 May 2026, cran.r-project.org/web/packages/ConfMatrix/ConfMatrix.pdf.
 
-> __Kappa__: The kappa metric measures the relationship between the observed proportion and the expected proportion (CITE SECOND SOURCE). This metric can be calculated using the values in the confusion matrix.
+“confusionMatrix: Create a Confusion Matrix.” Rdocumentation, www.rdocumentation.org/packages/caret/versions/7.0-1/topics/confusionMatrix. Accessed 27 June 2026.
 
-> __Accuracy Lower Bound__: Your answer here.
+“ConfusionTableR.” CRAN R, cran.r-project.org/web/packages/ConfusionTableR/vignettes/ConfusionTableR.html. Accessed 27 June 2026. 
 
-> __Accuracy Upper Bound__: Your answer here.
+I used the caret::confusionMatrix document through the Help Page in R.
 
-> __Accuracy Null__: Your answer here.
+> __Accuracy__: The Accuracy metric measures how correct the model is. This value can be calculated from the values in a confusion matrix. The calulaction is as follows: the sum of true positives and true negatives, divided by the sum of true positives, true negatives, false positives, and false negatives. Confusion Matrix 1 (OOB model) has an accuracy of 0.6428 (64.28%), while Confusion Matrix 2 (10-Fold CV model) has a higher accuracy of 0.7857 (78.57%).
 
-> __Accuracy p-value__: Your answer here.
+> __Kappa__: The Kappa metric measures the relationship between the observed proportion and the expected proportion (Ariza-Lopez, Francisco Javier, et al.). This provides insight on model performance and can be used in imbalanced data. Confusion Matrix 1 (OOB model) has a kappa of 0.2857 (28.57%), while Confusion Matrix 2 (10-Fold CV model) has a kappa of 0.5714 (57.14%).
 
-> __McNemar p-value__: Your answer here.
+> __Accuracy Lower Bound__: The AccuracyLower metric represents the lower bound of the confidence interval for accuracy. As noted in the documentation, the 95% confidence interval is also calculated. Confusion Matrix 1 (OOB model) has an AccuracyLower of 0.3513 (35.13%), while Confusion Matrix 2 (10-Fold CV model) has an AccuracyLower of 0.4920 (49.20%).
+
+> __Accuracy Upper Bound__: The AccuracyUpper metric represents the upper bound of the confidence interval for accuracy. As noted in the documentation, the 95% confidence interval is also calculated. Confusion Matrix 1 (OOB model) has an AccuracyUpper of 0.8724 (87.24%), while Confusion Matrix 2 (10-Fold CV model) has an AccuracyUpper of 0.9534 (95.34%).
+
+> __Accuracy Null__: The AccuracyNull metric represents the "no information rate", which is the largest class percentage in the data. Therefore, the AccuracyNull provides a baseline value for model performance. Both Confusion Matrix 1 (OOB model) and Confusion Matrix 2 (10-Fold CV model) have an AccuracyNull of 0.50 (50%).
+
+> __Accuracy p-value__: The AccuracyPValue metric represents the one-sided test that is used to determine if the accuracy is better than the "no information rate". Confusion Matrix 1 (OOB model) has an AccuracyPValue of 0.2119 (21.19%), while Confusion Matrix 2 (10-Fold CV model) has an AccuracyPValue of 0.0286 (2.86%). Since this is a p-value test, the significance level of 0.05 is used to determine whether the answer is statistically significant. Therefore, we fail to reject the null hypothesis for the OOB model and reject the null hypothesis for the 10-Fold CV model.
+
+> __McNemar p-value__: The McnemarPValue metric represents the p-value that is calculated from the McNemar's test. As mentioned in the documentation, this tests for symmetry of rows and columns in a two-dimensional table. Confusion Matrix 1 (OOB model) has a McnemarPValue of 1 (100%), while Confusion Matrix 2 (10-Fold CV model) has a McnemarPValue of 0.2482 (24.82%). Again, since this is a p-value test, the significance level of 0.05 is used to determine whether the answer is statistically significant. Since both of the p-values are > 0.05, they are not statistically significant. Therefore, we fail to reject the null hypothesis.
 
 
 #### **Question 9**: What was the impact, if any, of the pre-processing we performed here? What evidence do you have? Lastly, what was the biggest change, other than tuning, that we made as compared to the OOB RF?
 
-> Your answer here.
+> One of the pre-processing steps was using the filterCutoff to filter out genes. This was a form of feature reduction, as the filterCutoff value of 5 that we used reduced the number of predictors from over 12,000 to 7,676. This helped reduce noise and overfitting in the dataset.
 
+> The biggest change, other than tuning, that we made was switching from out-of-bag (OOB) to a 10-fold cross-validation. While the OOB method provided a single result, the 10-fold cross-validation method provided us specific accuracy and kappa values for each of the folds. This allowed us to obtain fold-specific accuracy, which helps us better understand model performance. The results in Table 2 show that by switching to the 10-fold cross-validation model, some of the performance metrics improved. This highlights that tuning can improve model performance.
 
 #### **Question 10**: What are your conclusions, at this stage, about the performance of the 10-fold CV, tuning, and applying the filtering cutoff relative to the OOB performance from Demo_3?
 
-> Your answer here.
+> The performance of the 10-fold CV, tuning, and the application of the filtering cutoff allowed us to get a better understanding of model stability and accuracy. In Demo_3, the OOB performance on the training data had very high performance, including an accuracy and kappa of 1. This highlights a potential overfitting issue with the data, as results this strong are unlikely. It was also noted that the McnemarPValue was NaN.
 
+> The average accuracy of the 10-fold CV was 0.6357 (63.57%). Although this is still a lower accuracy than we would want for a model, it shows a much more realistic performance. We had a minimum accuracy of 0.1666 (16.66%) and a maximum accuracy of 1 (100%). The accuracy of 1 was located in Fold07.
+
+> Overall, these results are showing that we continue to deal with the big p little n situation, which can impact the results of cross-validation, as we have a large number of predictors and a small number of observations. We saw this in the accuracy results, which had a lot of variability.
 
 ## 2.4 Further Tuning: Searching
 
@@ -510,8 +550,14 @@ searchGrid <- expand.grid(
 
 #### **Question 11**: How many different combinations are we going to search with this grid?
 
-> Your answer here.
+> In the above code chunk, there are 5 mtry values: .05, .15, .25, .35, and .45. There are 2 splitrule values: gini and extratrees. Lastly, there are 4 min.node.size values: 1, 3, 5, and 10.
 
+```{r}
+# Calculate the number of different combinations we will search with this grid
+5 * 2 * 4
+```
+
+> We will search 40 different combinations with this grid.
 
 #### 2.4.1.2. Run the RF, this time adding in the search grid.
 
@@ -534,7 +580,7 @@ ggplot(rfTuned, highlight = TRUE) +
 
 #### **Question 12**: What combination of hyperparameters gives the highest accuracy in the **training model**? (Use plot above to answer.)
 
-> Your answer here.
+> The gini splitrule provides the highest accuracy in the training model. There are approximately 1,200 randomly selected predictors (mtry) and the minimal node size is 5. With this combination of hyperparameters, the model achieves an accuracy of approximately 0.74 (74%). The plots also show that the gini splitrule outperforms extratrees.
 
 #### 2.4.1.3. Take a look at the hyperparameters of the best model.
 
@@ -576,7 +622,8 @@ compareConfusion(confusionList = list(confMat, confMatCV, confMatTuned)) %>%
 
 #### **Question 13**: What impact did hyperparameter tuning with the grid search have on model performance compared to both the OOB and 10-fold CV with auto-tuning?
 
-> Your answer here.
+> Table 4 shows that the hyperparameter tuning with grid search had a slight impact on model performance when compared to both the OOB and 10-fold CV with auto-tuning. The hyperparameter tuning with grid search did not have the highest accuracy. Instead, it had the second highest, of 0.7142 (71.42%). Overall, it performed worse than the 10-Fold Cross-Validation model, but better than the OOB model. This shows that tuning the model generally yields better results than the OOB model. However, the cross-validation model still outperformed the grid search.
+
 
 **Note on methodology**:
 As I mentioned above, there is no parameter for the number of trees that we could tune in the search grid. Why not? It's because we used the `train()` function from the `caret` package. `train()` is what is called a __wrapper function__, which means that we may be somewhat stuck using what's available to us in the function. But what if we want to tune hyperparameters that are available through that wrapper function? We would need to switch our tactics. We could either write a __custom function or loop__ to do it, or we could modify the function in `caret`. Wait, we can do that?! Yep!
@@ -584,12 +631,12 @@ As I mentioned above, there is no parameter for the number of trees that we coul
 #### **Question 14**: Use the `modelLookup` function to help you figure out what hyperparameters are available for the `rf` vs. `ranger` methods for performing random forest algorithm with `caret`. What are the key differences you observce in the hypers you can tune?
 
 ```{r}
-# modelLookup("ranger")
-# modelLookup("rf")
+# Uncommented to run
+ modelLookup("ranger")
+ modelLookup("rf")
 ```
 
-> Your answer here.
-
+> The modelLookup function showed that there are different hyperparameters that can be tuned for ranger and rf. The ranger method allows the following parameters to be tuned: mtry (number of randomly selected predictors), splitrule (in this project, gini or extratrees), and min.node.size (minimum number of observations in a node). The rf method only allows mtry to be tuned and is very limited.
 
 ### 2.4.2 Grid Search Using a Customized `caret` Method
 
@@ -597,37 +644,37 @@ As I mentioned above, there is no parameter for the number of trees that we coul
 
 ```{r, echo = FALSE}
 makeCustomMethod <- function(paramList, methodName) {
-  ## Add comments here
+  # Create a custom list, for a classification model and the ranger method. This list does not use loops.
   custom <- list(type = "Classification", 
                  library = "ranger", 
                  loop = NULL)
-  ## Add comments here
+  # Create a dataframe that defines the hyperparameters that can be tuned, assign each of them to a class, and label them
   custom$parameters <- data.frame(parameter = paramList, 
                                   class = rep("numeric", length(paramList)), 
                                   label = paramList)
-    ## Add comments here
+    # Create a function for the grid search
     custom$grid <- function(x, y, len = NULL, search = "grid") {}
-    ## Add comments here
+    # Fit the model using the hyperparameter values in the grid search function
     custom$fit <- function(x, y, wts, param, lev, last, weights, classProbs) {
-        ## Add comments here
+        # Fit the random forest model and specify mtry and num.trees values
         randomForest(x, y, 
                mtry = param$mtry,    ## Need to update to make dynamic
                num.trees = param$num.trees)
   }
-  ## Add comments here
+  # Create a function for model predictions
   custom$predict <- function(modelFit, newdata, preProc = NULL, submodels = NULL)
-  ## Add comments here
+  # Create the predictions from the model
   predict(modelFit, newdata)
 
-  ## Add comments here
+  # Create a function for model probabilities
   custom$prob <- function(modelFit, newdata, preProc = NULL, submodels = NULL)
-  ## Add comments here
+  # Create the probabilities from the model
   predict(modelFit, newdata, type = "prob")
 
-  ## Add comments here
+  # Sort the results of the hyperparameter tuning by the first column
   custom$sort <- function(x) x[order(x[,1]),]
 
-  ## Add comments here
+  # Return the class levels for the classification model
   custom$levels <- function(x) x$classes
 return(custom)
 }
@@ -635,7 +682,7 @@ return(custom)
 
 #### **Question 15**: Add comments above, as best you can, to our custom function. In your own words, what exactly does this function do? Why are we writing a customized function? (**Hint**: I told you above!)
 
-> Your answer here.
+> The customized function above creates a caret function for the random forest model using the ranger method. This was written because as we saw in Question 14, not all methods have the same hyperparameters that can be tuned. Therefore, by writing a customized function, we can use it to tune the hyperparameters we want, not just the default options. Comments were added above.
 
 #### 2.4.2.2. Run the customized method.
 **NOTE**: This takes about 12 min to run on 16gb of RAM. This is exactly why we are doing caching for this assignment. Otherwise, your report will take forever to re-knit. 
@@ -664,7 +711,7 @@ customTuned <- train(y = train$Treatment, x = train,
 
 #### **Question 16**: Did you catch that I am setting `.splitrule = gini` explicitly? Why do you think I made this choice?
 
-> Your answer here.
+> I think you set .splitrule = gini because so far, each time we have compared results, the gini method has outperformed the extratrees method. This occured in both cross-validation and grid search tuning. Since it is the better performing splitrule, it makes sense that we would want to use it in the custom function. Additionally, unlike extratrees, it does not perform randomized splits.
 
 ```{r, echo=FALSE, fig.cap = "Figure 3. Visualize the Customized Grid Search Performance"}
 ggplot(customTuned, highlight = TRUE) +
@@ -674,7 +721,9 @@ ggplot(customTuned, highlight = TRUE) +
 
 #### **Question 17**: What combination of hyperparameters gives the highest accuracy in the **training model**? (Use plot above to answer.) How does it compare to previous results?
 
-> Your answer here.
+> The following combination of hyperparameters gives the highest accuracy in the training model: num.trees = 50, mtry = 1,919, and min.node.size = 10. This combination of hyperaparameters reaches an accuracy of approximately 1 (100%). This shows an almost perfect accuracy, which is unlikely.
+
+> For all three models (OOB, 10-Fold CV, and Grid Search), the gini rule provided the best results. For OOB, the accuracy was 0.6428 (64.28%). For 10-Fold Cross-Validation, the accuracy was 0.7857 (78.57%). For the grid search, the accuracy was 0.7142 (71.42%).
 
 #### 2.4.2.3. Take a look at the hyperparameters of the best model.
 ```{r}
@@ -714,7 +763,17 @@ compareConfusion(confusionList = list(confMat, confMatCV, confMatTuned, confMatT
 
 **Hint**: Make sure to check model stability again as well by looking at the performance across folds, even though I didn't do that for you. 
 
-> Your answer here.
+> The hyperparameter tuning with the number of trees and the new grid search (Confusion Matrix 4) showed improvement over the OOB model (Confusion Matrix 1) and the original grid search model (Confusion Matrix 3). It did not perform better than the 10-Fold CV model (Confusion Matrix 2). In fact, they had identical performance metrics. Both Confusion Matrix 2 and Confusion Matrix 4 had an accuracy of 0.7857 (78.57%).
+
+
+```{r}
+# Check model stability across folds
+customTuned$resample
+```
+
+> The above code chunk checks the model stability again by looking at performance across folds. It provides an interesting result: across all 10 folds, both the accuracy and kappa are 1. This would indicate near-perfect model performance, which is unlikely and is not shown in our current performance metrics. These results come back to the big p little n scenario we have with this data, since there are many predictors, but not many observations.
+
+> These results are not improvement enough to make it worth continuing down this path. It is noteworthy that this latest model took the longest to run, yet it did not have any improved metrics from the 10-Fold CV model. In a production environment, this would increase both time and cost. Therefore, since it isn't yielding improved results or potential promise, it is not something to continue working on.
 
 ### 2.4.3 Random Search
 
@@ -772,7 +831,9 @@ ggplot(ncv$outer_result[[1]]$fit) +
 
 #### **Question 19**: Notice that the y-axis is now **log-Loss** and not **accuracy**. You may need to do some digging, but can you figure out why? Citing sources can be helpful to ensure you're on the right track!
 
-> Your answer here.
+Source: https://www.cs.tufts.edu/cs/135/2023f/slides/day09_logistic_regression.pdf
+
+> According to the Tufts powerpoint cited above, logLoss is also known as binary cross entropy. It measures how well a model predicts the probabilities of a label, with better performance represented by a lower logLoss value. I think the y-axis is now logLoss instead of accuracy because this plot is showing the logLoss values that come from the predicted probabilities as opposed to the accuracy values. The logLoss is computed by the predicted probabilities that are affected by the combination of hyperparameters, such as mtry and minimal node size (in this plot, 1, 5, and 10). The goal of this plot is to find the combination of hyperparameters that minimizes logLoss. Previously, we were looking for the combination of hyperparameters that maximized accuracy.
 
 #### 2.5.3.2. Plot the Receiver-operator curves (ROC) and precision-recall curves for both the inner- and outer- loops.
 
@@ -812,11 +873,26 @@ confusionMatrix(preds, test$Treatment)
 
 **Hint**: Make sure to mention why/when ROC curves can be misleading.
 
-> Your answer here.
+> The Outer-folds ROC curve has an AUC of 0.911 (91.1%), while the Inner-folds ROC curve has an AUC of 0.918 (91.8%). Both of the AUC values are considered excellent and that the model would be a high performing and accurate model. However, the confusion matrix statistics provides insight into why this is misleading.
+
+> There are multiple reasons ROC curves can be misleading. One is when there is a class imbalance. I checked this, and since the prevalence is 0.5, the dataset is balanced, so in this case, this is not the cause of the ROC curve being misleading.
+
+> The model has a balanced accuracy of 0.8571 (85.71%). This exceeds the no information rate of 0.5 (50%), which is the baseline compraison. However, an accuracy of 85% is considered decent model performance. We continue to come back to the big p little n issue, which highlights that while we have many predictors, we do not have many observations, which can impact our model results, and make it difficult to get useful information from them.
+
+> The above code mentions that the positie class is Control. The confusion results are as follows:
+True Positives (TP): 5
+False Positives (FP): 0
+False Negatives (FN): 2
+True Negatives (TN): 7
+There are two False Negative values, indicating that some values are still being incorrectly classified. Since we have the big p little n problem, even a slight change in these values can drastically impact the model.
+
+>This shows that although the ROC and AUC are high, they may be misleading for our model, especially based on the results seen in the confusion matrix.
 
 #### **Question 21**: Using help from generative AI or search engines, figure out how to assess the **stability** of the model across the nested folds. What conclusions can you draw? Write a 1-2 sentence conclusion for your stakeholders about whether or not you think the random forest is tunable and what you'd recommend next.
 
-> Your answer here.
+> There are various ways we can assess the stability of the model across the nested folds. Earlier, in Question 18, we checked the model stability across the folds. This code output the accuracy and kappa values for each of the 10 folds. One of the biggest takeaways from this code was that all 10 folds had identical accuracy and kappa values of 1. These are unlikely results that should be viewed with caution.
+
+> Due to this, I do not think the Random Forest model is tunable. Although it did show some minor improvements, it was clear that our performance metrics were unlikely to improve. Since we have a big p little n problem, I would recommend trying a regularization model next. This may lead to better results through the use of penalties.
 
 
 #### 2.5.3.4. Grab the important features.
@@ -876,7 +952,19 @@ A second gene that came up frequently for me was __LOC100748162__, which is also
 
 #### **Question 22**: Do you think we should we have any confidence in these results? Why or why not? Think about this from the perspective of what you would tell/advise your stakeholder.
 
-> Your answer here.
+> Source: https://www.ncbi.nlm.nih.gov/gene/?term=LOC100748162
+> Source: https://www.ncbi.nlm.nih.gov/gene/?term=LOC100749486
+
+
+> The two genes that showed up as overlapping features were LOC100748162 and LOC100749486.
+
+> Gene LOC100748162 is a gene from Bombus impatiens that encodes pancreatic lipase-related protein 2. This was one of the genes that Professor Geist also saw in her model. As she mentioned above, it is a metabolism gene and in the context of this project, it could indicate that an alteration in metabolism can happen when the Bombus impatiens go into a chill coma.
+
+> Gene LOC100749486 is a gene from Bombus impatiens that encodes abaecin. Abaecin is a naturally occurring peptide that is an important part of their immunity. This indicates that the immunity of Bombus impatiens may be affected when they go into a chill coma.
+
+> Both genes LOC100748162 and LOC100749486 have positive log2FoldChange values, indicating that they are upregulated. Gene LOC100749486 is the most upregulated. Neither padj values for either of these genes are statistically significant.
+
+> I think we can have limited confidence in these results; however, I don't think we should be overly confident in them. Although we have strong AUC values (0.952 and 0.91), we are using a very small dataset, which can cause the model to overfit. This leads to misleading results, which often look better than they actually are. Additionally, as mentioned previously, we have the big p little n problem, which can cause overfitting. Overall, the model provides some valuable results, such as the two genes that overlap between models. However, extensive trust in the model should be used with caution. I would not recommend this to be deployed in any production environments.
 
 
 # 3 Takeaways & Next Steps
@@ -918,5 +1006,534 @@ As we move forward with our benchmarking study, you have two choices. Choose you
 5. `DESeqResults_30_min.Rdata` = the 30-min equivalent of the `DESeqResults` object that you can use with this walk-through.
 
 **You will absolutely need to take a look at #4 to get you started. You will also want to use #1 and #5 for your analysis.**
+
+# 5 Phase 2 of Project: Path 1
+
+I have chosen to complete Path 1 for Phase 2 of the project:
+Perform $k$-fold & nested CV Random Forest, as well as hyperparameter tuning, on a different VST from the 30-minute experiment only.
+
+If you decide to choose this adventure, you will use the VST data for the 30-min time point expression data only. You will also be given the `DESeq` results so you can use the `findOverlappingGenes()` function again to look at performance. Your task will be to take this vst, and work through all the same steps as in this first-half of the project. **Make sure to look at the important features at the end and comment on whether you have any confidence in your results!**
+
+## 5.1 Load in the data:
+
+```{r, echo = TRUE, message=FALSE, warning=FALSE}
+# Load in 30m data needed for Phase 2 of project
+load("/Users/elizabethgreenan/Documents/DSE6330/Merrimack_DSE6630/Team_Directories/lambda/Module_Projects/Project_3/data_30min/vst_30_min.Rdata")
+
+# Load in DESeq2 results
+load("/Users/elizabethgreenan/Documents/DSE6330/Merrimack_DSE6630/Team_Directories/lambda/Module_Projects/Project_3/data_30min/DESeqResults_30_min.Rdata")
+
+```
+
+> NOTE: I chose to overwrite the variables from Phase 1. Therefore, no variables were renamed in this phase.
+
+## 5.2 Pre-processing and feature selection
+
+Set `filterCutoff = 5` and partition data for random forest tuning.
+```{r}
+splits <- doSplits(vst = vsData, 
+                   algorithm = "rf", 
+                   splitRatio = 0.8, 
+                   filterCutoff = 5)   
+train <- splits[[1]]
+test <- splits[[2]]
+```
+
+> After filtering, there are 8,553 genes in the dataset. Phase 1 had 7,676 genes after filtering. This indicates that the 30 minute data retains more genes than the original dataset while using the same filterCutoff value and splitRatio. Additionally, although both datasets have the big p little n problem, this problem is much more pronounced in the 30 minute dataset. Therefore, this can cause the results to vary since there are so few samples.
+
+
+## 5.3 Apply $k$-fold Cross-Validation (CV) to Random Forest
+
+### 5.3.1. Leverage the `trainControl()` and `train()` functions from the `caret` package. 
+
+Fit the same RF we fit last week for comparison:
+
+```{r, echo = TRUE, eval=T}
+rfOOB <- randomForest::randomForest(
+  Treatment ~ ., 
+  data = train)
+
+pred.test.rf <- predict(rfOOB, test, type = "response")
+confMat <- confusionMatrix(pred.test.rf, test$Treatment)
+```
+
+### 5.3.2. Employ a $k$-fold CV where $k = 10$.
+
+Employ a $k$-fold CV where $k = 10$.
+
+Set the control for $k = 10$ and then run the RF:
+```{r, eval = T}
+# Set the CV arguments
+kFoldCtrl <- trainControl(method = "cv",    ## for k-fold CV
+                          number = 10)      ## k
+```
+
+And fit the Random Forest model:
+```{r}
+rfCV <- train(Treatment ~.,  
+               data = train,
+               method = "ranger",
+               trControl = kFoldCtrl)    ## added in the 10-fold CV
+```
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE, eval=T, fig.cap="Figure 1. Visualize the 10-fold CV Performance"}
+ggplot(rfCV, highlight = TRUE) +
+  ggtitle("Random Forest Performance After 10-fold CV for 30 Min Data") + 
+  theme_bw()
+```
+
+> The plot above shows the Random Forest Performance After 10-fold CV for 30 Min Data. This shows that the gini rule outperformed the extratrees rule, just like in Phase 1 of the project. The combination of hyperparameters that gives the highest accuracy are: the gini splitting rule with approximately 1 randomly selected predictors (mtry). This combination results in an accuracy of approximately 0.67 (67%). From the plot alone, it is difficult to tell the exact mtry value, so when running the code below, I was able to determine the mtry value is 2. The big p little n problem is also impacting these results. Since the training set has 14 observations and the test set has 2 observations, any performance metrics will be highly impacted.
+
+### 5.3.3. Extract best model.
+
+You can also extract the best model as well to get the precise combination of hyperparameters.
+
+```{r, echo = F}
+rfCV$bestTune %>% 
+kable(
+    format = "html",
+    caption = "Table 1. Hyperparameters of the best Random Forest Model using 10-fold CV for 30 Min Data") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F))
+```
+
+> This table shows that the hyperparameters of the best model are mtry = 2, splitrule = gini, and min.node.size = 1.
+
+### 5.3.4. Assess for model stability.
+
+Let's look at the fold-specific results for our best model. This is essential to assess **stability** of the model. 
+
+```{r, echo=FALSE}
+rfCV$resample %>% 
+kable(
+    format = "html",
+    caption = "Table 2. Fold-specific accuracy for the 10-fold CV Random Forest for 30 Min Data") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F))
+```
+
+> This shows a much different result than Phase 1 of the project. Here, we can see that not all of the folds have an accuracy and kappa of 1 like they did earlier. Instead, there are two accuracy values: 0 and 1. There are four kappa values: -1, 0, 1, and NA.
+
+> Although this is set up for 10-fold, there are some missing values, resulting in only 9 folds being shown in the table. There was a warning message when running the code that said "There were missing values in resampled performance measures". I think since there is such a small sample size, that the accuracy was not able to be computed accurately for one of the folds.
+
+
+```{r}
+
+# Create accuracy vector with only 9 values
+
+accuracy <- c(0, 1, 1, 1, 0, 1, 1, 1, 0)
+
+# Calculate average accuracy
+average_accuracy <- mean(accuracy)
+# Calculate minimum accuracy
+minimum_accuracy <- min(accuracy)
+# Calculate maximum accuracy
+maximum_accuracy <- max(accuracy)
+
+average_accuracy
+minimum_accuracy
+maximum_accuracy
+
+```
+
+> The average accuracy is 0.6666 (66.66%). The minimum accuracy is 0. The maximum accuracy is 1 (100%).
+
+> From Phase 1, the average accuracy was 63.57%, the minimum accuracy was 16.66%, and the maximum accuracy was 100%. Interestingly, the average accuracies were not very different, with the 30 minute average accuracy only slightly lower than the original dataset.
+
+
+```{r}
+# Check training and testing split to answer the question
+nrow(train)
+nrow(test)
+```
+
+> The above code shows that the training set has 14 observations and the test set has 2 observations. This is a much smaller number of observations than the original dataset, emphasizing the big p little n problem.
+
+### 5.3.5. Fit the test data to the best tuned model from the 10-fold CV.
+
+```{r, echo=TRUE}
+rfCV <- train(Treatment ~.,  
+               data = train,
+               method = "ranger",
+               trControl = kFoldCtrl, 
+               tuneGrid = rfCV$bestTune)   ## Add in the results of the CV 
+                                           ## and auto tuning
+
+pred.test.rf <- predict(rfCV, test, type = "raw")  ## type is now 'raw' 
+## Store the confusion matrix for later comparison
+confMatCV <- confusionMatrix(pred.test.rf, test$Treatment)
+```
+
+### 5.3.6. Compare the two confusion matrices.
+
+Lastly, let's compare the results of what we just ran (stored in `confMatCV`) with what we the OOB performance from Demo_3 (stored in `confMat`).
+
+```{r, echo = FALSE}
+compareConfusion(confusionList = list(confMat, confMatCV)) %>% 
+  kable(
+    format = "html",
+    caption = "Table 2. Comparing Accuracy - Random Forest for 30 Min Data") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F))
+```
+
+> The above table shows identical results between Confusion Matrix 1 (OOB) and Confusion Matrix 2 (10-Fold CV). This is likely due to the very small sample size in the 30 minute dataset. Therefore, the models are having a difficult time generalizing, due to such small variance in the number of samples. These results must be interpreted with caution.
+
+## 5.4 Further Tuning: Searching
+
+**NOTE**: When you strike out on your own, you may get a 'bad seeds' error. This is often because you need to increase the size of your sample space.
+```{r, echo = FALSE}
+# Make a set of k = 10 seeds for reproducibility
+seeds <- vector(mode = "list", length = 11)
+for(i in 1:10) {
+  seeds[[i]]<- sample.int(n=1000, 54)   # Increase 54 if you have a larger grid! 
+}
+# For the last model
+seeds[[11]]<-sample.int(1000, 1)
+```
+
+```{r, echo = FALSE}
+# Set the CV arguments
+kFoldCtrl <- trainControl(method = "cv",    # for k-fold CV
+                          number = 10,      # k
+                          seeds = seeds)    # sets the seeds, one for each split
+
+```
+
+#### 5.4.1.1. Set the search grid.
+```{r}
+searchGrid <- expand.grid(
+  mtry = floor(ncol(train) * c(.05, .15, .25, .35, .45)),
+  splitrule = c("gini", "extratrees"),
+  min.node.size = c(1, 3, 5, 10) 
+)
+```
+
+```{r}
+# Calculate the number of different combinations we will search with this grid
+5 * 2 * 4
+```
+
+> Just like in Phase 1, we will seach 40 different combinations with this grid.
+
+#### 5.4.1.2. Run the RF, this time adding in the search grid.
+
+Be patient. This may take a few minutes to run.
+
+```{r}
+rfTuned <- train(Treatment ~.,  
+               data = train,
+               method = "ranger",
+               trControl = kFoldCtrl, 
+               tuneGrid = searchGrid # Add in the search grid
+)
+```
+
+```{r, echo = FALSE, fig.cap="Figure 2. Visualize the Grid Search Performance"}
+ggplot(rfTuned, highlight = TRUE) +
+  ggtitle("Random Forest Performance Grid Search Tuning for 30 Min Data") + 
+  theme_bw()
+```
+
+> The combination of hyperparameters that gives the highest accuracy is: gini splitting rule, mtry = ~500, and a minimal node size of 3. This gives an accuracy of approximately 0.77 (77%). When compared to Phase 1, once again, gini outperforms extratrees.
+
+> When looking at the table below, we can see that mtry = 427 and splitrule = gini. However, the min.node.size changed from 3 to 1. I think this is again likely due to the small sample size causing results to have some variance.
+
+#### 5.4.1.3. Take a look at the hyperparameters of the best model.
+
+```{r}
+rfTuned$bestTune %>% 
+kable(
+    format = "html",
+    caption = "Table 3. Results of the Grid Search on Random Forest for 30 Min Data") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F))
+```
+
+#### 5.4.1.4. Fit the best model's hyperparameters to the test data.
+
+```{r}
+rfTuned <- train(Treatment ~.,  
+               data = train,
+               method = "ranger",
+               trControl = kFoldCtrl, 
+               tuneGrid = rfTuned$bestTune)   ## Use the best model
+```
+
+#### 5.4.1.5. Make the new predictions to assess accuracy.
+
+```{r}
+pred.test.rf <- predict(rfTuned, test, type = "raw")  ## type is now 'raw' 
+# Store the confusion matrix
+confMatTuned <- confusionMatrix(pred.test.rf, test$Treatment)
+```
+
+#### 5.4.1.6. Compare the three confusion matrices.
+
+```{r}
+compareConfusion(confusionList = list(confMat, confMatCV, confMatTuned)) %>% 
+    kable(
+    format = "html",
+    caption = "Table 4. Comparing Accuracy - Random Forest for 30 Min Data") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F))
+```
+
+> Once again, the results from Confusion Matrix 1 (OOB), Confusion Matrix 2 (10-Fold CV), and Confusion Matrix 3 (Grid Search) output identical metrics. These results are likely due to the big p little n problem. The accuracy for all three models is 0.5 and the kappa for all three models is 0. These results indicate that the models are not performing any better than random guessing.
+
+### 5.4.2 Grid Search Using a Customized `caret` Method
+
+#### 5.4.2.1. Write a customized `caret` method for random forest using the `ranger` method.
+
+```{r, echo = FALSE}
+makeCustomMethod <- function(paramList, methodName) {
+  # Create a custom list, for a classification model and the ranger method. This list does not use loops.
+  custom <- list(type = "Classification", 
+                 library = "ranger", 
+                 loop = NULL)
+  # Create a dataframe that defines the hyperparameters that can be tuned, assign each of them to a class, and label them
+  custom$parameters <- data.frame(parameter = paramList, 
+                                  class = rep("numeric", length(paramList)), 
+                                  label = paramList)
+    # Create a function for the grid search
+    custom$grid <- function(x, y, len = NULL, search = "grid") {}
+    # Fit the model using the hyperparameter values in the grid search function
+    custom$fit <- function(x, y, wts, param, lev, last, weights, classProbs) {
+        # Fit the random forest model and specify mtry and num.trees values
+        randomForest(x, y, 
+               mtry = param$mtry,    ## Need to update to make dynamic
+               num.trees = param$num.trees)
+  }
+  # Create a function for model predictions
+  custom$predict <- function(modelFit, newdata, preProc = NULL, submodels = NULL)
+  # Create the predictions from the model
+  predict(modelFit, newdata)
+
+  # Create a function for model probabilities
+  custom$prob <- function(modelFit, newdata, preProc = NULL, submodels = NULL)
+  # Create the probabilities from the model
+  predict(modelFit, newdata, type = "prob")
+
+  # Sort the results of the hyperparameter tuning by the first column
+  custom$sort <- function(x) x[order(x[,1]),]
+
+  # Return the class levels for the classification model
+  custom$levels <- function(x) x$classes
+return(custom)
+}
+```
+
+#### 5.4.2.2. Run the customized method.
+
+**NOTE**: This takes about 12 min to run on 16gb of RAM. This is exactly why we are doing caching for this assignment. Otherwise, your report will take forever to re-knit. 
+
+```{r}
+## Run the custom method setting the hyperparameters we want to use
+customRF <- makeCustomMethod(paramList = c("mtry", 
+                                           "num.trees", 
+                                           "min.node.size",
+                                           "splitrule"),
+                             methodName = "ranger")
+
+## Now expand the search grid
+searchGrid <- expand.grid(.mtry = floor(ncol(train) * c(.05, .15, .25)),
+                        .num.trees = c(50, 200), 
+                        .min.node.size = c(1, 5, 10, 20),
+                        .splitrule = "gini"
+                        )
+## Now run the RF with the custom tuned hypers and the new search grid
+customTuned <- train(y = train$Treatment, x = train, 
+                method = customRF, 
+                metric = "Accuracy", 
+                tuneGrid = searchGrid, 
+                trControl = kFoldCtrl)
+```
+
+```{r, echo=FALSE, fig.cap = "Figure 3. Visualize the Customized Grid Search Performance"}
+ggplot(customTuned, highlight = TRUE) +
+  ggtitle("Customized RF Performance Grid Search Tuning for 30 Min Data") + 
+  theme_bw()
+```
+
+> The following combination of hyperparameters gives the highest accuracy: num.trees = 50, mtry = 427, and min.node.size = 3. These hyperparameters produce an accuracy of approximately 0.81 (81%). For all three models (OOB, 10-Fold CV, and Grid Search), the gini rule provided the best results.
+
+
+#### 5.4.2.3. Take a look at the hyperparameters of the best model.
+```{r}
+customTuned$bestTune %>% 
+kable(
+    format = "html",
+    caption = "Table 4. Results of the Customized Grid Search on Random Forest for 30 Min Data") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F))
+```
+
+#### 5.4.2.4. Refit the best model's hyperparameters to the test data set.
+```{r, warning = FALSE, message=FALSE}
+newTuned <- train(Treatment ~.,  
+               data = train,
+               method = customRF,
+               trControl = kFoldCtrl, 
+               tuneGrid = customTuned$bestTune)
+```
+
+#### 5.4.2.5. Make the new predictions to assess accuracy.
+```{r}
+pred.test.rf <- predict(newTuned, test, type = "raw")  
+# Store the confusion matrix
+confMatTuned2 <- confusionMatrix(pred.test.rf, test$Treatment)
+```
+
+#### 5.4.2.6. Compare the four confusion matrices.
+```{r, echo = FALSE}
+compareConfusion(confusionList = list(confMat, confMatCV, confMatTuned, confMatTuned2)) %>% 
+    kable(
+    format = "html",
+    caption = "Table 4. Comparing Accuracy - Random Forest for 30 Min Data") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F))
+```
+
+> The hyperparameter tuning with the number of trees and the new grid search (Confusion Matrix 4) had identical metrics to the OOB model (Confusion Matrix 1), the 10-Fold CV model (Confusion Matrix 2), and the original grid search model (Confusion Matrix 3). All four models have an accuracy of 0.50 (50%) and a kappa of 0, once again indicating that these models perform as well as randomly guessing.
+
+
+```{r}
+# Check model stability across folds
+customTuned$resample
+```
+
+> I checked the model stability across folds, which provided different results than Phase 1. Here, not all of the accuracy values are 1. There are three folds with an accuracy of 0.50. Additionally, there are three kappa values: 0, 1, and NA.
+
+> These results do not provide any imrpovement in results. Therefore, it is not worth continuing down this path.
+
+### 5.5.3 Running a Nested CV
+
+#### 5.5.3.1. Set a search grid and train the model using the `nestedcv.train()` function.
+
+Note that the setup looks a little reminiscent of our customized `caret` function. That's because the authors of this package are doing something similar, although they have improved the computational speed. We could do that too - **if** we wanted to write a package. Otherwise, we can just let ours run and take a coffee/tea break. :)
+
+**IMPORTANT!**: We are not able to use $m_{try}$ as large as we are used to because we're doing inner- and outer-folds. We lowered $m_{try}$ here as a result. If you are doing this on different data and you get an error, that's something to look into!
+
+**Note**: This took 14 mins on 16gb RAM, depending on what else I was asking my computer to do at the same time.
+
+```{r}
+searchGrid <- expand.grid(.mtry = floor(ncol(train) * c(0.01, 0.05, 0.10)),
+                        .min.node.size = c(1, 5, 10),
+                        .splitrule = "gini"                        
+                        )
+ncv <- nestcv.train(y = train$Treatment, x = train,
+                    method = 'ranger',
+                    tuneGrid = searchGrid, 
+                    savePredictions = "final")
+```
+
+```{r, echo = FALSE, fig.cap = "Figure 4. Visualize the Nested CV Performance on RF + Grid Search}
+ggplot(ncv$outer_result[[1]]$fit) +
+  scale_x_log10() +
+  ggtitle("Results of Nested CV with hyperparameter tuning for 30 Min Data") +
+  theme_bw()
+```
+
+#### 5.5.3.2. Plot the Receiver-operator curves (ROC) and precision-recall curves for both the inner- and outer- loops.
+
+**Note**: You're going to see something really weird here...
+
+```{r, echo=FALSE}
+# Plot ROC and Precision-Recall curves
+op <- par(mfrow = c(1, 2))
+
+## Outer CV ROC
+plot(ncv$roc, 
+     main = "Outer-folds ROC", 
+     col = 'blue')
+legend("bottomright", 
+       legend = paste0("AUC = ", signif(pROC::auc(ncv$roc), 3)), 
+       bty = 'n')
+
+## Inner CV ROC
+inroc <- innercv_roc(ncv)
+plot(inroc, 
+     main = "Inner-folds ROC", 
+     col = 'red')
+legend("bottomright", 
+       legend = paste0("AUC = ", signif(pROC::auc(inroc), 3)), 
+       bty = 'n')
+```
+
+#### 5.5.3.3. Get final accuracy by fitting to the test data.
+
+```{r}
+preds <- predict(ncv, 
+                 newdata = test)
+confusionMatrix(preds, test$Treatment)
+```
+
+> The Outer-folds ROC curve has an AUC of 0.714 (71.4%), while the Inner-folds ROC curve has an AUC of 0.739 (73.9%). These are average AUC values that indicate moderate model performance. These are much more realistic values than we saw in Phase 1 of the project.
+
+> The model has a balanced accuracy of 0.5 (50%). This matches the no information rate, which is the baseline comparison.The big p little n issue continues to be an issue for many of our metrics, highlighting that while we have many predictors, we do not have many observations. This can impact our model results and make it difficult to get useful information from them.
+
+> The above code mentions that the positive class is Control. The confusion results are as follows:
+True Positives (TP): 0
+False Positives (FP): 0
+False Negatives (FN): 1
+True Negatives (TN): 1
+There is one False Negative and one True Negative value. This indicates that the model only correctly identifies one instance of the negative class (Cold). However, there are zero True Positives or False Positives. This indicates that the model is not identifying the positive class (Control) at all.
+
+#### 5.5.3.4. Grab the important features.
+
+Even if you decided that model performance is still poor and that you'd not recommend continuing with the RF, let's practice grabbing the important features so you have code to do it.
+
+```{r, echo=FALSE}
+nested_importantRF <- rf_filter(ncv, 
+                               y = train$Treatment, 
+                               x = train[, -ncol(train)], # drop Treatment
+                               type ="full") %>% as.data.frame()
+names(nested_importantRF) <- "MeanDecreaseGini"
+```
+
+```{r, echo=FALSE}
+nested_importantRF %>% 
+  arrange(desc(abs(MeanDecreaseGini))) %>% 
+  top_n(10) %>% 
+kable(
+    format = "html",
+    caption = "Table 5. Important Features from the Nested CV Grid Search on Random Forest for 30 Min Data") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F))
+```
+
+> The above table shows the important features from the Nested CV Grid Search on Random Forest for the 30 minute data. There are 13 features here, with MeanDecreaseGini values ranging from 1.41 to 2.8. Although these variables look promising, the big p little n issue still continues. Therefore, since we have such a small number of samples, these results do not generalize well. As we saw earlier, we had trouble with resampling folds due to the small number of samples. This leads to the conclusion that although these results look ok, they should not be trusted on their own, due to the small number of samples. We continue to have minimal confidence in the results, especially since in the case of the 30 minute data, the number of observations were so small.
+
+#### 5.5.3.5. Compare our gene results to the ones out of `DESeq2`.
+
+Remember, the ultimate goal was to see which ML method was getting us close to results from `DESeq2`, the respected, conventional method.
+
+Let's filter the nested CV random forest importance:
+```{r, echo = FALSE}
+importantRF_filt <- nested_importantRF %>% 
+  as.data.frame() %>% 
+  filter(MeanDecreaseGini > 0)
+```
+
+Now let's compare that to what we got out of `DESeq2`. 
+
+**Note** that I am setting a log-fold change filter to 1. In other words... any gene! Am I going to get any credible results?
+
+```{r, echo = FALSE}
+findOverlappingGenes(lfc = 1, importantRF_filt) %>% 
+  arrange(desc(abs(MeanDecreaseGini))) %>% 
+  kable(
+    format = "html",
+    caption = "Table 6. Overlapping Features identified from DESeq and Nested CV Random Forest for 30 Min Data") %>%
+    kable_styling(bootstrap_options = c("hover", full_width = F))
+```
+
+#### 5.5.3.6. Find out what our top gene from nested CV random forest does.
+
+Source: https://www.ncbi.nlm.nih.gov/gene/?term=LOC100747885
+Source: https://www.ncbi.nlm.nih.gov/gene/?term=LOC112213068
+Source: https://pmc.ncbi.nlm.nih.gov/articles/PMC10701545/
+
+> The above table shows that there are 14 genes that overlap between DESeq and the Nested CV Random Forest model. As mentioned in Demo 3, a negative log2FoldChange represents the down regulation of a gene, which is the gene getting turned off. A postiive log2FoldChange represents the up regulation of a gene, which is the gene getting turned on. Here, gene LOC100747885 is the most down regulated, with a log2FoldChange of -4.084690. Gene LOC100748162 is also down regulated, with a log2FoldChange of -3.578099. Conversely, gene LOC112213068 is the most up regulated, with a log2FoldChange of 1.518687.
+
+> The padj (adjusted p-value) for the genes mentioned above are 0.0133650, 0.0125250, and 0.0191387. Since these are < 0.05, they are statistically significant. There are a total of 5 genes that are statistically significant in this table, while the remaining 9 are not.
+
+> The most down regulated gene, LOC100747885, is a phospholipase A1 gene. The function of this gene is that it enables lipase activity.
+
+> The most up regulated gene, LOC112213068, is uncharacterized. According to the National Libary of Medicine, an uncharacterized gene is one whose function has rarely been identified. Therefore, the effect the chill coma has on this gene is unknown.
+
+> The two overlapping features from Phase 1 were LOC100749486 and LOC100748162. Gene LOC100748162 shows up as an overlapping feature in both Phase 1 and Phase 2 of the project.
 
 # References
