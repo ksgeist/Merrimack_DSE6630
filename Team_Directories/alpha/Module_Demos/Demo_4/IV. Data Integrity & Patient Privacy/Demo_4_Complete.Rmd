@@ -1,0 +1,837 @@
+---
+title: "Demo 4: Patient Privacy & Data Integrity"
+subtitle: "Merrimack College DSE6630: Healthcare & Life Sciences Analytics"
+author: "Katherine S. Geist, PhD"
+date: "16 June 2026"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: flatly
+    fig_crop: no
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      cache = TRUE,    
+                      cache.comments = TRUE,
+                      size = 13)
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# clean workspace only
+rm(list = ls(all = TRUE))
+
+# load only the packages actually needed for this demo
+library(DBI)
+library(RSQLite)
+library(tidyverse)
+library(ggplot2)
+library(kableExtra)
+library(forcats)
+library(jsonlite)
+library(lubridate)
+
+## load the data files
+load("patient-data.Rdata")
+
+## create a fake, local SQLite database to practice queries
+con <- dbConnect(RSQLite::SQLite(), ":memory:")
+
+dbWriteTable(con, "patient_info", patient_info, overwrite = TRUE)
+dbWriteTable(con, "patient_disability", patient_disability, overwrite = TRUE)
+dbWriteTable(con, "patient_clinical", patient_clinical, overwrite = TRUE)
+dbWriteTable(con, "patient_insurance", patient_insurance, overwrite = TRUE)
+dbWriteTable(con, "patient_binge_drinking", patient_binge_drinking, overwrite = TRUE)
+
+## remove data frames so we practice querying from the database
+rm(patient_info)
+rm(patient_disability)
+rm(patient_clinical)
+rm(patient_insurance)
+rm(patient_binge_drinking)
+
+```
+
+
+
+
+
+
+
+# 1 Introduction
+
+You have just been brought onto a new project that is using an __mHealth__ (mobile health) application (**"iQOL"**, where QOL stands for "Quality of Life") to track the health of patients with and without disabilities. The goal of this mHealth application is to better understand how functional and quality of life differs day-to-day among patients with and without a disability.
+
+As a first pass, you ask the back-end (database) development team to provide you with some descriptive data from the first 100,000 users of the mHealth application. You want to make a report to stakeholders about who is using the application, the nature of the (dis) ability, geographic breakdown, and descriptive statistics about other information gathered by the mHealth application when a patient first signs up for the mHealth Tracker. 
+
+The app's back-end developer sends you several tables from the database in an Rdata file, with the following descriptions of fields:
+
+```{r, echo=FALSE}
+dict <- tribble(
+  ~ Variable, ~ Description,
+  "PT_KEY", "Patient unique identifier",
+  "INS_KEY", "Insurance unique identifier",
+  "FIRST_NAME", "Patient first name",
+  "SURNAME",  "Patient surname",
+  "DOB",  "Date-of-birth",
+  "AGE_DAYS",   "Age in days at time of database pull",
+  "AGE_YEARS",  "Age in years at time of database pull",
+  "EMAIL_ADDRESS", "Patient email address",
+  "STREET",   "Patient mailing address",
+  "CITY",  "City of mailing address",
+  "STATE",  "State of mailing address",
+  "ZIPCODE", "Zipcode of mailing address",
+  "TELEPHONE", "Patient primary phone number",
+  "ADULT_CHILD", "Flag if user is under 18 (we're developing a separate app for teens)",
+  "FLU_INNOC", "Patient states they received their influenza vaccine this year",
+  "COVID_INNOC", "Patient states they received their COVID-19 vaccine this year",
+  "TET_INNOC", "Patient states they received their tetanus vaccine in past 10 years",
+  "DATE_LAST_SEEN", "Patient reported last date seen by primary care physician",
+  "NEW_PATIENT", "New user to the application",
+  "PUBLIC_INS", "Patient reports receiving public insurance (Medicaid, Medicare, VA Benefits)",
+  "DISABILITY_STATUS", "Patient-reported disability status, per federal guidelines",
+  "EMPLOYMT_STATUS", "Patient-reported employment status for past 6 months",
+  "EDUC_LEVEL", "Patient-reported highest educational attainment",
+  "BMI_CATEGORY", "Body mass index categorization; BMI < 18.5 Underweight, 18.5 < BMI < 25 Normal, 25 <= BMI < 30 Overweight, BMI >= 30 Obese",
+  "SMOKING_STATUS", "Patient is a former or current smoker, or has never smoked",
+  "BINGE_DRINKING", "Patient reports at least one episode of binge drinking in past 6 months"
+)
+
+kable(
+    dict,
+    format = "html",
+    col.names = c("", ""),
+    caption = "Table 1. Data dictionary of available fields in the mHealth database pull.") %>%
+    kable_styling(bootstrap_options = c("hover"),
+)
+```
+
+## 1.1 Database connections
+
+If your developer had given you `.db` files, or if you were accessing a server, you would have needed to walk through two steps, which we will simulate here, in order to load the tables into R for analysis. 
+
+**Importantly**, the general purpose of doing this work in R will generally be for **research/analysis only**. However, the advantage to writing it in SQL is two-fold:
+
+1. You can use your SQL queries on the server itself to do the same work, say, for a report you need to generate regularly.
+
+2. If you DO need to update tables in the database, you can actually do that from R!!
+
+**A word of caution**, however: if you've been given access to the __production__ databases, do not ever alter or update the tables unless you've been given explicit permission to do so. 
+
+### 1.1.1 Making connections
+
+```{r, echo=TRUE, eval=FALSE}
+## This is how you would set a connection to an external server
+
+# con = dbConnect(MySQL(),
+#                 dbname = 'my_db_name',
+#                host = 'my_host',
+#                port = 3306,   ## The typical port used for SQL and MySQL servers
+#                 user = 'username',
+#                 password = 'password')
+
+## Can be helpful to establish which flavor of SQL
+
+# options(sqldf.driver = "SQLite")
+```
+
+But here, I've already made a connection to our mock database, also stored into `con`. So we will use that.
+
+### 1.1.2 How many tables?
+
+Usually the first thing we want to know if we're unfamiliar with a database is **how many tables are in it**. We are going to make our first SQL query together to get the names of all the tables in the connection, `con`. Notice that I have to use `dbGetQuery()` as my function to set the query, then I have to specify the name of the connection, `con`. The actual query itself is then given as a string in quotations after that.
+
+```{r}
+dbGetQuery(con, "SELECT name FROM sqlite_master WHERE type='table'")
+```
+
+### 1.1.3 What's in each table?
+
+Notice that, unlike when we work with dataframes directly in R, we can't __see__ the tables. I did this on purpose; I'm hiding them from you so that it's as much like a simulated database experience as possible.
+
+So, if we're flying blind, how can we find out what's in the tables? Simple - we write a query! Since we have five tables, the easiest way to do this is probably to write a `for` loop, where we query each table as we loop. 
+
+Although there are multiple ways we could choose to execute this, perhaps some more clean than others, we are going to use the SQLite statement `PRAGMA`, which is a SQLite-specific extension and can be used to modify an operation or query a SQLite library. We're using it for the second purpose. In other words, we will use `PRAGMA` to allow us to query each table using `dbGetQuery`. Confused yet? It's okay if you are!
+
+1. Make a query using `dbGetQuery` to get all of the names of the tables on the connection `con`. We will store these table names into `tables`. (Note that I didn't call them `table` because that's the name of a base `R` function! Best programming practice will ALWAYS have us not overwrite base objects; but in `R`, there are no protected name spaces, like there are in some other programming languages. So, we as the programmer must be cautious.)
+
+2. Start the `for` loop, looping through each table by its `name`. 
+
+3. Make a second query using `dbGetQuery`, this time setting the connection `con` AND using `PRAGMA` to get the `table_info` of each table. `table_info` returns a set of pre-specified fields on information, but I am only going to print the first two fields for brevity.
+
+And that's it! A little clearer? If not, work through this code trying to change variables to help yourself figure out how it works. It's a **query within a query!**
+
+```{r}
+## 1. Make a query to get the list of tables from the connection, which we store in tables
+tables <- dbGetQuery(con, "SELECT name FROM sqlite_master WHERE type = 'table' ")
+
+# Loop over each table by name and print the table information 
+for (t in tables$name) {
+  ## Store the table information after making a second table-specific query about what's in the table using PRAGMA and table_info()
+  table_info <- dbGetQuery(con, paste0("PRAGMA table_info(", t, ")"))
+  ## Print the name of the table so we know the order 
+  print(t)
+  ## Show the first two columns from the table_info() of each table in the connection
+  print(table_info[, 1:2])
+}
+```
+
+It might feel like we're starting a bit deep, but don't worry - we can get a lot of information using simpler queries too, including assessing how well our developer has been protecting __patient privacy__.
+
+
+# 2 Ensuring Patient Privacy
+
+You had already decided, since you're still learning **SQL (Structured Query Language)** to continue using that in R for practice rather than the more familiar `tidyverse`. See, we would have the option to __store our dataframes__ from the connection `con` and manipulate them in all the familiar ways! And we will, in good time. But first, we are going to continue to use `dbGetQuery()` from the `SQLite` package to help us to make our queries.
+
+You noticed as soon as you saw the fields of some of the tables that the developer sent that there's a __big problem!!__ The identities of your mHealth users are __NOT__ being safeguarded correctly. Uh-oh!
+
+##### Just how bad IS the problem?
+
+## 2.1 Checking for duplicate keys
+
+You decide to first check for duplicates because, well, you asked for 100,000 adult patients... did you actually get 100,000? You start in the `patient_info` table because you see a lot of problems there in terms of protecting patient privacy!
+
+```{r}
+dbGetQuery(con, "SELECT pt_key, 
+  COUNT(*) AS patient_count
+  FROM patient_info
+  GROUP BY pt_key
+  HAVING patient_count > 1")
+```
+
+Whew! No problems here. Notice first that, to write this query, we are using the `dbGetQuery()` function in R (which is serving as a __wrapper__) to call our SQL query on our database connection, `con`. Our query is given as a string in quotations.  Also notice that even though the __field__ in our table is `PT_KEY`, in SQL letter case doesn't matter. In fact, upper case is usually reserved for certain __actions__ in SQL: `SELECT`, `COUNT`, `FROM`, `GROUP BY`, and `HAVING`. These are the __functions__. However, you don't even have to use the case for your query to run! Notice, too, that we used the `(*)` wildcard to select ALL patient keys. 
+
+Also, note that even though I put each statement on separate lines (which is how we often write it in a query on a SQL server), we do not have to. We just do that to improve _readability of the code_. 
+
+#### Question 1 [1 point]:
+
+Try to translate into English exactly what this SQL query does.
+
+> The query checks the patient_info table for duplicate patient identifiers. It groups all records by pt_key and counts how many times each patient ID appears in the table. The HAVING patient_count > 1 statement then filters the results to only show patient IDs that occur more than once. The query is used to identify duplicate patient records and verify that each patient key is unique within the database. Because the query returned zero rows, no duplicate patient IDs were found.
+
+#### Question 2 [1 point]:
+
+You try it: check for duplicate insurance keys. Make sure to query the right table! (**Hint**: You should get 81.)
+
+```{r}
+dbGetQuery(con,
+"SELECT ins_key,
+        COUNT(*) AS insurance_count
+ FROM patient_insurance
+ GROUP BY ins_key
+ HAVING insurance_count > 1")
+```
+
+#### Question 3 [1 point]:
+
+Is this a problem? Why or why not? (Hint: Can multiple individuals be on the same insurance policy?)
+
+> This is not necessarily a problem. Unlike a patient key (PT_KEY), which should uniquely identify a single patient, an insurance key (INS_KEY) may be shared by multiple individuals. For example, family members such as spouses, partners, or children and other dependents can be covered under the same insurance policy and therefore have the same insurance identifier. As a result, finding duplicate insurance keys does not automatically indicate an error in the data.
+
+## 2.2 Dropping fields with sensitive data
+
+```{r, echo = FALSE}
+dbGetQuery(con, "select * from patient_info") %>% 
+head() %>% 
+  kable(
+    format = "html",
+    caption = "Table 2. The patient_info table BEFORE removing any sensitive information. ") %>%
+    kable_styling(bootstrap_options = c("hover"),
+)
+```
+
+Let's start by dropping ALL of the ultra sensitive data from the `patient_info` table: date-of-birth, age_days, name fields, street address, telephone, & email address from `patient_info`. 
+
+In SQL, there is a function called `DROP COLUMN` that unfortunately is not supported by any of the packages we are using in R. Instead, we will have to use the `SELECT` function to choose the fields we want to keep. 
+
+But note that it is not nearly as straightforward as if we were doing it in R. We will have to go through a series of steps to do it correctly; NOT ONLY THAT, __but it is making permanent changes to the database connection!__ PROCEED WITH CAUTION in the real world!
+
+This is why there are often two versions of the database, one that is in __production__ and one that is used for __research/analysis__. Thus, we can think of this as we are making corrections to the analytical database. But we will also need to make sure to __give our suggestions__ back to the developer!!
+
+* 1. Make a copy of the `patient_info` table, called `temp`, from just the columns we want to __keep__.
+
+* 2. Now, this is blank. We have to actually `INSERT INTO` the new table, `temp`, the columns we want!
+
+* 3. Remove, or `DROP TABLE` the original `patient_info` table
+
+* 4. `RENAME` the table `temp` back to the original name, `patient_info`, by using the `ALTER TABLE` statement.
+
+Notice too that to execute these table-level functions I am now using `dbExecute()` from `SQLite` rather than `dbGetQuery()` because these are not queries. These are executive statements.
+
+```{r, results='hide'}
+# Step 1
+dbExecute(con, "CREATE TABLE temp AS 
+  SELECT pt_key, age_years, city, state, zipcode, educ_level
+  FROM patient_info")
+
+# Step 2
+dbExecute(con, "INSERT INTO temp (pt_key, age_years, city, state, zipcode, educ_level)
+  SELECT  pt_key, age_years, city, state, zipcode, educ_level
+  FROM patient_info")
+
+# Step 3
+dbExecute(con, "DROP TABLE patient_info")
+
+# Step 4
+dbExecute(con, "ALTER TABLE temp RENAME TO patient_info")
+```
+
+**Important**: We have permanently replaced the original `patient_info` table the developer gave us!!!
+
+```{r, echo = FALSE}
+dbGetQuery(con, "select * from patient_info") %>% 
+head() %>% 
+  kable(
+    format = "html",
+    caption = "Table 3. The patient_info table AFTER removing any sensitive information. ") %>%
+    kable_styling(bootstrap_options = c("hover"),
+)
+```
+
+#### Question 4 [1 point]:
+Your turn!
+
+Remove all the sensitive information remaining in any of the other tables. 
+
+```{r}
+# Remove sensitive fields from patient_clinical: SURNAME and DOB
+
+dbExecute(con, "DROP TABLE IF EXISTS temp_clinical")
+
+dbExecute(con, "CREATE TABLE temp_clinical AS
+  SELECT pt_key, flu_innoc, tet_innoc, covid_innoc, bmi_category, smoking_status
+  FROM patient_clinical")
+
+dbExecute(con, "DROP TABLE patient_clinical")
+
+dbExecute(con, "ALTER TABLE temp_clinical RENAME TO patient_clinical")
+```
+```{r}
+#check
+dbGetQuery(con, "SELECT * FROM patient_clinical LIMIT 6")
+
+```
+Not sure what to do? Load the R script and run it instead to proceed.
+
+```{r}
+#source("q4_answer.R")
+```
+
+Make sure to demonstrate that the sensitive information is gone using the follow code that employs the `head()` function after removing the comments and making it executable. 
+
+```{r, echo = TRUE}
+ dbGetQuery(con, "select * from patient_clinical") %>% ## fill in the name of the table you removed sensitive info from
+ head() %>% 
+   kable(
+     format = "html",
+     caption = "Table 4. The table AFTER removing sensitive information. ") %>%
+     kable_styling(bootstrap_options = c("hover"),
+ )
+```
+
+
+#### Question 5 [1 point]:
+**Have your noticed that I am having to first extract the table as a dataframe using `dbGetQuery()` before I can pass it through `head()`?**
+
+Why do you think I have to do this?
+
+> We first have to use dbGetQuery() because the data is stored in the database rather than as an R dataframe. The head() function is an R function that operates on dataframes and other R objects, so R cannot apply it directly to a database table. dbGetQuery() executes the SQL query and returns the results as a dataframe, which can then be passed to head() to display the first few rows. 
+
+## 2.3 Preserving integrity while removing anything that can identify a patient.
+
+When looking at the `ZIPCODE` column of the `patient_info` table, you start to worry about some of the entries. Some zipcodes have the four-digit US postal service identifiers, which can really narrow down a patient's identity to a much smaller geographic region. This makes you uneasy (and me too!). So, we decide to preserve zipcode (a much larger geographic area) while dropping the four-digits at the end when they exist. 
+
+You know you could do this easily with `gsub()` as we've used before on a dataframe - but we aren't currently working with a dataframe! So, you decide to try doing it the "SQL-way" first to see if you can do it.
+
+* 1. Create a `temp` table. This time, we are making it from everything in the `patient_info` table and we are specificying it as a `TEMPORARY TABLE` with our `CREATE` statement. This is to save us the two steps we had to do to make the `temp` table earlier.
+
+```{r, results='hide'}
+dbExecute(con, "CREATE TEMPORARY TABLE temp AS
+  SELECT * FROM patient_info")
+```
+
+* 2. Now use the `UPDATE` statement with the `SUBSTR()` (substring) function to just keep the first 5 characters of the ZIP code. Note that we are doing this on the `temp` table and not `patient_info`.
+
+```{r, results='show'}
+dbExecute(con, 
+          "UPDATE temp SET zipcode = SUBSTR(zipcode, 1, 5)")
+```
+
+Uh-oh... 200,000? Does that mean we __duplicated rows?__
+
+```{r, results='show'}
+dbGetQuery(con, 
+           "SELECT COUNT(*) AS row_count FROM temp")
+```
+
+Noooooo! What happened? Weren't we just trying to lop off the "-xxxx" off the end of a 5-digit ZIP code? 
+
+So, the problem is that SQL is not smart enough to know what to do when data match in more than one column. It errs on the side of caution, preserving the data - which inherently isn't a bad thing at all, just a bit annoying. Although one way to avoid it is to ensure that you're mapping any many-to-many relationships (if they exist), but sometimes it is easier to simply remove duplicated rows.
+
+##### Enter your first major lesson in writing SQL:
+Always, always, ALWAYS alter a **TEMPORARY** version of the table when you're working in your database connection. Because undo buttons do not exist (although back-end developers will write in safeguards and, chances are, you wouldn't be allowed to alter the production database unless you have a really sloppy back-end dev).
+
+* 3. Okay, let's tidy up! Notice that what I am doing is using the `DISTINCT` statement to remove all duplicated rows from the temp table. Not only that, rather than having to use another `ALTER` statement, I am choosing to just overwrite `patient_info` so then we're done.
+
+```{r, results='hide'}
+## Drop the original
+dbExecute(con, "DROP TABLE patient_info")
+
+## Remove the duplicates from the temp and make a new patient_info
+dbExecute(con, "CREATE TABLE patient_info 
+  AS SELECT DISTINCT *
+  FROM temp")
+
+## Drop the temporary
+dbExecute(con, "DROP TABLE temp")
+```
+
+```{r, echo = FALSE}
+dbGetQuery(con, "select * from patient_info") %>% 
+head(10) %>%
+  kable(
+    format = "html",
+    caption = "Table 5. Did we fix the ZIP codes? ") %>%
+    kable_styling(bootstrap_options = c("hover"),
+)
+```
+
+Yay, we did it! But let's pause to reflect a moment: Didn't this feel like A LOT more work than if we'd just made the dataframe in R and then used the one-liner `gsub()`? Arguably, I think so - but it depends on our ultimate goal. If the goal is to `UPDATE` the database, we would need to do it this way and not just `gsub()` it!
+
+# 3 Descriptives
+
+Next, since we're working in SQL and flying 'blind', we would also like to try to get some sense for what these data contain, if there are any issues we need to take back to the developer for integrity as well as privacy concerns. We start by going through and looking at the tables descriptively.
+
+## 3.1 Geographic representation
+
+```{r}
+dbGetQuery(con, 
+      "SELECT COUNT(DISTINCT state) AS num_states FROM patient_info")
+```
+
+##### Does 89 states seem a little odd to you?
+It does to me! Let's see what they are:
+
+```{r, echo = FALSE}
+dbGetQuery(con, 
+      "SELECT DISTINCT state FROM patient_info") %>% 
+  arrange(STATE) %>% 
+  head(12) %>% 
+  kable(
+    format = "html",
+    caption = "Table 6. What's going on with the states??!?") %>%
+    kable_styling(bootstrap_options = c("hover"),
+)
+```
+#### Question 6 [1 point]:
+
+What is your best guess about what you think has happened? Do you need to iunclude this in your report back to the developer?
+
+> Our best guess is that the database contains international addresses that were stored in the same field as U.S. state abbreviations. State abbreviations such as “AB” suggests that Canadian provinces, such as Alberta, were included in the data pull. This likely explains why there are 89 distinct values in the STATE field instead of the expected number of 50 U.S. states and Washington DC. Yes we would definitely include this in our report to the developer because it represents a data integrity issue and could affect any geographic analyses performed on the dataset.
+
+
+
+
+
+
+#### Question 7 [1 point]:
+
+Confirm your suspicions by writing a query to print all the ZIP codes in **AB**. Use the `SELECT`, `DISTINCT`, and `WHERE` statements. For example, in SQL, `SELECT zipcodes FROM patient_info WHERE state = 'AL';` would return all of the ZIP codes in the state of Alabama. Look up one of the ZIP codes - does it confirm your suspicions about what happened with the data pull?
+
+```{r}
+dbGetQuery(con,
+"SELECT DISTINCT zipcode
+FROM patient_info
+WHERE state = 'AB'")
+```
+
+> Yes this confirms our suspicions. The query returned postal codes such as “T2E 8”, “T5Z 0”, and “T4P 3”, which do not follow the format of U.S. ZIP codes. Looking up these postal codes shows that they are associated with Alberta, Canada. This confirms that the data pull includes international addresses and Canadian provinces were stored alongside U.S. state abbreviations in the STATE field. This likely explains why there are 89 distinct state values in the dataset.
+
+
+
+#### Question 8 [2 points]:
+
+Decipher, into English, what you think this SQL query is doing.
+
+```{r}
+dbGetQuery(con, 
+  "SELECT COUNT(DISTINCT pt_key) AS patient_count FROM patient_info WHERE state = 'AL' AND city = 'WETUMPKA' ")
+```
+
+> This query counts the number of unique patients in the patient_info table who live in the city of Wetumpka, Alabama. It uses COUNT(DISTINCT pt_key) to ensure that each patient is counted only once, even if their record were to appear more than once. The WHERE clause filters the results to include only rows where both the state is 'AL' (Alabama) and the city is 'WETUMPKA'.The final result tells us that there are 12 unique patients from Wetumpka, AL in the dataset.
+
+Now write your own! Pick your hometown or your homestate and find out how many patients in the `patient_info` table are from there.
+
+```{r}
+dbGetQuery(con, 
+  "SELECT COUNT(DISTINCT pt_key) AS patient_count FROM patient_info WHERE state = 'NH' AND city = 'NASHUA' ")
+```
+
+## 3.2 Age
+
+SQL does not have a lot of the sophisticated statistics we have grown accustomed to having access to in R, but we can execute the basics like max, min, and mean. Let's find the average, max, and minimum age in years of our patients in the `patient_info` table.
+
+```{r}
+dbGetQuery(con, "SELECT 
+    MAX(age_years) AS max_age,
+    MIN(age_years) AS min_age,
+    AVG(age_years) AS mean_age
+  FROM patient_info")
+```
+Pretty easy, right? This wasn't so bad!
+
+#### Question 9 [2 points]:
+
+Can you find the max, min, and mean age of all patients who reside in Massachusetts? (**MA**). 
+
+**Hint**: Use the `WHERE` statement! You should get a mean of 41.90843, max of 96.6, and min of 20.5.
+
+```{r}
+dbGetQuery(con, "SELECT MAX(age_years) AS max_age, 
+                        MIN(age_years) AS min_age, 
+                        AVG(age_years) AS mean_age 
+                 FROM patient_info 
+                 WHERE state = 'MA'")
+```
+
+## 3.2 Disability Status
+
+This is our primary interest, right? It would be nice to know the counts of folks in each of the disability categories, which we can return in SQL just as we could in R on a dataframe using the `table()` function or `dplyr`'s `count()` or the `n()` of `tidyverse`.
+
+Notice we need to switch to the `patient_disability` table this time. We introduce the `GROUP BY` statement, which works very much like it does in `dplyr` and `tidyverse`! 
+
+```{r}
+dbGetQuery(con, 
+  "SELECT disability_status,
+  COUNT(*) AS patient_count
+  FROM patient_disability
+  GROUP BY disability_status")
+```
+
+#### Question 10 [2 points]:
+
+Now do the same for `EMPLOYMT_STATUS` and `EDUC_LEVEL`, changing the tables as appropriate.
+
+```{r}
+dbGetQuery(con, "SELECT employmt_status, COUNT(*) AS patient_count 
+                 FROM patient_disability 
+                 GROUP BY employmt_status")
+```
+
+```{r}
+dbGetQuery(con, "SELECT educ_level, COUNT(*) AS patient_count 
+                 FROM patient_info
+                 GROUP BY educ_level")
+```
+
+# 4 Joining data tables in SQL
+
+So much of what you may need to do will involve joining, or merging, tables in some way. You may do this on the fly to produce unique tabulations of data. You may make a new, temporary table that you export to a dataframe to perform analysis upon. We will be doing it for the second purpose.
+
+## 4.1 Left joins
+
+By now in your data science career, the idea of left vs. right, inner vs. full joins are probably starting to feel pretty comfortable. Good! One could argue that **the table join was invented in SQL**, so what better place to practice them?
+
+A `left join` will keep all of the data on the left but only the data that match from the right table. If any data are missing in the right table, they will be dropped. 
+
+Let's perform a `left join` of the `patient_info` and `patient_disability` tables first.
+```{r}
+dbExecute(con, 
+  "CREATE TABLE merged AS SELECT *
+  FROM patient_info
+  LEFT JOIN patient_disability
+  ON patient_info.pt_key = patient_disability.pt_key")
+```
+
+Notice the syntax: `ON patient_info.pt_key = patient_disability.pt_key`. We name the left-hand table, then say what key we want to use; then we set that equal to the matching key in the right-hand table.
+
+#### Question 11 [1 point]:
+
+Write a quick query to report back how many rows successfully merged.
+
+```{r, results='show'}
+dbGetQuery(con, "SELECT COUNT(*) 
+    AS row_count 
+    FROM merged")
+```
+
+Any problems to report back to the back-end developer?
+> No rows were lost in the left join, confirming that every patient in patient_info had a matching record in patient_disability. With a left join, any patients without a matching disability record would have returned NULL values rather than being dropped, so the full 100,000 rows being retained is a good sign. No issues to report for this particular merge
+
+## 4.2 Inner join with aliasing
+
+Next, let's practice an inner join this time using what's called `aliasing` - because old-timey SQL programmers HATED writing out table names! They'd just call them 'a', 'b', or whatever else they felt like. Here, we will use `m` for the `merged` table and `c` for the `patient_clinical` table.
+
+```{r, results = 'hide'}
+dbExecute(con, 
+  "CREATE TABLE merged2 AS
+  SELECT 
+    m.pt_key,
+    m.ins_key,
+    m.age_years,
+    m.city,
+    m.state,
+    m.zipcode,
+    m.disability_status, 
+    m.employmt_status,
+    c.flu_innoc,
+    c.tet_innoc,
+    c.covid_innoc,
+    c.bmi_category,
+    c.smoking_status
+  FROM merged AS m
+  INNER JOIN 
+  patient_clinical AS c
+  ON m.pt_key = c.pt_key")
+
+## Now remove any duplicates:
+
+## Drop the original
+dbExecute(con, "DROP TABLE merged")
+
+## Remove the duplicates from the newly merged file and make it the new merged
+dbExecute(con, 
+  "CREATE TABLE merged 
+  AS SELECT DISTINCT *
+  FROM merged2")
+
+## Drop merged2 to tidy up
+dbExecute(con, "DROP TABLE merged2")
+```
+
+And how did we do?
+```{r}
+dbGetQuery(con,
+           "SELECT COUNT(*) AS row_count FROM merged")
+```
+
+Excellent! It looks like we haven't lost any rows in the merging process. Let's see where we are currently at.
+
+```{r, echo = FALSE}
+dbGetQuery(con, "SELECT * FROM merged") %>% 
+  head() %>% 
+  kable(
+    format = "html",
+    caption = "Table 7. Our beautifully merged table...") %>%
+    kable_styling(bootstrap_options = c("hover"),
+)
+```
+
+#### Question 12 [1 point]:
+
+Write either a `LEFT JOIN` or `INNER JOIN` to merge the `merged` table with the `patient_insurance` table. Make sure to join on TWO keys; you will find the `AND` statement helpful for this. Try using aliases!
+
+```{r, results='show'}
+dbExecute(con, "CREATE TABLE merged3 AS 
+                SELECT 
+                  m.pt_key, 
+                  m.ins_key, 
+                  m.age_years, 
+                  m.city, 
+                  m.state, 
+                  m.zipcode, 
+                  m.disability_status, 
+                  m.employmt_status,
+                  m.flu_innoc, 
+                  m.tet_innoc, 
+                  m.covid_innoc, 
+                  m.bmi_category, 
+                  m.smoking_status,
+                  i.public_ins
+                FROM merged AS m
+                LEFT JOIN patient_insurance AS i 
+                ON m.pt_key = i.pt_key 
+                AND m.ins_key = i.ins_key")
+
+dbGetQuery(con, "SELECT COUNT(*) AS row_count FROM merged3")
+
+```
+
+Not sure what to do? Load the R script and run it instead to proceed.
+
+```{r}
+#source("q12_answer.R")
+```
+
+
+#### Question 13 [1 point]:
+
+Any problems to report back to the back-end developer?
+
+> The merge was successful with all 100,000 rows retained, which is a good sign. However, it is worth noting that the patient_insurance table contains duplicate INS_KEY values which we identified 81 such duplicates back in Q2. While we established that this is not inherently a problem since multiple patients can share an insurance policy, it is still worth flagging to the developer so they are aware and can confirm this is expected behavior in the database rather than a data entry error.
+
+## 4.3 Joining when there are duplicate keys
+
+There is another table, `patient_binge_drinking`, that was pulled from the backend but there seems to be a problem with it. Notice that there is no `pt_key`!
+
+```{r, echo = FALSE}
+dbGetQuery(con, "SELECT * FROM patient_binge_drinking") %>% 
+  head() %>% 
+  kable(
+    format = "html",
+    caption = "Table 8. The patient binge-drinking table as pulled from the database.") %>%
+    kable_styling(bootstrap_options = c("hover"),
+)
+```
+
+#### Question 14 [1 point]:
+
+Why is it problematic for merging if the patient key is missing and only the insurance key is available?
+
+> Because INS_KEY is not unique to a single patient. Multiple individuals can share the same insurance policy. We confirmed earlier that 81 insurance keys appear more than once in the database. Merging on INS_KEY alone therefore risks creating a many-to-many relationship where binge drinking status is incorrectly attributed to the wrong patient, compromising both data integrity and patient privacy.
+
+
+There are really a couple of ways we could deal with this issue. First, and probably most practical, would be to ask our back-end developer to make sure the tables are linked up in the database. Something seems off! (**Hint**: Make sure to give them this recommendation!).
+
+But since we are also under a tight timeline to stakeholders, we are going to do our best to 'plow through' as quickly as we can with what we have. After all, if we remove the duplicated insurance keys entirely, we only lose 81 observations total - not so bad out of 100,000 for a first pass, right?
+
+Let's do it!
+
+## 4.3.1 Using `tidyverse` when we do not want to make any permanent changes to the connection.
+
+I have mentioned this several times, but we are definitely at a point where we do **NOT** want to be sending any changes back to the database. We don't want to permanently delete any data, for one thing!
+
+So, from this point forward, we will lean on our trusty friend from the past few weeks, `dplyr` and `tidyverse`.
+
+* 1. Extract the `merged` table and store it as a dataframe. 
+
+```{r}
+merged <- dbGetQuery(con,
+                     "SELECT * FROM merged")
+```
+
+* 2. Remove the duplicate keys from the `patient_binge_drinking` table. 
+
+```{r}
+dbExecute(con, 
+  "CREATE TEMPORARY TABLE temp AS
+  SELECT DISTINCT ins_key, binge_drinking
+  FROM patient_binge_drinking")
+```
+
+* 3. Verify that the duplicates were removed.
+
+```{r}
+dbGetQuery(con, "SELECT COUNT(*) AS patient_count FROM temp")
+```
+
+* 4. Now, extract it to a dataframe we will call `binge`.
+
+```{r}
+binge <- dbGetQuery(con, "SELECT* FROM temp")
+```
+
+
+* 5. Join `binge` with the bigger `merged` table we already have. Note that I am doing an `inner_join` - think about why this is! Also note that we are merging on the `ins_key`s rather than the patient keys as before!
+**Case matters again!!!**
+
+```{r}
+final <- inner_join(merged, binge, by = "INS_KEY", relationship = "many-to-many") %>% 
+  distinct(INS_KEY, .keep_all = TRUE)
+```
+
+* 6. Verify that our join was successful.
+
+```{r}
+str(final)
+```
+
+# 4 Aggregation to protect patient privacy
+
+One very important way that we can protect patient privacy is by aggregating across zip codes, regions, states, or any other grouping variable. Given that we often have very small sample sizes (e.g., 12 people with disabilities in Wetumpka, Alabama) it is ostensible that we STILL would not be doing a sufficiently good job at protecting their identity. What can we do?
+
+#### Question 14 [5 points]:
+
+Think about at least two ways we might aggregate the data here to protect patient privacy and conform with HIPAA regulations. Make sure to describe what you would do in detail and why.
+
+> 1. Aggregate geography to the state level
+Rather than reporting data at the ZIP code level, we should aggregate patients by state. As demonstrated earlier, some geographic areas have very small patient counts. For example, only 12 patients in Wetumpka, Alabama. At that granularity, a patient with a rare disability or unique combination of characteristics could potentially be re-identified. Rolling up to the state level dramatically increases group sizes, making individual identification far less likely. This is consistent with HIPAA's Safe Harbor de-identification standard, which requires geographic units to contain at least 20,000 people before inclusion in a de-identified dataset.
+
+>2. Bin continuous variables into categories
+Rather than reporting exact age in years, patients should be grouped into age brackets such as 18–30, 31–45, 46–60, and 61+. Exact ages combined with other variables like disability status, employment status, and geographic location increase re-identification risk through the accumulation of quasi-identifiers. Binning continuous variables into broader categories substantially reduces that risk while preserving analytical utility for stakeholder reporting. BMI is already handled this way in our dataset and serves as a good model for how age should be treated as well.
+
+# 5 Recommendations to the back-end development team
+
+#### Question 15 [10 points]:
+
+Draft a letter or brief report detailing the ways in which you would recommend that the database connection be improved to ensure patient privacy and data integrity. 
+
+* Did you get the data you 'asked' for? (100,000 adult users from the United States)
+* Were the data of high quality?
+* Were there any problems with keys?
+* Should you have had access to the production database? Why or why not?
+* Are we in danger of accidentally committing a HIPAA violation?
+
+Make sure to be detailed and specific. You are responsible for safe-guarding our patients' data - just as they are! The job doesn't fall to just one team. So be kind but firm in your recommendations.
+
+**Memorandum**
+
+**To:** Back-End Development Team
+**From:** Data Science Analytics Team
+**Re:** iQOL mHealth Database — Privacy & Integrity Review
+**Date:** June 16, 2026
+
+
+**Overview**
+
+> As part of our initial review of the first 100,000 user records pulled from the iQOL mHealth database, we identified several significant concerns related to patient privacy, data integrity, and HIPAA compliance that require your immediate attention. We outline them below along with specific recommendations for remediation.
+
+
+**1. Sensitive Patient Identifiers Were Exposed**
+
+> The data pull included direct patient identifiers that should never leave the production database, including full names (first and surname), date of birth, exact age in days, street address, telephone number, and email address. Exposure of these fields in an analytical data pull constitutes a serious HIPAA risk.
+
+> *Recommendation:* The analytical database should be stripped of all direct identifiers before delivery to any research or analytics team. At minimum, the following fields should be excluded from all future pulls: `FIRST_NAME`, `SURNAME`, `DOB`, `AGE_DAYS`, `STREET`, `TELEPHONE`, and `EMAIL_ADDRESS`. These should never appear outside of the production database.
+
+**2. We Should Not Have Had Access to the Production Database**
+
+> The fact that we were able to permanently alter tables, dropping columns and restructuring the database, indicates that we were given write access to what appears to be the production database. This is an unacceptable security risk. Any permanent changes we made cannot be undone, and had we made an error, patient data could have been lost irretrievably. During our review we accidentally dropped `EDUC_LEVEL` from the `patient_info` table before catching and correcting the mistake. This illustrates exactly how easily irreversible data loss can occur when analysts are given inappropriate write access.
+
+>*Recommendation:* Analysts should only ever be given access to a read-only analytical copy of the database, never the production environment. Write permissions should be restricted to authorized database administrators only.
+
+
+**3. The Data Pull Did Not Match Our Request**
+
+> We requested 100,000 adult patients from the United States. However, the dataset contains records from international addresses, including Canadian provinces such as Alberta (AB) and British Columbia (BC), as evidenced by 89 distinct values in the `STATE` field and Canadian-format postal codes (e.g., T2E 8, T5Z 0) appearing in the `ZIPCODE` field. This means our geographic analyses cannot be assumed to reflect a US-only population.
+
+> *Recommendation:* Future data pulls should include a filter restricting records to US addresses only. Additionally, input validation should be implemented in the app to ensure addresses conform to expected US formats at the point of entry.
+
+**4. ZIP Code Format Was Inconsistent**
+
+> Some ZIP codes included the four-digit USPS extension (e.g., 68467-4802), while others did not. This inconsistency required additional cleaning on our end and could cause errors in any geographic grouping or mapping analysis.
+
+> *Recommendation:* ZIP codes should be standardized to five digits at the point of entry or before delivery to the analytics team.
+
+**5. The patient_binge_drinking Table Is Missing PT_KEY**
+
+> The `patient_binge_drinking` table was delivered with only `INS_KEY` and no `PT_KEY`. Since insurance keys are not unique to individual patients, 81 insurance keys in this dataset are shared by more than one person, it is impossible to reliably link binge drinking data to a specific patient. This forced us to drop 41 affected records (final dataset contains 99,919 of the original 100,000 rows), and risks misattributing sensitive behavioral health data to the wrong individual.
+
+> *Recommendation:* `PT_KEY` should be included in the `patient_binge_drinking` table, consistent with the structure of all other tables in the database. All patient-level tables should be anchored to the unique patient identifier to ensure accurate and unambiguous merging.
+
+
+**6. PUBLIC_INS Field Was Lost in Final Merge**
+
+> Our final dataset contains 14 variables rather than the expected 15. The `PUBLIC_INS` field from the `patient_insurance` table appears to have been dropped somewhere in the merging process, despite being present in intermediate tables. This represents a data loss issue that could affect downstream analyses of insurance status.
+
+> *Recommendation:* Please verify that `PUBLIC_INS` is correctly linked to patient records in the database and confirm the expected table structure so that future merges can be validated more easily.
+
+
+**7. Duplicate Insurance Keys Require Clarification**
+
+> We identified 81 duplicate `INS_KEY` values in the `patient_insurance` table. While this may reflect legitimate shared family insurance policies, it was not documented and created ambiguity during merging.
+
+> *Recommendation:* Please confirm whether duplicate insurance keys are expected and document this explicitly in the data dictionary. If they represent data entry errors, they should be corrected. If legitimate, the data dictionary should clearly note that `INS_KEY` is not a unique patient identifier.
+
+
+**8. HIPAA Compliance and Re-identification Risk**
+
+> Even after removing direct identifiers, the combination of ZIP code, age, disability status, and other variables in this dataset creates meaningful re-identification risk, particularly for patients in small geographic areas. For example, our analysis identified only 12 patients in Wetumpka, Alabama and 13 in Nashua, New Hampshire which are group sizes far too small for safe reporting at that geographic level.
+
+> *Recommendation:* Before sharing any reports with stakeholders, data should be aggregated to the state level rather than ZIP code, and exact ages should be replaced with age brackets (e.g., 18–30, 31–45, 46–60, 61+). Any cell counts below a minimum threshold of n=20 should be suppressed in reporting to prevent re-identification, in accordance with HIPAA Safe Harbor de-identification standards.
+
+**Closing**
+
+> We appreciate the team's efforts in providing this data pull and recognize that many of these issues reflect upstream decisions that may not have been made with an analytics use case in mind. Our goal is to work collaboratively to ensure that future data pulls are clean, compliant, and fit for purpose. We are happy to meet to discuss any of these recommendations in further detail.
+
